@@ -3,7 +3,7 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
-RUN npx vite build
+RUN npm run build
 
 FROM golang:1.23-alpine AS backend
 WORKDIR /app

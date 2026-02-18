@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 type DAG struct {
 	nodes     map[string]*NodeDefinition
@@ -68,17 +71,20 @@ func (d *DAG) topoSort() ([]string, error) {
 			queue = append(queue, id)
 		}
 	}
+	sort.Strings(queue)
 	var order []string
 	for len(queue) > 0 {
 		node := queue[0]
 		queue = queue[1:]
 		order = append(order, node)
-		for _, c := range d.children[node] {
+		children := d.children[node]
+		for _, c := range children {
 			inDegree[c]--
 			if inDegree[c] == 0 {
 				queue = append(queue, c)
 			}
 		}
+		sort.Strings(queue)
 	}
 	if len(order) != len(d.nodes) {
 		return nil, fmt.Errorf("cycle detected in workflow graph (excluding back-edges)")

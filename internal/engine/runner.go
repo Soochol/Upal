@@ -97,7 +97,8 @@ func (r *Runner) Run(ctx context.Context, wf *WorkflowDefinition, executors map[
 
 	if execErr != nil {
 		r.sessions.SetStatus(sess.ID, SessionFailed)
-		return nil, execErr
+		finalSess, _ := r.sessions.Get(sess.ID)
+		return finalSess, execErr
 	}
 	r.sessions.SetStatus(sess.ID, SessionCompleted)
 	finalSess, _ := r.sessions.Get(sess.ID)

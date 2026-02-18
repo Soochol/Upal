@@ -1,7 +1,7 @@
 .PHONY: build run test dev build-frontend dev-frontend dev-backend
 
 build-frontend:
-	cd web && npx vite build
+	cd web && npm run build
 
 build: build-frontend
 	go build -o bin/upal ./cmd/upal

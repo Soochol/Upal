@@ -109,10 +109,18 @@ var templatePattern = regexp.MustCompile(`\{\{(\w+(?:\.\w+)*)\}\}`)
 func resolveTemplate(template string, state map[string]any) string {
 	return templatePattern.ReplaceAllStringFunc(template, func(match string) string {
 		key := strings.Trim(match, "{}")
-		parts := strings.SplitN(key, ".", 2)
-		if val, ok := state[parts[0]]; ok {
-			return fmt.Sprintf("%v", val)
+		parts := strings.Split(key, ".")
+		var current any = state
+		for _, part := range parts {
+			m, ok := current.(map[string]any)
+			if !ok {
+				return match
+			}
+			current, ok = m[part]
+			if !ok {
+				return match
+			}
 		}
-		return match
+		return fmt.Sprintf("%v", current)
 	})
 }

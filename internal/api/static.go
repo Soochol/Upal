@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"io/fs"
 	"net/http"
 	"os"
@@ -24,7 +25,7 @@ func StaticHandler(dir string) http.Handler {
 func StaticHandlerFS(fsys fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := fs.Stat(fsys, r.URL.Path[1:]); os.IsNotExist(err) {
+		if _, err := fs.Stat(fsys, r.URL.Path[1:]); errors.Is(err, fs.ErrNotExist) {
 			r.URL.Path = "/"
 		}
 		fileServer.ServeHTTP(w, r)

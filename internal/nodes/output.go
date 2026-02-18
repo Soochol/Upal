@@ -3,6 +3,7 @@ package nodes
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/soochol/upal/internal/engine"
@@ -11,12 +12,19 @@ import (
 type OutputNode struct{}
 
 func (n *OutputNode) Execute(ctx context.Context, def *engine.NodeDefinition, state map[string]any) (any, error) {
-	var parts []string
-	for key, val := range state {
+	// Collect non-internal keys and sort for deterministic output
+	var keys []string
+	for key := range state {
 		if strings.HasPrefix(key, "__") {
 			continue
 		}
-		if s, ok := val.(string); ok && s != "" {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, key := range keys {
+		if s, ok := state[key].(string); ok && s != "" {
 			parts = append(parts, s)
 		}
 	}
