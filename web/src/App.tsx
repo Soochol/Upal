@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Canvas } from './components/editor/Canvas'
 import { Console } from './components/console/Console'
+import { RunDialog } from './components/dialogs/RunDialog'
 import { useWorkflowStore } from './stores/workflowStore'
 import { serializeWorkflow } from './lib/serializer'
 import { saveWorkflow, runWorkflow } from './lib/api'
@@ -47,12 +48,6 @@ function App() {
 
   const handleRun = () => {
     if (isRunning) return
-    const inputNodes = nodes.filter((n) => n.data.nodeType === 'input')
-    if (inputNodes.length === 0) {
-      // No input nodes -- run directly with empty inputs
-      executeRun({})
-      return
-    }
     setShowRunDialog(true)
   }
 
@@ -164,52 +159,6 @@ function App() {
           onCancel={() => setShowRunDialog(false)}
         />
       )}
-    </div>
-  )
-}
-
-// Inline RunDialog placeholder -- will be extracted to its own file in Task 6
-function RunDialog({
-  inputNodes,
-  onRun,
-  onCancel,
-}: {
-  inputNodes: Array<{ id: string; label: string }>
-  onRun: (inputs: Record<string, string>) => void
-  onCancel: () => void
-}) {
-  const [inputs, setInputs] = useState<Record<string, string>>({})
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-lg">
-        <h2 className="text-lg font-bold mb-4">Run Workflow</h2>
-        {inputNodes.map((node) => (
-          <div key={node.id} className="mb-3">
-            <label className="text-sm text-zinc-400 block mb-1">{node.label}</label>
-            <textarea
-              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500 resize-y min-h-[60px]"
-              value={inputs[node.id] ?? ''}
-              onChange={(e) => setInputs({ ...inputs, [node.id]: e.target.value })}
-              placeholder={`Enter value for ${node.label}...`}
-            />
-          </div>
-        ))}
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-1.5 bg-zinc-700 rounded text-sm hover:bg-zinc-600"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onRun(inputs)}
-            className="px-4 py-1.5 bg-green-600 rounded text-sm hover:bg-green-700"
-          >
-            Run
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
