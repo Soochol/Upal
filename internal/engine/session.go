@@ -35,6 +35,21 @@ func (m *SessionManager) Get(id string) (*Session, bool) {
 	return s, ok
 }
 
+// GetStateCopy returns a snapshot copy of the session state, safe for concurrent use.
+func (m *SessionManager) GetStateCopy(sessionID string) map[string]any {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.sessions[sessionID]
+	if !ok {
+		return make(map[string]any)
+	}
+	cp := make(map[string]any, len(s.State))
+	for k, v := range s.State {
+		cp[k] = v
+	}
+	return cp
+}
+
 func (m *SessionManager) SetState(sessionID, key string, value any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
