@@ -16,6 +16,11 @@ export type NodeData = {
   config: Record<string, unknown>
 }
 
+export type RunEvent = {
+  type: string
+  data: Record<string, unknown>
+}
+
 type WorkflowState = {
   nodes: Node<NodeData>[]
   edges: Edge[]
@@ -27,6 +32,17 @@ type WorkflowState = {
   updateNodeLabel: (nodeId: string, label: string) => void
   selectedNodeId: string | null
   selectNode: (id: string | null) => void
+
+  // Workflow identity
+  workflowName: string
+  setWorkflowName: (name: string) => void
+
+  // Execution state
+  isRunning: boolean
+  setIsRunning: (running: boolean) => void
+  runEvents: RunEvent[]
+  addRunEvent: (event: RunEvent) => void
+  clearRunEvents: () => void
 }
 
 let nodeId = 0
@@ -36,6 +52,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+
+  // Workflow identity
+  workflowName: '',
+
+  // Execution state
+  isRunning: false,
+  runEvents: [],
+
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })
   },
@@ -83,5 +107,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
   selectNode: (id) => {
     set({ selectedNodeId: id })
+  },
+  setWorkflowName: (name) => {
+    set({ workflowName: name })
+  },
+  setIsRunning: (running) => {
+    set({ isRunning: running })
+  },
+  addRunEvent: (event) => {
+    set({ runEvents: [...get().runEvents, event] })
+  },
+  clearRunEvents: () => {
+    set({ runEvents: [] })
   },
 }))

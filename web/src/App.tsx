@@ -1,8 +1,21 @@
+import { useState } from 'react'
 import { Canvas } from './components/editor/Canvas'
 import { useWorkflowStore } from './stores/workflowStore'
+import { serializeWorkflow } from './lib/serializer'
+import { saveWorkflow, runWorkflow } from './lib/api'
 
 function App() {
   const addNode = useWorkflowStore((s) => s.addNode)
+  const nodes = useWorkflowStore((s) => s.nodes)
+  const edges = useWorkflowStore((s) => s.edges)
+  const workflowName = useWorkflowStore((s) => s.workflowName)
+  const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
+  const isRunning = useWorkflowStore((s) => s.isRunning)
+  const setIsRunning = useWorkflowStore((s) => s.setIsRunning)
+  const addRunEvent = useWorkflowStore((s) => s.addRunEvent)
+  const clearRunEvents = useWorkflowStore((s) => s.clearRunEvents)
+
+  const [showRunDialog, setShowRunDialog] = useState(false)
 
   const handleAddNode = (type: 'input' | 'agent' | 'tool' | 'output') => {
     addNode(type, {
@@ -11,14 +24,97 @@ function App() {
     })
   }
 
+  const handleSave = async () => {
+    let name = workflowName
+    if (!name) {
+      const input = window.prompt('Workflow name:')
+      if (!input) return
+      name = input
+      setWorkflowName(name)
+    }
+    try {
+      const wf = serializeWorkflow(name, nodes, edges)
+      await saveWorkflow(wf)
+      addRunEvent({ type: 'info', data: { message: `Workflow "${name}" saved.` } })
+    } catch (err) {
+      addRunEvent({
+        type: 'error',
+        data: { message: `Save failed: ${err instanceof Error ? err.message : String(err)}` },
+      })
+    }
+  }
+
+  const handleRun = () => {
+    if (isRunning) return
+    const inputNodes = nodes.filter((n) => n.data.nodeType === 'input')
+    if (inputNodes.length === 0) {
+      // No input nodes -- run directly with empty inputs
+      executeRun({})
+      return
+    }
+    setShowRunDialog(true)
+  }
+
+  const executeRun = async (inputs: Record<string, string>) => {
+    let name = workflowName
+    if (!name) {
+      const input = window.prompt('Workflow name:')
+      if (!input) return
+      name = input
+      setWorkflowName(name)
+    }
+
+    clearRunEvents()
+    setIsRunning(true)
+    addRunEvent({ type: 'info', data: { message: `Running workflow "${name}"...` } })
+
+    await runWorkflow(
+      name,
+      inputs,
+      (event) => {
+        addRunEvent(event)
+      },
+      (result) => {
+        addRunEvent({ type: 'done', data: result })
+        setIsRunning(false)
+      },
+      (error) => {
+        addRunEvent({ type: 'error', data: { message: error.message } })
+        setIsRunning(false)
+      },
+    )
+  }
+
+  const inputNodes = nodes
+    .filter((n) => n.data.nodeType === 'input')
+    .map((n) => ({ id: n.id, label: n.data.label }))
+
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-        <h1 className="text-lg font-bold">Upal</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold">Upal</h1>
+          <input
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 w-48 focus:outline-none focus:border-zinc-500"
+            placeholder="Workflow name..."
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+          />
+        </div>
         <div className="flex gap-2">
-          <button className="px-3 py-1 bg-green-600 rounded text-sm hover:bg-green-700">
-            {'\u25B6'} Run
+          <button
+            onClick={handleSave}
+            className="px-3 py-1 bg-zinc-700 rounded text-sm hover:bg-zinc-600"
+          >
+            Save
+          </button>
+          <button
+            onClick={handleRun}
+            disabled={isRunning}
+            className={`px-3 py-1 rounded text-sm ${isRunning ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+          >
+            {isRunning ? 'Running...' : '\u25B6 Run'}
           </button>
         </div>
       </header>
@@ -58,6 +154,64 @@ function App() {
           Ready. Add nodes and connect them to build a workflow.
         </p>
       </footer>
+
+      {/* Run Dialog */}
+      {showRunDialog && (
+        <RunDialog
+          inputNodes={inputNodes}
+          onRun={(inputs) => {
+            setShowRunDialog(false)
+            executeRun(inputs)
+          }}
+          onCancel={() => setShowRunDialog(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Inline RunDialog placeholder -- will be extracted to its own file in Task 6
+function RunDialog({
+  inputNodes,
+  onRun,
+  onCancel,
+}: {
+  inputNodes: Array<{ id: string; label: string }>
+  onRun: (inputs: Record<string, string>) => void
+  onCancel: () => void
+}) {
+  const [inputs, setInputs] = useState<Record<string, string>>({})
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-lg">
+        <h2 className="text-lg font-bold mb-4">Run Workflow</h2>
+        {inputNodes.map((node) => (
+          <div key={node.id} className="mb-3">
+            <label className="text-sm text-zinc-400 block mb-1">{node.label}</label>
+            <textarea
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500 resize-y min-h-[60px]"
+              value={inputs[node.id] ?? ''}
+              onChange={(e) => setInputs({ ...inputs, [node.id]: e.target.value })}
+              placeholder={`Enter value for ${node.label}...`}
+            />
+          </div>
+        ))}
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onCancel}
+            className="px-4 py-1.5 bg-zinc-700 rounded text-sm hover:bg-zinc-600"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onRun(inputs)}
+            className="px-4 py-1.5 bg-green-600 rounded text-sm hover:bg-green-700"
+          >
+            Run
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
