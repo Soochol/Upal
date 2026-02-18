@@ -1,4 +1,16 @@
 services:
+  upal:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://upal:upal@postgres:5432/upal?sslmode=disable"
+    volumes:
+      - ./config.yaml:/config.yaml
+
   postgres:
     image: postgres:17
     environment:
