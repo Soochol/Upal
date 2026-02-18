@@ -38,5 +38,9 @@ func (s *Server) Handler() http.Handler {
 			r.Delete("/{name}", s.deleteWorkflow)
 		})
 	})
+
+	// Serve static files (frontend)
+	r.Handle("/*", StaticHandler("web/dist"))
+
 	return r
 }

@@ -1,13 +1,19 @@
-.PHONY: build run test dev dev-frontend dev-backend
+.PHONY: build run test dev build-frontend dev-frontend dev-backend
 
-build:
+build-frontend:
+	cd web && npx vite build
+
+build: build-frontend
 	go build -o bin/upal ./cmd/upal
 
 run: build
-	./bin/upal
+	./bin/upal serve
 
 test:
 	go test ./... -v -race
+
+test-frontend:
+	cd web && npx tsc -b
 
 dev-frontend:
 	cd web && npm run dev
