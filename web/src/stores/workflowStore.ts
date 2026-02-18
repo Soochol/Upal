@@ -23,6 +23,10 @@ type WorkflowState = {
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
   addNode: (type: NodeData['nodeType'], position: { x: number; y: number }) => void
+  updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
+  updateNodeLabel: (nodeId: string, label: string) => void
+  selectedNodeId: string | null
+  selectNode: (id: string | null) => void
 }
 
 let nodeId = 0
@@ -31,6 +35,7 @@ const getId = () => `node_${++nodeId}`
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
+  selectedNodeId: null,
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })
   },
@@ -59,5 +64,24 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       },
     }
     set({ nodes: [...get().nodes, newNode] })
+  },
+  updateNodeConfig: (nodeId, config) => {
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, config: { ...n.data.config, ...config } } }
+          : n,
+      ),
+    })
+  },
+  updateNodeLabel: (nodeId, label) => {
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, label } } : n,
+      ),
+    })
+  },
+  selectNode: (id) => {
+    set({ selectedNodeId: id })
   },
 }))

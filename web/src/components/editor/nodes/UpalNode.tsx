@@ -1,5 +1,7 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
+import { useWorkflowStore } from '../../../stores/workflowStore'
 import type { NodeData } from '../../../stores/workflowStore'
+import { NodeEditor } from './NodeEditor'
 
 const colorMap: Record<string, string> = {
   input: 'border-yellow-500 bg-yellow-500/10',
@@ -15,16 +17,26 @@ const iconMap: Record<string, string> = {
   output: '\u{1F7E2}',
 }
 
-export function UpalNode({ data }: NodeProps<Node<NodeData>>) {
+export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
+  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
+  const selectNode = useWorkflowStore((s) => s.selectNode)
+  const isSelected = selectedNodeId === id
+
+  const handleClick = () => {
+    selectNode(isSelected ? null : id)
+  }
+
   return (
     <div
-      className={`rounded-lg border-2 px-4 py-3 min-w-[200px] ${colorMap[data.nodeType] || 'border-zinc-600'}`}
+      className={`rounded-lg border-2 px-4 py-3 min-w-[200px] cursor-pointer ${colorMap[data.nodeType] || 'border-zinc-600'} ${isSelected ? 'ring-2 ring-zinc-400/50' : ''}`}
+      onClick={handleClick}
     >
       <Handle type="target" position={Position.Top} className="!bg-zinc-400" />
       <div className="flex items-center gap-2">
         <span>{iconMap[data.nodeType]}</span>
         <span className="font-medium text-zinc-100">{data.label}</span>
       </div>
+      {isSelected && <NodeEditor nodeId={id} data={data} />}
       <Handle type="source" position={Position.Bottom} className="!bg-zinc-400" />
     </div>
   )
