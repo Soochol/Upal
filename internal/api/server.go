@@ -13,10 +13,18 @@ type Server struct {
 	eventBus  *engine.EventBus
 	sessions  *engine.SessionManager
 	workflows *WorkflowStore
+	runner    *engine.Runner
+	executors map[engine.NodeType]engine.NodeExecutorInterface
 }
 
-func NewServer(eventBus *engine.EventBus, sessions *engine.SessionManager) *Server {
-	return &Server{eventBus: eventBus, sessions: sessions, workflows: NewWorkflowStore()}
+func NewServer(eventBus *engine.EventBus, sessions *engine.SessionManager, runner *engine.Runner, executors map[engine.NodeType]engine.NodeExecutorInterface) *Server {
+	return &Server{
+		eventBus:  eventBus,
+		sessions:  sessions,
+		workflows: NewWorkflowStore(),
+		runner:    runner,
+		executors: executors,
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -36,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/{name}", s.getWorkflow)
 			r.Put("/{name}", s.updateWorkflow)
 			r.Delete("/{name}", s.deleteWorkflow)
+			r.Post("/{name}/run", s.runWorkflow)
 		})
 	})
 
