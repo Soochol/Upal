@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Canvas } from './components/editor/Canvas'
+import { Console } from './components/console/Console'
 import { useWorkflowStore } from './stores/workflowStore'
 import { serializeWorkflow } from './lib/serializer'
 import { saveWorkflow, runWorkflow } from './lib/api'
@@ -149,10 +150,7 @@ function App() {
 
       {/* Console */}
       <footer className="h-32 border-t border-zinc-800 p-3 overflow-y-auto">
-        <p className="text-xs text-zinc-500 uppercase font-medium">Console</p>
-        <p className="text-sm text-zinc-600 mt-1">
-          Ready. Add nodes and connect them to build a workflow.
-        </p>
+        <Console />
       </footer>
 
       {/* Run Dialog */}
