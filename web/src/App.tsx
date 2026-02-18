@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Canvas } from './components/editor/Canvas'
 import { Console } from './components/console/Console'
 import { RunDialog } from './components/dialogs/RunDialog'
+import { NodeEditor } from './components/editor/nodes/NodeEditor'
 import { useWorkflowStore } from './stores/workflowStore'
 import { serializeWorkflow } from './lib/serializer'
 import { saveWorkflow, runWorkflow } from './lib/api'
@@ -17,7 +18,14 @@ function App() {
   const addRunEvent = useWorkflowStore((s) => s.addRunEvent)
   const clearRunEvents = useWorkflowStore((s) => s.clearRunEvents)
 
+  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
+  const selectNode = useWorkflowStore((s) => s.selectNode)
+
   const [showRunDialog, setShowRunDialog] = useState(false)
+
+  const selectedNode = selectedNodeId
+    ? nodes.find((n) => n.id === selectedNodeId)
+    : null
 
   const handleAddNode = (type: 'input' | 'agent' | 'tool' | 'output') => {
     addNode(type, {
@@ -141,6 +149,24 @@ function App() {
         <main className="flex-1">
           <Canvas />
         </main>
+
+        {/* Right Panel — Node Properties */}
+        {selectedNode && (
+          <aside className="w-72 border-l border-zinc-800 p-4 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-zinc-500 uppercase font-medium">
+                Properties
+              </p>
+              <button
+                onClick={() => selectNode(null)}
+                className="text-zinc-500 hover:text-zinc-300 text-sm"
+              >
+                &times;
+              </button>
+            </div>
+            <NodeEditor nodeId={selectedNode.id} data={selectedNode.data} />
+          </aside>
+        )}
       </div>
 
       {/* Console */}

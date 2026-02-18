@@ -1,7 +1,6 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
 import { useWorkflowStore } from '../../../stores/workflowStore'
 import type { NodeData } from '../../../stores/workflowStore'
-import { NodeEditor } from './NodeEditor'
 
 const colorMap: Record<string, string> = {
   input: 'border-yellow-500 bg-yellow-500/10',
@@ -36,7 +35,6 @@ export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
         <span>{iconMap[data.nodeType]}</span>
         <span className="font-medium text-zinc-100">{data.label}</span>
       </div>
-      {isSelected && <NodeEditor nodeId={id} data={data} />}
       <Handle type="source" position={Position.Bottom} className="!bg-zinc-400" />
     </div>
   )

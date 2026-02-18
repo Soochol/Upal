@@ -23,10 +23,7 @@ export function NodeEditor({ nodeId, data }: NodeEditorProps) {
   }
 
   return (
-    <div
-      className="mt-2 pt-2 border-t border-zinc-700/50 flex flex-col gap-0.5"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="flex flex-col gap-0.5">
       {/* Label field -- shared by all node types */}
       <label className={labelClass}>Label</label>
       <input
