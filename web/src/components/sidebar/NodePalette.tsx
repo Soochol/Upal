@@ -1,4 +1,4 @@
-import { Inbox, Bot, Wrench, ArrowRightFromLine } from 'lucide-react'
+import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-type NodeType = 'input' | 'agent' | 'tool' | 'output'
+type NodeType = 'input' | 'agent' | 'tool' | 'output' | 'external'
 
 const paletteItems = [
   {
@@ -42,6 +42,14 @@ const paletteItems = [
     icon: ArrowRightFromLine,
     colorClass:
       'bg-node-output/15 text-node-output border-node-output/30 hover:bg-node-output/25',
+  },
+  {
+    type: 'external' as NodeType,
+    label: 'External',
+    description: 'External A2A-compatible agent',
+    icon: Globe,
+    colorClass:
+      'bg-purple-500/15 text-purple-500 border-purple-500/30 hover:bg-purple-500/25',
   },
 ]
 

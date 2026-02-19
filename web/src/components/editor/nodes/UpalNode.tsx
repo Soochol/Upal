@@ -1,6 +1,6 @@
 import { type ComponentType } from 'react'
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
-import { Inbox, Bot, Wrench, ArrowRightFromLine, Loader2, Check, X } from 'lucide-react'
+import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe, Loader2, Check, X } from 'lucide-react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import type { NodeData, NodeRunStatus } from '@/stores/workflowStore'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ const iconMap: Record<string, ComponentType<{ className?: string }>> = {
   agent: Bot,
   tool: Wrench,
   output: ArrowRightFromLine,
+  external: Globe,
 }
 
 const colorMap: Record<string, string> = {
@@ -17,6 +18,7 @@ const colorMap: Record<string, string> = {
   agent: 'border-node-agent/50 bg-node-agent/10',
   tool: 'border-node-tool/50 bg-node-tool/10',
   output: 'border-node-output/50 bg-node-output/10',
+  external: 'border-purple-500/50 bg-purple-500/10',
 }
 
 const accentMap: Record<string, string> = {
@@ -24,6 +26,7 @@ const accentMap: Record<string, string> = {
   agent: 'bg-node-agent text-node-agent-foreground',
   tool: 'bg-node-tool text-node-tool-foreground',
   output: 'bg-node-output text-node-output-foreground',
+  external: 'bg-purple-500 text-white',
 }
 
 const glowMap: Record<string, string> = {
@@ -31,6 +34,7 @@ const glowMap: Record<string, string> = {
   agent: 'shadow-[0_0_16px_oklch(0.588_0.158_241.966/0.4)]',
   tool: 'shadow-[0_0_16px_oklch(0.637_0.237_25.331/0.4)]',
   output: 'shadow-[0_0_16px_oklch(0.648_0.2_142.495/0.4)]',
+  external: 'shadow-[0_0_16px_oklch(0.553_0.235_303.4/0.4)]',
 }
 
 const statusConfig: Record<

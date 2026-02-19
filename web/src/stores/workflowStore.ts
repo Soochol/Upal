@@ -13,7 +13,7 @@ import { getLayoutedElements } from '@/lib/layout'
 
 export type NodeData = {
   label: string
-  nodeType: 'input' | 'agent' | 'tool' | 'output'
+  nodeType: 'input' | 'agent' | 'tool' | 'output' | 'external'
   description: string
   config: Record<string, unknown>
 }
@@ -89,12 +89,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       agent: 'Agent',
       tool: 'Tool',
       output: 'Output',
+      external: 'External Agent',
     }
     const descriptions: Record<string, string> = {
       input: 'User-provided data entry point',
       agent: 'AI model processing step',
       tool: 'External tool or function call',
       output: 'Workflow result endpoint',
+      external: 'External A2A-compatible agent',
     }
     const newNode: Node<NodeData> = {
       id,

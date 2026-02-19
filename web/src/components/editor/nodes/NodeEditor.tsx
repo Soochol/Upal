@@ -5,13 +5,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { X, Inbox, Bot, Wrench, ArrowRightFromLine } from 'lucide-react'
+import { X, Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   input: Inbox,
   agent: Bot,
   tool: Wrench,
   output: ArrowRightFromLine,
+  external: Globe,
 }
 
 type NodeEditorProps = {
@@ -126,6 +127,31 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
               value={(config.tool_name as string) ?? ''}
               placeholder="web_search"
               onChange={(e) => setConfig('tool_name', e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      {data.nodeType === 'external' && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="node-endpoint-url">Endpoint URL</Label>
+            <Input
+              id="node-endpoint-url"
+              value={(config.endpoint_url as string) ?? ''}
+              placeholder="https://agent.example.com/a2a"
+              onChange={(e) => setConfig('endpoint_url', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="node-timeout">Timeout (seconds)</Label>
+            <Input
+              id="node-timeout"
+              type="number"
+              min={1}
+              value={(config.timeout as number) ?? 30}
+              onChange={(e) => setConfig('timeout', parseInt(e.target.value) || 30)}
             />
           </div>
         </>
