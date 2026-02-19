@@ -176,6 +176,10 @@
   border-radius: var(--radius);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -195,4 +199,39 @@ body {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ─── Dashboard / Landing ─── */
+
+.landing-display {
+  font-family: 'Syne', sans-serif;
+}
+
+.landing-body {
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Nav blur */
+.landing-nav {
+  backdrop-filter: blur(16px) saturate(180%);
+  background: oklch(0.16 0.015 260 / 80%);
+}
+
+/* ── TipTap Prompt Editor ── */
+
+.prompt-editor-content p {
+  margin: 0;
+}
+
+.prompt-editor-content .is-empty::before {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.mention-pill-wrapper {
+  display: inline;
 }
