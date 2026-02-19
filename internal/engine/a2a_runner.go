@@ -86,7 +86,28 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 			})
 
 			allArtifacts := r.sessions.GetAllArtifacts(sess.ID)
-			messageText := buildMessageText(nodeID, allArtifacts, dag)
+
+			// Build combined artifact map with user input aliases.
+			// User inputs are aliased so {{input1}} resolves to __user_input__input1.
+			combinedArtifacts := make(map[string][]a2atypes.Artifact, len(allArtifacts))
+			for k, v := range allArtifacts {
+				combinedArtifacts[k] = v
+			}
+			for k, v := range allArtifacts {
+				if strings.HasPrefix(k, "__user_input__") {
+					alias := strings.TrimPrefix(k, "__user_input__")
+					combinedArtifacts[alias] = v
+				}
+			}
+
+			// Check for prompt template in node config
+			nodeDef := dag.Node(nodeID)
+			var messageText string
+			if prompt, ok := nodeDef.Config["prompt"].(string); ok && prompt != "" {
+				messageText = a2atypes.ResolveTemplate(prompt, combinedArtifacts)
+			} else {
+				messageText = buildMessageText(nodeID, allArtifacts, dag)
+			}
 			if messageText == "" {
 				messageText = fmt.Sprintf("Execute node %s", nodeID)
 			}

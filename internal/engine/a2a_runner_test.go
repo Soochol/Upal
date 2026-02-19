@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/soochol/upal/internal/a2aclient"
+	"github.com/soochol/upal/internal/a2atypes"
 )
 
 func TestA2ARunner_LinearChain(t *testing.T) {
@@ -258,5 +259,64 @@ func TestA2ARunner_ErrorCancelsDownstream(t *testing.T) {
 	}
 	if cExecuted {
 		t.Error("node c should NOT have executed after b failed")
+	}
+}
+
+func TestA2ARunner_TemplateResolution(t *testing.T) {
+	wf := &WorkflowDefinition{
+		Name: "template-test",
+		Nodes: []NodeDefinition{
+			{ID: "input1", Type: NodeTypeInput},
+			{ID: "agent1", Type: NodeTypeAgent, Config: map[string]any{
+				"prompt": "Summarize: {{input1}}",
+			}},
+		},
+		Edges: []EdgeDefinition{{From: "input1", To: "agent1"}},
+	}
+
+	var receivedMessage string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var req a2atypes.JSONRPCRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		// Extract message text from params
+		paramsData, _ := json.Marshal(req.Params)
+		var params a2atypes.SendMessageParams
+		json.Unmarshal(paramsData, &params)
+		for _, p := range params.Message.Parts {
+			if p.Type == "text" {
+				receivedMessage = p.Text
+				break
+			}
+		}
+
+		task := a2atypes.Task{
+			ID: "task-1", Status: a2atypes.TaskCompleted,
+			Artifacts: []a2atypes.Artifact{{
+				Parts: []a2atypes.Part{a2atypes.TextPart("summary output")},
+				Index: 0,
+			}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(a2atypes.JSONRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: task})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := a2aclient.NewClient(http.DefaultClient)
+	runner := NewA2ARunner(NewEventBus(), NewSessionManager(), client)
+	nodeURLs := map[string]string{
+		"input1": server.URL + "/a2a/nodes/input1",
+		"agent1": server.URL + "/a2a/nodes/agent1",
+	}
+	_, err := runner.Run(context.Background(), wf, nodeURLs, map[string]any{"input1": "hello world"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// The agent node's prompt should have been resolved with input1's artifact text
+	expected := "Summarize: hello world"
+	if receivedMessage != expected {
+		t.Errorf("message: got %q, want %q", receivedMessage, expected)
 	}
 }
