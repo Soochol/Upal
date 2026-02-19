@@ -53,29 +53,3 @@ func MountA2ARoutes(r chi.Router, nodes []*engine.NodeDefinition, executors map[
 	})
 }
 
-// MountStaticA2ARoutes registers placeholder A2A routes on the main server
-// when no workflow is loaded. It provides:
-//   - GET  /a2a/agent-card       — basic Upal agent card (no skills)
-//   - POST /a2a/nodes/{nodeID}   — JSON-RPC error: node not registered
-//   - GET  /a2a/nodes/{nodeID}/agent-card — 404
-func MountStaticA2ARoutes(r chi.Router, executors map[engine.NodeType]engine.NodeExecutorInterface, baseURL string) {
-	r.Route("/a2a", func(r chi.Router) {
-		r.Get("/agent-card", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(a2atypes.AgentCard{
-				Name:               "upal",
-				Description:        "Upal visual AI workflow platform",
-				URL:                baseURL + "/a2a",
-				Capabilities:       a2atypes.Capabilities{Streaming: false, PushNotifications: false},
-				DefaultInputModes:  []string{"text/plain"},
-				DefaultOutputModes: []string{"text/plain"},
-			})
-		})
-		r.Post("/nodes/{nodeID}", func(w http.ResponseWriter, r *http.Request) {
-			writeJSONRPCError(w, nil, -32601, "Node not registered. Start a workflow run first.")
-		})
-		r.Get("/nodes/{nodeID}/agent-card", func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "Node not registered", http.StatusNotFound)
-		})
-	})
-}
