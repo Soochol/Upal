@@ -4,10 +4,9 @@ import { useWorkflowStore } from '@/stores/workflowStore'
 type ShortcutHandlers = {
   onSave: () => void
   onRun: () => void
-  onGenerate: () => void
 }
 
-export function useKeyboardShortcuts({ onSave, onRun, onGenerate }: ShortcutHandlers) {
+export function useKeyboardShortcuts({ onSave, onRun }: ShortcutHandlers) {
   const selectNode = useWorkflowStore((s) => s.selectNode)
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
   const onNodesChange = useWorkflowStore((s) => s.onNodesChange)
@@ -33,13 +32,6 @@ export function useKeyboardShortcuts({ onSave, onRun, onGenerate }: ShortcutHand
         return
       }
 
-      // Ctrl/Cmd + G = Generate
-      if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
-        e.preventDefault()
-        onGenerate()
-        return
-      }
-
       // Skip the rest if user is in an input field
       if (isInput) return
 
@@ -59,5 +51,5 @@ export function useKeyboardShortcuts({ onSave, onRun, onGenerate }: ShortcutHand
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onSave, onRun, onGenerate, selectNode, selectedNodeId, onNodesChange])
+  }, [onSave, onRun, selectNode, selectedNodeId, onNodesChange])
 }

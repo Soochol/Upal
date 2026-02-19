@@ -1,17 +1,10 @@
 import { type ComponentType } from 'react'
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
-import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe, Loader2, Check, X } from 'lucide-react'
+import { Loader2, Check, X } from 'lucide-react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import type { NodeData, NodeRunStatus } from '@/stores/workflowStore'
 import { cn } from '@/lib/utils'
-
-const iconMap: Record<string, ComponentType<{ className?: string }>> = {
-  input: Inbox,
-  agent: Bot,
-  tool: Wrench,
-  output: ArrowRightFromLine,
-  external: Globe,
-}
+import { nodeIconMap } from '@/lib/nodeTypes'
 
 const colorMap: Record<string, string> = {
   input: 'border-node-input/50 bg-node-input/10',
@@ -53,11 +46,13 @@ export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
   const runStatus = useWorkflowStore((s) => s.nodeStatuses[id] ?? 'idle')
   const isSelected = selectedNodeId === id
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't override React Flow's multi-selection (Ctrl/Meta+click or Shift+click)
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return
     selectNode(isSelected ? null : id)
   }
 
-  const Icon = iconMap[data.nodeType]
+  const Icon = nodeIconMap[data.nodeType]
   const status = statusConfig[runStatus]
   const StatusIcon = status.icon
 

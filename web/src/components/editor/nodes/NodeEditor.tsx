@@ -15,17 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
+import { X } from 'lucide-react'
 import { listModels, type ModelInfo } from '@/lib/api'
 import { PromptEditor } from '@/components/editor/PromptEditor'
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  input: Inbox,
-  agent: Bot,
-  tool: Wrench,
-  output: ArrowRightFromLine,
-  external: Globe,
-}
+import { nodeIconMap } from '@/lib/nodeTypes'
 
 type NodeEditorProps = {
   nodeId: string
@@ -57,7 +50,7 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
     updateNodeConfig(nodeId, { [key]: value })
   }
 
-  const Icon = iconMap[data.nodeType]
+  const Icon = nodeIconMap[data.nodeType]
 
   const formContent = (
     <div className="p-2 space-y-3">

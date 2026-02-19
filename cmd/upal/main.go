@@ -38,35 +38,58 @@ func serve() {
 	}
 
 	llms := make(map[string]adkmodel.LLM)
-	var defaultLLM adkmodel.LLM
-	var defaultModelName string
+	providerTypes := make(map[string]string) // name → type
 
 	for name, pc := range cfg.Providers {
 		switch pc.Type {
 		case "anthropic":
 			llms[name] = upalmodel.NewAnthropicLLM(pc.APIKey)
-			if defaultLLM == nil {
-				defaultLLM = llms[name]
-				defaultModelName = "claude-sonnet-4-20250514"
-			}
 		case "gemini":
-			// Gemini's OpenAI-compatible endpoint requires /v1beta/openai suffix
 			geminiURL := strings.TrimRight(pc.URL, "/") + "/v1beta/openai"
 			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
 				upalmodel.WithOpenAIBaseURL(geminiURL),
 				upalmodel.WithOpenAIName(name))
-			if defaultLLM == nil {
-				defaultLLM = llms[name]
-				defaultModelName = "gemini-2.0-flash"
-			}
+		case "claude-code":
+			llms[name] = upalmodel.NewClaudeCodeLLM()
 		default:
 			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
 				upalmodel.WithOpenAIBaseURL(pc.URL),
 				upalmodel.WithOpenAIName(name))
-			if defaultLLM == nil {
+		}
+		providerTypes[name] = pc.Type
+	}
+
+	// Pick default LLM with deterministic priority order.
+	// claude-code first (no API key needed), then anthropic, gemini, others.
+	var defaultLLM adkmodel.LLM
+	var defaultModelName string
+	defaultPriority := []struct {
+		typ   string
+		model string
+	}{
+		{"claude-code", "sonnet"},
+		{"anthropic", "claude-sonnet-4-20250514"},
+		{"gemini", "gemini-2.0-flash"},
+		{"openai", "gpt-4o"},
+	}
+	for _, p := range defaultPriority {
+		for name, typ := range providerTypes {
+			if typ == p.typ {
 				defaultLLM = llms[name]
-				defaultModelName = "gpt-4o"
+				defaultModelName = p.model
+				break
 			}
+		}
+		if defaultLLM != nil {
+			break
+		}
+	}
+	// Fallback: pick any remaining provider.
+	if defaultLLM == nil {
+		for name := range llms {
+			defaultLLM = llms[name]
+			defaultModelName = "gpt-4o"
+			break
 		}
 	}
 

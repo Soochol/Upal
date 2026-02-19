@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
+import { Bot } from 'lucide-react'
+import { nodeIconMap } from '@/lib/nodeTypes'
 
 export type MentionItem = {
   id: string
@@ -14,14 +15,6 @@ export type MentionListRef = {
 type MentionListProps = {
   items: MentionItem[]
   command: (item: MentionItem) => void
-}
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  input: Inbox,
-  agent: Bot,
-  tool: Wrench,
-  output: ArrowRightFromLine,
-  external: Globe,
 }
 
 const colorMap: Record<string, string> = {
@@ -70,7 +63,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
     return (
       <div className="rounded-lg border border-border bg-popover shadow-md overflow-hidden min-w-[200px]">
         {items.map((item, index) => {
-          const Icon = iconMap[item.nodeType] || Bot
+          const Icon = nodeIconMap[item.nodeType] || Bot
           const color = colorMap[item.nodeType] || 'text-muted-foreground'
           return (
             <button

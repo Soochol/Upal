@@ -1,0 +1,10 @@
+[     367ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:35060)
+    at rO (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:36093)
+    at https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:118081
+    at ix (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:122953)
+    at ik (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:114741)
+    at https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:110728
+    at iu (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:110829)
+    at iX (https://reactflow.dev/_next/static/chunks/390ffd65-190805948e5b6aed.js:1:132932)
+    at MessagePort.w (https://reactflow.dev/_next/static/chunks/6759-9e3f59d14dded13e.js:1:38586)

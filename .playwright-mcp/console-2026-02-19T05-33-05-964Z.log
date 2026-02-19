@@ -1,0 +1,2 @@
+[  171197ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/pages/Landing.tsx?t=1771479357150:0
+[  171198ms] [ERROR] [vite] Failed to reload /src/pages/Landing.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:808

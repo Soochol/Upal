@@ -36,6 +36,11 @@ var knownModels = map[string][]string{
 		"gpt-4.1-mini",
 		"o3-mini",
 	},
+	"claude-code": {
+		"sonnet",
+		"opus",
+		"haiku",
+	},
 }
 
 func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {

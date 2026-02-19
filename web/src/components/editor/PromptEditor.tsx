@@ -6,20 +6,11 @@ import Mention from '@tiptap/extension-mention'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { SuggestionOptions, SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import type { JSONContent } from '@tiptap/core'
-import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { nodeIconMap } from '@/lib/nodeTypes'
 import { MentionList } from './MentionList'
 import type { MentionItem, MentionListRef } from './MentionList'
-
-// ── Icon and color maps for mention pills ──
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  input: Inbox,
-  agent: Bot,
-  tool: Wrench,
-  output: ArrowRightFromLine,
-  external: Globe,
-}
 
 const pillColorMap: Record<string, string> = {
   input: 'bg-node-input/15 text-node-input',
@@ -32,7 +23,7 @@ const pillColorMap: Record<string, string> = {
 // ── Mention pill rendered inside the editor ──
 
 function MentionPill({ node }: ReactNodeViewProps) {
-  const Icon = iconMap[node.attrs.nodeType as string] || Bot
+  const Icon = nodeIconMap[node.attrs.nodeType as string] || Bot
   const colors = pillColorMap[node.attrs.nodeType as string] || 'bg-muted text-muted-foreground'
   return (
     <NodeViewWrapper
@@ -197,6 +188,9 @@ export function PromptEditor({
   // Ref to prevent update loops
   const isExternalUpdate = useRef(false)
 
+  // Ref to track popup element for cleanup on unmount
+  const popupRef = useRef<HTMLDivElement | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -238,6 +232,7 @@ export function PromptEditor({
                   editor: props.editor,
                 })
                 popup = document.createElement('div')
+                popupRef.current = popup
                 popup.style.position = 'fixed'
                 popup.style.zIndex = '50'
                 document.body.appendChild(popup)
@@ -270,6 +265,7 @@ export function PromptEditor({
               onExit: () => {
                 popup?.remove()
                 component?.destroy()
+                popupRef.current = null
               },
             }
           },
@@ -295,10 +291,21 @@ export function PromptEditor({
     const current = serializeContent(editor.getJSON())
     if (current !== value) {
       isExternalUpdate.current = true
-      editor.commands.setContent(deserializeContent(value, nodeMap))
-      isExternalUpdate.current = false
+      try {
+        editor.commands.setContent(deserializeContent(value, nodeMap))
+      } finally {
+        isExternalUpdate.current = false
+      }
     }
   }, [value, editor, nodeMap])
+
+  // Clean up orphaned popup on unmount
+  useEffect(() => {
+    return () => {
+      popupRef.current?.remove()
+      popupRef.current = null
+    }
+  }, [])
 
   return (
     <div

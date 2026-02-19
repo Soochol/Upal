@@ -1,0 +1,11 @@
+[    5980ms] Error: [React Flow]: Seems like you have not used zustand provider as an ancestor. Help: https://reactflow.dev/error#001
+    at Je (http://localhost:8080/assets/index-CObk-4q9.js:12:145653)
+    at ek (http://localhost:8080/assets/index-CObk-4q9.js:17:59942)
+    at t8 (http://localhost:8080/assets/index-CObk-4q9.js:70:56384)
+    at Pf (http://localhost:8080/assets/index-CObk-4q9.js:8:48763)
+    at fd (http://localhost:8080/assets/index-CObk-4q9.js:8:71620)
+    at bv (http://localhost:8080/assets/index-CObk-4q9.js:8:82013)
+    at Fv (http://localhost:8080/assets/index-CObk-4q9.js:8:117849)
+    at c_ (http://localhost:8080/assets/index-CObk-4q9.js:8:116889)
+    at Dd (http://localhost:8080/assets/index-CObk-4q9.js:8:116719)
+    at Iv (http://localhost:8080/assets/index-CObk-4q9.js:8:113492)

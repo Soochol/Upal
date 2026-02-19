@@ -1,10 +1,39 @@
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 8081
 
 database:
   url: "postgres://upal:upal@localhost:5432/upal?sslmode=disable"
 
-providers: {}
+# AI Providers — uncomment and configure the ones you need.
+# Each provider name becomes the prefix for model IDs (e.g., "openai/gpt-4o").
+providers:
+  # OpenAI (also works for any OpenAI-compatible API like Ollama, LM Studio)
+  # openai:
+  #   type: openai
+  #   url: "https://api.openai.com/v1"
+  #   api_key: "sk-..."
+  #
+  # Ollama (local LLMs via OpenAI-compatible API)
+  ollama:
+    type: openai
+    url: "http://localhost:11434/v1"
+    api_key: ""
+  #
+  # Anthropic (Claude)
+  # anthropic:
+  #   type: anthropic
+  #   url: "https://api.anthropic.com"
+  #   api_key: "sk-ant-..."
+  #
+  # Claude Code (uses claude CLI subscription, no API key needed)
+  claude:
+    type: claude-code
+  #
+  # Google Gemini
+  gemini:
+    type: gemini
+    url: "https://generativelanguage.googleapis.com"
+    api_key: "AIzaSyAUerVuk-jjN_N3r3lx_r3kANcUHwgAoRQ"
 
 mcp_servers: {}

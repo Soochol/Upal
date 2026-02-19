@@ -1,4 +1,4 @@
-import { Play, Save, Sparkles } from "lucide-react";
+import { Play, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -10,7 +10,6 @@ type HeaderProps = {
   onWorkflowNameChange: (name: string) => void;
   onSave: () => void;
   onRun: () => void;
-  onGenerate: () => void;
   isRunning: boolean;
 };
 
@@ -19,7 +18,6 @@ export function Header({
   onWorkflowNameChange,
   onSave,
   onRun,
-  onGenerate,
   isRunning,
 }: HeaderProps) {
   return (
@@ -38,10 +36,6 @@ export function Header({
         />
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onGenerate}>
-          <Sparkles className="h-4 w-4 mr-1.5" />
-          Generate
-        </Button>
         <Button variant="outline" size="sm" onClick={onSave}>
           <Save className="h-4 w-4 mr-1.5" />
           Save

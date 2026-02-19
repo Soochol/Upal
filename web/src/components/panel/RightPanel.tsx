@@ -1,85 +1,210 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { NodeEditor } from '@/components/editor/nodes/NodeEditor'
-import { PanelConsole } from '@/components/panel/PanelConsole'
 import { PanelPreview } from '@/components/panel/PanelPreview'
+import { PanelLogs } from '@/components/panel/PanelLogs'
+import { PanelData } from '@/components/panel/PanelData'
+import { PanelChat } from '@/components/panel/PanelChat'
+import { GroupEditor } from '@/components/panel/GroupEditor'
+import { AIChatEditor } from '@/components/panel/AIChatEditor'
 import { Button } from '@/components/ui/button'
-import { X, Settings2, Terminal, Eye } from 'lucide-react'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { X, Settings2, ScrollText, Database, MessageSquare, Eye } from 'lucide-react'
 import type { NodeData } from '@/stores/workflowStore'
+import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {
-  selectedNode: { id: string; data: NodeData } | null
+  selectedNode: Node<NodeData> | null
   onCloseNode: () => void
 }
 
+const tabs = [
+  { value: 'properties', label: 'Properties', icon: Settings2 },
+  { value: 'logs', label: 'Logs', icon: ScrollText },
+  { value: 'data', label: 'Data', icon: Database },
+  { value: 'chat', label: 'Chat', icon: MessageSquare },
+  { value: 'preview', label: 'Preview', icon: Eye },
+] as const
+
+const DEFAULT_WIDTH = 512
+const MIN_WIDTH = 280
+const MAX_WIDTH = 800
+
 export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState('properties')
-  const isRunning = useWorkflowStore((s) => s.isRunning)
+  const [expanded, setExpanded] = useState(false)
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  const isResizing = useRef(false)
 
-  // Auto-switch to console when running starts
+  // Refs: read latest state inside effects without adding dependencies
+  const activeTabRef = useRef(activeTab)
+  activeTabRef.current = activeTab
+  const expandedRef = useRef(expanded)
+  expandedRef.current = expanded
+
+  // ── State machine: auto-expand / auto-collapse ──
+  // - Node selected  → expand (switch to Properties only if was collapsed)
+  // - Node deselected + on Properties → collapse
+  // - Node deselected + on Logs/Data/… → stay expanded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (isRunning) {
-      setActiveTab('console')
+    if (selectedNode) {
+      if (!expandedRef.current) {
+        setActiveTab('properties')
+      }
+      setExpanded(true)
+    } else if (activeTabRef.current === 'properties') {
+      setExpanded(false)
     }
-  }, [isRunning])
+  }, [selectedNode?.id])
 
+  // ── Resize drag ──
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizing.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return
+      const newWidth = window.innerWidth - e.clientX
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)))
+    }
+    const handleMouseUp = () => {
+      if (!isResizing.current) return
+      isResizing.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
+
+  const selectedNodeId = selectedNode?.id ?? null
+  const showAIChat = selectedNode && selectedNode.type !== 'groupNode'
+
+  // ── Collapsed: vertical icon strip (like VS Code activity bar) ──
+  if (!expanded) {
+    return (
+      <aside className="border-l border-border bg-background flex flex-col items-center pt-1.5 w-10 shrink-0">
+        <TooltipProvider>
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <Tooltip key={tab.value}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => {
+                      setActiveTab(tab.value)
+                      setExpanded(true)
+                    }}
+                    className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">{tab.label}</TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </TooltipProvider>
+      </aside>
+    )
+  }
+
+  // ── Expanded: full panel ──
   return (
-    <aside className="w-80 border-l border-border bg-background flex flex-col">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-        <div className="flex items-center justify-between border-b border-border px-2">
-          <TabsList className="h-10 bg-transparent p-0 gap-0">
-            <TabsTrigger
-              value="properties"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
-            >
-              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
-              Properties
-            </TabsTrigger>
-            <TabsTrigger
-              value="console"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
-            >
-              <Terminal className="h-3.5 w-3.5 mr-1.5" />
-              Console
-            </TabsTrigger>
-            <TabsTrigger
-              value="preview"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 text-xs"
-            >
-              <Eye className="h-3.5 w-3.5 mr-1.5" />
-              Preview
-            </TabsTrigger>
-          </TabsList>
+    <aside className="border-l border-border bg-background flex flex-col relative" style={{ width, maxWidth: '45%' }}>
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
+      />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
+        <div className="flex items-center justify-between border-b border-border px-1">
+          <TooltipProvider>
+            <TabsList className="h-10 bg-transparent p-0 gap-0">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                return (
+                  <Tooltip key={tab.value}>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger
+                        value={tab.value}
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2 py-2"
+                        onClick={() => {
+                          // Toggle: clicking the active tab collapses the panel
+                          if (activeTab === tab.value) setExpanded(false)
+                        }}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{tab.label}</TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </TabsList>
+          </TooltipProvider>
           {selectedNode && activeTab === 'properties' && (
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCloseNode}>
-              <X className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCloseNode}>
+              <X className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
 
-        <TabsContent value="properties" className="flex-1 overflow-y-auto mt-0">
-          {selectedNode ? (
+        {/* Properties: natural height so AI chat sits right below */}
+        <TabsContent value="properties" className="min-h-0 overflow-y-auto mt-0">
+          {selectedNode && selectedNode.type === 'groupNode' ? (
+            <GroupEditor groupId={selectedNode.id} data={selectedNode.data as NodeData} onClose={onCloseNode} />
+          ) : selectedNode ? (
             <NodeEditor
               nodeId={selectedNode.id}
-              data={selectedNode.data}
+              data={selectedNode.data as NodeData}
               onClose={onCloseNode}
               embedded
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground p-4">
+            <div className="flex items-center justify-center h-32 text-xs text-muted-foreground p-3">
               Select a node to edit its properties.
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="console" className="flex-1 overflow-hidden mt-0">
-          <PanelConsole />
+        {/* Other tabs: flex-1 to fill remaining space */}
+        <TabsContent value="logs" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PanelLogs selectedNodeId={selectedNodeId} />
         </TabsContent>
 
-        <TabsContent value="preview" className="flex-1 overflow-hidden mt-0">
+        <TabsContent value="data" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PanelData selectedNodeId={selectedNodeId} />
+        </TabsContent>
+
+        <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PanelChat selectedNodeId={selectedNodeId} />
+        </TabsContent>
+
+        <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
           <PanelPreview />
         </TabsContent>
+
+        {/* AI Assistant — pinned to bottom of panel */}
+        {showAIChat && (
+          <div className="mt-auto shrink-0 border-t border-border bg-background">
+            <AIChatEditor nodeId={selectedNode.id} data={selectedNode.data as NodeData} />
+          </div>
+        )}
       </Tabs>
     </aside>
   )
