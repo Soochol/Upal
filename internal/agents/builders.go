@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/soochol/upal/internal/llmutil"
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/agent"
@@ -232,15 +233,8 @@ func generateLayout(ctx agent.InvocationContext, userContent string, systemPromp
 		return "", fmt.Errorf("empty response from LLM")
 	}
 
-	var text string
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			text += p.Text
-		}
-	}
-
 	// Strip markdown code fences if present
-	text = strings.TrimSpace(text)
+	text := strings.TrimSpace(llmutil.ExtractText(resp))
 	text = strings.TrimPrefix(text, "```html")
 	text = strings.TrimPrefix(text, "```")
 	text = strings.TrimSuffix(text, "```")
@@ -394,13 +388,7 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 
 					// No tool calls — extract text result and finish.
 					if len(toolCalls) == 0 {
-						var text string
-						for _, p := range resp.Content.Parts {
-							if p.Text != "" {
-								text += p.Text
-							}
-						}
-						result := strings.TrimSpace(text)
+						result := strings.TrimSpace(llmutil.ExtractText(resp))
 						_ = state.Set(nodeID, result)
 
 						event := session.NewEvent(ctx.InvocationID())

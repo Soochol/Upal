@@ -160,12 +160,7 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract text from response.
-	var text string
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			text += p.Text
-		}
-	}
+	text := llmutil.ExtractText(resp)
 
 	content, err := llmutil.StripMarkdownJSON(text)
 	if err != nil {

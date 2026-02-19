@@ -137,12 +137,7 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 	}
 
 	// Extract text from response parts.
-	var text string
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			text += p.Text
-		}
-	}
+	text := llmutil.ExtractText(resp)
 
 	content, err := llmutil.StripMarkdownJSON(text)
 	if err != nil {
