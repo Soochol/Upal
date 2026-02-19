@@ -54,3 +54,44 @@ func TestSessionManager_SetStatus(t *testing.T) {
 		t.Errorf("status: got %q, want completed", got.Status)
 	}
 }
+
+func TestSessionManager_Artifacts(t *testing.T) {
+	m := NewSessionManager()
+	sess := m.Create("wf1")
+
+	// Initially no artifacts
+	arts := m.GetArtifacts(sess.ID, "node1")
+	if len(arts) != 0 {
+		t.Errorf("expected no artifacts, got %d", len(arts))
+	}
+
+	// Set artifacts
+	m.SetArtifacts(sess.ID, "node1", []any{map[string]any{"name": "result"}})
+	arts = m.GetArtifacts(sess.ID, "node1")
+	if len(arts) != 1 {
+		t.Fatalf("expected 1 artifact, got %d", len(arts))
+	}
+
+	// Get all artifacts
+	all := m.GetAllArtifacts(sess.ID)
+	if len(all) != 1 {
+		t.Errorf("expected 1 node in artifacts, got %d", len(all))
+	}
+
+	// Set for another node
+	m.SetArtifacts(sess.ID, "node2", []any{map[string]any{"name": "result2"}})
+	all = m.GetAllArtifacts(sess.ID)
+	if len(all) != 2 {
+		t.Errorf("expected 2 nodes in artifacts, got %d", len(all))
+	}
+
+	// Non-existent session
+	arts = m.GetArtifacts("nonexistent", "node1")
+	if arts != nil {
+		t.Errorf("expected nil for nonexistent session")
+	}
+	all = m.GetAllArtifacts("nonexistent")
+	if all != nil {
+		t.Errorf("expected nil for nonexistent session")
+	}
+}

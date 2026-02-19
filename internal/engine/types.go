@@ -70,13 +70,14 @@ type Event struct {
 }
 
 type Session struct {
-	ID         string         `json:"id"`
-	WorkflowID string         `json:"workflow_id"`
-	State      map[string]any `json:"state"`
-	Events     []Event        `json:"events"`
-	Status     SessionStatus  `json:"status"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID         string           `json:"id"`
+	WorkflowID string           `json:"workflow_id"`
+	State      map[string]any   `json:"state"`
+	Artifacts  map[string][]any `json:"artifacts,omitempty"`
+	Events     []Event          `json:"events"`
+	Status     SessionStatus    `json:"status"`
+	CreatedAt  time.Time        `json:"created_at"`
+	UpdatedAt  time.Time        `json:"updated_at"`
 }
 
 // NodeExecutorInterface is the interface for executing nodes.
