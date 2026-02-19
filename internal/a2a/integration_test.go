@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/soochol/upal/internal/a2aclient"
 	"github.com/soochol/upal/internal/a2atypes"
 	"github.com/soochol/upal/internal/engine"
 )
@@ -60,7 +61,8 @@ func TestIntegration_LinearWorkflow(t *testing.T) {
 
 	eventBus := engine.NewEventBus()
 	sessions := engine.NewSessionManager()
-	a2aRunner := engine.NewA2ARunner(eventBus, sessions, http.DefaultClient)
+	a2aClient := a2aclient.NewClient(http.DefaultClient)
+	a2aRunner := engine.NewA2ARunner(eventBus, sessions, a2aClient)
 
 	nodeURLs := map[string]string{
 		"input":  server.URL + "/a2a/nodes/input",
@@ -114,7 +116,8 @@ func TestIntegration_ParallelWorkflow(t *testing.T) {
 
 	eventBus := engine.NewEventBus()
 	sessions := engine.NewSessionManager()
-	a2aRunner := engine.NewA2ARunner(eventBus, sessions, http.DefaultClient)
+	a2aClient := a2aclient.NewClient(http.DefaultClient)
+	a2aRunner := engine.NewA2ARunner(eventBus, sessions, a2aClient)
 
 	nodeURLs := map[string]string{
 		"input":   server.URL + "/a2a/nodes/input",

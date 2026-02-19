@@ -1,28 +1,24 @@
 package engine
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/soochol/upal/internal/a2aclient"
 	"github.com/soochol/upal/internal/a2atypes"
 )
 
 type A2ARunner struct {
-	eventBus   *EventBus
-	sessions   *SessionManager
-	httpClient *http.Client
-	nextID     atomic.Int64
+	eventBus *EventBus
+	sessions *SessionManager
+	client   *a2aclient.Client
 }
 
-func NewA2ARunner(eventBus *EventBus, sessions *SessionManager, httpClient *http.Client) *A2ARunner {
-	return &A2ARunner{eventBus: eventBus, sessions: sessions, httpClient: httpClient}
+func NewA2ARunner(eventBus *EventBus, sessions *SessionManager, client *a2aclient.Client) *A2ARunner {
+	return &A2ARunner{eventBus: eventBus, sessions: sessions, client: client}
 }
 
 func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs map[string]string, userInputs map[string]any) (*Session, error) {
@@ -89,7 +85,11 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 				messageText = fmt.Sprintf("Execute node %s", nodeID)
 			}
 
-			task, err := r.sendMessage(ctx, nodeURL, messageText)
+			msg := a2atypes.Message{
+				Role:  "user",
+				Parts: []a2atypes.Part{a2atypes.TextPart(messageText)},
+			}
+			task, err := r.client.SendMessage(ctx, nodeURL, msg)
 			if err != nil {
 				r.eventBus.Publish(Event{
 					ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
@@ -100,23 +100,21 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 				return
 			}
 
-			if artifacts, ok := task["artifacts"].([]any); ok {
-				var typed []a2atypes.Artifact
-				data, _ := json.Marshal(artifacts)
-				json.Unmarshal(data, &typed)
-				r.sessions.SetArtifacts(sess.ID, nodeID, typed)
-				// Legacy state compat — extract first text from typed artifacts
-				if len(typed) > 0 {
-					text := typed[0].FirstText()
-					if text != "" {
-						r.sessions.SetState(sess.ID, nodeID, text)
-					}
+			if len(task.Artifacts) > 0 {
+				r.sessions.SetArtifacts(sess.ID, nodeID, task.Artifacts)
+			}
+			// Legacy state compat — extract first text from typed artifacts
+			if len(task.Artifacts) > 0 {
+				text := task.Artifacts[0].FirstText()
+				if text != "" {
+					r.sessions.SetState(sess.ID, nodeID, text)
 				}
 			}
 
 			r.eventBus.Publish(Event{
 				ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
-				NodeID: nodeID, Type: EventNodeCompleted, Payload: map[string]any{"task": task}, Timestamp: time.Now(),
+				NodeID: nodeID, Type: EventNodeCompleted,
+				Payload: map[string]any{"status": string(task.Status)}, Timestamp: time.Now(),
 			})
 			close(done[nodeID])
 		}()
@@ -132,57 +130,6 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 	r.sessions.SetStatus(sess.ID, SessionCompleted)
 	finalSess, _ := r.sessions.Get(sess.ID)
 	return finalSess, nil
-}
-
-// TODO: Refactor to use a2a.Client when import cycle is resolved (a2a imports engine).
-func (r *A2ARunner) sendMessage(ctx context.Context, url, text string) (map[string]any, error) {
-	reqBody := map[string]any{
-		"jsonrpc": "2.0",
-		"id":      r.nextID.Add(1),
-		"method":  "a2a.sendMessage",
-		"params": map[string]any{
-			"message": map[string]any{
-				"role": "user",
-				"parts": []map[string]any{
-					{"type": "text", "text": text, "mimeType": "text/plain"},
-				},
-			},
-		},
-	}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := r.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var rpcResp map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return nil, err
-	}
-	if rpcErr, ok := rpcResp["error"]; ok && rpcErr != nil {
-		errMap, _ := rpcErr.(map[string]any)
-		return nil, fmt.Errorf("a2a error: %v", errMap["message"])
-	}
-	result, ok := rpcResp["result"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid result type")
-	}
-	status, _ := result["status"].(string)
-	if status == "failed" {
-		return nil, fmt.Errorf("task failed")
-	}
-	return result, nil
 }
 
 func buildMessageText(nodeID string, allArtifacts map[string][]a2atypes.Artifact, dag *DAG) string {
