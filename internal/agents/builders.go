@@ -168,7 +168,7 @@ func buildOutputAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM) (ag
 				// Manual layout with user-provided prompt: resolve templates and call LLM
 				if displayMode != "auto-layout" && layoutPrompt != "" && llms != nil {
 					resolvedPrompt := resolveTemplateFromState(layoutPrompt, state)
-					if html, err := generateManualLayout(ctx, resolvedPrompt, layoutModel, llms); err == nil && html != "" {
+					if html, err := generateLayout(ctx, resolvedPrompt, manualLayoutSystemPrompt, layoutModel, llms); err == nil && html != "" {
 						result = html
 					}
 					// On error, fall back to plain text
@@ -176,7 +176,8 @@ func buildOutputAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM) (ag
 
 				// Auto-layout: use LLM to generate a styled HTML page
 				if displayMode == "auto-layout" && llms != nil {
-					if html, err := generateAutoLayout(ctx, result, layoutModel, llms); err == nil && html != "" {
+					userContent := fmt.Sprintf("Create a styled HTML page presenting the following content:\n\n%s", result)
+					if html, err := generateLayout(ctx, userContent, autoLayoutSystemPrompt, layoutModel, llms); err == nil && html != "" {
 						result = html
 					}
 					// On error, fall back to plain text
@@ -201,77 +202,28 @@ func buildOutputAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM) (ag
 	})
 }
 
-// generateAutoLayout calls an LLM to transform plain text content into a styled HTML page.
-func generateAutoLayout(ctx agent.InvocationContext, content string, layoutModel string, llms map[string]adkmodel.LLM) (string, error) {
+// generateLayout calls an LLM with the given user content and system prompt to produce
+// a styled HTML page. Used by both auto-layout and manual-layout modes.
+func generateLayout(ctx agent.InvocationContext, userContent string, systemPrompt string, layoutModel string, llms map[string]adkmodel.LLM) (string, error) {
 	llm, modelName := resolveLLM(layoutModel, llms)
 	if llm == nil {
-		return "", fmt.Errorf("no LLM available for auto-layout")
+		return "", fmt.Errorf("no LLM available for layout generation")
 	}
 
 	req := &adkmodel.LLMRequest{
 		Model: modelName,
 		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(autoLayoutSystemPrompt, genai.RoleUser),
+			SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
 		},
 		Contents: []*genai.Content{
-			genai.NewContentFromText(
-				fmt.Sprintf("Create a styled HTML page presenting the following content:\n\n%s", content),
-				genai.RoleUser,
-			),
+			genai.NewContentFromText(userContent, genai.RoleUser),
 		},
 	}
 
 	var resp *adkmodel.LLMResponse
 	for r, err := range llm.GenerateContent(ctx, req, false) {
 		if err != nil {
-			return "", fmt.Errorf("auto-layout LLM call: %w", err)
-		}
-		resp = r
-	}
-
-	if resp == nil || resp.Content == nil {
-		return "", fmt.Errorf("empty response from LLM")
-	}
-
-	var text string
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			text += p.Text
-		}
-	}
-
-	// Strip markdown code fences if present
-	text = strings.TrimSpace(text)
-	text = strings.TrimPrefix(text, "```html")
-	text = strings.TrimPrefix(text, "```")
-	text = strings.TrimSuffix(text, "```")
-	text = strings.TrimSpace(text)
-
-	return text, nil
-}
-
-// generateManualLayout calls an LLM with the user's layout instructions (already template-resolved)
-// to produce a styled HTML page.
-func generateManualLayout(ctx agent.InvocationContext, resolvedPrompt string, layoutModel string, llms map[string]adkmodel.LLM) (string, error) {
-	llm, modelName := resolveLLM(layoutModel, llms)
-	if llm == nil {
-		return "", fmt.Errorf("no LLM available for manual layout")
-	}
-
-	req := &adkmodel.LLMRequest{
-		Model: modelName,
-		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(manualLayoutSystemPrompt, genai.RoleUser),
-		},
-		Contents: []*genai.Content{
-			genai.NewContentFromText(resolvedPrompt, genai.RoleUser),
-		},
-	}
-
-	var resp *adkmodel.LLMResponse
-	for r, err := range llm.GenerateContent(ctx, req, false) {
-		if err != nil {
-			return "", fmt.Errorf("manual-layout LLM call: %w", err)
+			return "", fmt.Errorf("layout LLM call: %w", err)
 		}
 		resp = r
 	}
