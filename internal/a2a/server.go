@@ -13,18 +13,11 @@ import (
 type NodeHandler struct {
 	executor engine.NodeExecutorInterface
 	nodeDef  *engine.NodeDefinition
-	state    map[string]any
 }
 
 // NewNodeHandler creates a NodeHandler for the given executor and node definition.
 func NewNodeHandler(executor engine.NodeExecutorInterface, nodeDef *engine.NodeDefinition) *NodeHandler {
 	return &NodeHandler{executor: executor, nodeDef: nodeDef}
-}
-
-// SetState allows external injection of state that will be merged into
-// the execution state on each request.
-func (h *NodeHandler) SetState(state map[string]any) {
-	h.state = state
 }
 
 // ServeHTTP dispatches incoming JSON-RPC requests by method name.
@@ -55,13 +48,8 @@ func (h *NodeHandler) handleSendMessage(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Build execution state: start with injected state, then overlay message parts.
+	// Build execution state from message parts.
 	state := make(map[string]any)
-	if h.state != nil {
-		for k, v := range h.state {
-			state[k] = v
-		}
-	}
 	for _, part := range params.Message.Parts {
 		if part.Type == "text" {
 			state["__user_input__"+h.nodeDef.ID] = part.Text

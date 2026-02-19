@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -135,6 +136,7 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 	return finalSess, nil
 }
 
+// TODO: Refactor to use a2a.Client when import cycle is resolved (a2a imports engine).
 func (r *A2ARunner) sendMessage(ctx context.Context, url, text string) (map[string]any, error) {
 	reqBody := map[string]any{
 		"jsonrpc": "2.0",
@@ -214,12 +216,5 @@ func buildMessageText(nodeID string, allArtifacts map[string][]any, dag *DAG) st
 	if len(texts) == 0 {
 		return ""
 	}
-	result := ""
-	for i, t := range texts {
-		if i > 0 {
-			result += "\n\n"
-		}
-		result += t
-	}
-	return result
+	return strings.Join(texts, "\n\n")
 }

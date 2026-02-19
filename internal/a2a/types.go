@@ -1,9 +1,9 @@
 package a2a
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
+
+	"github.com/soochol/upal/internal/engine"
 )
 
 // Part represents a piece of content in a message or artifact.
@@ -87,16 +87,10 @@ type Message struct {
 // NewTask creates a new task with a unique ID and "created" status.
 func NewTask(contextID string) *Task {
 	return &Task{
-		ID:        generateID("task"),
+		ID:        engine.GenerateID("task"),
 		ContextID: contextID,
 		Status:    TaskCreated,
 	}
-}
-
-func generateID(prefix string) string {
-	b := make([]byte, 8)
-	rand.Read(b)
-	return prefix + "-" + hex.EncodeToString(b)
 }
 
 // AgentCard describes an A2A agent's identity and capabilities.

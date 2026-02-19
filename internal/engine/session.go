@@ -85,7 +85,13 @@ func (m *SessionManager) GetArtifacts(sessionID, nodeID string) []any {
 	if !ok {
 		return nil
 	}
-	return s.Artifacts[nodeID]
+	src := s.Artifacts[nodeID]
+	if src == nil {
+		return nil
+	}
+	cp := make([]any, len(src))
+	copy(cp, src)
+	return cp
 }
 
 func (m *SessionManager) GetAllArtifacts(sessionID string) map[string][]any {
