@@ -22,6 +22,9 @@ func NewA2ARunner(eventBus *EventBus, sessions *SessionManager, client *a2aclien
 }
 
 func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs map[string]string, userInputs map[string]any) (*Session, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	dag, err := BuildDAG(wf)
 	if err != nil {
 		return nil, fmt.Errorf("build DAG: %w", err)
@@ -69,7 +72,10 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 
 			nodeURL, ok := nodeURLs[nodeID]
 			if !ok {
-				errOnce.Do(func() { execErr = fmt.Errorf("no URL for node %q", nodeID) })
+				errOnce.Do(func() {
+					execErr = fmt.Errorf("no URL for node %q", nodeID)
+					cancel()
+				})
 				close(done[nodeID])
 				return
 			}
@@ -95,7 +101,10 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 					ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 					NodeID: nodeID, Type: EventNodeError, Payload: map[string]any{"error": err.Error()}, Timestamp: time.Now(),
 				})
-				errOnce.Do(func() { execErr = fmt.Errorf("node %q: %w", nodeID, err) })
+				errOnce.Do(func() {
+					execErr = fmt.Errorf("node %q: %w", nodeID, err)
+					cancel()
+				})
 				close(done[nodeID])
 				return
 			}

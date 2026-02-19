@@ -199,3 +199,64 @@ func TestA2ARunner_TypedArtifacts(t *testing.T) {
 		t.Errorf("state: got %v, want %q", state, "typed output")
 	}
 }
+
+func TestA2ARunner_ErrorCancelsDownstream(t *testing.T) {
+	// 3-node chain: a → b → c
+	// b fails, c should NOT execute
+	wf := &WorkflowDefinition{
+		Name: "cancel-test",
+		Nodes: []NodeDefinition{
+			{ID: "a", Type: NodeTypeInput},
+			{ID: "b", Type: NodeTypeAgent},
+			{ID: "c", Type: NodeTypeOutput},
+		},
+		Edges: []EdgeDefinition{{From: "a", To: "b"}, {From: "b", To: "c"}},
+	}
+	var cExecuted bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		nodeID := parts[len(parts)-1]
+		var req map[string]any
+		json.NewDecoder(r.Body).Decode(&req)
+		if nodeID == "b" {
+			// Node b fails
+			json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0", "id": req["id"],
+				"error": map[string]any{"code": -32000, "message": "node b failed"},
+			})
+			return
+		}
+		if nodeID == "c" {
+			cExecuted = true
+		}
+		task := map[string]any{
+			"id": "task-1", "status": "completed",
+			"artifacts": []map[string]any{{
+				"parts": []map[string]any{{"type": "text", "text": "ok", "mimeType": "text/plain"}},
+				"index": 0,
+			}},
+		}
+		json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req["id"], "result": task})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client := a2aclient.NewClient(http.DefaultClient)
+	runner := NewA2ARunner(NewEventBus(), NewSessionManager(), client)
+	nodeURLs := map[string]string{
+		"a": server.URL + "/a2a/nodes/a",
+		"b": server.URL + "/a2a/nodes/b",
+		"c": server.URL + "/a2a/nodes/c",
+	}
+	sess, err := runner.Run(context.Background(), wf, nodeURLs, map[string]any{"a": "test"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if sess.Status != SessionFailed {
+		t.Errorf("status: got %q, want failed", sess.Status)
+	}
+	if cExecuted {
+		t.Error("node c should NOT have executed after b failed")
+	}
+}
