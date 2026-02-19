@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import type { NodeData } from '@/stores/workflowStore'
 import { Input } from '@/components/ui/input'
@@ -8,16 +7,13 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { X } from 'lucide-react'
-import { listModels, type ModelInfo } from '@/lib/api'
-import { groupModelsByProvider } from '@/lib/utils'
 import { PromptEditor } from '@/components/editor/PromptEditor'
+import { ModelSelector } from '@/components/editor/ModelSelector'
 import { nodeIconMap } from '@/lib/nodeTypes'
 
 type NodeEditorProps = {
@@ -30,14 +26,6 @@ type NodeEditorProps = {
 export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps) {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
-
-  const [models, setModels] = useState<ModelInfo[]>([])
-
-  useEffect(() => {
-    listModels().then(setModels).catch(() => setModels([]))
-  }, [])
-
-  const modelsByProvider = groupModelsByProvider(models)
 
   const config = data.config
 
@@ -81,31 +69,10 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
           <Separator />
           <div className="space-y-1">
             <Label className="text-xs">Model</Label>
-            <Select
+            <ModelSelector
               value={(config.model as string) ?? ''}
-              onValueChange={(v) => setConfig('model', v)}
-            >
-              <SelectTrigger className="h-7 text-xs w-full" size="sm">
-                <SelectValue placeholder="Select a model..." />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
-                  <SelectGroup key={provider}>
-                    <SelectLabel>{provider}</SelectLabel>
-                    {providerModels.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="text-xs">
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ))}
-                {models.length === 0 && (
-                  <div className="px-2 py-4 text-xs text-muted-foreground text-center">
-                    No models available.<br />Configure providers in config.yaml
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setConfig('model', v)}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="node-max-turns" className="text-xs">Max Turns</Label>
@@ -182,31 +149,11 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Layout Model</Label>
-                <Select
+                <ModelSelector
                   value={(config.layout_model as string) ?? ''}
-                  onValueChange={(v) => setConfig('layout_model', v)}
-                >
-                  <SelectTrigger className="h-7 text-xs w-full" size="sm">
-                    <SelectValue placeholder="Default model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
-                      <SelectGroup key={provider}>
-                        <SelectLabel>{provider}</SelectLabel>
-                        {providerModels.map((m) => (
-                          <SelectItem key={m.id} value={m.id} className="text-xs">
-                            {m.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                    {models.length === 0 && (
-                      <div className="px-2 py-4 text-xs text-muted-foreground text-center">
-                        No models available.<br />Configure providers in config.yaml
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setConfig('layout_model', v)}
+                  placeholder="Default model"
+                />
               </div>
             </>
           )}
@@ -214,31 +161,11 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
           {(config.display_mode as string) === 'auto-layout' && (
             <div className="space-y-1">
               <Label className="text-xs">Layout Model</Label>
-              <Select
+              <ModelSelector
                 value={(config.layout_model as string) ?? ''}
-                onValueChange={(v) => setConfig('layout_model', v)}
-              >
-                <SelectTrigger className="h-7 text-xs w-full" size="sm">
-                  <SelectValue placeholder="Default model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
-                    <SelectGroup key={provider}>
-                      <SelectLabel>{provider}</SelectLabel>
-                      {providerModels.map((m) => (
-                        <SelectItem key={m.id} value={m.id} className="text-xs">
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                  {models.length === 0 && (
-                    <div className="px-2 py-4 text-xs text-muted-foreground text-center">
-                      No models available.<br />Configure providers in config.yaml
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setConfig('layout_model', v)}
+                placeholder="Default model"
+              />
             </div>
           )}
         </>
