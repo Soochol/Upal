@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import type { NodeData } from '@/stores/workflowStore'
 import { configureNode, listModels, type ModelInfo } from '@/lib/api'
+import { useUpstreamNodes } from '@/hooks/useUpstreamNodes'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -63,28 +64,7 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
   const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
-  const edges = useWorkflowStore((s) => s.edges)
-  const nodes = useWorkflowStore((s) => s.nodes)
-
-  // Compute upstream nodes by traversing edges backwards from this nodeId
-  const getUpstreamNodes = useCallback(() => {
-    const upstreamIds = edges
-      .filter((e) => e.target === nodeId)
-      .map((e) => e.source)
-
-    const result: { id: string; type: string; label: string }[] = []
-    for (const id of upstreamIds) {
-      const node = nodes.find((n) => n.id === id)
-      if (node) {
-        result.push({
-          id: node.id,
-          type: node.data.nodeType as string,
-          label: node.data.label,
-        })
-      }
-    }
-    return result
-  }, [edges, nodes, nodeId])
+  const upstreamNodes = useUpstreamNodes(nodeId)
 
   // Derive the last assistant message for inline status display
   const lastStatus = [...messages].reverse().find((m) => m.role === 'assistant') ?? null
@@ -114,7 +94,7 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
         model: selectedModel || undefined,
         thinking,
         history,
-        upstream_nodes: getUpstreamNodes(),
+        upstream_nodes: upstreamNodes,
       })
 
       // Apply returned config updates

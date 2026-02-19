@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useEditor, EditorContent, ReactNodeViewRenderer, NodeViewWrapper, ReactRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -6,8 +6,9 @@ import Mention from '@tiptap/extension-mention'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { SuggestionOptions, SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import type { JSONContent } from '@tiptap/core'
-import { Bot } from 'lucide-react'
+import { Bot, Pencil, Check } from 'lucide-react'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useUpstreamNodes } from '@/hooks/useUpstreamNodes'
 import { nodeIconMap } from '@/lib/nodeTypes'
 import { MentionList } from './MentionList'
 import type { MentionItem, MentionListRef } from './MentionList'
@@ -124,8 +125,22 @@ const CustomMention = Mention.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      nodeType: { default: 'agent' },
+      nodeType: {
+        default: 'agent',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-node-type'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes.nodeType) return {}
+          return { 'data-node-type': attributes.nodeType }
+        },
+      },
     }
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      'span',
+      { 'data-type': this.name, ...HTMLAttributes },
+      `{{${node.attrs.id as string}}}`,
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(MentionPill, { as: 'span', className: '' })
@@ -149,22 +164,15 @@ export function PromptEditor({
   placeholder = 'Type {{ to reference a node...',
   className,
 }: PromptEditorProps) {
-  const edges = useWorkflowStore((s) => s.edges)
+  const [isEditing, setIsEditing] = useState(false)
   const allNodes = useWorkflowStore((s) => s.nodes)
+  const upstream = useUpstreamNodes(nodeId)
 
-  // Compute upstream nodes
-  const upstreamNodes = useMemo(() => {
-    const sourceIds = new Set(
-      edges.filter((e) => e.target === nodeId).map((e) => e.source),
-    )
-    return allNodes
-      .filter((n) => sourceIds.has(n.id) && n.type !== 'groupNode')
-      .map((n) => ({
-        id: n.id,
-        label: n.data.label,
-        nodeType: n.data.nodeType,
-      }))
-  }, [edges, allNodes, nodeId])
+  // Map upstream nodes to MentionItem shape (with nodeType)
+  const upstreamNodes = useMemo(
+    () => upstream.map((n) => ({ id: n.id, label: n.label, nodeType: n.type })),
+    [upstream],
+  )
 
   // Build a map for deserialization lookups
   const nodeMap = useMemo(() => {
@@ -192,6 +200,7 @@ export function PromptEditor({
   const popupRef = useRef<HTMLDivElement | null>(null)
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         // Disable features we don't need in a prompt editor
@@ -273,6 +282,7 @@ export function PromptEditor({
       }),
     ],
     content: deserializeContent(value, nodeMap),
+    editable: false,
     onUpdate: ({ editor: ed }) => {
       if (isExternalUpdate.current) return
       const serialized = serializeContent(ed.getJSON())
@@ -284,6 +294,15 @@ export function PromptEditor({
       },
     },
   })
+
+  // Sync editable state with isEditing toggle
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.setEditable(isEditing)
+    if (isEditing) {
+      editor.commands.focus('end')
+    }
+  }, [isEditing, editor])
 
   // Sync external value changes into the editor
   useEffect(() => {
@@ -307,11 +326,34 @@ export function PromptEditor({
     }
   }, [])
 
+  const hasContent = !!value
+
   return (
     <div
-      className={`rounded-md border border-input bg-background px-3 py-2 ring-offset-background focus-within:ring-1 focus-within:ring-ring ${className ?? ''}`}
+      className={`group/prompt relative rounded-md px-3 py-2 ${
+        isEditing
+          ? 'border border-input bg-background ring-offset-background focus-within:ring-1 focus-within:ring-ring'
+          : 'border border-transparent bg-muted/50'
+      } ${className ?? ''}`}
     >
       <EditorContent editor={editor} />
+      {!hasContent && !isEditing && (
+        <p className="text-xs text-muted-foreground italic pointer-events-none">
+          No prompt configured. Use AI Chat or click edit.
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => setIsEditing(!isEditing)}
+        className={`absolute top-1.5 right-1.5 p-1 rounded-md transition-colors ${
+          isEditing
+            ? 'text-primary bg-primary/10 hover:bg-primary/20'
+            : 'text-muted-foreground opacity-0 group-hover/prompt:opacity-100 hover:text-foreground hover:bg-muted'
+        }`}
+        title={isEditing ? 'Done editing' : 'Edit prompt'}
+      >
+        {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+      </button>
     </div>
   )
 }
