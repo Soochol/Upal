@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/soochol/upal/internal/a2atypes"
+)
 
 func TestSessionManager_Create(t *testing.T) {
 	mgr := NewSessionManager()
@@ -66,7 +70,7 @@ func TestSessionManager_Artifacts(t *testing.T) {
 	}
 
 	// Set artifacts
-	m.SetArtifacts(sess.ID, "node1", []any{map[string]any{"name": "result"}})
+	m.SetArtifacts(sess.ID, "node1", []a2atypes.Artifact{{Name: "result", Parts: []a2atypes.Part{a2atypes.TextPart("hello")}}})
 	arts = m.GetArtifacts(sess.ID, "node1")
 	if len(arts) != 1 {
 		t.Fatalf("expected 1 artifact, got %d", len(arts))
@@ -79,7 +83,7 @@ func TestSessionManager_Artifacts(t *testing.T) {
 	}
 
 	// Set for another node
-	m.SetArtifacts(sess.ID, "node2", []any{map[string]any{"name": "result2"}})
+	m.SetArtifacts(sess.ID, "node2", []a2atypes.Artifact{{Name: "result2", Parts: []a2atypes.Part{a2atypes.TextPart("world")}}})
 	all = m.GetAllArtifacts(sess.ID)
 	if len(all) != 2 {
 		t.Errorf("expected 2 nodes in artifacts, got %d", len(all))

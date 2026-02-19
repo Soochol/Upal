@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"time"
+
+	"github.com/soochol/upal/internal/a2atypes"
 )
 
 type NodeType string
@@ -73,7 +75,7 @@ type Session struct {
 	ID         string           `json:"id"`
 	WorkflowID string           `json:"workflow_id"`
 	State      map[string]any   `json:"state"`
-	Artifacts  map[string][]any `json:"artifacts,omitempty"`
+	Artifacts  map[string][]a2atypes.Artifact `json:"artifacts,omitempty"`
 	Events     []Event          `json:"events"`
 	Status     SessionStatus    `json:"status"`
 	CreatedAt  time.Time        `json:"created_at"`

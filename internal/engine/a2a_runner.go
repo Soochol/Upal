@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/soochol/upal/internal/a2atypes"
 )
 
 type A2ARunner struct {
@@ -35,17 +37,15 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 		for k, v := range userInputs {
 			r.sessions.SetState(sess.ID, "__user_input__"+k, v)
 			textVal := fmt.Sprintf("%v", v)
-			r.sessions.SetArtifacts(sess.ID, "__user_input__"+k, []any{
-				map[string]any{
-					"parts": []map[string]any{{"type": "text", "text": textVal, "mimeType": "text/plain"}},
-					"index": 0,
-				},
-			})
+			r.sessions.SetArtifacts(sess.ID, "__user_input__"+k, []a2atypes.Artifact{{
+				Parts: []a2atypes.Part{a2atypes.TextPart(textVal)},
+				Index: 0,
+			}})
 		}
 	}
 
 	r.eventBus.Publish(Event{
-		ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+		ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 		Type: EventNodeStarted, Payload: map[string]any{"workflow": wf.Name}, Timestamp: time.Now(),
 	})
 
@@ -79,7 +79,7 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 			}
 
 			r.eventBus.Publish(Event{
-				ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+				ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 				NodeID: nodeID, Type: EventNodeStarted, Timestamp: time.Now(),
 			})
 
@@ -92,7 +92,7 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 			task, err := r.sendMessage(ctx, nodeURL, messageText)
 			if err != nil {
 				r.eventBus.Publish(Event{
-					ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+					ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 					NodeID: nodeID, Type: EventNodeError, Payload: map[string]any{"error": err.Error()}, Timestamp: time.Now(),
 				})
 				errOnce.Do(func() { execErr = fmt.Errorf("node %q: %w", nodeID, err) })
@@ -101,23 +101,21 @@ func (r *A2ARunner) Run(ctx context.Context, wf *WorkflowDefinition, nodeURLs ma
 			}
 
 			if artifacts, ok := task["artifacts"].([]any); ok {
-				r.sessions.SetArtifacts(sess.ID, nodeID, artifacts)
-			}
-			// Also store in legacy state for backward compat
-			if arts, ok := task["artifacts"].([]any); ok && len(arts) > 0 {
-				if art, ok := arts[0].(map[string]any); ok {
-					if parts, ok := art["parts"].([]any); ok && len(parts) > 0 {
-						if part, ok := parts[0].(map[string]any); ok {
-							if text, ok := part["text"].(string); ok {
-								r.sessions.SetState(sess.ID, nodeID, text)
-							}
-						}
+				var typed []a2atypes.Artifact
+				data, _ := json.Marshal(artifacts)
+				json.Unmarshal(data, &typed)
+				r.sessions.SetArtifacts(sess.ID, nodeID, typed)
+				// Legacy state compat — extract first text from typed artifacts
+				if len(typed) > 0 {
+					text := typed[0].FirstText()
+					if text != "" {
+						r.sessions.SetState(sess.ID, nodeID, text)
 					}
 				}
 			}
 
 			r.eventBus.Publish(Event{
-				ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+				ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 				NodeID: nodeID, Type: EventNodeCompleted, Payload: map[string]any{"task": task}, Timestamp: time.Now(),
 			})
 			close(done[nodeID])
@@ -187,7 +185,7 @@ func (r *A2ARunner) sendMessage(ctx context.Context, url, text string) (map[stri
 	return result, nil
 }
 
-func buildMessageText(nodeID string, allArtifacts map[string][]any, dag *DAG) string {
+func buildMessageText(nodeID string, allArtifacts map[string][]a2atypes.Artifact, dag *DAG) string {
 	parents := dag.Parents(nodeID)
 	if len(parents) == 0 {
 		return ""
@@ -201,16 +199,9 @@ func buildMessageText(nodeID string, allArtifacts map[string][]any, dag *DAG) st
 		if len(arts) == 0 {
 			continue
 		}
-		if art, ok := arts[0].(map[string]any); ok {
-			if parts, ok := art["parts"].([]any); ok {
-				for _, p := range parts {
-					if part, ok := p.(map[string]any); ok {
-						if text, ok := part["text"].(string); ok {
-							texts = append(texts, text)
-						}
-					}
-				}
-			}
+		text := arts[0].FirstText()
+		if text != "" {
+			texts = append(texts, text)
 		}
 	}
 	if len(texts) == 0 {

@@ -1,10 +1,10 @@
 package engine
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"sync"
 	"time"
+
+	"github.com/soochol/upal/internal/a2atypes"
 )
 
 type SessionManager struct {
@@ -20,8 +20,8 @@ func (m *SessionManager) Create(workflowID string) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	sess := &Session{
-		ID: GenerateID("sess"), WorkflowID: workflowID,
-		State: make(map[string]any), Artifacts: make(map[string][]any),
+		ID: a2atypes.GenerateID("sess"), WorkflowID: workflowID,
+		State: make(map[string]any), Artifacts: make(map[string][]a2atypes.Artifact),
 		Status: SessionRunning,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
@@ -69,7 +69,7 @@ func (m *SessionManager) SetStatus(sessionID string, status SessionStatus) {
 	}
 }
 
-func (m *SessionManager) SetArtifacts(sessionID, nodeID string, artifacts []any) {
+func (m *SessionManager) SetArtifacts(sessionID, nodeID string, artifacts []a2atypes.Artifact) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s, ok := m.sessions[sessionID]; ok {
@@ -78,7 +78,7 @@ func (m *SessionManager) SetArtifacts(sessionID, nodeID string, artifacts []any)
 	}
 }
 
-func (m *SessionManager) GetArtifacts(sessionID, nodeID string) []any {
+func (m *SessionManager) GetArtifacts(sessionID, nodeID string) []a2atypes.Artifact {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	s, ok := m.sessions[sessionID]
@@ -89,19 +89,19 @@ func (m *SessionManager) GetArtifacts(sessionID, nodeID string) []any {
 	if src == nil {
 		return nil
 	}
-	cp := make([]any, len(src))
+	cp := make([]a2atypes.Artifact, len(src))
 	copy(cp, src)
 	return cp
 }
 
-func (m *SessionManager) GetAllArtifacts(sessionID string) map[string][]any {
+func (m *SessionManager) GetAllArtifacts(sessionID string) map[string][]a2atypes.Artifact {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	s, ok := m.sessions[sessionID]
 	if !ok {
 		return nil
 	}
-	cp := make(map[string][]any, len(s.Artifacts))
+	cp := make(map[string][]a2atypes.Artifact, len(s.Artifacts))
 	for k, v := range s.Artifacts {
 		cp[k] = v
 	}
@@ -109,8 +109,7 @@ func (m *SessionManager) GetAllArtifacts(sessionID string) map[string][]any {
 }
 
 // GenerateID generates a random ID with the given prefix.
+// Deprecated: Use a2atypes.GenerateID directly.
 func GenerateID(prefix string) string {
-	b := make([]byte, 8)
-	rand.Read(b)
-	return prefix + "-" + hex.EncodeToString(b)
+	return a2atypes.GenerateID(prefix)
 }

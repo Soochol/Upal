@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/soochol/upal/internal/a2atypes"
 )
 
 type Runner struct {
@@ -31,7 +33,7 @@ func (r *Runner) Run(ctx context.Context, wf *WorkflowDefinition, executors map[
 	}
 
 	r.eventBus.Publish(Event{
-		ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+		ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 		Type: EventNodeStarted, Payload: map[string]any{"workflow": wf.Name}, Timestamp: time.Now(),
 	})
 
@@ -68,14 +70,14 @@ func (r *Runner) Run(ctx context.Context, wf *WorkflowDefinition, executors map[
 			}
 
 			r.eventBus.Publish(Event{
-				ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+				ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 				NodeID: nodeID, Type: EventNodeStarted, Timestamp: time.Now(),
 			})
 
 			result, err := executor.Execute(ctx, nodeDef, stateCopy)
 			if err != nil {
 				r.eventBus.Publish(Event{
-					ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+					ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 					NodeID: nodeID, Type: EventNodeError, Payload: map[string]any{"error": err.Error()}, Timestamp: time.Now(),
 				})
 				errOnce.Do(func() { execErr = fmt.Errorf("node %q: %w", nodeID, err) })
@@ -86,7 +88,7 @@ func (r *Runner) Run(ctx context.Context, wf *WorkflowDefinition, executors map[
 			r.sessions.SetState(sess.ID, nodeID, result)
 
 			r.eventBus.Publish(Event{
-				ID: GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
+				ID: a2atypes.GenerateID("ev"), WorkflowID: wf.Name, SessionID: sess.ID,
 				NodeID: nodeID, Type: EventNodeCompleted, Payload: map[string]any{"result": result}, Timestamp: time.Now(),
 			})
 			close(done[nodeID])
