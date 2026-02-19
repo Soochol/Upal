@@ -408,35 +408,7 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 
 					// Execute tool calls and append results to conversation.
 					contents = append(contents, resp.Content)
-					var toolResults []*genai.Part
-					for _, fc := range toolCalls {
-						var output map[string]any
-						if t, ok := upalTools[fc.Name]; ok {
-							result, err := t.Execute(ctx, fc.Args)
-							if err != nil {
-								output = map[string]any{"error": err.Error()}
-							} else {
-								// Coerce result to map[string]any for FunctionResponse.
-								if m, ok := result.(map[string]any); ok {
-									output = m
-								} else {
-									output = map[string]any{"result": fmt.Sprintf("%v", result)}
-								}
-							}
-						} else {
-							output = map[string]any{"error": fmt.Sprintf("unknown tool %q", fc.Name)}
-						}
-						toolResults = append(toolResults, &genai.Part{
-							FunctionResponse: &genai.FunctionResponse{
-								Name:     fc.Name,
-								Response: output,
-							},
-						})
-					}
-					contents = append(contents, &genai.Content{
-						Role:  genai.RoleUser,
-						Parts: toolResults,
-					})
+					contents = append(contents, executeToolCalls(ctx, toolCalls, upalTools))
 				}
 
 				// Exhausted max_turns — yield error.
@@ -444,6 +416,40 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 			}
 		},
 	})
+}
+
+// executeToolCalls executes a list of function calls against the tool registry
+// and returns a Content with FunctionResponse parts for feeding back to the LLM.
+func executeToolCalls(ctx agent.InvocationContext, calls []*genai.FunctionCall, upalTools map[string]tools.Tool) *genai.Content {
+	var toolResults []*genai.Part
+	for _, fc := range calls {
+		var output map[string]any
+		if t, ok := upalTools[fc.Name]; ok {
+			result, err := t.Execute(ctx, fc.Args)
+			if err != nil {
+				output = map[string]any{"error": err.Error()}
+			} else {
+				// Coerce result to map[string]any for FunctionResponse.
+				if m, ok := result.(map[string]any); ok {
+					output = m
+				} else {
+					output = map[string]any{"result": fmt.Sprintf("%v", result)}
+				}
+			}
+		} else {
+			output = map[string]any{"error": fmt.Sprintf("unknown tool %q", fc.Name)}
+		}
+		toolResults = append(toolResults, &genai.Part{
+			FunctionResponse: &genai.FunctionResponse{
+				Name:     fc.Name,
+				Response: output,
+			},
+		})
+	}
+	return &genai.Content{
+		Role:  genai.RoleUser,
+		Parts: toolResults,
+	}
 }
 
 // buildRemoteAgent creates a remote A2A agent using remoteagent.NewA2A().
