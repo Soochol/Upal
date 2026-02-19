@@ -1,17 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import type { NodeData } from '@/stores/workflowStore'
-import { configureNode } from '@/lib/api'
+import { configureNode, listModels, type ModelInfo } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Sparkles, SendHorizontal, Loader2, ChevronDown, Bot, User } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Sparkles, SendHorizontal, Loader2, ChevronDown, Check, AlertCircle, BrainCircuit } from 'lucide-react'
+import { cn, groupModelsByProvider } from '@/lib/utils'
 
 type ChatMessage = {
   role: 'user' | 'assistant'
@@ -29,20 +37,34 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(true)
+  const [models, setModels] = useState<ModelInfo[]>([])
+  const [selectedModel, setSelectedModel] = useState(
+    () => localStorage.getItem('upal:ai-model') ?? '',
+  )
+  const [thinking, setThinking] = useState(
+    () => localStorage.getItem('upal:ai-thinking') === 'true',
+  )
 
-  const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Persist model & thinking to localStorage
+  useEffect(() => {
+    localStorage.setItem('upal:ai-model', selectedModel)
+  }, [selectedModel])
+  useEffect(() => {
+    localStorage.setItem('upal:ai-thinking', String(thinking))
+  }, [thinking])
+
+  // Fetch available models
+  useEffect(() => {
+    listModels().then(setModels).catch(() => {})
+  }, [])
 
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
   const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
   const edges = useWorkflowStore((s) => s.edges)
   const nodes = useWorkflowStore((s) => s.nodes)
-
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
 
   // Compute upstream nodes by traversing edges backwards from this nodeId
   const getUpstreamNodes = useCallback(() => {
@@ -63,6 +85,9 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
     }
     return result
   }, [edges, nodes, nodeId])
+
+  // Derive the last assistant message for inline status display
+  const lastStatus = [...messages].reverse().find((m) => m.role === 'assistant') ?? null
 
   const handleSubmit = async () => {
     const trimmed = input.trim()
@@ -86,6 +111,8 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
         label: data.label,
         description: data.description ?? '',
         message: trimmed,
+        model: selectedModel || undefined,
+        thinking,
         history,
         upstream_nodes: getUpstreamNodes(),
       })
@@ -145,52 +172,65 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
 
       <CollapsibleContent>
         <div className="px-2 pb-2 space-y-2">
-          {/* Chat history */}
-          {messages.length > 0 && (
-            <ScrollArea className="max-h-40">
-              <div className="space-y-1.5 pr-1">
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex',
-                      msg.role === 'user' ? 'justify-end' : 'justify-start',
-                    )}
-                  >
-                    <div className="flex items-start gap-1 max-w-[95%]">
-                      {msg.role === 'assistant' && (
-                        <Bot className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <div
-                        className={cn(
-                          'rounded-md px-2 py-1 text-[11px]',
-                          msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : msg.isError
-                              ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                              : 'bg-muted',
-                        )}
-                      >
-                        <p className="whitespace-pre-wrap break-words">
-                          {msg.content}
-                        </p>
-                      </div>
-                      {msg.role === 'user' && (
-                        <User className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Bot className="h-3 w-3" />
-                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                    <span className="text-[11px]">Thinking...</span>
-                  </div>
-                )}
-                <div ref={scrollRef} />
-              </div>
-            </ScrollArea>
+          {/* Model selector + thinking toggle */}
+          <div className="flex items-center gap-0.5">
+            {models.length > 0 && (
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger className="h-5 text-[10px] w-fit border-none shadow-none px-1.5 py-0 gap-1 text-muted-foreground hover:text-foreground">
+                  <SelectValue placeholder="Auto" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="top" sideOffset={4}>
+                  {Object.entries(groupModelsByProvider(models)).map(([provider, items]) => (
+                    <SelectGroup key={provider}>
+                      <SelectLabel className="text-[10px]">{provider}</SelectLabel>
+                      {items.map((m) => (
+                        <SelectItem key={m.id} value={m.id} className="text-[11px]">
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <button
+              type="button"
+              onClick={() => setThinking((v) => !v)}
+              className={cn(
+                'flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] transition-colors',
+                thinking
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              title={thinking ? 'Thinking enabled' : 'Thinking disabled'}
+            >
+              <BrainCircuit className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Status: last result or loading */}
+          {isLoading && (
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="text-[10px]">Configuring...</span>
+            </div>
+          )}
+          {!isLoading && lastStatus && (
+            <div
+              className={cn(
+                'flex items-start gap-1.5 text-[10px]',
+                lastStatus.isError
+                  ? 'text-destructive'
+                  : 'text-muted-foreground',
+              )}
+            >
+              {lastStatus.isError ? (
+                <AlertCircle className="h-3 w-3 mt-px shrink-0" />
+              ) : (
+                <Check className="h-3 w-3 mt-px shrink-0" />
+              )}
+              <span className="truncate">{lastStatus.content}</span>
+            </div>
           )}
 
           {/* Input bar */}
