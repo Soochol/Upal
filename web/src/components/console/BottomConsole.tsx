@@ -7,16 +7,8 @@ import { ChevronUp, ChevronDown, Trash2, Terminal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const eventColorMap: Record<string, string> = {
-  'node.started': 'text-node-agent',
-  'node.completed': 'text-node-output',
-  'node.error': 'text-destructive',
-  'model.request': 'text-purple-500 dark:text-purple-400',
-  'model.response': 'text-purple-400 dark:text-purple-300',
-  'tool.call': 'text-node-tool',
-  'tool.result': 'text-amber-600 dark:text-amber-300',
-  'a2a.sending': 'text-blue-500 dark:text-blue-400',
-  'a2a.received': 'text-blue-400 dark:text-blue-300',
-  'workflow.failed': 'text-destructive font-semibold',
+  agent: 'text-node-agent',
+  event: 'text-muted-foreground',
   done: 'text-node-output font-semibold',
   error: 'text-destructive',
   info: 'text-muted-foreground',
@@ -24,23 +16,33 @@ const eventColorMap: Record<string, string> = {
 
 function formatEvent(event: RunEvent): string {
   const data = event.data
+  // UI-generated events (info, error with message)
   if (data.message && typeof data.message === 'string') return data.message
+
   const parts: string[] = []
-  if (data.node_id) parts.push(`[${data.node_id}]`)
-  if (data.node_type) parts.push(`(${data.node_type})`)
-  if (data.model) parts.push(`model=${data.model}`)
-  if (data.tool) parts.push(`tool=${data.tool}`)
-  if (data.url) parts.push(`→ ${data.url}`)
+
+  // ADK Event: show author (node ID)
+  if (data.author) parts.push(`[${data.author}]`)
+
+  // Show text content from genai.Content
+  const content = data.content as { parts?: { text?: string }[] } | undefined
+  if (content?.parts) {
+    for (const part of content.parts) {
+      if (part.text) parts.push(part.text)
+    }
+  }
+
+  // Show state delta keys from actions
+  const actions = data.actions as { state_delta?: Record<string, unknown> } | undefined
+  if (actions?.state_delta) {
+    const keys = Object.keys(actions.state_delta)
+    if (keys.length > 0) parts.push(`state: {${keys.join(', ')}}`)
+  }
+
+  // Done/error event fields
   if (data.status) parts.push(`status=${data.status}`)
   if (data.error) parts.push(`error: ${data.error}`)
-  if (data.result !== undefined)
-    parts.push(
-      `result: ${typeof data.result === 'string' ? data.result : JSON.stringify(data.result)}`,
-    )
-  if (data.output !== undefined)
-    parts.push(
-      `output: ${typeof data.output === 'string' ? data.output : JSON.stringify(data.output)}`,
-    )
+
   if (parts.length === 0) return JSON.stringify(data)
   return parts.join(' ')
 }

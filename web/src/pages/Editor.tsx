@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Canvas } from '@/components/editor/Canvas'
 import { RunDialog } from '@/components/dialogs/RunDialog'
-import { GenerateDialog } from '@/components/dialogs/GenerateDialog'
 import { RightPanel } from '@/components/panel/RightPanel'
 import { Header } from '@/components/Header'
 import { NodePalette } from '@/components/sidebar/NodePalette'
 import { BottomConsole } from '@/components/console/BottomConsole'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore, type NodeRunStatus } from '@/stores/workflowStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { serializeWorkflow, deserializeWorkflow } from '@/lib/serializer'
 import { saveWorkflow, runWorkflow, generateWorkflow } from '@/lib/api'
@@ -26,9 +25,9 @@ export default function Editor() {
   const selectNode = useWorkflowStore((s) => s.selectNode)
   const setNodeStatus = useWorkflowStore((s) => s.setNodeStatus)
   const clearNodeStatuses = useWorkflowStore((s) => s.clearNodeStatuses)
+  const setSessionState = useWorkflowStore((s) => s.setSessionState)
 
   const [showRunDialog, setShowRunDialog] = useState(false)
-  const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
 
   const selectedNode = selectedNodeId
@@ -85,15 +84,26 @@ export default function Editor() {
       inputs,
       (event) => {
         addRunEvent(event)
-        const nodeId = event.data.node_id as string | undefined
+        // ADK events: author = node ID
+        const nodeId = event.data.author as string | undefined
         if (nodeId) {
-          if (event.type === 'node.started') setNodeStatus(nodeId, 'running')
-          else if (event.type === 'node.completed') setNodeStatus(nodeId, 'completed')
-          else if (event.type === 'node.error') setNodeStatus(nodeId, 'error')
+          // Any event from a node means it's running
+          setNodeStatus(nodeId, 'running')
         }
       },
       (result) => {
         addRunEvent({ type: 'done', data: result })
+        // Mark all running nodes as completed or error
+        const statuses = useWorkflowStore.getState().nodeStatuses
+        const finalStatus = result.status === 'failed' ? 'error' : 'completed'
+        for (const [id, status] of Object.entries(statuses)) {
+          if (status === 'running') {
+            setNodeStatus(id, finalStatus as NodeRunStatus)
+          }
+        }
+        if (result.state && typeof result.state === 'object') {
+          setSessionState(result.state as Record<string, unknown>)
+        }
         setIsRunning(false)
       },
       (error) => {
@@ -103,16 +113,27 @@ export default function Editor() {
     )
   }
 
-  const handleGenerate = async (description: string, model?: string) => {
+  const handlePromptSubmit = async (description: string) => {
     setIsGenerating(true)
-    addRunEvent({ type: 'info', data: { message: 'Generating workflow from description...' } })
+    const currentNodes = useWorkflowStore.getState().nodes
+    const currentEdges = useWorkflowStore.getState().edges
+    const hasExisting = currentNodes.length > 0
+
+    const action = hasExisting ? 'Editing' : 'Generating'
+    addRunEvent({ type: 'info', data: { message: `${action} workflow...` } })
+
     try {
-      const wf = await generateWorkflow(description, model)
+      const existingWf = hasExisting
+        ? serializeWorkflow(workflowName || 'untitled', currentNodes, currentEdges)
+        : undefined
+      const wf = await generateWorkflow(description, undefined, existingWf)
       const { nodes: newNodes, edges: newEdges } = deserializeWorkflow(wf)
       useWorkflowStore.setState({ nodes: newNodes, edges: newEdges })
-      setWorkflowName(wf.name)
-      addRunEvent({ type: 'info', data: { message: `Workflow "${wf.name}" generated with ${wf.nodes.length} nodes.` } })
-      setShowGenerateDialog(false)
+      if (wf.name) setWorkflowName(wf.name)
+      addRunEvent({
+        type: 'info',
+        data: { message: `Workflow "${wf.name}" ${hasExisting ? 'updated' : 'generated'} with ${wf.nodes.length} nodes.` },
+      })
     } catch (err) {
       addRunEvent({
         type: 'error',
@@ -126,7 +147,6 @@ export default function Editor() {
   useKeyboardShortcuts({
     onSave: handleSave,
     onRun: () => !isRunning && setShowRunDialog(true),
-    onGenerate: () => setShowGenerateDialog(true),
   })
 
   const inputNodes = nodes
@@ -140,7 +160,6 @@ export default function Editor() {
         onWorkflowNameChange={setWorkflowName}
         onSave={handleSave}
         onRun={() => !isRunning && setShowRunDialog(true)}
-        onGenerate={() => setShowGenerateDialog(true)}
         isRunning={isRunning}
       />
 
@@ -150,13 +169,14 @@ export default function Editor() {
         <main className="flex-1">
           <Canvas
             onAddFirstNode={() => handleAddNode('input')}
-            onGenerate={() => setShowGenerateDialog(true)}
             onDropNode={handleDropNode}
+            onPromptSubmit={handlePromptSubmit}
+            isGenerating={isGenerating}
           />
         </main>
 
         <RightPanel
-          selectedNode={selectedNode ? { id: selectedNode.id, data: selectedNode.data } : null}
+          selectedNode={selectedNode ?? null}
           onCloseNode={() => selectNode(null)}
         />
       </div>
@@ -173,12 +193,6 @@ export default function Editor() {
         onOpenChange={setShowRunDialog}
       />
 
-      <GenerateDialog
-        open={showGenerateDialog}
-        onGenerate={handleGenerate}
-        onOpenChange={setShowGenerateDialog}
-        isGenerating={isGenerating}
-      />
     </div>
   )
 }
