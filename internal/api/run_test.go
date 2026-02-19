@@ -28,7 +28,7 @@ func TestRunWorkflow_NotFound(t *testing.T) {
 	runner := engine.NewRunner(eventBus, sessions)
 	executors := map[engine.NodeType]engine.NodeExecutorInterface{}
 
-	srv := NewServer(eventBus, sessions, runner, executors)
+	srv := NewServer(eventBus, sessions, runner, nil, executors)
 
 	req := httptest.NewRequest("POST", "/api/workflows/nonexistent/run", strings.NewReader(`{"inputs":{}}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -50,7 +50,7 @@ func TestRunWorkflow_SSE(t *testing.T) {
 		engine.NodeTypeOutput: &mockExecutor{result: "world"},
 	}
 
-	srv := NewServer(eventBus, sessions, runner, executors)
+	srv := NewServer(eventBus, sessions, runner, nil, executors)
 
 	// Create a workflow first
 	wf := engine.WorkflowDefinition{
@@ -163,7 +163,7 @@ func TestRunWorkflow_EmptyBody(t *testing.T) {
 		engine.NodeTypeOutput: &mockExecutor{result: "result"},
 	}
 
-	srv := NewServer(eventBus, sessions, runner, executors)
+	srv := NewServer(eventBus, sessions, runner, nil, executors)
 
 	// Create a workflow with just an output node (no inputs needed)
 	wf := engine.WorkflowDefinition{

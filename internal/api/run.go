@@ -17,10 +17,16 @@ type RunRequest struct {
 func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
-	// 1. Look up workflow
-	s.workflows.mu.RLock()
-	wf, ok := s.workflows.workflows[name]
-	s.workflows.mu.RUnlock()
+	// 1. Look up workflow (in-memory first, then DB fallback)
+	wf, ok := s.workflows.Get(name)
+	if !ok && s.db != nil {
+		row, err := s.db.GetWorkflow(r.Context(), name)
+		if err == nil {
+			wf = &row.Definition
+			s.workflows.Put(wf) // cache in memory for the run
+			ok = true
+		}
+	}
 	if !ok {
 		http.Error(w, "workflow not found", http.StatusNotFound)
 		return
@@ -70,8 +76,24 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	doneCh := make(chan runResult, 1)
 	go func() {
-		sess, err := s.runner.Run(r.Context(), wf, s.executors, req.Inputs)
-		doneCh <- runResult{session: sess, err: err}
+		if s.a2aRunner != nil {
+			baseURL := getBaseURL(r)
+			nodeURLs := make(map[string]string)
+			for _, n := range wf.Nodes {
+				if n.Type == engine.NodeTypeExternal {
+					if url, ok := n.Config["endpoint_url"].(string); ok {
+						nodeURLs[n.ID] = url
+						continue
+					}
+				}
+				nodeURLs[n.ID] = fmt.Sprintf("%s/a2a/nodes/%s", baseURL, n.ID)
+			}
+			sess, err := s.a2aRunner.Run(r.Context(), wf, nodeURLs, req.Inputs)
+			doneCh <- runResult{session: sess, err: err}
+		} else {
+			sess, err := s.runner.Run(r.Context(), wf, s.executors, req.Inputs)
+			doneCh <- runResult{session: sess, err: err}
+		}
 	}()
 
 	// 6. Stream events via SSE until done

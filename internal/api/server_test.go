@@ -11,7 +11,7 @@ import (
 )
 
 func TestAPI_CreateWorkflow(t *testing.T) {
-	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil)
+	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil, nil)
 	wf := engine.WorkflowDefinition{Name: "test-wf", Version: 1, Nodes: []engine.NodeDefinition{{ID: "input1", Type: engine.NodeTypeInput}}}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))
@@ -29,7 +29,7 @@ func TestAPI_CreateWorkflow(t *testing.T) {
 }
 
 func TestAPI_ListWorkflows(t *testing.T) {
-	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil)
+	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil, nil)
 	wf := engine.WorkflowDefinition{Name: "wf1", Version: 1}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))
@@ -51,7 +51,7 @@ func TestAPI_ListWorkflows(t *testing.T) {
 }
 
 func TestAPI_AggregateAgentCard(t *testing.T) {
-	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil)
+	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/a2a/agent-card", nil)
 	w := httptest.NewRecorder()
@@ -68,7 +68,7 @@ func TestAPI_AggregateAgentCard(t *testing.T) {
 }
 
 func TestAPI_GetWorkflow(t *testing.T) {
-	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil)
+	srv := NewServer(engine.NewEventBus(), engine.NewSessionManager(), nil, nil, nil)
 	wf := engine.WorkflowDefinition{Name: "wf1", Version: 1}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))
