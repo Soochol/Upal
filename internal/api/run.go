@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/soochol/upal/internal/engine"
+	"github.com/soochol/upal/internal/agents"
+	"google.golang.org/adk/agent"
+	"google.golang.org/adk/runner"
+	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 // RunRequest is the JSON body for workflow execution.
@@ -51,117 +56,69 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// 4. Subscribe to eventBus for this workflow's events.
-	// We use a channel to receive events from the event bus handler.
-	eventCh := make(chan engine.Event, 64)
-
-	// We don't know the session ID yet, so we capture all events for this
-	// workflow name initially, then filter by session ID once the runner starts.
-	var sessionID string
-	unsub := s.eventBus.Subscribe(func(e engine.Event) {
-		if e.WorkflowID == name {
-			select {
-			case eventCh <- e:
-			default:
-				// Drop event if channel is full to avoid blocking the publisher.
-			}
-		}
-	})
-	defer unsub()
-
-	// 5. Start runner.Run in a goroutine
-	type runResult struct {
-		session *engine.Session
-		err     error
+	// 4. Build DAGAgent from workflow
+	dagAgent, err := agents.NewDAGAgent(wf, s.llms, s.toolReg)
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
+		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+		flusher.Flush()
+		return
 	}
-	doneCh := make(chan runResult, 1)
-	go func() {
-		if s.a2aRunner != nil {
-			baseURL := getBaseURL(r)
-			nodeURLs := make(map[string]string)
-			for _, n := range wf.Nodes {
-				if n.Type == engine.NodeTypeExternal {
-					if url, ok := n.Config["endpoint_url"].(string); ok {
-						nodeURLs[n.ID] = url
-						continue
-					}
-				}
-				nodeURLs[n.ID] = fmt.Sprintf("%s/a2a/nodes/%s", baseURL, n.ID)
-			}
-			sess, err := s.a2aRunner.Run(r.Context(), wf, nodeURLs, req.Inputs)
-			doneCh <- runResult{session: sess, err: err}
-		} else {
-			sess, err := s.runner.Run(r.Context(), wf, s.executors, req.Inputs)
-			doneCh <- runResult{session: sess, err: err}
-		}
-	}()
 
-	// 6. Stream events via SSE until done
-	writeSSE := func(eventType string, data any) {
-		jsonData, err := json.Marshal(data)
+	// 5. Create ADK Runner
+	adkRunner, err := runner.New(runner.Config{
+		AppName:        wf.Name,
+		Agent:          dagAgent,
+		SessionService: s.sessionService,
+	})
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
+		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	// 6. Create session with user inputs as initial state
+	sessionID := fmt.Sprintf("session-%d", time.Now().UnixNano())
+	userID := "default"
+
+	inputState := make(map[string]any)
+	for k, v := range req.Inputs {
+		inputState["__user_input__"+k] = v
+	}
+
+	_, err = s.sessionService.Create(r.Context(), &session.CreateRequest{
+		AppName:   wf.Name,
+		UserID:    userID,
+		SessionID: sessionID,
+		State:     inputState,
+	})
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
+		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	// 7. Run and stream events
+	userContent := genai.NewContentFromText("run", genai.RoleUser)
+	for event, err := range adkRunner.Run(r.Context(), userID, sessionID, userContent, agent.RunConfig{}) {
 		if err != nil {
+			data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
+			fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+			flusher.Flush()
 			return
 		}
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, jsonData)
+		if event == nil {
+			continue
+		}
+		jsonData, _ := json.Marshal(event)
+		fmt.Fprintf(w, "data: %s\n\n", jsonData)
 		flusher.Flush()
 	}
 
-	for {
-		select {
-		case evt := <-eventCh:
-			// Capture the session ID from the first event
-			if sessionID == "" && evt.SessionID != "" {
-				sessionID = evt.SessionID
-			}
-			// Filter: only forward events for our session
-			if sessionID != "" && evt.SessionID != sessionID {
-				continue
-			}
-			writeSSE(string(evt.Type), map[string]any{
-				"node_id":   evt.NodeID,
-				"payload":   evt.Payload,
-				"timestamp": evt.Timestamp,
-			})
-		case result := <-doneCh:
-			// Drain remaining events from the channel
-			for {
-				select {
-				case evt := <-eventCh:
-					if sessionID != "" && evt.SessionID != sessionID {
-						continue
-					}
-					writeSSE(string(evt.Type), map[string]any{
-						"node_id":   evt.NodeID,
-						"payload":   evt.Payload,
-						"timestamp": evt.Timestamp,
-					})
-				default:
-					goto drained
-				}
-			}
-		drained:
-			// 7. Send final "done" event with session state
-			status := "completed"
-			var state map[string]any
-			if result.err != nil {
-				status = "failed"
-			}
-			if result.session != nil {
-				status = string(result.session.Status)
-				state = result.session.State
-			}
-			doneData := map[string]any{
-				"session_id": sessionID,
-				"status":     status,
-				"state":      state,
-			}
-			if result.err != nil {
-				doneData["error"] = result.err.Error()
-			}
-			writeSSE("done", doneData)
-			return
-		case <-r.Context().Done():
-			return
-		}
-	}
+	// 8. Send done event
+	doneData, _ := json.Marshal(map[string]any{"status": "completed", "session_id": sessionID})
+	fmt.Fprintf(w, "event: done\ndata: %s\n\n", doneData)
+	flusher.Flush()
 }

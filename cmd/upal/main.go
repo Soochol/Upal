@@ -9,16 +9,15 @@ import (
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 
-	"github.com/soochol/upal/internal/a2aclient"
 	"github.com/soochol/upal/internal/api"
 	"github.com/soochol/upal/internal/config"
 	"github.com/soochol/upal/internal/db"
-	"github.com/soochol/upal/internal/engine"
 	"github.com/soochol/upal/internal/generate"
-	"github.com/soochol/upal/internal/nodes"
-	"github.com/soochol/upal/internal/provider"
+	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
+	adkmodel "google.golang.org/adk/model"
+	"google.golang.org/adk/session"
 )
 
 func main() {
@@ -26,7 +25,7 @@ func main() {
 		serve()
 		return
 	}
-	fmt.Println("upal v0.1.0")
+	fmt.Println("upal v0.2.0")
 	fmt.Println("Usage: upal serve")
 }
 
@@ -37,38 +36,42 @@ func serve() {
 		os.Exit(1)
 	}
 
-	eventBus := engine.NewEventBus()
-	sessions := engine.NewSessionManager()
+	llms := make(map[string]adkmodel.LLM)
+	var defaultLLM adkmodel.LLM
+	var defaultModelName string
 
-	providerReg := provider.NewRegistry()
 	for name, pc := range cfg.Providers {
-		var p provider.Provider
 		switch pc.Type {
 		case "anthropic":
-			p = provider.NewAnthropicProvider(name, pc.URL, pc.APIKey)
+			llms[name] = upalmodel.NewAnthropicLLM(pc.APIKey)
+			if defaultLLM == nil {
+				defaultLLM = llms[name]
+				defaultModelName = "claude-sonnet-4-20250514"
+			}
 		case "gemini":
-			p = provider.NewGeminiProvider(name, pc.URL, pc.APIKey)
+			// Use OpenAI-compatible wrapper for Gemini
+			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
+				upalmodel.WithOpenAIBaseURL(pc.URL),
+				upalmodel.WithOpenAIName(name))
+			if defaultLLM == nil {
+				defaultLLM = llms[name]
+				defaultModelName = "gemini-2.0-flash"
+			}
 		default:
-			p = provider.NewOpenAIProvider(name, pc.URL, pc.APIKey)
+			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
+				upalmodel.WithOpenAIBaseURL(pc.URL),
+				upalmodel.WithOpenAIName(name))
+			if defaultLLM == nil {
+				defaultLLM = llms[name]
+				defaultModelName = "gpt-4o"
+			}
 		}
-		providerReg.Register(p)
 	}
 
 	toolReg := tools.NewRegistry()
-	runner := engine.NewRunner(eventBus, sessions)
+	sessionService := session.InMemoryService()
 
-	a2aClient := a2aclient.NewClient(http.DefaultClient)
-	a2aRunner := engine.NewA2ARunner(eventBus, sessions, a2aClient)
-
-	executors := map[engine.NodeType]engine.NodeExecutorInterface{
-		engine.NodeTypeInput:    &nodes.InputNode{},
-		engine.NodeTypeAgent:    nodes.NewAgentNode(providerReg, toolReg, eventBus),
-		engine.NodeTypeTool:     nodes.NewToolNode(toolReg),
-		engine.NodeTypeOutput:   &nodes.OutputNode{},
-		engine.NodeTypeExternal: nodes.NewExternalNode(a2aClient),
-	}
-
-	srv := api.NewServer(eventBus, sessions, runner, a2aRunner, executors)
+	srv := api.NewServer(llms, sessionService, toolReg)
 
 	// Optional: Connect to PostgreSQL if database URL is configured.
 	if cfg.Database.URL != "" {
@@ -87,20 +90,11 @@ func serve() {
 	}
 
 	// Configure natural language workflow generator if any provider is available.
-	gen := generate.New(providerReg)
-	var defaultModel string
-	for name, pc := range cfg.Providers {
-		switch pc.Type {
-		case "gemini":
-			defaultModel = name + "/gemini-2.0-flash"
-		case "anthropic":
-			defaultModel = name + "/claude-sonnet-4-20250514"
-		default:
-			defaultModel = name + "/gpt-4o"
-		}
-		break
+	if defaultLLM != nil {
+		gen := generate.New(defaultLLM, defaultModelName)
+		srv.SetGenerator(gen, defaultModelName)
 	}
-	srv.SetGenerator(gen, defaultModel)
+	srv.SetProviderConfigs(cfg.Providers)
 
 	// Configure file storage
 	store, err := storage.NewLocalStorage("./uploads")

@@ -1,32 +1,30 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	a2apkg "github.com/soochol/upal/internal/a2a"
-	"github.com/soochol/upal/internal/a2atypes"
+	"github.com/soochol/upal/internal/config"
 	"github.com/soochol/upal/internal/db"
-	"github.com/soochol/upal/internal/engine"
 	"github.com/soochol/upal/internal/generate"
 	"github.com/soochol/upal/internal/storage"
+	"github.com/soochol/upal/internal/tools"
+	adkmodel "google.golang.org/adk/model"
+	"google.golang.org/adk/session"
 )
 
 type Server struct {
-	eventBus             *engine.EventBus
-	sessions             *engine.SessionManager
 	workflows            *WorkflowStore
-	runner               *engine.Runner
-	a2aRunner            *engine.A2ARunner
-	executors            map[engine.NodeType]engine.NodeExecutorInterface
+	llms                 map[string]adkmodel.LLM
+	sessionService       session.Service
+	toolReg              *tools.Registry
 	generator            *generate.Generator
 	defaultGenerateModel string
 	storage              storage.Storage
 	db                   *db.DB
+	providerConfigs      map[string]config.ProviderConfig
 }
 
 // SetDB configures the database backend. When set, workflow CRUD
@@ -35,14 +33,17 @@ func (s *Server) SetDB(database *db.DB) {
 	s.db = database
 }
 
-func NewServer(eventBus *engine.EventBus, sessions *engine.SessionManager, runner *engine.Runner, a2aRunner *engine.A2ARunner, executors map[engine.NodeType]engine.NodeExecutorInterface) *Server {
+// SetProviderConfigs stores the provider configuration for model discovery.
+func (s *Server) SetProviderConfigs(configs map[string]config.ProviderConfig) {
+	s.providerConfigs = configs
+}
+
+func NewServer(llms map[string]adkmodel.LLM, sessionService session.Service, toolReg *tools.Registry) *Server {
 	return &Server{
-		eventBus:  eventBus,
-		sessions:  sessions,
-		workflows: NewWorkflowStore(),
-		runner:    runner,
-		a2aRunner: a2aRunner,
-		executors: executors,
+		workflows:      NewWorkflowStore(),
+		llms:           llms,
+		sessionService: sessionService,
+		toolReg:        toolReg,
 	}
 }
 
@@ -66,15 +67,10 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/{name}/run", s.runWorkflow)
 		})
 		r.Post("/generate", s.generateWorkflow)
+		r.Post("/nodes/configure", s.configureNode)
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
-	})
-
-	// A2A protocol endpoints — dynamic node handlers
-	r.Route("/a2a", func(r chi.Router) {
-		r.Get("/agent-card", s.aggregateAgentCard)
-		r.Post("/nodes/{nodeID}", s.handleA2ANode)
-		r.Get("/nodes/{nodeID}/agent-card", s.handleA2ANodeCard)
+		r.Get("/models", s.listModels)
 	})
 
 	// Serve static files (frontend)
@@ -83,86 +79,13 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
-func (s *Server) aggregateAgentCard(w http.ResponseWriter, r *http.Request) {
-	card := a2atypes.AgentCard{
-		Name:               "upal",
-		Description:        "Upal visual AI workflow platform",
-		URL:                getBaseURL(r) + "/a2a",
-		Capabilities:       a2atypes.Capabilities{},
-		DefaultInputModes:  []string{"text/plain"},
-		DefaultOutputModes: []string{"text/plain"},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(card)
+// SetGenerator configures the natural language workflow generator.
+func (s *Server) SetGenerator(gen *generate.Generator, defaultModel string) {
+	s.generator = gen
+	s.defaultGenerateModel = defaultModel
 }
 
-func (s *Server) handleA2ANode(w http.ResponseWriter, r *http.Request) {
-	nodeID := chi.URLParam(r, "nodeID")
-
-	var nodeDef *engine.NodeDefinition
-	for _, wf := range s.workflows.List() {
-		for i, n := range wf.Nodes {
-			if n.ID == nodeID {
-				nodeDef = &wf.Nodes[i]
-				break
-			}
-		}
-		if nodeDef != nil {
-			break
-		}
-	}
-	if nodeDef == nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a2atypes.JSONRPCResponse{
-			JSONRPC: "2.0",
-			Error:   &a2atypes.JSONRPCError{Code: -32001, Message: fmt.Sprintf("node %q not registered", nodeID)},
-		})
-		return
-	}
-
-	executor, ok := s.executors[nodeDef.Type]
-	if !ok {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(a2atypes.JSONRPCResponse{
-			JSONRPC: "2.0",
-			Error:   &a2atypes.JSONRPCError{Code: -32001, Message: fmt.Sprintf("no executor for type %q", nodeDef.Type)},
-		})
-		return
-	}
-
-	handler := a2apkg.NewNodeHandler(executor, nodeDef)
-	handler.ServeHTTP(w, r)
-}
-
-func (s *Server) handleA2ANodeCard(w http.ResponseWriter, r *http.Request) {
-	nodeID := chi.URLParam(r, "nodeID")
-
-	var nodeDef *engine.NodeDefinition
-	for _, wf := range s.workflows.List() {
-		for i, n := range wf.Nodes {
-			if n.ID == nodeID {
-				nodeDef = &wf.Nodes[i]
-				break
-			}
-		}
-		if nodeDef != nil {
-			break
-		}
-	}
-	if nodeDef == nil {
-		http.Error(w, "node not found", http.StatusNotFound)
-		return
-	}
-
-	card := a2apkg.AgentCardFromNodeDef(nodeDef, getBaseURL(r))
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(card)
-}
-
-func getBaseURL(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	return fmt.Sprintf("%s://%s", scheme, r.Host)
+// SetStorage configures the file storage backend.
+func (s *Server) SetStorage(store storage.Storage) {
+	s.storage = store
 }
