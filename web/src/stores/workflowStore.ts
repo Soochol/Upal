@@ -10,6 +10,12 @@ import {
   type OnConnect,
 } from '@xyflow/react'
 import { getLayoutedElements } from '@/lib/layout'
+import { useUIStore } from './uiStore'
+
+// Re-export types and stores for backward compatibility
+export type { RunEvent, NodeRunStatus } from './executionStore'
+export { useExecutionStore } from './executionStore'
+export { useUIStore } from './uiStore'
 
 export type NodeData = {
   label: string
@@ -17,13 +23,6 @@ export type NodeData = {
   description: string
   config: Record<string, unknown>
 }
-
-export type RunEvent = {
-  type: string        // 'agent' | 'info' | 'error' | 'done'
-  data: Record<string, unknown>
-}
-
-export type NodeRunStatus = 'idle' | 'running' | 'completed' | 'error'
 
 type WorkflowState = {
   nodes: Node<NodeData>[]
@@ -36,28 +35,10 @@ type WorkflowState = {
   updateNodeLabel: (nodeId: string, label: string) => void
   updateNodeDescription: (nodeId: string, description: string) => void
   applyAutoLayout: () => void
-  selectedNodeId: string | null
-  selectNode: (id: string | null) => void
 
   // Workflow identity
   workflowName: string
   setWorkflowName: (name: string) => void
-
-  // Execution state
-  isRunning: boolean
-  setIsRunning: (running: boolean) => void
-  runEvents: RunEvent[]
-  addRunEvent: (event: RunEvent) => void
-  clearRunEvents: () => void
-
-  // Session state (final execution data from done event)
-  sessionState: Record<string, unknown>
-  setSessionState: (state: Record<string, unknown>) => void
-
-  // Node run status tracking
-  nodeStatuses: Record<string, NodeRunStatus>
-  setNodeStatus: (nodeId: string, status: NodeRunStatus) => void
-  clearNodeStatuses: () => void
 
   // Group management
   createGroup: (nodeIds: string[]) => void
@@ -72,16 +53,9 @@ const getId = () => `node_${++nodeId}`
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
-  selectedNodeId: null,
 
   // Workflow identity
   workflowName: '',
-
-  // Execution state
-  isRunning: false,
-  runEvents: [],
-  sessionState: {},
-  nodeStatuses: {},
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })
@@ -152,29 +126,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const { nodes: layouted } = getLayoutedElements<Node<NodeData>>(nodes, edges, 'LR')
     set({ nodes: layouted })
   },
-  selectNode: (id) => {
-    set({ selectedNodeId: id })
-  },
   setWorkflowName: (name) => {
     set({ workflowName: name })
-  },
-  setIsRunning: (running) => {
-    set({ isRunning: running })
-  },
-  addRunEvent: (event) => {
-    set({ runEvents: [...get().runEvents, event] })
-  },
-  clearRunEvents: () => {
-    set({ runEvents: [], sessionState: {} })
-  },
-  setSessionState: (state) => {
-    set({ sessionState: state })
-  },
-  setNodeStatus: (nodeId, status) => {
-    set({ nodeStatuses: { ...get().nodeStatuses, [nodeId]: status } })
-  },
-  clearNodeStatuses: () => {
-    set({ nodeStatuses: {} })
   },
 
   createGroup: (nodeIds) => {
@@ -215,7 +168,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     })
 
     // Group node must appear before its children in the array
-    set({ nodes: [groupNode, ...updatedNodes], selectedNodeId: groupId })
+    set({ nodes: [groupNode, ...updatedNodes] })
+    useUIStore.getState().selectNode(groupId)
   },
 
   removeGroup: (groupId) => {
@@ -240,7 +194,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         return n
       })
 
-    set({ nodes: updatedNodes, selectedNodeId: null })
+    set({ nodes: updatedNodes })
+    useUIStore.getState().selectNode(null)
   },
 
   updateGroupLabel: (groupId, label) => {

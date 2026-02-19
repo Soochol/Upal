@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { NodeResizer, type NodeProps, type Node } from '@xyflow/react'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useUIStore } from '@/stores/uiStore'
 import type { NodeData } from '@/stores/workflowStore'
 import { cn } from '@/lib/utils'
 
@@ -13,7 +13,7 @@ const colorStyles: Record<string, { border: string; bg: string }> = {
 }
 
 function GroupNodeComponent({ id, data, selected }: NodeProps<Node<NodeData>>) {
-  const selectNode = useWorkflowStore((s) => s.selectNode)
+  const selectNode = useUIStore((s) => s.selectNode)
   const color = colorStyles[(data.config.color as string) ?? 'purple'] ?? colorStyles.purple
 
   return (

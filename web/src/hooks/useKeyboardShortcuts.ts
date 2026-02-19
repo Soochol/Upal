@@ -1,14 +1,14 @@
 import { useEffect } from 'react'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { useUIStore } from '@/stores/uiStore'
 
 type ShortcutHandlers = {
   onSave: () => void
-  onRun: () => void
 }
 
-export function useKeyboardShortcuts({ onSave, onRun }: ShortcutHandlers) {
-  const selectNode = useWorkflowStore((s) => s.selectNode)
-  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
+export function useKeyboardShortcuts({ onSave }: ShortcutHandlers) {
+  const selectNode = useUIStore((s) => s.selectNode)
+  const selectedNodeId = useUIStore((s) => s.selectedNodeId)
   const onNodesChange = useWorkflowStore((s) => s.onNodesChange)
 
   useEffect(() => {
@@ -18,17 +18,17 @@ export function useKeyboardShortcuts({ onSave, onRun }: ShortcutHandlers) {
         e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLSelectElement
 
-      // Ctrl/Cmd + S = Save
+      // Ctrl/Cmd + S = Save immediately
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         onSave()
         return
       }
 
-      // Ctrl/Cmd + Enter = Run
+      // Ctrl/Cmd + Enter = Switch to Preview tab
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
-        onRun()
+        useUIStore.getState().setForcePreviewTab(true)
         return
       }
 
@@ -51,5 +51,5 @@ export function useKeyboardShortcuts({ onSave, onRun }: ShortcutHandlers) {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onSave, onRun, selectNode, selectedNodeId, onNodesChange])
+  }, [onSave, selectNode, selectedNodeId, onNodesChange])
 }

@@ -16,6 +16,7 @@ import { AIChatEditor } from '@/components/panel/AIChatEditor'
 import { Button } from '@/components/ui/button'
 import { X, Settings2, ScrollText, Database, MessageSquare, Eye } from 'lucide-react'
 import type { NodeData } from '@/stores/workflowStore'
+import { useUIStore } from '@/stores/uiStore'
 import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {
@@ -37,7 +38,7 @@ const MAX_WIDTH = 800
 
 export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState('properties')
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const isResizing = useRef(false)
 
@@ -51,17 +52,32 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   // - Node selected  → expand (switch to Properties only if was collapsed)
   // - Node deselected + on Properties → collapse
   // - Node deselected + on Logs/Data/… → stay expanded
+  const prevNodeIdRef = useRef<string | null>(selectedNode?.id ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (selectedNode) {
-      if (!expandedRef.current) {
-        setActiveTab('properties')
-      }
+      setActiveTab('properties')
       setExpanded(true)
-    } else if (activeTabRef.current === 'properties') {
+    } else if (prevNodeIdRef.current !== null && activeTabRef.current === 'properties') {
+      // Only auto-collapse on deselection (selected → null), not on initial mount
       setExpanded(false)
     }
+    prevNodeIdRef.current = selectedNode?.id ?? null
   }, [selectedNode?.id])
+
+  // ── Force Preview tab (from Ctrl+Enter or store signal) ──
+  useEffect(() => {
+    const unsub = useUIStore.subscribe(
+      (state, prevState) => {
+        if (state.forcePreviewTab && !prevState.forcePreviewTab) {
+          setActiveTab('preview')
+          setExpanded(true)
+          useUIStore.getState().setForcePreviewTab(false)
+        }
+      },
+    )
+    return unsub
+  }, [])
 
   // ── Resize drag ──
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -143,10 +159,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
                       <TabsTrigger
                         value={tab.value}
                         className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2 py-2"
-                        onClick={() => {
-                          // Toggle: clicking the active tab collapses the panel
-                          if (activeTab === tab.value) setExpanded(false)
-                        }}
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </TabsTrigger>

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useWorkflowStore } from '@/stores/workflowStore'
-import type { RunEvent } from '@/stores/workflowStore'
+import { useExecutionStore } from '@/stores/executionStore'
+import type { RunEvent } from '@/stores/executionStore'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChevronUp, ChevronDown, Trash2, Terminal } from 'lucide-react'
+import { ChevronUp, ChevronDown, Trash2, Terminal, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const eventColorMap: Record<string, string> = {
@@ -48,11 +48,19 @@ function formatEvent(event: RunEvent): string {
 }
 
 export function BottomConsole() {
-  const runEvents = useWorkflowStore((s) => s.runEvents)
-  const isRunning = useWorkflowStore((s) => s.isRunning)
-  const clearRunEvents = useWorkflowStore((s) => s.clearRunEvents)
+  const runEvents = useExecutionStore((s) => s.runEvents)
+  const isRunning = useExecutionStore((s) => s.isRunning)
+  const clearRunEvents = useExecutionStore((s) => s.clearRunEvents)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    const text = runEvents.map((e) => `[${e.type}] ${formatEvent(e)}`).join('\n')
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   // Auto-expand when a run starts
   useEffect(() => {
@@ -95,9 +103,14 @@ export function BottomConsole() {
         </button>
         <div className="flex items-center gap-1">
           {runEvents.length > 0 && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearRunEvents}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            <>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearRunEvents}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </>
           )}
         </div>
       </div>

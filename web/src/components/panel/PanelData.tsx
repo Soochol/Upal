@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useExecutionStore } from '@/stores/executionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Collapsible,
@@ -21,7 +21,7 @@ type PanelDataProps = {
 }
 
 export function PanelData({ selectedNodeId }: PanelDataProps) {
-  const sessionState = useWorkflowStore((s) => s.sessionState)
+  const sessionState = useExecutionStore((s) => s.sessionState)
   const entries = Object.entries(sessionState)
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})

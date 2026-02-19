@@ -1,34 +1,30 @@
 import { useState } from 'react'
 import { Canvas } from '@/components/editor/Canvas'
-import { RunDialog } from '@/components/dialogs/RunDialog'
 import { RightPanel } from '@/components/panel/RightPanel'
 import { Header } from '@/components/Header'
 import { NodePalette } from '@/components/sidebar/NodePalette'
 import { BottomConsole } from '@/components/console/BottomConsole'
-import { useWorkflowStore, type NodeRunStatus } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/stores/workflowStore'
+import { useExecutionStore } from '@/stores/executionStore'
+import { useUIStore } from '@/stores/uiStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useAutoSave } from '@/hooks/useAutoSave'
 import { serializeWorkflow, deserializeWorkflow } from '@/lib/serializer'
-import { saveWorkflow, runWorkflow, generateWorkflow } from '@/lib/api'
+import { generateWorkflow } from '@/lib/api'
 
 export default function Editor() {
   const addNode = useWorkflowStore((s) => s.addNode)
   const nodes = useWorkflowStore((s) => s.nodes)
-  const edges = useWorkflowStore((s) => s.edges)
   const workflowName = useWorkflowStore((s) => s.workflowName)
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
-  const isRunning = useWorkflowStore((s) => s.isRunning)
-  const setIsRunning = useWorkflowStore((s) => s.setIsRunning)
-  const addRunEvent = useWorkflowStore((s) => s.addRunEvent)
-  const clearRunEvents = useWorkflowStore((s) => s.clearRunEvents)
+  const addRunEvent = useExecutionStore((s) => s.addRunEvent)
 
-  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
-  const selectNode = useWorkflowStore((s) => s.selectNode)
-  const setNodeStatus = useWorkflowStore((s) => s.setNodeStatus)
-  const clearNodeStatuses = useWorkflowStore((s) => s.clearNodeStatuses)
-  const setSessionState = useWorkflowStore((s) => s.setSessionState)
+  const selectedNodeId = useUIStore((s) => s.selectedNodeId)
+  const selectNode = useUIStore((s) => s.selectNode)
 
-  const [showRunDialog, setShowRunDialog] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const { saveStatus, saveNow } = useAutoSave()
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
@@ -43,74 +39,6 @@ export default function Editor() {
 
   const handleDropNode = (type: string, position: { x: number; y: number }) => {
     addNode(type as 'input' | 'agent' | 'tool' | 'output' | 'external', position)
-  }
-
-  const handleSave = async () => {
-    let name = workflowName
-    if (!name) {
-      const input = window.prompt('Workflow name:')
-      if (!input) return
-      name = input
-      setWorkflowName(name)
-    }
-    try {
-      const wf = serializeWorkflow(name, nodes, edges)
-      await saveWorkflow(wf)
-      addRunEvent({ type: 'info', data: { message: `Workflow "${name}" saved.` } })
-    } catch (err) {
-      addRunEvent({
-        type: 'error',
-        data: { message: `Save failed: ${err instanceof Error ? err.message : String(err)}` },
-      })
-    }
-  }
-
-  const executeRun = async (inputs: Record<string, string>) => {
-    let name = workflowName
-    if (!name) {
-      const input = window.prompt('Workflow name:')
-      if (!input) return
-      name = input
-      setWorkflowName(name)
-    }
-
-    clearRunEvents()
-    clearNodeStatuses()
-    setIsRunning(true)
-    addRunEvent({ type: 'info', data: { message: `Running workflow "${name}"...` } })
-
-    await runWorkflow(
-      name,
-      inputs,
-      (event) => {
-        addRunEvent(event)
-        // ADK events: author = node ID
-        const nodeId = event.data.Author as string | undefined
-        if (nodeId) {
-          // Any event from a node means it's running
-          setNodeStatus(nodeId, 'running')
-        }
-      },
-      (result) => {
-        addRunEvent({ type: 'done', data: result })
-        // Mark all running nodes as completed or error
-        const statuses = useWorkflowStore.getState().nodeStatuses
-        const finalStatus = result.status === 'failed' ? 'error' : 'completed'
-        for (const [id, status] of Object.entries(statuses)) {
-          if (status === 'running') {
-            setNodeStatus(id, finalStatus as NodeRunStatus)
-          }
-        }
-        if (result.state && typeof result.state === 'object') {
-          setSessionState(result.state as Record<string, unknown>)
-        }
-        setIsRunning(false)
-      },
-      (error) => {
-        addRunEvent({ type: 'error', data: { message: error.message } })
-        setIsRunning(false)
-      },
-    )
   }
 
   const handlePromptSubmit = async (description: string) => {
@@ -145,22 +73,15 @@ export default function Editor() {
   }
 
   useKeyboardShortcuts({
-    onSave: handleSave,
-    onRun: () => !isRunning && setShowRunDialog(true),
+    onSave: saveNow,
   })
-
-  const inputNodes = nodes
-    .filter((n) => n.data.nodeType === 'input')
-    .map((n) => ({ id: n.id, label: n.data.label }))
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
       <Header
         workflowName={workflowName}
         onWorkflowNameChange={setWorkflowName}
-        onSave={handleSave}
-        onRun={() => !isRunning && setShowRunDialog(true)}
-        isRunning={isRunning}
+        saveStatus={saveStatus}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -182,17 +103,6 @@ export default function Editor() {
       </div>
 
       <BottomConsole />
-
-      <RunDialog
-        open={showRunDialog}
-        inputNodes={inputNodes}
-        onRun={(inputs) => {
-          setShowRunDialog(false)
-          executeRun(inputs)
-        }}
-        onOpenChange={setShowRunDialog}
-      />
-
     </div>
   )
 }

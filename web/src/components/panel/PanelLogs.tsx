@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { useWorkflowStore } from '@/stores/workflowStore'
-import type { RunEvent } from '@/stores/workflowStore'
+import { useExecutionStore } from '@/stores/executionStore'
+import type { RunEvent } from '@/stores/executionStore'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -61,7 +61,7 @@ type PanelLogsProps = {
 }
 
 export function PanelLogs({ selectedNodeId }: PanelLogsProps) {
-  const runEvents = useWorkflowStore((s) => s.runEvents)
+  const runEvents = useExecutionStore((s) => s.runEvents)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const filteredEvents = selectedNodeId
