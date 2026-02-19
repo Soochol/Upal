@@ -56,8 +56,6 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 				}
 
 				var wg sync.WaitGroup
-				var execErr error
-				var errOnce sync.Once
 
 				// Channel to collect events from goroutines in order.
 				type nodeEvent struct {
@@ -93,9 +91,6 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 						// Run the node agent and collect events.
 						for ev, err := range nodeAgent.Run(ctx) {
 							if err != nil {
-								errOnce.Do(func() {
-									execErr = fmt.Errorf("node %q: %w", nodeID, err)
-								})
 								eventCh <- nodeEvent{nil, fmt.Errorf("node %q: %w", nodeID, err)}
 								return
 							}
@@ -115,11 +110,6 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 					if !yield(ne.event, ne.err) {
 						return
 					}
-				}
-
-				// If there was an error, yield it.
-				if execErr != nil && ctx.Err() == nil {
-					yield(nil, execErr)
 				}
 			}
 		},

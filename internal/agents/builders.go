@@ -1,7 +1,6 @@
 package agents
 
 import (
-	"context"
 	"fmt"
 	"iter"
 	"regexp"
@@ -141,7 +140,7 @@ func buildToolAgent(nd *upal.NodeDefinition, toolReg *tools.Registry) (agent.Age
 				var result any
 				var execErr error
 				if toolReg != nil && toolName != "" {
-					result, execErr = toolReg.Execute(context.Background(), toolName, resolvedInput)
+					result, execErr = toolReg.Execute(ctx, toolName, resolvedInput)
 				}
 
 				if execErr != nil {

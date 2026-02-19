@@ -15,6 +15,8 @@ import (
 	adkmodel "google.golang.org/adk/model"
 )
 
+var _ adkmodel.LLM = (*OpenAILLM)(nil)
+
 const openaiDefaultBaseURL = "https://api.openai.com/v1"
 
 // OpenAIOption configures an OpenAILLM instance.
