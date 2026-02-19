@@ -85,7 +85,7 @@ export default function Editor() {
       (event) => {
         addRunEvent(event)
         // ADK events: author = node ID
-        const nodeId = event.data.author as string | undefined
+        const nodeId = event.data.Author as string | undefined
         if (nodeId) {
           // Any event from a node means it's running
           setNodeStatus(nodeId, 'running')

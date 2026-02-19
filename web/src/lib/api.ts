@@ -172,7 +172,7 @@ export async function runWorkflow(
               onDone(data)
             } else {
               // Derive event type from ADK Event content
-              const eventType = data.author ? 'agent' : (currentEventType || 'event')
+              const eventType = data.Author ? 'agent' : (currentEventType || 'event')
               onEvent({ type: eventType, data })
             }
           } catch {

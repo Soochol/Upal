@@ -21,11 +21,11 @@ function formatEvent(event: RunEvent): string {
 
   const parts: string[] = []
 
-  // ADK Event: show author (node ID)
-  if (data.author) parts.push(`[${data.author}]`)
+  // ADK Event: show author (node ID) — Go struct uses PascalCase
+  if (data.Author) parts.push(`[${data.Author}]`)
 
   // Show text content from genai.Content
-  const content = data.content as { parts?: { text?: string }[] } | undefined
+  const content = data.Content as { parts?: { text?: string }[] } | undefined
   if (content?.parts) {
     for (const part of content.parts) {
       if (part.text) parts.push(part.text)
@@ -33,9 +33,9 @@ function formatEvent(event: RunEvent): string {
   }
 
   // Show state delta keys from actions
-  const actions = data.actions as { state_delta?: Record<string, unknown> } | undefined
-  if (actions?.state_delta) {
-    const keys = Object.keys(actions.state_delta)
+  const actions = data.Actions as { StateDelta?: Record<string, unknown> } | undefined
+  if (actions?.StateDelta) {
+    const keys = Object.keys(actions.StateDelta)
     if (keys.length > 0) parts.push(`state: {${keys.join(', ')}}`)
   }
 

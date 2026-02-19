@@ -177,12 +177,18 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 	systemPrompt, _ := nd.Config["system_prompt"].(string)
 
 	// Resolve the LLM from "provider/model" format.
+	// ADK uses llm.Name() as req.Model in API requests, so we wrap the
+	// provider LLM with the actual model name (e.g., "qwen3:32b").
 	var llm adkmodel.LLM
 	if modelID != "" && llms != nil {
 		parts := strings.SplitN(modelID, "/", 2)
 		providerName := parts[0]
 		if l, ok := llms[providerName]; ok {
-			llm = l
+			if len(parts) == 2 {
+				llm = &namedLLM{LLM: l, name: parts[1]}
+			} else {
+				llm = l
+			}
 		}
 	}
 
@@ -235,6 +241,17 @@ func buildRemoteAgent(nd *upal.NodeDefinition) (agent.Agent, error) {
 
 // templatePattern matches {{key}} or {{key.subkey}} placeholders.
 var templatePattern = regexp.MustCompile(`\{\{(\w+(?:\.\w+)*)\}\}`)
+
+// namedLLM wraps an LLM to override Name() with a specific model name.
+// ADK uses Name() as req.Model in API requests, so each agent node needs
+// an LLM whose Name() returns the actual model name (e.g., "qwen3:32b"),
+// not the provider name (e.g., "ollama").
+type namedLLM struct {
+	adkmodel.LLM
+	name string
+}
+
+func (n *namedLLM) Name() string { return n.name }
 
 // resolveTemplateFromState replaces {{key}} placeholders in a template string
 // with values from session state. Unresolved placeholders are left as-is.

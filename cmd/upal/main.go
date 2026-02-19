@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 
@@ -49,9 +50,10 @@ func serve() {
 				defaultModelName = "claude-sonnet-4-20250514"
 			}
 		case "gemini":
-			// Use OpenAI-compatible wrapper for Gemini
+			// Gemini's OpenAI-compatible endpoint requires /v1beta/openai suffix
+			geminiURL := strings.TrimRight(pc.URL, "/") + "/v1beta/openai"
 			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
-				upalmodel.WithOpenAIBaseURL(pc.URL),
+				upalmodel.WithOpenAIBaseURL(geminiURL),
 				upalmodel.WithOpenAIName(name))
 			if defaultLLM == nil {
 				defaultLLM = llms[name]
