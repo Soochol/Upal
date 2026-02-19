@@ -1,151 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useEditor, EditorContent, ReactNodeViewRenderer, NodeViewWrapper, ReactRenderer } from '@tiptap/react'
-import type { ReactNodeViewProps } from '@tiptap/react'
+import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Mention from '@tiptap/extension-mention'
 import Placeholder from '@tiptap/extension-placeholder'
-import type { SuggestionOptions, SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
-import type { JSONContent } from '@tiptap/core'
-import { Bot, Pencil, Check } from 'lucide-react'
+import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
+import { Pencil, Check } from 'lucide-react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { useUpstreamNodes } from '@/hooks/useUpstreamNodes'
-import { nodeIconMap } from '@/lib/nodeTypes'
 import { MentionList } from './MentionList'
 import type { MentionItem, MentionListRef } from './MentionList'
-
-const pillColorMap: Record<string, string> = {
-  input: 'bg-node-input/15 text-node-input',
-  agent: 'bg-node-agent/15 text-node-agent',
-  tool: 'bg-node-tool/15 text-node-tool',
-  output: 'bg-node-output/15 text-node-output',
-  external: 'bg-purple-500/15 text-purple-500',
-}
-
-// ── Mention pill rendered inside the editor ──
-
-function MentionPill({ node }: ReactNodeViewProps) {
-  const Icon = nodeIconMap[node.attrs.nodeType as string] || Bot
-  const colors = pillColorMap[node.attrs.nodeType as string] || 'bg-muted text-muted-foreground'
-  return (
-    <NodeViewWrapper
-      as="span"
-      className={`mention-pill inline-flex items-center gap-0.5 rounded px-1 py-px text-[11px] font-medium align-baseline cursor-default ${colors}`}
-    >
-      <Icon className="h-3 w-3 shrink-0" />
-      <span className="truncate max-w-[120px]">
-        {(node.attrs.label as string) || (node.attrs.id as string)}
-      </span>
-    </NodeViewWrapper>
-  )
-}
-
-// ── Custom findSuggestionMatch for multi-char `{{` trigger ──
-
-const customFindSuggestionMatch: SuggestionOptions['findSuggestionMatch'] = (config) => {
-  const { $position } = config
-  const text = $position.parent.textBetween(
-    Math.max(0, $position.parentOffset - 500),
-    $position.parentOffset,
-    null,
-    '\ufffc',
-  )
-  const match = text.match(/\{\{(\w*)$/)
-  if (!match) return null
-  return {
-    range: {
-      from: $position.pos - match[0].length,
-      to: $position.pos,
-    },
-    query: match[1],
-    text: match[0],
-  }
-}
-
-// ── Serialization: TipTap JSON → {{id}} string ──
-
-function serializeContent(json: JSONContent): string {
-  if (!json.content) return ''
-  return json.content
-    .map((para) => {
-      if (!para.content) return ''
-      return para.content
-        .map((node) => {
-          if (node.type === 'mention') return `{{${node.attrs?.id}}}`
-          if (node.type === 'text') return node.text ?? ''
-          if (node.type === 'hardBreak') return '\n'
-          return ''
-        })
-        .join('')
-    })
-    .join('\n')
-}
-
-// ── Deserialization: {{id}} string → TipTap JSON ──
-
-function deserializeContent(
-  text: string,
-  nodeMap: Map<string, MentionItem>,
-): JSONContent {
-  if (!text) return { type: 'doc', content: [{ type: 'paragraph' }] }
-  const paragraphs = text.split('\n').map((line) => {
-    const content: JSONContent[] = []
-    let lastIndex = 0
-    const regex = /\{\{(\w+)\}\}/g
-    let match
-    while ((match = regex.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        content.push({ type: 'text', text: line.slice(lastIndex, match.index) })
-      }
-      const id = match[1]
-      const node = nodeMap.get(id)
-      content.push({
-        type: 'mention',
-        attrs: {
-          id,
-          label: node?.label ?? id,
-          nodeType: node?.nodeType ?? 'agent',
-        },
-      })
-      lastIndex = match.index + match[0].length
-    }
-    if (lastIndex < line.length) {
-      content.push({ type: 'text', text: line.slice(lastIndex) })
-    }
-    return {
-      type: 'paragraph',
-      content: content.length > 0 ? content : undefined,
-    }
-  })
-  return { type: 'doc', content: paragraphs }
-}
-
-// ── Custom Mention extension with nodeType attribute + React pill ──
-
-const CustomMention = Mention.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      nodeType: {
-        default: 'agent',
-        parseHTML: (element: HTMLElement) => element.getAttribute('data-node-type'),
-        renderHTML: (attributes: Record<string, unknown>) => {
-          if (!attributes.nodeType) return {}
-          return { 'data-node-type': attributes.nodeType }
-        },
-      },
-    }
-  },
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      'span',
-      { 'data-type': this.name, ...HTMLAttributes },
-      `{{${node.attrs.id as string}}}`,
-    ]
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(MentionPill, { as: 'span', className: '' })
-  },
-})
+import { CustomMention, customFindSuggestionMatch } from './extensions/CustomMention'
+import { serializeContent, deserializeContent } from '@/lib/promptSerialization'
 
 // ── Main PromptEditor component ──
 
