@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/soochol/upal/internal/a2atypes"
 	"github.com/soochol/upal/internal/engine"
 )
 
@@ -22,7 +23,7 @@ func NewNodeHandler(executor engine.NodeExecutorInterface, nodeDef *engine.NodeD
 
 // ServeHTTP dispatches incoming JSON-RPC requests by method name.
 func (h *NodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req JSONRPCRequest
+	var req a2atypes.JSONRPCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONRPCError(w, nil, -32700, "Parse error")
 		return
@@ -36,13 +37,13 @@ func (h *NodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *NodeHandler) handleSendMessage(w http.ResponseWriter, r *http.Request, req *JSONRPCRequest) {
+func (h *NodeHandler) handleSendMessage(w http.ResponseWriter, r *http.Request, req *a2atypes.JSONRPCRequest) {
 	paramsData, err := json.Marshal(req.Params)
 	if err != nil {
 		writeJSONRPCError(w, req.ID, -32602, "Invalid params")
 		return
 	}
-	var params SendMessageParams
+	var params a2atypes.SendMessageParams
 	if err := json.Unmarshal(paramsData, &params); err != nil {
 		writeJSONRPCError(w, req.ID, -32602, "Invalid params")
 		return
@@ -58,50 +59,50 @@ func (h *NodeHandler) handleSendMessage(w http.ResponseWriter, r *http.Request, 
 		}
 	}
 
-	task := NewTask("")
-	task.Status = TaskWorking
+	task := a2atypes.NewTask("")
+	task.Status = a2atypes.TaskWorking
 	task.Messages = append(task.Messages, params.Message)
 
 	result, err := h.executor.Execute(r.Context(), h.nodeDef, state)
 	if err != nil {
-		task.Status = TaskFailed
-		task.Messages = append(task.Messages, Message{
+		task.Status = a2atypes.TaskFailed
+		task.Messages = append(task.Messages, a2atypes.Message{
 			Role:  "agent",
-			Parts: []Part{TextPart("Error: " + err.Error())},
+			Parts: []a2atypes.Part{a2atypes.TextPart("Error: " + err.Error())},
 		})
 		writeJSONRPCResponse(w, req.ID, task)
 		return
 	}
 
 	artifact := resultToArtifact(result)
-	task.Artifacts = []Artifact{artifact}
-	task.Status = TaskCompleted
-	task.Messages = append(task.Messages, Message{Role: "agent", Parts: artifact.Parts})
+	task.Artifacts = []a2atypes.Artifact{artifact}
+	task.Status = a2atypes.TaskCompleted
+	task.Messages = append(task.Messages, a2atypes.Message{Role: "agent", Parts: artifact.Parts})
 	writeJSONRPCResponse(w, req.ID, task)
 }
 
 // resultToArtifact converts an executor result into an A2A Artifact.
-func resultToArtifact(result any) Artifact {
+func resultToArtifact(result any) a2atypes.Artifact {
 	switch v := result.(type) {
 	case string:
-		return Artifact{Parts: []Part{TextPart(v)}, Index: 0}
+		return a2atypes.Artifact{Parts: []a2atypes.Part{a2atypes.TextPart(v)}, Index: 0}
 	case map[string]any:
-		return Artifact{Parts: []Part{DataPart(v, "application/json")}, Index: 0}
+		return a2atypes.Artifact{Parts: []a2atypes.Part{a2atypes.DataPart(v, "application/json")}, Index: 0}
 	case []any:
-		return Artifact{Parts: []Part{DataPart(v, "application/json")}, Index: 0}
+		return a2atypes.Artifact{Parts: []a2atypes.Part{a2atypes.DataPart(v, "application/json")}, Index: 0}
 	default:
-		return Artifact{Parts: []Part{TextPart(fmt.Sprintf("%v", v))}, Index: 0}
+		return a2atypes.Artifact{Parts: []a2atypes.Part{a2atypes.TextPart(fmt.Sprintf("%v", v))}, Index: 0}
 	}
 }
 
 func writeJSONRPCResponse(w http.ResponseWriter, id any, result any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", ID: id, Result: result})
+	json.NewEncoder(w).Encode(a2atypes.JSONRPCResponse{JSONRPC: "2.0", ID: id, Result: result})
 }
 
 func writeJSONRPCError(w http.ResponseWriter, id any, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", ID: id, Error: &JSONRPCError{Code: code, Message: message}})
+	json.NewEncoder(w).Encode(a2atypes.JSONRPCResponse{JSONRPC: "2.0", ID: id, Error: &a2atypes.JSONRPCError{Code: code, Message: message}})
 }
 
 // ---------------------------------------------------------------------------
@@ -110,20 +111,20 @@ func writeJSONRPCError(w http.ResponseWriter, id any, code int, message string) 
 
 // AgentCardFromNodeDef builds an AgentCard describing an A2A agent backed
 // by the given node definition.
-func AgentCardFromNodeDef(def *engine.NodeDefinition, baseURL string) AgentCard {
+func AgentCardFromNodeDef(def *engine.NodeDefinition, baseURL string) a2atypes.AgentCard {
 	description := fmt.Sprintf("Upal %s node: %s", def.Type, def.ID)
 	if sp, ok := def.Config["system_prompt"].(string); ok && sp != "" {
 		description = sp
 	}
-	return AgentCard{
+	return a2atypes.AgentCard{
 		Name:        def.ID,
 		Description: description,
 		URL:         fmt.Sprintf("%s/a2a/nodes/%s", baseURL, def.ID),
-		Capabilities: Capabilities{
+		Capabilities: a2atypes.Capabilities{
 			Streaming:         false,
 			PushNotifications: false,
 		},
-		Skills: []Skill{{
+		Skills: []a2atypes.Skill{{
 			ID:          def.ID,
 			Name:        string(def.Type) + ": " + def.ID,
 			Description: description,
@@ -137,7 +138,7 @@ func AgentCardFromNodeDef(def *engine.NodeDefinition, baseURL string) AgentCard 
 
 // AgentCardHandler serves the AgentCard as JSON over HTTP GET.
 type AgentCardHandler struct {
-	card AgentCard
+	card a2atypes.AgentCard
 }
 
 // NewAgentCardHandler creates an AgentCardHandler for the given node definition.

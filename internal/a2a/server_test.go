@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/soochol/upal/internal/a2atypes"
 	"github.com/soochol/upal/internal/engine"
 )
 
@@ -23,7 +24,7 @@ func (m *mockExecutor) Execute(_ context.Context, _ *engine.NodeDefinition, _ ma
 }
 
 func makeJSONRPCBody(method string, params any) []byte {
-	body, _ := json.Marshal(JSONRPCRequest{
+	body, _ := json.Marshal(a2atypes.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      1,
 		Method:  method,
@@ -37,10 +38,10 @@ func TestNodeHandler_SendMessage(t *testing.T) {
 	def := &engine.NodeDefinition{ID: "greeter", Type: engine.NodeTypeAgent, Config: map[string]any{}}
 	handler := NewNodeHandler(exec, def)
 
-	params := SendMessageParams{
-		Message: Message{
+	params := a2atypes.SendMessageParams{
+		Message: a2atypes.Message{
 			Role:  "user",
-			Parts: []Part{TextPart("hi there")},
+			Parts: []a2atypes.Part{a2atypes.TextPart("hi there")},
 		},
 	}
 	body := makeJSONRPCBody("a2a.sendMessage", params)
@@ -56,7 +57,7 @@ func TestNodeHandler_SendMessage(t *testing.T) {
 		t.Fatalf("expected application/json, got %s", ct)
 	}
 
-	var resp JSONRPCResponse
+	var resp a2atypes.JSONRPCResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -66,13 +67,13 @@ func TestNodeHandler_SendMessage(t *testing.T) {
 
 	// Decode the Task from result.
 	taskData, _ := json.Marshal(resp.Result)
-	var task Task
+	var task a2atypes.Task
 	if err := json.Unmarshal(taskData, &task); err != nil {
 		t.Fatalf("failed to decode task: %v", err)
 	}
 
-	if task.Status != TaskCompleted {
-		t.Errorf("expected status %q, got %q", TaskCompleted, task.Status)
+	if task.Status != a2atypes.TaskCompleted {
+		t.Errorf("expected status %q, got %q", a2atypes.TaskCompleted, task.Status)
 	}
 	if len(task.Artifacts) != 1 {
 		t.Fatalf("expected 1 artifact, got %d", len(task.Artifacts))
@@ -97,10 +98,10 @@ func TestNodeHandler_SendMessage_ExecutorError(t *testing.T) {
 	def := &engine.NodeDefinition{ID: "fail-node", Type: engine.NodeTypeAgent, Config: map[string]any{}}
 	handler := NewNodeHandler(exec, def)
 
-	params := SendMessageParams{
-		Message: Message{
+	params := a2atypes.SendMessageParams{
+		Message: a2atypes.Message{
 			Role:  "user",
-			Parts: []Part{TextPart("trigger error")},
+			Parts: []a2atypes.Part{a2atypes.TextPart("trigger error")},
 		},
 	}
 	body := makeJSONRPCBody("a2a.sendMessage", params)
@@ -109,7 +110,7 @@ func TestNodeHandler_SendMessage_ExecutorError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	var resp JSONRPCResponse
+	var resp a2atypes.JSONRPCResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -118,13 +119,13 @@ func TestNodeHandler_SendMessage_ExecutorError(t *testing.T) {
 	}
 
 	taskData, _ := json.Marshal(resp.Result)
-	var task Task
+	var task a2atypes.Task
 	if err := json.Unmarshal(taskData, &task); err != nil {
 		t.Fatalf("failed to decode task: %v", err)
 	}
 
-	if task.Status != TaskFailed {
-		t.Errorf("expected status %q, got %q", TaskFailed, task.Status)
+	if task.Status != a2atypes.TaskFailed {
+		t.Errorf("expected status %q, got %q", a2atypes.TaskFailed, task.Status)
 	}
 	// Should have 2 messages: user + error agent message.
 	if len(task.Messages) != 2 {
@@ -146,7 +147,7 @@ func TestNodeHandler_UnknownMethod(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	var resp JSONRPCResponse
+	var resp a2atypes.JSONRPCResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -279,7 +280,7 @@ func TestAgentCardHandler(t *testing.T) {
 		t.Fatalf("expected application/json, got %s", ct)
 	}
 
-	var card AgentCard
+	var card a2atypes.AgentCard
 	if err := json.Unmarshal(rec.Body.Bytes(), &card); err != nil {
 		t.Fatalf("failed to decode agent card: %v", err)
 	}

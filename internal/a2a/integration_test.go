@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/soochol/upal/internal/a2atypes"
 	"github.com/soochol/upal/internal/engine"
 )
 
@@ -158,7 +159,7 @@ func TestIntegration_AgentCard_Discovery(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
-	var card AgentCard
+	var card a2atypes.AgentCard
 	json.NewDecoder(resp.Body).Decode(&card)
 	if card.Name != "agent1" {
 		t.Errorf("name: got %q", card.Name)

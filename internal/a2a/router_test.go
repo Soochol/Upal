@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/soochol/upal/internal/a2atypes"
 	"github.com/soochol/upal/internal/engine"
 )
 
@@ -25,10 +26,10 @@ func TestRouter_NodeEndpoint(t *testing.T) {
 
 	MountA2ARoutes(r, []*engine.NodeDefinition{nodeDef}, executors, "http://localhost:8080")
 
-	params := SendMessageParams{
-		Message: Message{
+	params := a2atypes.SendMessageParams{
+		Message: a2atypes.Message{
 			Role:  "user",
-			Parts: []Part{TextPart("hello via router")},
+			Parts: []a2atypes.Part{a2atypes.TextPart("hello via router")},
 		},
 	}
 	body := makeJSONRPCBody("a2a.sendMessage", params)
@@ -41,7 +42,7 @@ func TestRouter_NodeEndpoint(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var resp JSONRPCResponse
+	var resp a2atypes.JSONRPCResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -50,12 +51,12 @@ func TestRouter_NodeEndpoint(t *testing.T) {
 	}
 
 	taskData, _ := json.Marshal(resp.Result)
-	var task Task
+	var task a2atypes.Task
 	if err := json.Unmarshal(taskData, &task); err != nil {
 		t.Fatalf("failed to decode task: %v", err)
 	}
-	if task.Status != TaskCompleted {
-		t.Errorf("expected status %q, got %q", TaskCompleted, task.Status)
+	if task.Status != a2atypes.TaskCompleted {
+		t.Errorf("expected status %q, got %q", a2atypes.TaskCompleted, task.Status)
 	}
 	if len(task.Artifacts) != 1 || task.Artifacts[0].FirstText() != "routed response" {
 		t.Errorf("expected artifact text %q, got %v", "routed response", task.Artifacts)
@@ -84,7 +85,7 @@ func TestRouter_AgentCardEndpoint(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var card AgentCard
+	var card a2atypes.AgentCard
 	if err := json.Unmarshal(rec.Body.Bytes(), &card); err != nil {
 		t.Fatalf("failed to decode agent card: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestRouter_AggregateAgentCard(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var card AgentCard
+	var card a2atypes.AgentCard
 	if err := json.Unmarshal(rec.Body.Bytes(), &card); err != nil {
 		t.Fatalf("failed to decode aggregate card: %v", err)
 	}
@@ -149,7 +150,7 @@ func TestRouter_StaticAgentCard(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var card AgentCard
+	var card a2atypes.AgentCard
 	if err := json.Unmarshal(rec.Body.Bytes(), &card); err != nil {
 		t.Fatalf("failed to decode static card: %v", err)
 	}
@@ -173,10 +174,10 @@ func TestRouter_StaticNodeNotRegistered(t *testing.T) {
 
 	MountStaticA2ARoutes(r, executors, "http://localhost:8080")
 
-	body := makeJSONRPCBody("a2a.sendMessage", SendMessageParams{
-		Message: Message{
+	body := makeJSONRPCBody("a2a.sendMessage", a2atypes.SendMessageParams{
+		Message: a2atypes.Message{
 			Role:  "user",
-			Parts: []Part{TextPart("hello")},
+			Parts: []a2atypes.Part{a2atypes.TextPart("hello")},
 		},
 	})
 
@@ -188,7 +189,7 @@ func TestRouter_StaticNodeNotRegistered(t *testing.T) {
 		t.Fatalf("expected 200 (JSON-RPC error in body), got %d", rec.Code)
 	}
 
-	var resp JSONRPCResponse
+	var resp a2atypes.JSONRPCResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
