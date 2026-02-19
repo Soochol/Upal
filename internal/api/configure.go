@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/soochol/upal/internal/llmutil"
+	upalmodel "github.com/soochol/upal/internal/model"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -18,6 +20,8 @@ type ConfigureNodeRequest struct {
 	Label         string            `json:"label"`
 	Description   string            `json:"description"`
 	Message       string            `json:"message"`
+	Model         string            `json:"model,omitempty"`
+	Thinking      bool              `json:"thinking,omitempty"`
 	History       []ConfigChatMsg   `json:"history,omitempty"`
 	UpstreamNodes []ConfigNodeInfo  `json:"upstream_nodes"`
 }
@@ -43,50 +47,23 @@ type ConfigureNodeResponse struct {
 	Explanation string         `json:"explanation"`
 }
 
-const configureSystemPrompt = `You are an AI assistant that fully configures nodes in the Upal visual workflow platform.
+// configureBasePrompt is the common system prompt for node configuration.
+// Node-type-specific guidance is dynamically appended from the skills registry.
+var configureBasePrompt = `You are an AI assistant that fully configures nodes in the Upal visual workflow platform.
 When the user describes what a node should do, you MUST fill in ALL relevant config fields — not just one or two.
 Be proactive: infer and set every field that makes sense given the user's description.
 
-Node types and their configurable fields (set ALL that apply):
-- "agent": model (format: "provider/model-name", e.g. "anthropic/claude-sonnet-4-20250514" or "gemini/gemini-2.0-flash"), system_prompt (expert persona — see PERSONA FRAMEWORK below), prompt (the user message template — use {{node_id}} to reference upstream node outputs), max_turns (integer, default 1)
-- "input": placeholder (string hint shown to user)
-- "tool": tool_name (string), input (string with {{node_id}} refs)
-- "output": (no configurable fields)
-- "external": endpoint_url (string), timeout (integer seconds)
-
-PERSONA FRAMEWORK — For "agent" nodes, the system_prompt MUST be a rich expert persona with these sections:
-
-1. ROLE — Define a specific expert identity. Not "You are a helpful assistant" but a concrete specialist.
-   Example: "You are a senior tech blog editor with deep expertise in developer content strategy."
-
-2. EXPERTISE — List 3-5 core competencies the agent excels at.
-   Example: "Your expertise includes: SEO-optimized writing, audience engagement, technical accuracy, narrative structure."
-
-3. STYLE — Specify tone and communication approach appropriate for the task.
-   Example: "Write in a conversational yet authoritative tone. Use short paragraphs and clear subheadings."
-
-4. CONSTRAINTS — Set clear rules and boundaries for the agent's behavior.
-   Example: "Always include a strong opening hook. Keep paragraphs under 4 sentences. Never fabricate data."
-
-5. OUTPUT FORMAT — Define the expected structure of the agent's output.
-   Example: "Output in Markdown with H2/H3 heading hierarchy. End with a summary or call-to-action."
-
-Combine all sections into a single cohesive system_prompt string (not with literal section headers — weave them naturally).
-The persona should feel like briefing a real human expert on exactly how to perform their role.
-
 You MUST also set "label" (short name for the node) and "description" (brief explanation of its purpose).
 
-Template syntax: {{node_id}} references the output of an upstream node. When upstream nodes exist, use them in the prompt field.
+Template syntax: {{node_id}} references the output of an upstream node at runtime. This is how data flows between nodes in the DAG.
 
 IMPORTANT RULES:
-1. For "agent" nodes: ALWAYS set model, system_prompt, prompt, and max_turns. Choose an appropriate model if the user doesn't specify one.
-2. The system_prompt must follow the PERSONA FRAMEWORK — generic or shallow prompts are not acceptable.
-3. ALWAYS set label and description based on the user's intent.
-4. If upstream nodes exist, incorporate {{node_id}} references in the prompt.
-5. Fill in ALL fields comprehensively — do not leave fields empty when you can infer reasonable values.
+1. ALWAYS set label and description based on the user's intent.
+2. CRITICAL — upstream node references: When upstream nodes exist, you MUST use {{node_id}} template references to receive their output. NEVER write hardcoded placeholder text like "다음 내용을 분석해줘: [여기에 입력]" — instead write "다음 내용을 분석해줘:\n\n{{upstream_node_id}}". The {{node_id}} gets replaced with the actual upstream node's output at runtime.
+3. Fill in ALL fields comprehensively — do not leave fields empty when you can infer reasonable values.
 
 Return JSON format:
-{"config": {ALL relevant fields}, "label": "descriptive name", "description": "what this node does", "explanation": "what you configured and why"}
+{"config": {ALL relevant fields}, "label": "descriptive name", "description": "what this node does", "explanation": "1-line summary of fields changed, e.g. 'Set model, wrote persona prompt, added upstream reference'"}
 
 Return ONLY valid JSON, no markdown fences, no extra text.`
 
@@ -110,8 +87,15 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use the requested model if provided, otherwise fall back to the default generator.
 	llm := s.generator.LLM()
 	modelName := s.generator.Model()
+	if req.Model != "" {
+		if resolved, ok := s.resolveModel(req.Model); ok {
+			llm = resolved.llm
+			modelName = resolved.model
+		}
+	}
 
 	// Build context for the LLM
 	configJSON, _ := json.Marshal(req.CurrentConfig)
@@ -142,16 +126,27 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 	}
 	contents = append(contents, genai.NewContentFromText(contextMsg, genai.RoleUser))
 
+	// Build system prompt: base prompt + node-type-specific skill (if available).
+	sysPrompt := configureBasePrompt
+	if s.skills != nil {
+		if nodeSkill := s.skills.Get(req.NodeType + "-node"); nodeSkill != "" {
+			sysPrompt += "\n\n--- NODE TYPE GUIDE ---\n\n" + nodeSkill
+		}
+	}
+
 	llmReq := &adkmodel.LLMRequest{
 		Model: modelName,
 		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(configureSystemPrompt, genai.RoleUser),
+			SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
 		},
 		Contents: contents,
 	}
 
+	// Pass thinking preference via context for ClaudeCodeLLM.
+	ctx := upalmodel.WithThinking(r.Context(), req.Thinking)
+
 	var resp *adkmodel.LLMResponse
-	for r, err := range llm.GenerateContent(r.Context(), llmReq, false) {
+	for r, err := range llm.GenerateContent(ctx, llmReq, false) {
 		if err != nil {
 			http.Error(w, fmt.Sprintf("LLM call failed: %v", err), http.StatusInternalServerError)
 			return
@@ -172,15 +167,15 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	content := strings.TrimSpace(text)
-	// Strip markdown code fences if present
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content, err := llmutil.StripMarkdownJSON(text)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to parse LLM response: %v\nraw: %s", err, text), http.StatusInternalServerError)
+		return
+	}
 
+	// Use json.Decoder to parse only the first JSON value and ignore trailing text.
 	var configResp ConfigureNodeResponse
-	if err := json.Unmarshal([]byte(content), &configResp); err != nil {
+	if err := json.NewDecoder(strings.NewReader(content)).Decode(&configResp); err != nil {
 		http.Error(w, fmt.Sprintf("failed to parse LLM response: %v\nraw: %s", err, content), http.StatusInternalServerError)
 		return
 	}

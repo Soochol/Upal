@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/soochol/upal/internal/llmutil"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -13,13 +15,14 @@ import (
 
 // Generator converts natural language descriptions into WorkflowDefinitions.
 type Generator struct {
-	llm   adkmodel.LLM
-	model string
+	llm    adkmodel.LLM
+	model  string
+	skills *skills.Registry
 }
 
 // New creates a Generator that uses the given LLM and model name.
-func New(llm adkmodel.LLM, model string) *Generator {
-	return &Generator{llm: llm, model: model}
+func New(llm adkmodel.LLM, model string, skills *skills.Registry) *Generator {
+	return &Generator{llm: llm, model: model, skills: skills}
 }
 
 // LLM returns the underlying LLM used by the generator.
@@ -32,7 +35,7 @@ func (g *Generator) Model() string {
 	return g.model
 }
 
-const createSystemPrompt = `You are a workflow generator for the Upal platform. Given a user's natural language description, you must produce a valid workflow JSON.
+var createBasePrompt = `You are a workflow generator for the Upal platform. Given a user's natural language description, you must produce a valid workflow JSON.
 
 A workflow has:
 - "name": a slug-style name (lowercase, hyphens)
@@ -41,10 +44,10 @@ A workflow has:
 - "edges": array of edge objects connecting nodes
 
 Node types:
-1. "input"  — collects user input. Config: {} (no special config needed)
-2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "system_prompt": "...", "prompt": "Use {{node_id}} to reference input from previous nodes"}
-3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "input": "{{node_id}}"}
-4. "output" — produces final output. Config: {} (aggregates all upstream state)
+1. "input"  — collects user input. Config: {"description": "brief one-line purpose"}
+2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "description": "brief one-line purpose", "system_prompt": "expert persona (see AGENT NODE GUIDE below)", "prompt": "Use {{node_id}} to reference input from previous nodes"}
+3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "description": "brief one-line purpose", "input": "{{node_id}}"}
+4. "output" — produces final output. Config: {"description": "brief one-line purpose"}
 
 Edge format: {"from": "node_id", "to": "node_id"}
 
@@ -54,10 +57,12 @@ Rules:
 - Node IDs should be descriptive slugs like "user_question", "summarizer", "final_output".
 - For the "model" field, use "openai/gpt-4o" as the default unless the user specifies otherwise.
 - Keep workflows minimal — only add nodes that are necessary for the described task.
+- For every "agent" node, the system_prompt MUST follow the AGENT NODE GUIDE section below.
+- Every node MUST have a "description" in its config — a concise one-line summary of what the node does.
 
 Respond with ONLY valid JSON, no markdown fences, no explanation.`
 
-const editSystemPrompt = `You are a workflow editor for the Upal platform. You will be given an existing workflow JSON and a user's instruction to modify it. You must return the COMPLETE updated workflow JSON.
+var editBasePrompt = `You are a workflow editor for the Upal platform. You will be given an existing workflow JSON and a user's instruction to modify it. You must return the COMPLETE updated workflow JSON.
 
 A workflow has:
 - "name": a slug-style name (lowercase, hyphens)
@@ -66,10 +71,10 @@ A workflow has:
 - "edges": array of edge objects connecting nodes
 
 Node types:
-1. "input"  — collects user input. Config: {} (no special config needed)
-2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "system_prompt": "...", "prompt": "Use {{node_id}} to reference input from previous nodes"}
-3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "input": "{{node_id}}"}
-4. "output" — produces final output. Config: {} (aggregates all upstream state)
+1. "input"  — collects user input. Config: {"description": "brief one-line purpose"}
+2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "description": "brief one-line purpose", "system_prompt": "expert persona (see AGENT NODE GUIDE below)", "prompt": "Use {{node_id}} to reference input from previous nodes"}
+3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "description": "brief one-line purpose", "input": "{{node_id}}"}
+4. "output" — produces final output. Config: {"description": "brief one-line purpose"}
 
 Edge format: {"from": "node_id", "to": "node_id"}
 
@@ -81,6 +86,8 @@ Rules:
 - Avoid duplicate node IDs — check against existing IDs before creating new ones.
 - For the "model" field, use "openai/gpt-4o" as the default unless the user specifies otherwise.
 - Every workflow must have at least one "input" node and one "output" node.
+- For every "agent" node, the system_prompt MUST follow the AGENT NODE GUIDE section below.
+- Every node MUST have a "description" in its config — a concise one-line summary of what the node does.
 
 Respond with the COMPLETE updated workflow as valid JSON. No markdown fences, no explanation.`
 
@@ -88,16 +95,23 @@ Respond with the COMPLETE updated workflow as valid JSON. No markdown fences, no
 // If existingWorkflow is non-nil, the generator operates in edit mode — modifying the
 // existing workflow according to the description instead of creating from scratch.
 func (g *Generator) Generate(ctx context.Context, description string, existingWorkflow *upal.WorkflowDefinition) (*upal.WorkflowDefinition, error) {
-	sysPrompt := createSystemPrompt
+	sysPrompt := createBasePrompt
 	userContent := description
 
 	if existingWorkflow != nil {
-		sysPrompt = editSystemPrompt
+		sysPrompt = editBasePrompt
 		wfJSON, err := json.MarshalIndent(existingWorkflow, "", "  ")
 		if err != nil {
 			return nil, fmt.Errorf("marshal existing workflow: %w", err)
 		}
 		userContent = fmt.Sprintf("Current workflow:\n%s\n\nInstruction: %s", string(wfJSON), description)
+	}
+
+	// Inject agent-node skill (includes persona-framework + prompt-framework via {{include}}).
+	if g.skills != nil {
+		if agentSkill := g.skills.Get("agent-node"); agentSkill != "" {
+			sysPrompt += "\n\n--- AGENT NODE GUIDE ---\n\n" + agentSkill
+		}
 	}
 
 	req := &adkmodel.LLMRequest{
@@ -130,15 +144,14 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 		}
 	}
 
-	content := strings.TrimSpace(text)
-	// Strip markdown code fences if present
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content, err := llmutil.StripMarkdownJSON(text)
+	if err != nil {
+		return nil, fmt.Errorf("parse generated workflow (model output may be malformed): %w\nraw output: %s", err, text)
+	}
 
+	// Use json.Decoder to parse only the first JSON value and ignore trailing text.
 	var wf upal.WorkflowDefinition
-	if err := json.Unmarshal([]byte(content), &wf); err != nil {
+	if err := json.NewDecoder(strings.NewReader(content)).Decode(&wf); err != nil {
 		return nil, fmt.Errorf("parse generated workflow (model output may be malformed): %w\nraw output: %s", err, content)
 	}
 
