@@ -13,7 +13,8 @@ const (
 	NodeTypeInput  NodeType = "input"
 	NodeTypeAgent  NodeType = "agent"
 	NodeTypeTool   NodeType = "tool"
-	NodeTypeOutput NodeType = "output"
+	NodeTypeOutput   NodeType = "output"
+	NodeTypeExternal NodeType = "external"
 )
 
 type EventType string
