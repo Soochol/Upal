@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { Canvas } from './components/editor/Canvas'
-import { Console } from './components/console/Console'
-import { RunDialog } from './components/dialogs/RunDialog'
-import { NodeEditor } from './components/editor/nodes/NodeEditor'
-import { useWorkflowStore } from './stores/workflowStore'
-import { serializeWorkflow } from './lib/serializer'
-import { saveWorkflow, runWorkflow } from './lib/api'
+import { Canvas } from '@/components/editor/Canvas'
+import { RunDialog } from '@/components/dialogs/RunDialog'
+import { GenerateDialog } from '@/components/dialogs/GenerateDialog'
+import { RightPanel } from '@/components/panel/RightPanel'
+import { Header } from '@/components/Header'
+import { NodePalette } from '@/components/sidebar/NodePalette'
+import { useWorkflowStore } from '@/stores/workflowStore'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { serializeWorkflow, deserializeWorkflow } from '@/lib/serializer'
+import { saveWorkflow, runWorkflow, generateWorkflow } from '@/lib/api'
 
 function App() {
   const addNode = useWorkflowStore((s) => s.addNode)
@@ -20,8 +23,12 @@ function App() {
 
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId)
   const selectNode = useWorkflowStore((s) => s.selectNode)
+  const setNodeStatus = useWorkflowStore((s) => s.setNodeStatus)
+  const clearNodeStatuses = useWorkflowStore((s) => s.clearNodeStatuses)
 
   const [showRunDialog, setShowRunDialog] = useState(false)
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
@@ -32,6 +39,10 @@ function App() {
       x: 250,
       y: useWorkflowStore.getState().nodes.length * 150 + 50,
     })
+  }
+
+  const handleDropNode = (type: string, position: { x: number; y: number }) => {
+    addNode(type as 'input' | 'agent' | 'tool' | 'output', position)
   }
 
   const handleSave = async () => {
@@ -54,11 +65,6 @@ function App() {
     }
   }
 
-  const handleRun = () => {
-    if (isRunning) return
-    setShowRunDialog(true)
-  }
-
   const executeRun = async (inputs: Record<string, string>) => {
     let name = workflowName
     if (!name) {
@@ -69,6 +75,7 @@ function App() {
     }
 
     clearRunEvents()
+    clearNodeStatuses()
     setIsRunning(true)
     addRunEvent({ type: 'info', data: { message: `Running workflow "${name}"...` } })
 
@@ -77,6 +84,12 @@ function App() {
       inputs,
       (event) => {
         addRunEvent(event)
+        const nodeId = event.data.node_id as string | undefined
+        if (nodeId) {
+          if (event.type === 'node.started') setNodeStatus(nodeId, 'running')
+          else if (event.type === 'node.completed') setNodeStatus(nodeId, 'completed')
+          else if (event.type === 'node.error') setNodeStatus(nodeId, 'error')
+        }
       },
       (result) => {
         addRunEvent({ type: 'done', data: result })
@@ -89,102 +102,80 @@ function App() {
     )
   }
 
+  const handleGenerate = async (description: string, model?: string) => {
+    setIsGenerating(true)
+    addRunEvent({ type: 'info', data: { message: 'Generating workflow from description...' } })
+    try {
+      const wf = await generateWorkflow(description, model)
+      const { nodes: newNodes, edges: newEdges } = deserializeWorkflow(wf)
+      useWorkflowStore.setState({ nodes: newNodes, edges: newEdges })
+      setWorkflowName(wf.name)
+      addRunEvent({ type: 'info', data: { message: `Workflow "${wf.name}" generated with ${wf.nodes.length} nodes.` } })
+      setShowGenerateDialog(false)
+    } catch (err) {
+      addRunEvent({
+        type: 'error',
+        data: { message: `Generate failed: ${err instanceof Error ? err.message : String(err)}` },
+      })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  useKeyboardShortcuts({
+    onSave: handleSave,
+    onRun: () => !isRunning && setShowRunDialog(true),
+    onGenerate: () => setShowGenerateDialog(true),
+  })
+
   const inputNodes = nodes
     .filter((n) => n.data.nodeType === 'input')
     .map((n) => ({ id: n.id, label: n.data.label }))
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold">Upal</h1>
-          <input
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 w-48 focus:outline-none focus:border-zinc-500"
-            placeholder="Workflow name..."
-            value={workflowName}
-            onChange={(e) => setWorkflowName(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-zinc-700 rounded text-sm hover:bg-zinc-600"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleRun}
-            disabled={isRunning}
-            className={`px-3 py-1 rounded text-sm ${isRunning ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
-          >
-            {isRunning ? 'Running...' : '\u25B6 Run'}
-          </button>
-        </div>
-      </header>
+    <div className="h-screen flex flex-col bg-background text-foreground">
+      <Header
+        workflowName={workflowName}
+        onWorkflowNameChange={setWorkflowName}
+        onSave={handleSave}
+        onRun={() => !isRunning && setShowRunDialog(true)}
+        onGenerate={() => setShowGenerateDialog(true)}
+        isRunning={isRunning}
+      />
 
-      {/* Node Palette + Canvas */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Palette */}
-        <aside className="w-48 border-r border-zinc-800 p-3 flex flex-col gap-2">
-          <p className="text-xs text-zinc-500 uppercase font-medium">
-            Add Step
-          </p>
-          {(['input', 'agent', 'tool', 'output'] as const).map((type) => (
-            <button
-              key={type}
-              onClick={() => handleAddNode(type)}
-              className="px-3 py-2 rounded border border-zinc-700 text-sm text-left hover:bg-zinc-800 capitalize"
-            >
-              {type === 'input' && '\u{1F7E1} '}
-              {type === 'agent' && '\u{1F535} '}
-              {type === 'tool' && '\u{1F534} '}
-              {type === 'output' && '\u{1F7E2} '}
-              {type}
-            </button>
-          ))}
-        </aside>
+        <NodePalette onAddNode={handleAddNode} />
 
-        {/* Canvas */}
         <main className="flex-1">
-          <Canvas />
+          <Canvas
+            onAddFirstNode={() => handleAddNode('input')}
+            onGenerate={() => setShowGenerateDialog(true)}
+            onDropNode={handleDropNode}
+          />
         </main>
 
-        {/* Right Panel — Node Properties */}
-        {selectedNode && (
-          <aside className="w-72 border-l border-zinc-800 p-4 overflow-y-auto">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-zinc-500 uppercase font-medium">
-                Properties
-              </p>
-              <button
-                onClick={() => selectNode(null)}
-                className="text-zinc-500 hover:text-zinc-300 text-sm"
-              >
-                &times;
-              </button>
-            </div>
-            <NodeEditor nodeId={selectedNode.id} data={selectedNode.data} />
-          </aside>
-        )}
+        <RightPanel
+          selectedNode={selectedNode ? { id: selectedNode.id, data: selectedNode.data } : null}
+          onCloseNode={() => selectNode(null)}
+        />
       </div>
 
-      {/* Console */}
-      <footer className="h-32 border-t border-zinc-800 p-3 overflow-y-auto">
-        <Console />
-      </footer>
+      <RunDialog
+        open={showRunDialog}
+        inputNodes={inputNodes}
+        onRun={(inputs) => {
+          setShowRunDialog(false)
+          executeRun(inputs)
+        }}
+        onOpenChange={setShowRunDialog}
+      />
 
-      {/* Run Dialog */}
-      {showRunDialog && (
-        <RunDialog
-          inputNodes={inputNodes}
-          onRun={(inputs) => {
-            setShowRunDialog(false)
-            executeRun(inputs)
-          }}
-          onCancel={() => setShowRunDialog(false)}
-        />
-      )}
+      <GenerateDialog
+        open={showGenerateDialog}
+        onGenerate={handleGenerate}
+        onOpenChange={setShowGenerateDialog}
+        isGenerating={isGenerating}
+      />
     </div>
   )
 }

@@ -1,20 +1,30 @@
-import { useWorkflowStore } from '../../../stores/workflowStore'
-import type { NodeData } from '../../../stores/workflowStore'
+import { useWorkflowStore } from '@/stores/workflowStore'
+import type { NodeData } from '@/stores/workflowStore'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
+import { X, Inbox, Bot, Wrench, ArrowRightFromLine } from 'lucide-react'
 
-const inputClass =
-  'w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500'
-const textareaClass =
-  'w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500 resize-y min-h-[60px]'
-const labelClass = 'text-xs text-zinc-400 mt-2 mb-0.5 block'
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  input: Inbox,
+  agent: Bot,
+  tool: Wrench,
+  output: ArrowRightFromLine,
+}
 
 type NodeEditorProps = {
   nodeId: string
   data: NodeData
+  onClose: () => void
+  embedded?: boolean
 }
 
-export function NodeEditor({ nodeId, data }: NodeEditorProps) {
+export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps) {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
+  const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
 
   const config = data.config
 
@@ -22,75 +32,124 @@ export function NodeEditor({ nodeId, data }: NodeEditorProps) {
     updateNodeConfig(nodeId, { [key]: value })
   }
 
-  return (
-    <div className="flex flex-col gap-0.5">
+  const Icon = iconMap[data.nodeType]
+
+  const formContent = (
+    <div className="p-4 space-y-4">
       {/* Label field -- shared by all node types */}
-      <label className={labelClass}>Label</label>
-      <input
-        className={inputClass}
-        value={data.label}
-        onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
-      />
+      <div className="space-y-2">
+        <Label htmlFor="node-label">Label</Label>
+        <Input
+          id="node-label"
+          value={data.label}
+          onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="node-description">Description</Label>
+        <Textarea
+          id="node-description"
+          className="min-h-[60px] resize-y"
+          value={data.description ?? ''}
+          placeholder="Describe what this node does..."
+          onChange={(e) => updateNodeDescription(nodeId, e.target.value)}
+        />
+      </div>
 
       {data.nodeType === 'input' && (
         <>
-          <label className={labelClass}>Placeholder</label>
-          <input
-            className={inputClass}
-            value={(config.placeholder as string) ?? ''}
-            placeholder="Enter placeholder text..."
-            onChange={(e) => setConfig('placeholder', e.target.value)}
-          />
+          <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="node-placeholder">Placeholder</Label>
+            <Input
+              id="node-placeholder"
+              value={(config.placeholder as string) ?? ''}
+              placeholder="Enter placeholder text..."
+              onChange={(e) => setConfig('placeholder', e.target.value)}
+            />
+          </div>
         </>
       )}
 
       {data.nodeType === 'agent' && (
         <>
-          <label className={labelClass}>Model ID</label>
-          <input
-            className={inputClass}
-            value={(config.model as string) ?? ''}
-            placeholder="ollama/llama3"
-            onChange={(e) => setConfig('model', e.target.value)}
-          />
-          <label className={labelClass}>System Prompt</label>
-          <textarea
-            className={textareaClass}
-            value={(config.system_prompt as string) ?? ''}
-            placeholder="You are a helpful assistant..."
-            onChange={(e) => setConfig('system_prompt', e.target.value)}
-          />
-          <label className={labelClass}>User Prompt</label>
-          <textarea
-            className={textareaClass}
-            value={(config.user_prompt as string) ?? ''}
-            placeholder="{{input}}"
-            onChange={(e) => setConfig('user_prompt', e.target.value)}
-          />
-          <label className={labelClass}>Max Turns</label>
-          <input
-            className={inputClass}
-            type="number"
-            min={1}
-            value={(config.max_turns as number) ?? 1}
-            onChange={(e) => setConfig('max_turns', parseInt(e.target.value) || 1)}
-          />
+          <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="node-model">Model ID</Label>
+            <Input
+              id="node-model"
+              value={(config.model as string) ?? ''}
+              placeholder="ollama/llama3"
+              onChange={(e) => setConfig('model', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="node-system-prompt">System Prompt</Label>
+            <Textarea
+              id="node-system-prompt"
+              className="min-h-[80px] resize-y"
+              value={(config.system_prompt as string) ?? ''}
+              placeholder="You are a helpful assistant..."
+              onChange={(e) => setConfig('system_prompt', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="node-user-prompt">User Prompt</Label>
+            <Textarea
+              id="node-user-prompt"
+              value={(config.prompt as string) ?? ''}
+              placeholder="Type {{ to reference a node..."
+              onChange={(e) => setConfig('prompt', e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="node-max-turns">Max Turns</Label>
+            <Input
+              id="node-max-turns"
+              type="number"
+              min={1}
+              value={(config.max_turns as number) ?? 1}
+              onChange={(e) => setConfig('max_turns', parseInt(e.target.value) || 1)}
+            />
+          </div>
         </>
       )}
 
       {data.nodeType === 'tool' && (
         <>
-          <label className={labelClass}>Tool Name</label>
-          <input
-            className={inputClass}
-            value={(config.tool_name as string) ?? ''}
-            placeholder="web_search"
-            onChange={(e) => setConfig('tool_name', e.target.value)}
-          />
+          <Separator />
+          <div className="space-y-2">
+            <Label htmlFor="node-tool-name">Tool Name</Label>
+            <Input
+              id="node-tool-name"
+              value={(config.tool_name as string) ?? ''}
+              placeholder="web_search"
+              onChange={(e) => setConfig('tool_name', e.target.value)}
+            />
+          </div>
         </>
       )}
-
-      {/* Output node only has the label field, which is already rendered above */}
     </div>
+  )
+
+  if (embedded) {
+    return formContent
+  }
+
+  return (
+    <aside className="w-80 border-l border-border bg-background p-0 overflow-y-auto">
+      {/* Panel header */}
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+          <h3 className="text-sm font-semibold">Properties</h3>
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {formContent}
+    </aside>
   )
 }

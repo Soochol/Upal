@@ -25,6 +25,42 @@ export async function listWorkflows(): Promise<WorkflowDefinition[]> {
   return res.json()
 }
 
+export async function generateWorkflow(
+  description: string,
+  model?: string,
+): Promise<WorkflowDefinition> {
+  const body: Record<string, string> = { description }
+  if (model) body.model = model
+  const res = await fetch(`${API_BASE}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Generation failed: ${text || res.statusText}`)
+  }
+  return res.json()
+}
+
+export type UploadResult = {
+  id: string
+  filename: string
+  content_type: string
+  size: number
+}
+
+export async function uploadFile(file: File): Promise<UploadResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Upload failed: ${text || res.statusText}`)
+  }
+  return res.json()
+}
+
 export type RunEvent = {
   type: string
   data: Record<string, unknown>

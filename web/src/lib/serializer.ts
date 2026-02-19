@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { NodeData } from '../stores/workflowStore'
+import { getLayoutedElements } from '@/lib/layout'
 
 export type WorkflowDefinition = {
   name: string
@@ -53,10 +54,11 @@ export function deserializeWorkflow(
   const nodes: Node<NodeData>[] = wf.nodes.map((n, i) => ({
     id: n.id,
     type: 'upalNode',
-    position: { x: 250, y: i * 150 + 50 },
+    position: { x: i * 350, y: 0 },
     data: {
       label: labels[n.type] || n.type,
       nodeType: n.type as NodeData['nodeType'],
+      description: (n.config.description as string) || '',
       config: n.config,
     },
   }))
@@ -65,7 +67,8 @@ export function deserializeWorkflow(
     id: `edge-${i}`,
     source: e.from,
     target: e.to,
+    type: 'smoothstep',
   }))
 
-  return { nodes, edges }
+  return getLayoutedElements<Node<NodeData>>(nodes, edges, 'LR')
 }
