@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -17,6 +18,20 @@ import (
 // RunRequest is the JSON body for workflow execution.
 type RunRequest struct {
 	Inputs map[string]any `json:"inputs"`
+}
+
+// sendSSEError writes an SSE "done" event with a failure status and flushes.
+func sendSSEError(w http.ResponseWriter, flusher http.Flusher, err error) {
+	data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
+	fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+	flusher.Flush()
+}
+
+// sendSSEDone writes an SSE "done" event with arbitrary payload data and flushes.
+func sendSSEDone(w http.ResponseWriter, flusher http.Flusher, payload any) {
+	data, _ := json.Marshal(payload)
+	fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
+	flusher.Flush()
 }
 
 func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -59,9 +74,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	// 4. Build DAGAgent from workflow
 	dagAgent, err := agents.NewDAGAgent(wf, s.llms, s.toolReg)
 	if err != nil {
-		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
-		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
-		flusher.Flush()
+		sendSSEError(w, flusher, err)
 		return
 	}
 
@@ -72,9 +85,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 		SessionService: s.sessionService,
 	})
 	if err != nil {
-		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
-		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
-		flusher.Flush()
+		sendSSEError(w, flusher, err)
 		return
 	}
 
@@ -94,9 +105,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 		State:     inputState,
 	})
 	if err != nil {
-		data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
-		fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
-		flusher.Flush()
+		sendSSEError(w, flusher, err)
 		return
 	}
 
@@ -104,9 +113,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	userContent := genai.NewContentFromText("run", genai.RoleUser)
 	for event, err := range adkRunner.Run(r.Context(), userID, sessionID, userContent, agent.RunConfig{}) {
 		if err != nil {
-			data, _ := json.Marshal(map[string]string{"status": "failed", "error": err.Error()})
-			fmt.Fprintf(w, "event: done\ndata: %s\n\n", data)
-			flusher.Flush()
+			sendSSEError(w, flusher, err)
 			return
 		}
 		if event == nil {
@@ -117,8 +124,21 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
-	// 8. Send done event
-	doneData, _ := json.Marshal(map[string]any{"status": "completed", "session_id": sessionID})
-	fmt.Fprintf(w, "event: done\ndata: %s\n\n", doneData)
-	flusher.Flush()
+	// 8. Collect final session state
+	finalState := make(map[string]any)
+	getResp, err := s.sessionService.Get(r.Context(), &session.GetRequest{
+		AppName:   wf.Name,
+		UserID:    userID,
+		SessionID: sessionID,
+	})
+	if err == nil {
+		for k, v := range getResp.Session.State().All() {
+			if !strings.HasPrefix(k, "__") {
+				finalState[k] = v
+			}
+		}
+	}
+
+	// 9. Send done event with state
+	sendSSEDone(w, flusher, map[string]any{"status": "completed", "session_id": sessionID, "state": finalState})
 }
