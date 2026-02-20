@@ -1,4 +1,0 @@
-[       2ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
-[     172ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ https://opal.google/_app/?shellOrigin=https%3A%2F%2Fopal.google:0
-[     504ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ https://opal.google/_app/landing/:0
-[     510ms] [WARNING] Unrecognized feature: 'web-share'. @ https://opal.google/_app/landing/:123

@@ -42,7 +42,8 @@ func (d *DB) CreateWorkflow(ctx context.Context, wf *upal.WorkflowDefinition) (*
 
 	_, err = d.Pool.ExecContext(ctx,
 		`INSERT INTO workflows (id, name, version, definition, visibility, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 ON CONFLICT (name) DO UPDATE SET definition = EXCLUDED.definition, version = EXCLUDED.version, updated_at = EXCLUDED.updated_at`,
 		row.ID, row.Name, row.Version, defJSON, row.Visibility, row.CreatedAt, row.UpdatedAt,
 	)
 	if err != nil {
@@ -107,8 +108,8 @@ func (d *DB) UpdateWorkflow(ctx context.Context, name string, wf *upal.WorkflowD
 	}
 
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE workflows SET definition = $1, version = $2, updated_at = NOW() WHERE name = $3`,
-		defJSON, wf.Version, name,
+		`UPDATE workflows SET name = $1, definition = $2, version = $3, updated_at = NOW() WHERE name = $4`,
+		wf.Name, defJSON, wf.Version, name,
 	)
 	if err != nil {
 		return fmt.Errorf("update workflow: %w", err)

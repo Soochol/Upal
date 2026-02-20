@@ -59,6 +59,22 @@ func TestStripMarkdownJSON_NoJSON(t *testing.T) {
 	}
 }
 
+func TestStripMarkdownJSON_PrettyPrintedWithLeadingText(t *testing.T) {
+	// Pretty-printed JSON where '{' is on its own line (not followed by '"').
+	// This was the actual failure: LLM returned insight blocks before JSON.
+	input := "`★ Insight`\n- bullet point\n\n```json\n{\n  \"name\": \"test\"\n}\n```\n\n`★ Insight`\n- trailing text"
+	got, err := StripMarkdownJSON(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "{\n  \"name\": \"test\"\n}\n```\n\n`★ Insight`\n- trailing text"
+	// json.NewDecoder will handle trailing text; we just need '{' at the start.
+	if got[0] != '{' {
+		t.Errorf("expected content to start with '{', got %q", got[:20])
+	}
+	_ = want // decoder handles trailing; just verify start
+}
+
 func TestStripMarkdownJSON_LeadingTemplateText(t *testing.T) {
 	// Ensures {{template}} syntax in leading text doesn't cause false matches.
 	input := "{{node_id}} template reference.\n\n{\"name\": \"workflow\"}"

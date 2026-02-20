@@ -18,6 +18,33 @@ import (
 // Compile-time interface compliance check.
 var _ adkmodel.LLM = (*ClaudeCodeLLM)(nil)
 
+type thinkingKey struct{}
+
+// WithThinking returns a context that carries the thinking preference.
+func WithThinking(ctx context.Context, thinking bool) context.Context {
+	return context.WithValue(ctx, thinkingKey{}, thinking)
+}
+
+// thinkingFromContext extracts the thinking preference from context.
+func thinkingFromContext(ctx context.Context) bool {
+	v, _ := ctx.Value(thinkingKey{}).(bool)
+	return v
+}
+
+type effortKey struct{}
+
+// WithEffort returns a context that carries the effort level for ClaudeCodeLLM.
+// Valid values: "low", "high". Empty string means use the default behavior.
+func WithEffort(ctx context.Context, effort string) context.Context {
+	return context.WithValue(ctx, effortKey{}, effort)
+}
+
+// effortFromContext extracts the effort level from context.
+func effortFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(effortKey{}).(string)
+	return v
+}
+
 const defaultClaudeBinary = "claude"
 
 // ClaudeCodeLLM implements the ADK model.LLM interface by shelling out to the
@@ -28,11 +55,27 @@ type ClaudeCodeLLM struct {
 }
 
 // NewClaudeCodeLLM creates a new ClaudeCodeLLM. It locates the claude binary
-// on PATH or uses the provided path.
+// on PATH or uses the provided path. If "claude" is not on PATH, it checks
+// common installation locations.
 func NewClaudeCodeLLM(binaryPath ...string) *ClaudeCodeLLM {
 	bin := defaultClaudeBinary
 	if len(binaryPath) > 0 && binaryPath[0] != "" {
 		bin = binaryPath[0]
+	}
+	// If the default name isn't resolvable, check common locations.
+	if bin == defaultClaudeBinary {
+		if _, err := exec.LookPath(bin); err != nil {
+			home, _ := os.UserHomeDir()
+			for _, candidate := range []string{
+				home + "/.local/bin/claude",
+				"/usr/local/bin/claude",
+			} {
+				if _, err := os.Stat(candidate); err == nil {
+					bin = candidate
+					break
+				}
+			}
+		}
 	}
 	return &ClaudeCodeLLM{binaryPath: bin}
 }
@@ -43,7 +86,8 @@ func (c *ClaudeCodeLLM) Name() string {
 }
 
 // GenerateContent runs `claude -p` with the given request and returns the text response.
-// Tool calling is not supported — the response will always be plain text.
+// Native tools (e.g., web_search → WebSearch) are mapped to Claude Code CLI tools.
+// Custom function declarations are not supported — only native tool mappings.
 func (c *ClaudeCodeLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {
 	return func(yield func(*adkmodel.LLMResponse, error) bool) {
 		resp, err := c.generate(ctx, req)
@@ -94,14 +138,38 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		args = append(args, "--system-prompt", systemPrompt)
 	}
 
-	// Disable all built-in tools for pure text completion.
-	args = append(args, "--tools", "")
+	// Map request tools to Claude Code CLI tool names.
+	// Native tools (GoogleSearch → WebSearch) are supported;
+	// custom FunctionDeclarations are ignored (CLI doesn't support them).
+	cliTools := mapToolsToCLI(req)
+	if len(cliTools) > 0 {
+		args = append(args, "--tools", strings.Join(cliTools, ","))
+		args = append(args, "--allowedTools", strings.Join(cliTools, ","))
+	} else {
+		// Disable all built-in tools for pure text completion.
+		args = append(args, "--tools", "")
+	}
 	args = append(args, "--output-format", "text")
+	// Effort level: use explicit context value if set, otherwise default to
+	// "low" for fast responses (unless thinking is enabled or tools are active).
+	if effort := effortFromContext(ctx); effort != "" {
+		args = append(args, "--effort", effort)
+	} else if len(cliTools) > 0 {
+		// Tools need at least medium effort to actually trigger usage.
+	} else if !thinkingFromContext(ctx) {
+		args = append(args, "--effort", "low")
+	}
 
 	// Set a timeout for the subprocess.
+	// Tools (e.g., WebSearch) need more time for external calls.
 	timeout := 2 * time.Minute
+	if len(cliTools) > 0 {
+		timeout = 5 * time.Minute
+	}
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	emitLog(ctx, fmt.Sprintf("exec: %s %s", c.binaryPath, strings.Join(args, " ")))
 
 	cmd := exec.CommandContext(execCtx, c.binaryPath, args...)
 
@@ -120,10 +188,12 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		if errMsg == "" {
 			errMsg = err.Error()
 		}
+		emitLog(ctx, fmt.Sprintf("error: %s", errMsg))
 		return nil, fmt.Errorf("claude-code: %s", errMsg)
 	}
 
 	text := strings.TrimSpace(stdout.String())
+	emitLog(ctx, fmt.Sprintf("response: %d chars", len(text)))
 	if text == "" {
 		return nil, fmt.Errorf("claude-code: empty response")
 	}
@@ -136,6 +206,21 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		TurnComplete: true,
 		FinishReason: genai.FinishReasonStop,
 	}, nil
+}
+
+// mapToolsToCLI maps ADK genai.Tool entries to Claude Code CLI tool names.
+// Returns nil if no mappable tools are found.
+func mapToolsToCLI(req *adkmodel.LLMRequest) []string {
+	if req.Config == nil {
+		return nil
+	}
+	var names []string
+	for _, tool := range req.Config.Tools {
+		if tool.GoogleSearch != nil {
+			names = append(names, "WebSearch")
+		}
+	}
+	return names
 }
 
 // filterEnv returns a copy of env with any variables matching the given key removed.

@@ -62,7 +62,7 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 					event *session.Event
 					err   error
 				}
-				eventCh := make(chan nodeEvent, len(topoOrder)*2)
+				eventCh := make(chan nodeEvent, len(topoOrder)*24)
 
 				// Launch goroutines per topological order.
 				for _, nodeID := range topoOrder {
@@ -87,6 +87,13 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 						if ctx.Err() != nil {
 							return
 						}
+
+						// Emit a lightweight "started" event so the frontend
+						// can show this node as running before it produces output.
+						startEv := session.NewEvent(ctx.InvocationID())
+						startEv.Author = nodeID
+						startEv.Branch = ctx.Branch()
+						eventCh <- nodeEvent{startEv, nil}
 
 						// Run the node agent and collect events.
 						for ev, err := range nodeAgent.Run(ctx) {

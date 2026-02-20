@@ -1,5 +1,11 @@
 bin/
+/upal
 web/node_modules/
 web/dist/
 *.exe
 .env
+.venv-zimage/
+.playwright-mcp/
+scripts/test_output.png
+models/
+output/

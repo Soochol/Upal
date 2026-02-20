@@ -1,23 +1,23 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/soochol/upal/internal/agents"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/runner"
-	"google.golang.org/adk/session"
-	"google.golang.org/genai"
+	"github.com/soochol/upal/internal/services"
+	"github.com/soochol/upal/internal/upal"
 )
 
 // RunRequest is the JSON body for workflow execution.
+// When Workflow is provided, it is used directly instead of looking up by name.
 type RunRequest struct {
-	Inputs map[string]any `json:"inputs"`
+	Inputs   map[string]any           `json:"inputs"`
+	Workflow *upal.WorkflowDefinition `json:"workflow,omitempty"`
 }
 
 // sendSSEError writes an SSE "done" event with a failure status and flushes.
@@ -37,31 +37,29 @@ func sendSSEDone(w http.ResponseWriter, flusher http.Flusher, payload any) {
 func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
-	// 1. Look up workflow (in-memory first, then DB fallback)
-	wf, ok := s.workflows.Get(name)
-	if !ok && s.db != nil {
-		row, err := s.db.GetWorkflow(r.Context(), name)
-		if err == nil {
-			wf = &row.Definition
-			s.workflows.Put(wf) // cache in memory for the run
-			ok = true
-		}
-	}
-	if !ok {
-		http.Error(w, "workflow not found", http.StatusNotFound)
-		return
-	}
-
-	// 2. Parse RunRequest from body
+	// 1. Parse request body.
 	var req RunRequest
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			// Allow empty body (no inputs)
 			req.Inputs = nil
 		}
 	}
 
-	// 3. Set SSE headers
+	// 2. Resolve workflow: inline or lookup via service.
+	var wf *upal.WorkflowDefinition
+	if req.Workflow != nil {
+		wf = req.Workflow
+		wf.Name = name
+	} else {
+		var err error
+		wf, err = s.workflowSvc.Lookup(r.Context(), name)
+		if err != nil {
+			http.Error(w, "workflow not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	// 3. Set SSE headers.
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -71,74 +69,90 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// 4. Build DAGAgent from workflow
-	dagAgent, err := agents.NewDAGAgent(wf, s.llms, s.toolReg)
-	if err != nil {
+	// 4. Validate workflow.
+	if err := s.workflowSvc.Validate(wf); err != nil {
 		sendSSEError(w, flusher, err)
 		return
 	}
 
-	// 5. Create ADK Runner
-	adkRunner, err := runner.New(runner.Config{
-		AppName:        wf.Name,
-		Agent:          dagAgent,
-		SessionService: s.sessionService,
-	})
-	if err != nil {
-		sendSSEError(w, flusher, err)
-		return
-	}
-
-	// 6. Create session with user inputs as initial state
-	sessionID := fmt.Sprintf("session-%d", time.Now().UnixNano())
-	userID := "default"
-
-	inputState := make(map[string]any)
-	for k, v := range req.Inputs {
-		inputState["__user_input__"+k] = v
-	}
-
-	_, err = s.sessionService.Create(r.Context(), &session.CreateRequest{
-		AppName:   wf.Name,
-		UserID:    userID,
-		SessionID: sessionID,
-		State:     inputState,
-	})
-	if err != nil {
-		sendSSEError(w, flusher, err)
-		return
-	}
-
-	// 7. Run and stream events
-	userContent := genai.NewContentFromText("run", genai.RoleUser)
-	for event, err := range adkRunner.Run(r.Context(), userID, sessionID, userContent, agent.RunConfig{}) {
+	// 5. Create run record if history service is available.
+	var runID string
+	if s.runHistorySvc != nil {
+		record, err := s.runHistorySvc.StartRun(r.Context(), name, "manual", "", req.Inputs)
 		if err != nil {
-			sendSSEError(w, flusher, err)
+			slog.Warn("failed to create run record", "err", err)
+		} else {
+			runID = record.ID
+		}
+	}
+
+	// 6. Execute via WorkflowService.
+	events, result, err := s.workflowSvc.Run(r.Context(), wf, req.Inputs)
+	if err != nil {
+		if runID != "" {
+			s.runHistorySvc.FailRun(r.Context(), runID, err.Error())
+		}
+		sendSSEError(w, flusher, err)
+		return
+	}
+
+	// 7. Stream events as SSE and track node runs.
+	for ev := range events {
+		if ev.Type == "error" {
+			if runID != "" {
+				errMsg := fmt.Sprintf("%v", ev.Payload["error"])
+				s.runHistorySvc.FailRun(r.Context(), runID, errMsg)
+			}
+			sendSSEError(w, flusher, fmt.Errorf("%v", ev.Payload["error"]))
 			return
 		}
-		if event == nil {
-			continue
+
+		// Track node-level execution.
+		if runID != "" {
+			s.trackNodeRun(r.Context(), runID, ev)
 		}
-		jsonData, _ := json.Marshal(event)
-		fmt.Fprintf(w, "data: %s\n\n", jsonData)
+
+		data, _ := json.Marshal(ev.Payload)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, data)
 		flusher.Flush()
 	}
 
-	// 8. Collect final session state
-	finalState := make(map[string]any)
-	getResp, err := s.sessionService.Get(r.Context(), &session.GetRequest{
-		AppName:   wf.Name,
-		UserID:    userID,
-		SessionID: sessionID,
-	})
-	if err == nil {
-		for k, v := range getResp.Session.State().All() {
-			if !strings.HasPrefix(k, "__") {
-				finalState[k] = v
-			}
-		}
+	// 8. Send done event with final state.
+	res := <-result
+
+	if runID != "" {
+		s.runHistorySvc.CompleteRun(r.Context(), runID, res.State)
 	}
 
-	// 9. Send done event with state
-	sendSSEDone(w, flusher, map[string]any{"status": "completed", "session_id": sessionID, "state": finalState})
+	sendSSEDone(w, flusher, map[string]any{
+		"status":     "completed",
+		"session_id": res.SessionID,
+		"state":      res.State,
+		"run_id":     runID,
+	})
+}
+
+// trackNodeRun updates the run record with node-level execution status.
+func (s *Server) trackNodeRun(ctx context.Context, runID string, ev services.WorkflowEvent) {
+	if s.runHistorySvc == nil || ev.NodeID == "" {
+		return
+	}
+
+	now := time.Now()
+
+	switch ev.Type {
+	case services.EventNodeStarted:
+		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+			NodeID:    ev.NodeID,
+			Status:    "running",
+			StartedAt: now,
+		})
+	case services.EventNodeCompleted:
+		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+			NodeID:      ev.NodeID,
+			Status:      "completed",
+			StartedAt:   now,
+			CompletedAt: &now,
+		})
+	}
 }

@@ -13,6 +13,13 @@ type Config struct {
 	Server    ServerConfig              `yaml:"server"`
 	Database  DatabaseConfig            `yaml:"database"`
 	Providers map[string]ProviderConfig `yaml:"providers"`
+	Scheduler SchedulerConfig           `yaml:"scheduler"`
+}
+
+// SchedulerConfig holds settings for the workflow scheduler.
+type SchedulerConfig struct {
+	GlobalMax   int `yaml:"global_max"`   // max concurrent runs system-wide (default: 10)
+	PerWorkflow int `yaml:"per_workflow"` // max concurrent runs per workflow (default: 3)
 }
 
 // ServerConfig holds HTTP server settings.

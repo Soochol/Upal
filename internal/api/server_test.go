@@ -8,11 +8,10 @@ import (
 	"testing"
 
 	"github.com/soochol/upal/internal/upal"
-	"google.golang.org/adk/session"
 )
 
 func TestAPI_CreateWorkflow(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 	wf := upal.WorkflowDefinition{Name: "test-wf", Version: 1, Nodes: []upal.NodeDefinition{{ID: "input1", Type: upal.NodeTypeInput}}}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))
@@ -30,7 +29,7 @@ func TestAPI_CreateWorkflow(t *testing.T) {
 }
 
 func TestAPI_ListWorkflows(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 	wf := upal.WorkflowDefinition{Name: "wf1", Version: 1}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))
@@ -52,7 +51,7 @@ func TestAPI_ListWorkflows(t *testing.T) {
 }
 
 func TestAPI_GetWorkflow(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 	wf := upal.WorkflowDefinition{Name: "wf1", Version: 1}
 	body, _ := json.Marshal(wf)
 	req := httptest.NewRequest("POST", "/api/workflows", bytes.NewReader(body))

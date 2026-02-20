@@ -8,12 +8,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/soochol/upal/internal/repository"
+	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/session"
 )
 
+// newTestServer creates a Server with a MemoryRepository and WorkflowService for tests.
+func newTestServer() *Server {
+	sessionSvc := session.InMemoryService()
+	repo := repository.NewMemory()
+	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil)
+	return NewServer(nil, wfSvc, repo, nil)
+}
+
 func TestRunWorkflow_NotFound(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 
 	req := httptest.NewRequest("POST", "/api/workflows/nonexistent/run", strings.NewReader(`{"inputs":{}}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -26,7 +36,7 @@ func TestRunWorkflow_NotFound(t *testing.T) {
 }
 
 func TestRunWorkflow_SSE(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 
 	// Create a workflow with input and output nodes.
 	wf := upal.WorkflowDefinition{
@@ -77,7 +87,7 @@ func TestRunWorkflow_SSE(t *testing.T) {
 }
 
 func TestRunWorkflow_EmptyBody(t *testing.T) {
-	srv := NewServer(nil, session.InMemoryService(), nil)
+	srv := newTestServer()
 
 	// Create a workflow with just an output node (no inputs needed).
 	wf := upal.WorkflowDefinition{

@@ -16,11 +16,9 @@ func GenerateID(prefix string) string {
 type NodeType string
 
 const (
-	NodeTypeInput    NodeType = "input"
-	NodeTypeAgent    NodeType = "agent"
-	NodeTypeTool     NodeType = "tool"
-	NodeTypeOutput   NodeType = "output"
-	NodeTypeExternal NodeType = "external"
+	NodeTypeInput  NodeType = "input"
+	NodeTypeAgent  NodeType = "agent"
+	NodeTypeOutput NodeType = "output"
 )
 
 type WorkflowDefinition struct {

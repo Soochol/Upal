@@ -293,6 +293,61 @@ func TestOpenAILLM_ToolCalls(t *testing.T) {
 	}
 }
 
+func TestOpenAILLM_WebSearchTool(t *testing.T) {
+	var receivedReq map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedReq)
+
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{
+					"message":       map[string]any{"role": "assistant", "content": "Search results here."},
+					"finish_reason": "stop",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := NewOpenAILLM("test-key", WithOpenAIBaseURL(server.URL))
+
+	req := &adkmodel.LLMRequest{
+		Model: "gpt-4o-search-preview",
+		Contents: []*genai.Content{
+			{Role: "user", Parts: []*genai.Part{genai.NewPartFromText("Search for Go")}},
+		},
+		Config: &genai.GenerateContentConfig{
+			Tools: []*genai.Tool{
+				{GoogleSearch: &genai.GoogleSearch{}},
+			},
+		},
+	}
+
+	for _, err := range llm.GenerateContent(context.Background(), req, false) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	// Verify web_search_preview tool in request body.
+	tools, ok := receivedReq["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatal("expected tools in request body")
+	}
+	tool := tools[0].(map[string]any)
+	if tool["type"] != "web_search_preview" {
+		t.Errorf("tool type = %v, want web_search_preview", tool["type"])
+	}
+	// Should NOT have a "function" key.
+	if _, hasFn := tool["function"]; hasFn {
+		t.Error("web_search_preview tool should not have 'function' key")
+	}
+}
+
 func TestOpenAILLM_FunctionResponseConversion(t *testing.T) {
 	// Verify that FunctionResponse parts are converted to tool role messages.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

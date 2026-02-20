@@ -267,6 +267,13 @@ func (o *OpenAILLM) convertContent(content *genai.Content) ([]map[string]any, er
 func (o *OpenAILLM) convertTools(tools []*genai.Tool) []map[string]any {
 	var result []map[string]any
 	for _, tool := range tools {
+		// Native server-managed tools.
+		if tool.GoogleSearch != nil {
+			result = append(result, map[string]any{
+				"type": "web_search_preview",
+			})
+		}
+		// Custom function declarations.
 		for _, fd := range tool.FunctionDeclarations {
 			fn := map[string]any{
 				"name": fd.Name,

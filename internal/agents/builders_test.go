@@ -1,11 +1,27 @@
 package agents
 
 import (
+	"context"
 	"iter"
 	"testing"
 
 	"github.com/soochol/upal/internal/upal"
+	adkmodel "google.golang.org/adk/model"
+	"google.golang.org/genai"
 )
+
+// mockLLMForBuild satisfies adkmodel.LLM for build-time tests (no actual calls).
+type mockLLMForBuild struct{}
+
+func (m *mockLLMForBuild) Name() string { return "mock" }
+func (m *mockLLMForBuild) GenerateContent(_ context.Context, _ *adkmodel.LLMRequest, _ bool) iter.Seq2[*adkmodel.LLMResponse, error] {
+	return func(yield func(*adkmodel.LLMResponse, error) bool) {
+		yield(&adkmodel.LLMResponse{
+			Content:      &genai.Content{Role: "model", Parts: []*genai.Part{genai.NewPartFromText("mock")}},
+			TurnComplete: true,
+		}, nil)
+	}
+}
 
 func TestBuildAgent_Input(t *testing.T) {
 	nd := &upal.NodeDefinition{ID: "input1", Type: upal.NodeTypeInput}
@@ -29,21 +45,53 @@ func TestBuildAgent_Output(t *testing.T) {
 	}
 }
 
-func TestBuildAgent_Tool(t *testing.T) {
+func TestBuildAgent_AgentWithWebSearch(t *testing.T) {
 	nd := &upal.NodeDefinition{
-		ID:   "tool1",
-		Type: upal.NodeTypeTool,
+		ID:   "searcher",
+		Type: upal.NodeTypeAgent,
 		Config: map[string]any{
-			"tool":  "test_tool",
-			"input": "hello {{name}}",
+			"model":         "anthropic/claude-sonnet-4-6",
+			"system_prompt": "You are a researcher.",
+			"prompt":        "Search for {{topic}}",
+			"tools":         []any{"web_search"},
 		},
 	}
-	a, err := BuildAgent(nd, nil, nil)
+
+	// Use a mock LLM — we only need to verify the agent builds without error.
+	mockLLM := &mockLLMForBuild{}
+	llms := map[string]adkmodel.LLM{"anthropic": mockLLM}
+
+	a, err := BuildAgent(nd, llms, nil)
 	if err != nil {
-		t.Fatalf("build: %v", err)
+		t.Fatalf("BuildAgent with web_search tool should succeed: %v", err)
 	}
-	if a.Name() != "tool1" {
-		t.Fatalf("expected 'tool1', got %q", a.Name())
+	if a.Name() != "searcher" {
+		t.Errorf("agent name = %q, want %q", a.Name(), "searcher")
+	}
+}
+
+func TestBuildAgent_AgentWithWebSearchAndNilToolReg(t *testing.T) {
+	nd := &upal.NodeDefinition{
+		ID:   "searcher",
+		Type: upal.NodeTypeAgent,
+		Config: map[string]any{
+			"model":         "anthropic/claude-sonnet-4-6",
+			"system_prompt": "You are a researcher.",
+			"prompt":        "Search",
+			"tools":         []any{"web_search"},
+		},
+	}
+
+	mockLLM := &mockLLMForBuild{}
+	llms := map[string]adkmodel.LLM{"anthropic": mockLLM}
+
+	// toolReg is nil — native tools should still work.
+	a, err := BuildAgent(nd, llms, nil)
+	if err != nil {
+		t.Fatalf("BuildAgent with nil toolReg should succeed for native tools: %v", err)
+	}
+	if a.Name() != "searcher" {
+		t.Errorf("agent name = %q, want %q", a.Name(), "searcher")
 	}
 }
 

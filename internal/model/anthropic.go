@@ -86,6 +86,9 @@ func (a *AnthropicLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) (
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("x-api-key", a.apiKey)
 	httpReq.Header.Set("anthropic-version", anthropicVersion)
+	if beta := anthropicBetaFeatures(req); beta != "" {
+		httpReq.Header.Set("anthropic-beta", beta)
+	}
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
@@ -155,6 +158,14 @@ func (a *AnthropicLLM) buildRequestBody(req *adkmodel.LLMRequest) map[string]any
 	if req.Config != nil && len(req.Config.Tools) > 0 {
 		var tools []map[string]any
 		for _, tool := range req.Config.Tools {
+			// Native server-managed tools.
+			if tool.GoogleSearch != nil {
+				tools = append(tools, map[string]any{
+					"type": "web_search_20250305",
+					"name": "web_search",
+				})
+			}
+			// Custom function declarations.
 			for _, fd := range tool.FunctionDeclarations {
 				t := map[string]any{
 					"name":        fd.Name,
@@ -320,4 +331,17 @@ type anthropicContentBlock struct {
 	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
 	Input any    `json:"input,omitempty"`
+}
+
+// anthropicBetaFeatures returns the anthropic-beta header value for native tools.
+func anthropicBetaFeatures(req *adkmodel.LLMRequest) string {
+	if req.Config == nil {
+		return ""
+	}
+	for _, tool := range req.Config.Tools {
+		if tool.GoogleSearch != nil {
+			return "web-search-2025-03-05"
+		}
+	}
+	return ""
 }

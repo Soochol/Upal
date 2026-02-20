@@ -1,36 +1,39 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/soochol/upal/internal/config"
-	"github.com/soochol/upal/internal/db"
 	"github.com/soochol/upal/internal/generate"
+	"github.com/soochol/upal/internal/repository"
+	"github.com/soochol/upal/internal/services"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
 	adkmodel "google.golang.org/adk/model"
-	"google.golang.org/adk/session"
 )
 
 type Server struct {
-	workflows            *WorkflowStore
+	workflowSvc          *services.WorkflowService
+	runHistorySvc        *services.RunHistoryService
+	schedulerSvc         *services.SchedulerService
+	limiter              *services.ConcurrencyLimiter
+	repo                 repository.WorkflowRepository
+	triggerRepo          repository.TriggerRepository
 	llms                 map[string]adkmodel.LLM
-	sessionService       session.Service
 	toolReg              *tools.Registry
 	generator            *generate.Generator
 	defaultGenerateModel string
 	storage              storage.Storage
-	db                   *db.DB
 	providerConfigs      map[string]config.ProviderConfig
-}
-
-// SetDB configures the database backend. When set, workflow CRUD
-// operations persist to PostgreSQL instead of in-memory only.
-func (s *Server) SetDB(database *db.DB) {
-	s.db = database
+	skills               skills.Provider
+	a2aBaseURL           string
+	retryExecutor        *services.RetryExecutor
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -38,12 +41,12 @@ func (s *Server) SetProviderConfigs(configs map[string]config.ProviderConfig) {
 	s.providerConfigs = configs
 }
 
-func NewServer(llms map[string]adkmodel.LLM, sessionService session.Service, toolReg *tools.Registry) *Server {
+func NewServer(llms map[string]adkmodel.LLM, workflowSvc *services.WorkflowService, repo repository.WorkflowRepository, toolReg *tools.Registry) *Server {
 	return &Server{
-		workflows:      NewWorkflowStore(),
-		llms:           llms,
-		sessionService: sessionService,
-		toolReg:        toolReg,
+		workflowSvc: workflowSvc,
+		repo:        repo,
+		llms:        llms,
+		toolReg:     toolReg,
 	}
 }
 
@@ -61,17 +64,45 @@ func (s *Server) Handler() http.Handler {
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", s.createWorkflow)
 			r.Get("/", s.listWorkflows)
+			r.Post("/suggest-name", s.suggestWorkflowName)
 			r.Get("/{name}", s.getWorkflow)
 			r.Put("/{name}", s.updateWorkflow)
 			r.Delete("/{name}", s.deleteWorkflow)
 			r.Post("/{name}/run", s.runWorkflow)
+			r.Get("/{name}/runs", s.listWorkflowRuns)
+			r.Get("/{name}/triggers", s.listTriggers)
 		})
+		r.Route("/runs", func(r chi.Router) {
+			r.Get("/", s.listRuns)
+			r.Get("/{id}", s.getRun)
+		})
+		r.Route("/schedules", func(r chi.Router) {
+			r.Post("/", s.createSchedule)
+			r.Get("/", s.listSchedules)
+			r.Get("/{id}", s.getSchedule)
+			r.Put("/{id}", s.updateSchedule)
+			r.Delete("/{id}", s.deleteSchedule)
+			r.Post("/{id}/pause", s.pauseSchedule)
+			r.Post("/{id}/resume", s.resumeSchedule)
+		})
+		r.Get("/scheduler/stats", s.getSchedulerStats)
+		r.Route("/triggers", func(r chi.Router) {
+			r.Post("/", s.createTrigger)
+			r.Delete("/{id}", s.deleteTrigger)
+		})
+		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
 		r.Post("/nodes/configure", s.configureNode)
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
 		r.Get("/models", s.listModels)
+		r.Get("/tools", s.listAvailableTools)
 	})
+
+	// A2A protocol endpoints (agent card + JSON-RPC).
+	if s.a2aBaseURL != "" {
+		s.setupA2ARoutes(r)
+	}
 
 	// Serve static files (frontend)
 	r.Handle("/*", StaticHandler("web/dist"))
@@ -88,4 +119,78 @@ func (s *Server) SetGenerator(gen *generate.Generator, defaultModel string) {
 // SetStorage configures the file storage backend.
 func (s *Server) SetStorage(store storage.Storage) {
 	s.storage = store
+}
+
+// SetSkills configures the skill provider for LLM-guided node configuration.
+func (s *Server) SetSkills(provider skills.Provider) {
+	s.skills = provider
+}
+
+// SetRunHistoryService configures the run history service.
+func (s *Server) SetRunHistoryService(svc *services.RunHistoryService) {
+	s.runHistorySvc = svc
+}
+
+// SetSchedulerService configures the scheduler service.
+func (s *Server) SetSchedulerService(svc *services.SchedulerService) {
+	s.schedulerSvc = svc
+}
+
+// SetConcurrencyLimiter configures the concurrency limiter.
+func (s *Server) SetConcurrencyLimiter(limiter *services.ConcurrencyLimiter) {
+	s.limiter = limiter
+}
+
+// SetRetryExecutor configures the retry executor.
+func (s *Server) SetRetryExecutor(executor *services.RetryExecutor) {
+	s.retryExecutor = executor
+}
+
+// SetTriggerRepository configures the trigger repository.
+func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) {
+	s.triggerRepo = repo
+}
+
+// SetA2ABaseURL enables A2A protocol endpoints on the server.
+// The URL is used in the AgentCard to advertise the invoke endpoint.
+func (s *Server) SetA2ABaseURL(url string) {
+	s.a2aBaseURL = url
+}
+
+// listAvailableTools returns all tools available for agent nodes.
+func (s *Server) listAvailableTools(w http.ResponseWriter, r *http.Request) {
+	type toolInfo struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+
+	var result []toolInfo
+	if s.toolReg != nil {
+		for _, t := range s.toolReg.AllTools() {
+			result = append(result, toolInfo{Name: t.Name, Description: t.Description})
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// resolvedModel holds a resolved LLM and its model name.
+type resolvedModel struct {
+	llm   adkmodel.LLM
+	model string
+}
+
+// resolveModel parses a "provider/model" string and returns the matching LLM.
+func (s *Server) resolveModel(modelID string) (resolvedModel, bool) {
+	parts := strings.SplitN(modelID, "/", 2)
+	if len(parts) != 2 {
+		return resolvedModel{}, false
+	}
+	provider, model := parts[0], parts[1]
+	llm, ok := s.llms[provider]
+	if !ok {
+		return resolvedModel{}, false
+	}
+	return resolvedModel{llm: llm, model: model}, true
 }

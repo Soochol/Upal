@@ -1,6 +1,0 @@
-[    2785ms] [WARNING] setPolicyInfo {versionInfo: Object, sdkInfo: Object, sentryInfo: Object} @ https://ssl.pstatic.net/tveta/libs/glad/prod/gfp-core.js:0
-[    3102ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://shopsquare.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1
-[    3102ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://recoshopping.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1
-[   10904ms] [WARNING] The key "target-densitydpi" is not supported. @ https://nid.naver.com/nidlogin.login:5
-[   15699ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://shopsquare.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1
-[   15699ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://recoshopping.naver.com') does not match the recipient window's origin ('https://www.naver.com'). @ https://pm.pstatic.net/resources/js/main.a3a430be.js?o=www:1

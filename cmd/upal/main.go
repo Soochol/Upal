@@ -15,8 +15,12 @@ import (
 	"github.com/soochol/upal/internal/db"
 	"github.com/soochol/upal/internal/generate"
 	upalmodel "github.com/soochol/upal/internal/model"
+	"github.com/soochol/upal/internal/repository"
+	"github.com/soochol/upal/internal/services"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
+	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/adk/session"
 )
@@ -51,6 +55,10 @@ func serve() {
 				upalmodel.WithOpenAIName(name))
 		case "claude-code":
 			llms[name] = upalmodel.NewClaudeCodeLLM()
+		case "gemini-image":
+			llms[name] = upalmodel.NewGeminiImageLLM(pc.APIKey)
+		case "zimage":
+			llms[name] = upalmodel.NewZImageLLM(pc.URL)
 		default:
 			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
 				upalmodel.WithOpenAIBaseURL(pc.URL),
@@ -68,7 +76,7 @@ func serve() {
 		model string
 	}{
 		{"claude-code", "sonnet"},
-		{"anthropic", "claude-sonnet-4-20250514"},
+		{"anthropic", "claude-sonnet-4-6"},
 		{"gemini", "gemini-2.0-flash"},
 		{"openai", "gpt-4o"},
 	}
@@ -94,32 +102,121 @@ func serve() {
 	}
 
 	toolReg := tools.NewRegistry()
+	toolReg.RegisterNative(tools.WebSearch)
+	toolReg.Register(&tools.HTTPRequestTool{})
+	toolReg.Register(&tools.PythonExecTool{})
+	toolReg.Register(&tools.GetWebpageTool{})
 	sessionService := session.InMemoryService()
 
-	srv := api.NewServer(llms, sessionService, toolReg)
-
 	// Optional: Connect to PostgreSQL if database URL is configured.
+	var database *db.DB
 	if cfg.Database.URL != "" {
-		database, err := db.New(context.Background(), cfg.Database.URL)
+		d, err := db.New(context.Background(), cfg.Database.URL)
 		if err != nil {
 			slog.Warn("database unavailable, using in-memory storage", "err", err)
 		} else {
+			database = d
 			defer database.Close()
 			if err := database.Migrate(context.Background()); err != nil {
 				slog.Error("database migration failed", "err", err)
 				os.Exit(1)
 			}
-			srv.SetDB(database)
 			slog.Info("database connected", "url", cfg.Database.URL)
 		}
 	}
 
+	// Create workflow repository (in-memory, or persistent if DB is available).
+	memRepo := repository.NewMemory()
+	var repo repository.WorkflowRepository = memRepo
+	if database != nil {
+		repo = repository.NewPersistent(memRepo, database)
+	}
+
+	// Create run history repository (in-memory, or persistent if DB is available).
+	memRunRepo := repository.NewMemoryRunRepository()
+	var runRepo repository.RunRepository = memRunRepo
+	if database != nil {
+		runRepo = repository.NewPersistentRunRepository(memRunRepo, database)
+	}
+
+	// Create schedule repository (in-memory, or persistent if DB is available).
+	memScheduleRepo := repository.NewMemoryScheduleRepository()
+	var scheduleRepo repository.ScheduleRepository = memScheduleRepo
+	if database != nil {
+		scheduleRepo = repository.NewPersistentScheduleRepository(memScheduleRepo, database)
+	}
+
+	// Create trigger repository (in-memory, or persistent if DB is available).
+	memTriggerRepo := repository.NewMemoryTriggerRepository()
+	var triggerRepo repository.TriggerRepository = memTriggerRepo
+	if database != nil {
+		triggerRepo = repository.NewPersistentTriggerRepository(memTriggerRepo, database)
+	}
+
+	// Create WorkflowService for execution orchestration.
+	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg)
+	runHistorySvc := services.NewRunHistoryService(runRepo)
+
+	// Create concurrency limiter from config (with defaults).
+	concurrencyLimits := upal.ConcurrencyLimits{
+		GlobalMax:   cfg.Scheduler.GlobalMax,
+		PerWorkflow: cfg.Scheduler.PerWorkflow,
+	}
+	if concurrencyLimits.GlobalMax <= 0 {
+		concurrencyLimits.GlobalMax = 10
+	}
+	if concurrencyLimits.PerWorkflow <= 0 {
+		concurrencyLimits.PerWorkflow = 3
+	}
+	limiter := services.NewConcurrencyLimiter(concurrencyLimits)
+
+	// Create retry executor and scheduler service.
+	retryExecutor := services.NewRetryExecutor(workflowSvc, runHistorySvc)
+	schedulerSvc := services.NewSchedulerService(
+		scheduleRepo, workflowSvc, retryExecutor, limiter, runHistorySvc,
+	)
+
+	// Start the scheduler (loads existing schedules from repo).
+	if err := schedulerSvc.Start(context.Background()); err != nil {
+		slog.Error("scheduler start failed", "err", err)
+		os.Exit(1)
+	}
+	defer schedulerSvc.Stop()
+
+	srv := api.NewServer(llms, workflowSvc, repo, toolReg)
+	srv.SetRunHistoryService(runHistorySvc)
+	srv.SetSchedulerService(schedulerSvc)
+	srv.SetConcurrencyLimiter(limiter)
+	srv.SetRetryExecutor(retryExecutor)
+	srv.SetTriggerRepository(triggerRepo)
+
 	// Configure natural language workflow generator if any provider is available.
+	skillReg := skills.New()
+	srv.SetSkills(skillReg)
 	if defaultLLM != nil {
-		gen := generate.New(defaultLLM, defaultModelName)
+		var toolNames []string
+		for _, t := range toolReg.AllTools() {
+			toolNames = append(toolNames, t.Name)
+		}
+		allModels := api.KnownModelsGrouped(cfg.Providers)
+		var modelOpts []generate.ModelOption
+		for _, m := range allModels {
+			modelOpts = append(modelOpts, generate.ModelOption{
+				ID:       m.ID,
+				Category: string(m.Category),
+				Tier:     string(m.Tier),
+				Hint:     m.Hint,
+			})
+		}
+		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolNames, modelOpts)
 		srv.SetGenerator(gen, defaultModelName)
 	}
 	srv.SetProviderConfigs(cfg.Providers)
+
+	// Enable A2A protocol endpoints.
+	a2aURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
+	srv.SetA2ABaseURL(a2aURL)
+	slog.Info("A2A enabled", "card", a2aURL+"/.well-known/agent-card.json")
 
 	// Configure file storage
 	store, err := storage.NewLocalStorage("./uploads")

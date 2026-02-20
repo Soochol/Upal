@@ -342,6 +342,153 @@ func TestAnthropicLLM_FunctionResponseConversion(t *testing.T) {
 	}
 }
 
+func TestAnthropicLLM_WebSearchTool(t *testing.T) {
+	var receivedReq map[string]any
+	var receivedHeaders http.Header
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedReq)
+
+		// Simulate Anthropic response with server-managed search results.
+		// server_tool_use and web_search_tool_result blocks should be ignored by convertResponse.
+		resp := map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "I'll search for that."},
+				{"type": "server_tool_use", "id": "srvtoolu_01", "name": "web_search", "input": map[string]any{"query": "Go programming"}},
+				{"type": "web_search_tool_result", "tool_use_id": "srvtoolu_01", "content": []map[string]any{{"type": "web_search_result", "url": "https://go.dev"}}},
+				{"type": "text", "text": "Based on my search, Go is a programming language."},
+			},
+			"stop_reason": "end_turn",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := NewAnthropicLLM("test-key", WithAnthropicBaseURL(server.URL))
+
+	req := &adkmodel.LLMRequest{
+		Model: "claude-sonnet-4-20250514",
+		Contents: []*genai.Content{
+			{Role: "user", Parts: []*genai.Part{genai.NewPartFromText("Tell me about Go")}},
+		},
+		Config: &genai.GenerateContentConfig{
+			Tools: []*genai.Tool{
+				{GoogleSearch: &genai.GoogleSearch{}},
+			},
+		},
+	}
+
+	var responses []*adkmodel.LLMResponse
+	for resp, err := range llm.GenerateContent(context.Background(), req, false) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		responses = append(responses, resp)
+	}
+
+	// Verify beta header is set.
+	if got := receivedHeaders.Get("anthropic-beta"); got != "web-search-2025-03-05" {
+		t.Errorf("anthropic-beta header = %q, want %q", got, "web-search-2025-03-05")
+	}
+
+	// Verify web_search tool in request body.
+	tools, ok := receivedReq["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatal("expected tools in request body")
+	}
+	tool := tools[0].(map[string]any)
+	if tool["type"] != "web_search_20250305" {
+		t.Errorf("tool type = %v, want web_search_20250305", tool["type"])
+	}
+	if tool["name"] != "web_search" {
+		t.Errorf("tool name = %v, want web_search", tool["name"])
+	}
+
+	// Verify response: only text blocks extracted, server_tool_use/web_search_tool_result ignored.
+	if len(responses) != 1 {
+		t.Fatalf("got %d responses, want 1", len(responses))
+	}
+	resp := responses[0]
+	if len(resp.Content.Parts) != 2 {
+		t.Fatalf("got %d parts, want 2 (two text blocks)", len(resp.Content.Parts))
+	}
+	if resp.Content.Parts[0].Text != "I'll search for that." {
+		t.Errorf("part[0] = %q, want %q", resp.Content.Parts[0].Text, "I'll search for that.")
+	}
+	if resp.Content.Parts[1].Text != "Based on my search, Go is a programming language." {
+		t.Errorf("part[1] = %q, want %q", resp.Content.Parts[1].Text, "Based on my search, Go is a programming language.")
+	}
+	// No FunctionCall parts — server-managed tool doesn't produce them.
+	for i, p := range resp.Content.Parts {
+		if p.FunctionCall != nil {
+			t.Errorf("part[%d] has unexpected FunctionCall", i)
+		}
+	}
+}
+
+func TestAnthropicLLM_WebSearchWithFunctionTools(t *testing.T) {
+	var receivedReq map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedReq)
+
+		resp := map[string]any{
+			"content":     []map[string]any{{"type": "text", "text": "ok"}},
+			"stop_reason": "end_turn",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := NewAnthropicLLM("test-key", WithAnthropicBaseURL(server.URL))
+
+	req := &adkmodel.LLMRequest{
+		Model: "claude-sonnet-4-20250514",
+		Contents: []*genai.Content{
+			{Role: "user", Parts: []*genai.Part{genai.NewPartFromText("Hello")}},
+		},
+		Config: &genai.GenerateContentConfig{
+			Tools: []*genai.Tool{
+				{GoogleSearch: &genai.GoogleSearch{}},
+				{FunctionDeclarations: []*genai.FunctionDeclaration{
+					{Name: "get_weather", Description: "Get weather"},
+				}},
+			},
+		},
+	}
+
+	for _, err := range llm.GenerateContent(context.Background(), req, false) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	// Verify both native and custom tools coexist.
+	tools, ok := receivedReq["tools"].([]any)
+	if !ok {
+		t.Fatal("expected tools in request body")
+	}
+	if len(tools) != 2 {
+		t.Fatalf("got %d tools, want 2 (web_search + get_weather)", len(tools))
+	}
+
+	// First: web_search
+	t0 := tools[0].(map[string]any)
+	if t0["type"] != "web_search_20250305" {
+		t.Errorf("tools[0].type = %v, want web_search_20250305", t0["type"])
+	}
+	// Second: get_weather
+	t1 := tools[1].(map[string]any)
+	if t1["name"] != "get_weather" {
+		t.Errorf("tools[1].name = %v, want get_weather", t1["name"])
+	}
+}
+
 func TestAnthropicLLM_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

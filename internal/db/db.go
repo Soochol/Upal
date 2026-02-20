@@ -84,4 +84,47 @@ CREATE TABLE IF NOT EXISTS assets (
     storage_path TEXT NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS runs (
+    id             TEXT PRIMARY KEY,
+    workflow_name  TEXT NOT NULL,
+    trigger_type   TEXT NOT NULL DEFAULT 'manual',
+    trigger_ref    TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'pending',
+    inputs         JSONB NOT NULL DEFAULT '{}',
+    outputs        JSONB NOT NULL DEFAULT '{}',
+    error          TEXT,
+    retry_of       TEXT,
+    retry_count    INTEGER NOT NULL DEFAULT 0,
+    node_runs      JSONB NOT NULL DEFAULT '[]',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    started_at     TIMESTAMPTZ,
+    completed_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_runs_workflow ON runs(workflow_name);
+CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id             TEXT PRIMARY KEY,
+    workflow_name  TEXT NOT NULL,
+    cron_expr      TEXT NOT NULL,
+    inputs         JSONB NOT NULL DEFAULT '{}',
+    enabled        BOOLEAN NOT NULL DEFAULT true,
+    timezone       TEXT NOT NULL DEFAULT 'UTC',
+    retry_policy   JSONB,
+    next_run_at    TIMESTAMPTZ NOT NULL,
+    last_run_at    TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS triggers (
+    id             TEXT PRIMARY KEY,
+    workflow_name  TEXT NOT NULL,
+    type           TEXT NOT NULL,
+    config         JSONB NOT NULL DEFAULT '{}',
+    enabled        BOOLEAN NOT NULL DEFAULT true,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `

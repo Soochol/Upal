@@ -39,7 +39,7 @@ func TestGenerate_Success(t *testing.T) {
 	defer server.Close()
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
-	gen := New(llm, "gpt-4o")
+	gen := New(llm, "gpt-4o", nil, nil, nil)
 	result, err := gen.Generate(context.Background(), "Create a summarizer workflow", nil)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -79,13 +79,50 @@ func TestGenerate_StripMarkdownFences(t *testing.T) {
 	defer server.Close()
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
-	gen := New(llm, "gpt-4o")
+	gen := New(llm, "gpt-4o", nil, nil, nil)
 	result, err := gen.Generate(context.Background(), "Simple workflow", nil)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	if result.Name != "fenced-wf" {
 		t.Errorf("name: got %q", result.Name)
+	}
+}
+
+func TestGenerate_LeadingTemplateText(t *testing.T) {
+	// Reproduces the bug where LLM returns explanatory text containing
+	// {{node_id}} template references before the actual JSON.
+	wf := upal.WorkflowDefinition{
+		Name:    "blog-writer",
+		Version: 1,
+		Nodes: []upal.NodeDefinition{
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "out", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{{From: "in", To: "out"}},
+	}
+	wfJSON, _ := json.Marshal(wf)
+	// Simulate LLM returning Korean explanation with {{template}} refs before JSON
+	withLeading := "{{node_id}} 템플릿 참조를 통해 데이터가 흐릅니다.\n\n" + string(wfJSON)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{"role": "assistant", "content": withLeading}, "finish_reason": "stop"},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
+	gen := New(llm, "gpt-4o", nil, nil, nil)
+	result, err := gen.Generate(context.Background(), "Create a blog writer", nil)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if result.Name != "blog-writer" {
+		t.Errorf("name: got %q, want blog-writer", result.Name)
 	}
 }
 
@@ -101,7 +138,7 @@ func TestGenerate_InvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
-	gen := New(llm, "gpt-4o")
+	gen := New(llm, "gpt-4o", nil, nil, nil)
 	_, err := gen.Generate(context.Background(), "Something", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON output")
@@ -129,7 +166,7 @@ func TestGenerate_ValidationError_NoInput(t *testing.T) {
 	defer server.Close()
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
-	gen := New(llm, "gpt-4o")
+	gen := New(llm, "gpt-4o", nil, nil, nil)
 	_, err := gen.Generate(context.Background(), "Describe something", nil)
 	if err == nil {
 		t.Fatal("expected validation error for missing input node")
@@ -162,5 +199,173 @@ func TestValidate_BadEdge(t *testing.T) {
 	err := validate(wf)
 	if err == nil {
 		t.Fatal("expected error for bad edge target")
+	}
+}
+
+func TestStripInvalidTools(t *testing.T) {
+	gen := &Generator{toolNames: []string{"web_search", "real_tool"}}
+
+	wf := &upal.WorkflowDefinition{
+		Name: "strip-test",
+		Nodes: []upal.NodeDefinition{
+			{ID: "a1", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"tools": []any{"real_tool", "hallucinated_tool", "web_search"},
+			}},
+			{ID: "a2", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"tools": []any{"fake_only"},
+			}},
+			{ID: "a3", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"prompt": "no tools here",
+			}},
+		},
+	}
+
+	gen.stripInvalidTools(wf)
+
+	// a1: hallucinated_tool removed, real_tool and web_search kept.
+	tools1, _ := wf.Nodes[0].Config["tools"].([]any)
+	if len(tools1) != 2 {
+		t.Fatalf("a1 tools: got %d, want 2: %v", len(tools1), tools1)
+	}
+
+	// a2: all tools invalid → "tools" key removed entirely.
+	if _, exists := wf.Nodes[1].Config["tools"]; exists {
+		t.Fatal("a2: expected tools key to be removed")
+	}
+
+	// a3: no tools config → unchanged.
+	if _, exists := wf.Nodes[2].Config["tools"]; exists {
+		t.Fatal("a3: should not have tools key")
+	}
+}
+
+func TestStripInvalidNodeTypes(t *testing.T) {
+	wf := &upal.WorkflowDefinition{
+		Name: "strip-types-test",
+		Nodes: []upal.NodeDefinition{
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "bogus", Type: "unknown", Config: map[string]any{}},
+			{ID: "agent1", Type: upal.NodeTypeAgent, Config: map[string]any{"model": "openai/gpt-4o", "prompt": "hi"}},
+			{ID: "out", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{
+			{From: "in", To: "bogus"},
+			{From: "bogus", To: "agent1"},
+			{From: "agent1", To: "out"},
+		},
+	}
+
+	stripInvalidNodeTypes(wf)
+
+	// bogus removed; edges referencing bogus removed.
+	if len(wf.Nodes) != 3 {
+		t.Fatalf("nodes: got %d, want 3", len(wf.Nodes))
+	}
+	for _, n := range wf.Nodes {
+		if n.Type == "unknown" {
+			t.Fatalf("unknown node should have been stripped")
+		}
+	}
+	// Only agent1→out edge survives.
+	if len(wf.Edges) != 1 {
+		t.Fatalf("edges: got %d, want 1", len(wf.Edges))
+	}
+	if wf.Edges[0].From != "agent1" || wf.Edges[0].To != "out" {
+		t.Fatalf("unexpected surviving edge: %+v", wf.Edges[0])
+	}
+}
+
+func TestValidate_RejectsUnknownType(t *testing.T) {
+	wf := &upal.WorkflowDefinition{
+		Name: "unknown-reject",
+		Nodes: []upal.NodeDefinition{
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "bogus", Type: "unknown", Config: map[string]any{}},
+			{ID: "out", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{
+			{From: "in", To: "bogus"},
+			{From: "bogus", To: "out"},
+		},
+	}
+	err := validate(wf)
+	if err == nil {
+		t.Fatal("expected error for unknown node type")
+	}
+}
+
+func TestValidate_AgentMissingModel(t *testing.T) {
+	wf := &upal.WorkflowDefinition{
+		Name: "no-model",
+		Nodes: []upal.NodeDefinition{
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "a", Type: upal.NodeTypeAgent, Config: map[string]any{"prompt": "test"}},
+			{ID: "out", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{{From: "in", To: "a"}, {From: "a", To: "out"}},
+	}
+	if err := validate(wf); err == nil {
+		t.Fatal("expected error for agent missing model")
+	}
+}
+
+func TestFixInvalidModels(t *testing.T) {
+	gen := &Generator{
+		model: "sonnet",
+		models: []ModelOption{
+			{ID: "claude/sonnet", Tier: "mid", Hint: "balanced"},
+			{ID: "claude/haiku", Tier: "low", Hint: "fast"},
+			{ID: "gemini/gemini-2.0-flash", Tier: "low", Hint: "fast"},
+		},
+	}
+
+	wf := &upal.WorkflowDefinition{
+		Name: "fix-models-test",
+		Nodes: []upal.NodeDefinition{
+			{ID: "a1", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"model": "claude/sonnet", "prompt": "valid model",
+			}},
+			{ID: "a2", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"model": "anthropic/claude-sonnet-4-6", "prompt": "hallucinated model",
+			}},
+			{ID: "a3", Type: upal.NodeTypeAgent, Config: map[string]any{
+				"model": "gemini/gemini-2.0-flash", "prompt": "valid model",
+			}},
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+		},
+	}
+
+	gen.fixInvalidModels(wf)
+
+	// a1: valid → unchanged
+	if m := wf.Nodes[0].Config["model"]; m != "claude/sonnet" {
+		t.Errorf("a1 model: got %q, want claude/sonnet", m)
+	}
+	// a2: invalid → replaced with default (claude/sonnet, matched via g.model="sonnet")
+	if m := wf.Nodes[1].Config["model"]; m != "claude/sonnet" {
+		t.Errorf("a2 model: got %q, want claude/sonnet", m)
+	}
+	// a3: valid → unchanged
+	if m := wf.Nodes[2].Config["model"]; m != "gemini/gemini-2.0-flash" {
+		t.Errorf("a3 model: got %q, want gemini/gemini-2.0-flash", m)
+	}
+	// in: input node → untouched
+	if _, exists := wf.Nodes[3].Config["model"]; exists {
+		t.Fatal("input node should not have model field")
+	}
+}
+
+func TestValidate_AgentMissingPrompt(t *testing.T) {
+	wf := &upal.WorkflowDefinition{
+		Name: "no-prompt",
+		Nodes: []upal.NodeDefinition{
+			{ID: "in", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "a", Type: upal.NodeTypeAgent, Config: map[string]any{"model": "openai/gpt-4o"}},
+			{ID: "out", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{{From: "in", To: "a"}, {From: "a", To: "out"}},
+	}
+	if err := validate(wf); err == nil {
+		t.Fatal("expected error for agent missing prompt")
 	}
 }

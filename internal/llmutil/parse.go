@@ -17,16 +17,24 @@ func StripMarkdownJSON(text string) (string, error) {
 	content = strings.TrimSuffix(content, "```")
 	content = strings.TrimSpace(content)
 
-	// Skip to the first '{"' in case there is leading text.
-	// Using '{"' instead of '{' avoids false matches on {{template}} syntax
-	// that LLMs may include in explanatory text.
-	if idx := strings.Index(content, `{"`); idx > 0 {
-		content = content[idx:]
+	// Find the first '{' that isn't part of '{{' (template syntax).
+	// We can't use '{"' as the needle because pretty-printed JSON has
+	// '{' on its own line followed by a newline, not a quote.
+	start := -1
+	for i := 0; i < len(content); i++ {
+		if content[i] == '{' {
+			if i+1 < len(content) && content[i+1] == '{' {
+				i++ // skip '{{' pair
+				continue
+			}
+			start = i
+			break
+		}
 	}
 
-	if !strings.Contains(content, "{") {
+	if start < 0 {
 		return "", fmt.Errorf("no JSON object found in text")
 	}
 
-	return content, nil
+	return content[start:], nil
 }

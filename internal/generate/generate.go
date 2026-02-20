@@ -7,22 +7,42 @@ import (
 	"strings"
 
 	"github.com/soochol/upal/internal/llmutil"
-	"github.com/soochol/upal/internal/skills"
+	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
 
+// ModelOption describes an available model for prompt injection.
+// Constructed from api.ModelInfo at the call site to avoid import cycles.
+type ModelOption struct {
+	ID       string // "provider/model-name"
+	Category string // "text" or "image"
+	Tier     string // "high", "mid", "low"
+	Hint     string // one-line capability description
+}
+
+// skillProvider abstracts read access to skill content.
+type skillProvider interface {
+	Get(name string) string
+}
+
 // Generator converts natural language descriptions into WorkflowDefinitions.
 type Generator struct {
-	llm    adkmodel.LLM
-	model  string
-	skills *skills.Registry
+	llm       adkmodel.LLM
+	model     string
+	skills    skillProvider
+	toolNames []string       // available tool names from the tool registry
+	models    []ModelOption  // available models with category/tier metadata
 }
 
 // New creates a Generator that uses the given LLM and model name.
-func New(llm adkmodel.LLM, model string, skills *skills.Registry) *Generator {
-	return &Generator{llm: llm, model: model, skills: skills}
+// toolNames lists the names of tools registered in the tool registry;
+// these are injected into the generation prompt so the LLM only references real tools.
+// models lists the available models with category/tier/hint metadata;
+// these are injected so the LLM selects the right model for each node's purpose.
+func New(llm adkmodel.LLM, model string, skills skillProvider, toolNames []string, models []ModelOption) *Generator {
+	return &Generator{llm: llm, model: model, skills: skills, toolNames: toolNames, models: models}
 }
 
 // LLM returns the underlying LLM used by the generator.
@@ -40,43 +60,60 @@ var createBasePrompt = `You are a workflow generator for the Upal platform. Give
 A workflow has:
 - "name": a slug-style name (lowercase, hyphens)
 - "version": always 1
-- "nodes": array of node objects
+- "nodes": array of node objects with {id, type, config}
 - "edges": array of edge objects connecting nodes
 
-Node types:
-1. "input"  — collects user input. Config: {"description": "brief one-line purpose"}
-2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "description": "brief one-line purpose", "system_prompt": "expert persona (see AGENT NODE GUIDE below)", "prompt": "Use {{node_id}} to reference input from previous nodes"}
-3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "description": "brief one-line purpose", "input": "{{node_id}}"}
-4. "output" — produces final output. Config: {"description": "brief one-line purpose"}
+Node types (ONLY these three types are valid — do NOT use any other type):
+1. "input"  — collects user input (see INPUT NODE GUIDE below)
+2. "agent"  — calls an AI model (see AGENT NODE GUIDE below)
+3. "output" — produces final output (see OUTPUT NODE GUIDE below)
 
-Edge format: {"from": "node_id", "to": "node_id"}
+EXAMPLE — a "summarize article" workflow:
+{
+  "name": "article-summarizer",
+  "version": 1,
+  "nodes": [
+    {"id": "article_url", "type": "input", "config": {"label": "Article URL", "placeholder": "Paste the URL of the article to summarize...", "description": "The article URL to analyze"}},
+    {"id": "summarizer", "type": "agent", "config": {"model": "anthropic/claude-sonnet-4-6", "label": "Summarizer", "system_prompt": "You are a senior content analyst with deep expertise in extracting key insights from articles. You excel at identifying central themes, supporting evidence, and actionable takeaways. Write in a clear, professional tone using structured formatting.", "prompt": "Summarize the following article:\n\n{{article_url}}", "output": "Provide a structured summary with: 1) one-paragraph overview, 2) bullet-point key takeaways, 3) one-sentence conclusion.", "description": "Summarizes the article into key points"}},
+    {"id": "final_output", "type": "output", "config": {"label": "Summary", "display_mode": "auto-layout", "description": "Displays the generated summary"}}
+  ],
+  "edges": [{"from": "article_url", "to": "summarizer"}, {"from": "summarizer", "to": "final_output"}]
+}
 
 Rules:
 - Every workflow must start with at least one "input" node and end with one "output" node.
 - Agent prompts should use {{node_id}} template syntax to reference upstream node outputs.
 - Node IDs should be descriptive slugs like "user_question", "summarizer", "final_output".
-- For the "model" field, use "openai/gpt-4o" as the default unless the user specifies otherwise.
 - Keep workflows minimal — only add nodes that are necessary for the described task.
-- For every "agent" node, the system_prompt MUST follow the AGENT NODE GUIDE section below.
-- Every node MUST have a "description" in its config — a concise one-line summary of what the node does.
-
-Respond with ONLY valid JSON, no markdown fences, no explanation.`
+- Every "agent" node MUST follow the AGENT NODE GUIDE below.
+- Every "input" node MUST follow the INPUT NODE GUIDE below.
+- Every "output" node MUST follow the OUTPUT NODE GUIDE below.
+- Every node config MUST include "label" (human-readable name specific to the task) and "description".`
 
 var editBasePrompt = `You are a workflow editor for the Upal platform. You will be given an existing workflow JSON and a user's instruction to modify it. You must return the COMPLETE updated workflow JSON.
 
 A workflow has:
 - "name": a slug-style name (lowercase, hyphens)
 - "version": always 1
-- "nodes": array of node objects
+- "nodes": array of node objects with {id, type, config}
 - "edges": array of edge objects connecting nodes
 
-Node types:
-1. "input"  — collects user input. Config: {"description": "brief one-line purpose"}
-2. "agent"  — calls an AI model. Config: {"model": "provider/model-name", "description": "brief one-line purpose", "system_prompt": "expert persona (see AGENT NODE GUIDE below)", "prompt": "Use {{node_id}} to reference input from previous nodes"}
-3. "tool"   — calls a registered tool. Config: {"tool": "tool_name", "description": "brief one-line purpose", "input": "{{node_id}}"}
-4. "output" — produces final output. Config: {"description": "brief one-line purpose"}
+Node types (ONLY these three types are valid — do NOT use any other type):
+1. "input"  — collects user input (see INPUT NODE GUIDE below)
+2. "agent"  — calls an AI model (see AGENT NODE GUIDE below)
+3. "output" — produces final output (see OUTPUT NODE GUIDE below)
 
-Edge format: {"from": "node_id", "to": "node_id"}
+EXAMPLE — a "summarize article" workflow:
+{
+  "name": "article-summarizer",
+  "version": 1,
+  "nodes": [
+    {"id": "article_url", "type": "input", "config": {"label": "Article URL", "placeholder": "Paste the URL of the article to summarize...", "description": "The article URL to analyze"}},
+    {"id": "summarizer", "type": "agent", "config": {"model": "anthropic/claude-sonnet-4-6", "label": "Summarizer", "system_prompt": "You are a senior content analyst with deep expertise in extracting key insights from articles. You excel at identifying central themes, supporting evidence, and actionable takeaways. Write in a clear, professional tone using structured formatting.", "prompt": "Summarize the following article:\n\n{{article_url}}", "output": "Provide a structured summary with: 1) one-paragraph overview, 2) bullet-point key takeaways, 3) one-sentence conclusion.", "description": "Summarizes the article into key points"}},
+    {"id": "final_output", "type": "output", "config": {"label": "Summary", "display_mode": "auto-layout", "description": "Displays the generated summary"}}
+  ],
+  "edges": [{"from": "article_url", "to": "summarizer"}, {"from": "summarizer", "to": "final_output"}]
+}
 
 Rules:
 - Preserve existing nodes and edges unless the user explicitly asks to remove or replace them.
@@ -84,12 +121,11 @@ Rules:
 - Agent prompts should use {{node_id}} template syntax to reference upstream node outputs.
 - Node IDs should be descriptive slugs like "user_question", "summarizer", "final_output".
 - Avoid duplicate node IDs — check against existing IDs before creating new ones.
-- For the "model" field, use "openai/gpt-4o" as the default unless the user specifies otherwise.
 - Every workflow must have at least one "input" node and one "output" node.
-- For every "agent" node, the system_prompt MUST follow the AGENT NODE GUIDE section below.
-- Every node MUST have a "description" in its config — a concise one-line summary of what the node does.
-
-Respond with the COMPLETE updated workflow as valid JSON. No markdown fences, no explanation.`
+- Every "agent" node MUST follow the AGENT NODE GUIDE below.
+- Every "input" node MUST follow the INPUT NODE GUIDE below.
+- Every "output" node MUST follow the OUTPUT NODE GUIDE below.
+- Every node config MUST include "label" (human-readable name specific to the task) and "description".`
 
 // Generate creates a WorkflowDefinition from a natural language description.
 // If existingWorkflow is non-nil, the generator operates in edit mode — modifying the
@@ -107,12 +143,37 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 		userContent = fmt.Sprintf("Current workflow:\n%s\n\nInstruction: %s", string(wfJSON), description)
 	}
 
-	// Inject agent-node skill (includes persona-framework + prompt-framework via {{include}}).
+	// Inject available models grouped by category so the LLM matches purpose to model.
+	if len(g.models) > 0 {
+		sysPrompt += g.buildModelPrompt()
+	}
+
+	// Inject available tools so the LLM only references real tools.
+	allTools := g.toolNames
+	if len(allTools) > 0 {
+		sysPrompt += "\n\nAvailable tools for agent nodes (use in config \"tools\" array):\n"
+		for _, name := range allTools {
+			sysPrompt += fmt.Sprintf("- %q\n", name)
+		}
+		sysPrompt += "IMPORTANT: ONLY use tools from this list. Do NOT invent or hallucinate tool names that are not listed here. If the task requires a capability not covered by these tools, use an agent node with a detailed prompt instead."
+	}
+
+	// Inject node-type skills so the LLM has detailed config guidance.
 	if g.skills != nil {
 		if agentSkill := g.skills.Get("agent-node"); agentSkill != "" {
 			sysPrompt += "\n\n--- AGENT NODE GUIDE ---\n\n" + agentSkill
 		}
+		if inputSkill := g.skills.Get("input-node"); inputSkill != "" {
+			sysPrompt += "\n\n--- INPUT NODE GUIDE ---\n\n" + inputSkill
+		}
+		if outputSkill := g.skills.Get("output-node"); outputSkill != "" {
+			sysPrompt += "\n\n--- OUTPUT NODE GUIDE ---\n\n" + outputSkill
+		}
 	}
+
+	// Final reinforcement — must be the LAST thing in the system prompt so it
+	// benefits from recency bias and isn't buried under reference material.
+	sysPrompt += "\n\nIMPORTANT: Your entire response must be ONLY the raw JSON object. No markdown fences, no explanation, no commentary before or after the JSON."
 
 	req := &adkmodel.LLMRequest{
 		Model: g.model,
@@ -123,6 +184,10 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 			genai.NewContentFromText(userContent, genai.RoleUser),
 		},
 	}
+
+	// Workflow generation requires careful instruction following (long system
+	// prompt with detailed skill guides), so request high effort from the LLM.
+	ctx = upalmodel.WithEffort(ctx, "high")
 
 	var resp *adkmodel.LLMResponse
 	for r, err := range g.llm.GenerateContent(ctx, req, false) {
@@ -150,11 +215,159 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 		return nil, fmt.Errorf("parse generated workflow (model output may be malformed): %w\nraw output: %s", err, content)
 	}
 
+	// Backfill workflow name when the LLM omits it.
+	if wf.Name == "" && existingWorkflow != nil {
+		wf.Name = existingWorkflow.Name
+	}
+	if wf.Name == "" {
+		wf.Name = "generated-workflow"
+	}
+
+	// Strip hallucinated node types before validation.
+	stripInvalidNodeTypes(&wf)
+
 	if err := validate(&wf); err != nil {
 		return nil, fmt.Errorf("invalid generated workflow: %w", err)
 	}
 
+	// Strip hallucinated tool names that don't exist in the registry.
+	g.stripInvalidTools(&wf)
+
+	// Replace invalid model IDs with the default model.
+	g.fixInvalidModels(&wf)
+
 	return &wf, nil
+}
+
+// stripInvalidTools removes tool names from agent node configs that don't exist
+// in the tool registry. This prevents hallucinated tools from reaching execution.
+func (g *Generator) stripInvalidTools(wf *upal.WorkflowDefinition) {
+	valid := make(map[string]bool, len(g.toolNames))
+	for _, name := range g.toolNames {
+		valid[name] = true
+	}
+
+	for i, n := range wf.Nodes {
+		toolNames, ok := n.Config["tools"].([]any)
+		if !ok || len(toolNames) == 0 {
+			continue
+		}
+		filtered := make([]any, 0, len(toolNames))
+		for _, tn := range toolNames {
+			name, ok := tn.(string)
+			if ok && valid[name] {
+				filtered = append(filtered, tn)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(wf.Nodes[i].Config, "tools")
+		} else {
+			wf.Nodes[i].Config["tools"] = filtered
+		}
+	}
+}
+
+// buildModelPrompt creates a categorized model list for the system prompt.
+func (g *Generator) buildModelPrompt() string {
+	// Group models by category.
+	groups := map[string][]ModelOption{}
+	for _, m := range g.models {
+		groups[m.Category] = append(groups[m.Category], m)
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("\n\nAvailable models for agent nodes (use in config \"model\" field):\nDefault model: %q\n", g.model))
+
+	if text := groups["text"]; len(text) > 0 {
+		b.WriteString("\nText/reasoning models — use for analysis, generation, conversation, tool-use, and any task that processes or produces text:\n")
+		for _, m := range text {
+			b.WriteString(fmt.Sprintf("- %q [%s] — %s\n", m.ID, m.Tier, m.Hint))
+		}
+	}
+
+	if image := groups["image"]; len(image) > 0 {
+		b.WriteString("\nImage generation models — use ONLY when the task requires creating, editing, or generating images:\n")
+		for _, m := range image {
+			b.WriteString(fmt.Sprintf("- %q — %s\n", m.ID, m.Hint))
+		}
+	}
+
+	b.WriteString(`
+MODEL SELECTION RULES:
+1. ONLY use models from the lists above.
+2. Choose the model category that matches the node's PURPOSE: text models for reasoning/text tasks, image models for image generation tasks.
+3. Within text models, match tier to complexity: "high" for complex reasoning, "mid" for general tasks, "low" for simple/fast tasks.
+4. Use the default model when no specific model is needed.`)
+
+	return b.String()
+}
+
+// fixInvalidModels replaces model IDs that don't exist in the available models
+// with the generator's default model. This mirrors stripInvalidTools for models.
+func (g *Generator) fixInvalidModels(wf *upal.WorkflowDefinition) {
+	if len(g.models) == 0 {
+		return
+	}
+	valid := make(map[string]bool, len(g.models))
+	for _, m := range g.models {
+		valid[m.ID] = true
+	}
+
+	// Also accept the generator's own default model (may use short name like "sonnet").
+	// Build the full ID by checking if any valid model ends with the default name.
+	defaultFull := ""
+	for _, m := range g.models {
+		parts := strings.SplitN(m.ID, "/", 2)
+		if len(parts) == 2 && parts[1] == g.model {
+			defaultFull = m.ID
+			break
+		}
+	}
+	if defaultFull == "" && len(g.models) > 0 {
+		defaultFull = g.models[0].ID
+	}
+
+	for i, n := range wf.Nodes {
+		if n.Type != upal.NodeTypeAgent {
+			continue
+		}
+		model, _ := n.Config["model"].(string)
+		if model != "" && !valid[model] {
+			wf.Nodes[i].Config["model"] = defaultFull
+		}
+	}
+}
+
+// stripInvalidNodeTypes removes nodes whose type is not one of the valid
+// generatable types (input, agent, output). Also removes edges referencing
+// removed nodes.
+func stripInvalidNodeTypes(wf *upal.WorkflowDefinition) {
+	generatable := map[upal.NodeType]bool{
+		upal.NodeTypeInput:  true,
+		upal.NodeTypeAgent:  true,
+		upal.NodeTypeOutput: true,
+	}
+
+	removed := map[string]bool{}
+	filtered := make([]upal.NodeDefinition, 0, len(wf.Nodes))
+	for _, n := range wf.Nodes {
+		if generatable[n.Type] {
+			filtered = append(filtered, n)
+		} else {
+			removed[n.ID] = true
+		}
+	}
+	wf.Nodes = filtered
+
+	if len(removed) > 0 {
+		edges := make([]upal.EdgeDefinition, 0, len(wf.Edges))
+		for _, e := range wf.Edges {
+			if !removed[e.From] && !removed[e.To] {
+				edges = append(edges, e)
+			}
+		}
+		wf.Edges = edges
+	}
 }
 
 // validate checks that the generated workflow has the minimum required structure.
@@ -184,8 +397,16 @@ func validate(wf *upal.WorkflowDefinition) error {
 			hasInput = true
 		case upal.NodeTypeOutput:
 			hasOutput = true
-		case upal.NodeTypeAgent, upal.NodeTypeTool:
-			// valid
+		case upal.NodeTypeAgent:
+			if n.Config == nil {
+				return fmt.Errorf("agent node %q missing config", n.ID)
+			}
+			if _, ok := n.Config["model"].(string); !ok {
+				return fmt.Errorf("agent node %q missing required field \"model\"", n.ID)
+			}
+			if _, ok := n.Config["prompt"].(string); !ok {
+				return fmt.Errorf("agent node %q missing required field \"prompt\"", n.ID)
+			}
 		default:
 			return fmt.Errorf("unknown node type %q for node %q", n.Type, n.ID)
 		}

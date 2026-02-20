@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"regexp"
@@ -8,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/soochol/upal/internal/llmutil"
+	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/remoteagent"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
@@ -24,12 +25,8 @@ func BuildAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolReg *
 		return buildInputAgent(nd)
 	case upal.NodeTypeOutput:
 		return buildOutputAgent(nd, llms)
-	case upal.NodeTypeTool:
-		return buildToolAgent(nd, toolReg)
 	case upal.NodeTypeAgent:
 		return buildLLMAgent(nd, llms, toolReg)
-	case upal.NodeTypeExternal:
-		return buildRemoteAgent(nd)
 	default:
 		return nil, fmt.Errorf("unknown node type %q for node %q", nd.Type, nd.ID)
 	}
@@ -135,7 +132,7 @@ func buildOutputAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM) (ag
 	nodeID := nd.ID
 	displayMode, _ := nd.Config["display_mode"].(string)
 	layoutModel, _ := nd.Config["layout_model"].(string)
-	layoutPrompt, _ := nd.Config["layout_prompt"].(string)
+	promptTpl, _ := nd.Config["prompt"].(string)
 
 	return agent.New(agent.Config{
 		Name:        nodeID,
@@ -144,31 +141,40 @@ func buildOutputAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM) (ag
 			return func(yield func(*session.Event, error) bool) {
 				state := ctx.Session().State()
 
-				var keys []string
-				for k := range state.All() {
-					if !strings.HasPrefix(k, "__") {
-						keys = append(keys, k)
+				var result string
+
+				// If a prompt template is configured, resolve {{node_id}} references
+				// to collect specific upstream results (like agent nodes).
+				if promptTpl != "" {
+					result = resolveTemplateFromState(promptTpl, state)
+				} else {
+					// Fallback: collect all non-internal state values
+					var keys []string
+					for k := range state.All() {
+						if !strings.HasPrefix(k, "__") {
+							keys = append(keys, k)
+						}
 					}
+					sort.Strings(keys)
+
+					var parts []string
+					for _, k := range keys {
+						if k == nodeID {
+							continue
+						}
+						v, err := state.Get(k)
+						if err != nil || v == nil {
+							continue
+						}
+						parts = append(parts, fmt.Sprintf("%v", v))
+					}
+
+					result = strings.Join(parts, "\n\n")
 				}
-				sort.Strings(keys)
 
-				var parts []string
-				for _, k := range keys {
-					if k == nodeID {
-						continue
-					}
-					v, err := state.Get(k)
-					if err != nil || v == nil {
-						continue
-					}
-					parts = append(parts, fmt.Sprintf("%v", v))
-				}
-
-				result := strings.Join(parts, "\n\n")
-
-				// Manual layout with user-provided prompt: resolve templates and call LLM
-				if displayMode != "auto-layout" && layoutPrompt != "" && llms != nil {
-					resolvedPrompt := resolveTemplateFromState(layoutPrompt, state)
+				// Manual layout: use the prompt as layout instructions for the LLM
+				if displayMode != "auto-layout" && promptTpl != "" && llms != nil {
+					resolvedPrompt := resolveTemplateFromState(promptTpl, state)
 					if html, err := generateLayout(ctx, resolvedPrompt, manualLayoutSystemPrompt, layoutModel, llms); err == nil && html != "" {
 						result = html
 					}
@@ -243,52 +249,6 @@ func generateLayout(ctx agent.InvocationContext, userContent string, systemPromp
 	return text, nil
 }
 
-// buildToolAgent creates a custom Agent that resolves templates in config["input"],
-// calls the tool registry, and stores the result under the node ID.
-func buildToolAgent(nd *upal.NodeDefinition, toolReg *tools.Registry) (agent.Agent, error) {
-	nodeID := nd.ID
-	return agent.New(agent.Config{
-		Name:        nodeID,
-		Description: fmt.Sprintf("Tool node %s", nodeID),
-		Run: func(ctx agent.InvocationContext) iter.Seq2[*session.Event, error] {
-			return func(yield func(*session.Event, error) bool) {
-				state := ctx.Session().State()
-
-				toolName, _ := nd.Config["tool"].(string)
-				inputTpl, _ := nd.Config["input"].(string)
-				resolvedInput := resolveTemplateFromState(inputTpl, state)
-
-				var result any
-				var execErr error
-				if toolReg != nil && toolName != "" {
-					result, execErr = toolReg.Execute(ctx, toolName, resolvedInput)
-				}
-
-				if execErr != nil {
-					yield(nil, fmt.Errorf("tool %q execution failed: %w", toolName, execErr))
-					return
-				}
-
-				resultStr := fmt.Sprintf("%v", result)
-				_ = state.Set(nodeID, resultStr)
-
-				event := session.NewEvent(ctx.InvocationID())
-				event.Author = nodeID
-				event.Branch = ctx.Branch()
-				event.LLMResponse = adkmodel.LLMResponse{
-					Content: &genai.Content{
-						Role:  "model",
-						Parts: []*genai.Part{genai.NewPartFromText(resultStr)},
-					},
-					TurnComplete: true,
-				}
-				event.Actions.StateDelta[nodeID] = resultStr
-				yield(event, nil)
-			}
-		},
-	})
-}
-
 // buildLLMAgent creates a custom Agent that resolves {{node_id}} template
 // references in the prompt config from session state, then calls the LLM.
 // This replaces the previous llmagent.New() approach which could not access
@@ -300,9 +260,40 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 	modelID, _ := nd.Config["model"].(string)
 	systemPrompt, _ := nd.Config["system_prompt"].(string)
 	promptTpl, _ := nd.Config["prompt"].(string)
-	maxTurns := 1
-	if mt, ok := nd.Config["max_turns"].(float64); ok && mt > 0 {
-		maxTurns = int(mt)
+	outputFmt, _ := nd.Config["output"].(string)
+
+	// Read optional LLM parameters from node config.
+	var temperature *float32
+	if v, ok := nd.Config["temperature"].(float64); ok {
+		t := float32(v)
+		temperature = &t
+	}
+	var maxTokens int32
+	if v, ok := nd.Config["max_tokens"].(float64); ok {
+		maxTokens = int32(v)
+	}
+	var topP *float32
+	if v, ok := nd.Config["top_p"].(float64); ok {
+		t := float32(v)
+		topP = &t
+	}
+
+	// Read optional image generation parameters.
+	var imageParams *upalmodel.ImageParams
+	if ratio, ok := nd.Config["aspect_ratio"].(string); ok {
+		imageParams = &upalmodel.ImageParams{}
+		imageParams.Width, imageParams.Height = aspectRatioToSize(ratio)
+	}
+	if v, ok := nd.Config["steps"].(float64); ok {
+		if imageParams == nil {
+			imageParams = &upalmodel.ImageParams{}
+		}
+		imageParams.Steps = int(v)
+	}
+
+	// Append output format instruction to system prompt if provided.
+	if outputFmt != "" {
+		systemPrompt += "\n\n" + outputFmt
 	}
 
 	// Resolve the LLM from "provider/model" format.
@@ -314,24 +305,54 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 	// Collect tool definitions for tool-use loop.
 	// We store both genai function declarations (for the LLM request) and
 	// a name→Tool map (for executing tool calls).
+	// Native tools (web_search, etc.) are provider-managed and added separately.
 	var funcDecls []*genai.FunctionDeclaration
+	var nativeTools []*genai.Tool
 	upalTools := make(map[string]tools.Tool)
-	if toolNames, ok := nd.Config["tools"].([]any); ok && toolReg != nil {
+	if toolNames, ok := nd.Config["tools"].([]any); ok {
 		for _, tn := range toolNames {
 			name, ok := tn.(string)
 			if !ok {
 				continue
 			}
-			t, found := toolReg.Get(name)
-			if found {
-				upalTools[name] = t
-				funcDecls = append(funcDecls, &genai.FunctionDeclaration{
-					Name:        t.Name(),
-					Description: t.Description(),
-					Parameters:  toGenaiSchema(t.InputSchema()),
-				})
+			// Check for native tools first (provider-managed, no client execution).
+			if toolReg != nil && toolReg.IsNative(name) {
+				switch name {
+				case tools.WebSearch.Name():
+					nativeTools = append(nativeTools, &genai.Tool{
+						GoogleSearch: &genai.GoogleSearch{},
+					})
+				}
+				continue
 			}
+			// Fallback: recognize well-known native tools even without a registry.
+			if name == tools.WebSearch.Name() {
+				nativeTools = append(nativeTools, &genai.Tool{
+					GoogleSearch: &genai.GoogleSearch{},
+				})
+				continue
+			}
+			// Custom tool — executed by Upal at runtime.
+			if toolReg == nil {
+				return nil, fmt.Errorf("node %q references tool %q but no tool registry is configured", nd.ID, name)
+			}
+			t, found := toolReg.Get(name)
+			if !found {
+				return nil, fmt.Errorf("node %q references unknown tool %q", nd.ID, name)
+			}
+			upalTools[name] = t
+			funcDecls = append(funcDecls, &genai.FunctionDeclaration{
+				Name:        t.Name(),
+				Description: t.Description(),
+				Parameters:  toGenaiSchema(t.InputSchema()),
+			})
 		}
+	}
+
+	// Auto-determine max turns: 1 for plain LLM calls, 10 for tool-use agents.
+	maxTurns := 1
+	if len(funcDecls) > 0 {
+		maxTurns = 10
 	}
 
 	return agent.New(agent.Config{
@@ -352,8 +373,33 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 				genCfg := &genai.GenerateContentConfig{
 					SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
 				}
+				if temperature != nil {
+					genCfg.Temperature = temperature
+				}
+				if maxTokens > 0 {
+					genCfg.MaxOutputTokens = maxTokens
+				}
+				if topP != nil {
+					genCfg.TopP = topP
+				}
+				var allTools []*genai.Tool
+				allTools = append(allTools, nativeTools...)
 				if len(funcDecls) > 0 {
-					genCfg.Tools = []*genai.Tool{{FunctionDeclarations: funcDecls}}
+					allTools = append(allTools, &genai.Tool{FunctionDeclarations: funcDecls})
+				}
+				if len(allTools) > 0 {
+					genCfg.Tools = allTools
+				}
+
+				// Bridge model-level logging into the node event stream.
+				var llmCtx context.Context = ctx
+				if imageParams != nil {
+					llmCtx = upalmodel.WithImageParams(llmCtx, *imageParams)
+				}
+				if nodeLogFn := nodeLogFuncFromContext(ctx); nodeLogFn != nil {
+					llmCtx = upalmodel.WithLogFunc(llmCtx, upalmodel.LogFunc(func(msg string) {
+						nodeLogFn(nodeID, msg)
+					}))
 				}
 
 				// Tool-use agentic loop: call LLM, execute tool calls, repeat.
@@ -365,7 +411,7 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 					}
 
 					var resp *adkmodel.LLMResponse
-					for r, err := range llm.GenerateContent(ctx, req, false) {
+					for r, err := range llm.GenerateContent(llmCtx, req, false) {
 						if err != nil {
 							yield(nil, fmt.Errorf("LLM call failed for node %q: %w", nodeID, err))
 							return
@@ -388,17 +434,14 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 
 					// No tool calls — extract text result and finish.
 					if len(toolCalls) == 0 {
-						result := strings.TrimSpace(llmutil.ExtractText(resp))
+						result := strings.TrimSpace(llmutil.ExtractContent(resp))
 						_ = state.Set(nodeID, result)
 
 						event := session.NewEvent(ctx.InvocationID())
 						event.Author = nodeID
 						event.Branch = ctx.Branch()
 						event.LLMResponse = adkmodel.LLMResponse{
-							Content: &genai.Content{
-								Role:  "model",
-								Parts: []*genai.Part{genai.NewPartFromText(result)},
-							},
+							Content:      resp.Content,
 							TurnComplete: true,
 						}
 						event.Actions.StateDelta[nodeID] = result
@@ -406,9 +449,28 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 						return
 					}
 
+					// Yield tool call event so the frontend can show which tools are being called.
+					toolCallEvent := session.NewEvent(ctx.InvocationID())
+					toolCallEvent.Author = nodeID
+					toolCallEvent.Branch = ctx.Branch()
+					toolCallEvent.LLMResponse = adkmodel.LLMResponse{Content: resp.Content}
+					if !yield(toolCallEvent, nil) {
+						return
+					}
+
 					// Execute tool calls and append results to conversation.
 					contents = append(contents, resp.Content)
-					contents = append(contents, executeToolCalls(ctx, toolCalls, upalTools))
+					toolRespContent := executeToolCalls(ctx, toolCalls, upalTools)
+					contents = append(contents, toolRespContent)
+
+					// Yield tool response event so the frontend can show tool results.
+					toolRespEvent := session.NewEvent(ctx.InvocationID())
+					toolRespEvent.Author = nodeID
+					toolRespEvent.Branch = ctx.Branch()
+					toolRespEvent.LLMResponse = adkmodel.LLMResponse{Content: toolRespContent}
+					if !yield(toolRespEvent, nil) {
+						return
+					}
 				}
 
 				// Exhausted max_turns — yield error.
@@ -423,22 +485,7 @@ func buildLLMAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolRe
 func executeToolCalls(ctx agent.InvocationContext, calls []*genai.FunctionCall, upalTools map[string]tools.Tool) *genai.Content {
 	var toolResults []*genai.Part
 	for _, fc := range calls {
-		var output map[string]any
-		if t, ok := upalTools[fc.Name]; ok {
-			result, err := t.Execute(ctx, fc.Args)
-			if err != nil {
-				output = map[string]any{"error": err.Error()}
-			} else {
-				// Coerce result to map[string]any for FunctionResponse.
-				if m, ok := result.(map[string]any); ok {
-					output = m
-				} else {
-					output = map[string]any{"result": fmt.Sprintf("%v", result)}
-				}
-			}
-		} else {
-			output = map[string]any{"error": fmt.Sprintf("unknown tool %q", fc.Name)}
-		}
+		output := executeSingleTool(ctx, fc, upalTools)
 		toolResults = append(toolResults, &genai.Part{
 			FunctionResponse: &genai.FunctionResponse{
 				Name:     fc.Name,
@@ -452,20 +499,26 @@ func executeToolCalls(ctx agent.InvocationContext, calls []*genai.FunctionCall, 
 	}
 }
 
-// buildRemoteAgent creates a remote A2A agent using remoteagent.NewA2A().
-func buildRemoteAgent(nd *upal.NodeDefinition) (agent.Agent, error) {
-	nodeID := nd.ID
-	endpointURL, _ := nd.Config["endpoint_url"].(string)
+// executeSingleTool runs a single tool call with panic recovery.
+func executeSingleTool(ctx agent.InvocationContext, fc *genai.FunctionCall, upalTools map[string]tools.Tool) (output map[string]any) {
+	defer func() {
+		if r := recover(); r != nil {
+			output = map[string]any{"error": fmt.Sprintf("tool %q panicked: %v", fc.Name, r)}
+		}
+	}()
 
-	if endpointURL == "" {
-		return nil, fmt.Errorf("external node %q missing endpoint_url", nodeID)
+	t, ok := upalTools[fc.Name]
+	if !ok {
+		return map[string]any{"error": fmt.Sprintf("unknown tool %q", fc.Name)}
 	}
-
-	return remoteagent.NewA2A(remoteagent.A2AConfig{
-		Name:            nodeID,
-		Description:     fmt.Sprintf("Remote A2A agent node %s", nodeID),
-		AgentCardSource: endpointURL,
-	})
+	result, err := t.Execute(ctx, fc.Args)
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
+	if m, ok := result.(map[string]any); ok {
+		return m
+	}
+	return map[string]any{"result": fmt.Sprintf("%v", result)}
 }
 
 // templatePattern matches {{key}} or {{key.subkey}} placeholders.
@@ -561,4 +614,22 @@ func toGenaiSchema(schema map[string]any) *genai.Schema {
 		}
 	}
 	return s
+}
+
+// aspectRatioToSize converts a ratio string like "16:9" to width/height pixels
+// using 1024 as the base dimension.
+func aspectRatioToSize(ratio string) (int, int) {
+	ratios := map[string][2]int{
+		"1:1":  {1024, 1024},
+		"16:9": {1024, 576},
+		"9:16": {576, 1024},
+		"4:3":  {1024, 768},
+		"3:4":  {768, 1024},
+		"3:2":  {1024, 680},
+		"2:3":  {680, 1024},
+	}
+	if wh, ok := ratios[ratio]; ok {
+		return wh[0], wh[1]
+	}
+	return 1024, 1024
 }

@@ -134,6 +134,35 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Inject available models grouped by category so the LLM matches purpose to model.
+	if allModels := KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
+		sysPrompt += fmt.Sprintf("\n\nAvailable models (use in config \"model\" field):\nDefault model: %q\n", modelName)
+
+		// Group by category for clear presentation.
+		var textModels, imageModels []ModelInfo
+		for _, m := range allModels {
+			switch m.Category {
+			case ModelCategoryText:
+				textModels = append(textModels, m)
+			case ModelCategoryImage:
+				imageModels = append(imageModels, m)
+			}
+		}
+		if len(textModels) > 0 {
+			sysPrompt += "\nText/reasoning models — use for analysis, generation, conversation, tool-use:\n"
+			for _, m := range textModels {
+				sysPrompt += fmt.Sprintf("- %q [%s] — %s\n", m.ID, m.Tier, m.Hint)
+			}
+		}
+		if len(imageModels) > 0 {
+			sysPrompt += "\nImage generation models — use ONLY when the task requires creating/generating images:\n"
+			for _, m := range imageModels {
+				sysPrompt += fmt.Sprintf("- %q — %s\n", m.ID, m.Hint)
+			}
+		}
+		sysPrompt += "IMPORTANT: ONLY use models from this list. Match model category to the node's purpose."
+	}
+
 	llmReq := &adkmodel.LLMRequest{
 		Model: modelName,
 		Config: &genai.GenerateContentConfig{
