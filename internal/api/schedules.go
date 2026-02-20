@@ -52,6 +52,9 @@ func (s *Server) listSchedules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if schedules == nil {
+		schedules = []*upal.Schedule{}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(schedules)
 }
