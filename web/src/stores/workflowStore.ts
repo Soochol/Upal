@@ -10,6 +10,7 @@ import {
   type OnConnect,
 } from '@xyflow/react'
 import { getLayoutedElements } from '@/lib/layout'
+import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 import { useUIStore } from './uiStore'
 
 // Re-export types and stores for backward compatibility
@@ -19,7 +20,7 @@ export { useUIStore } from './uiStore'
 
 export type NodeData = {
   label: string
-  nodeType: 'input' | 'agent' | 'tool' | 'output' | 'external' | 'group'
+  nodeType: 'input' | 'agent' | 'output' | 'group'
   description: string
   config: Record<string, unknown>
 }
@@ -38,7 +39,9 @@ type WorkflowState = {
 
   // Workflow identity
   workflowName: string
+  originalName: string // name at load/save time — empty for unsaved workflows
   setWorkflowName: (name: string) => void
+  setOriginalName: (name: string) => void
 
   // Group management
   createGroup: (nodeIds: string[]) => void
@@ -56,46 +59,40 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   // Workflow identity
   workflowName: '',
+  originalName: '',
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })
+    // Clear right-panel selection if the selected node was removed
+    const removals = changes.filter((c) => c.type === 'remove').map((c) => c.id)
+    if (removals.length > 0) {
+      const selectedNodeId = useUIStore.getState().selectedNodeId
+      if (selectedNodeId && removals.includes(selectedNodeId)) {
+        useUIStore.getState().selectNode(null)
+      }
+    }
   },
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) })
   },
   onConnect: (connection) => {
-    set({ edges: addEdge({ ...connection, type: 'smoothstep' }, get().edges) })
-    get().applyAutoLayout()
+    set({ edges: addEdge({ ...connection, type: 'default' }, get().edges) })
   },
   addNode: (type, position) => {
     const id = getId()
-    const labels: Record<string, string> = {
-      input: 'User Input',
-      agent: 'Agent',
-      tool: 'Tool',
-      output: 'Output',
-      external: 'External Agent',
-    }
-    const descriptions: Record<string, string> = {
-      input: 'User-provided data entry point',
-      agent: 'AI model processing step',
-      tool: 'External tool or function call',
-      output: 'Workflow result endpoint',
-      external: 'External A2A-compatible agent',
-    }
+    const ntCfg = NODE_TYPES[type as NodeType]
     const newNode: Node<NodeData> = {
       id,
       type: 'upalNode',
       position,
       data: {
-        label: labels[type] || type,
+        label: ntCfg?.label || type,
         nodeType: type,
-        description: descriptions[type] || '',
+        description: ntCfg?.description || '',
         config: {},
       },
     }
     set({ nodes: [...get().nodes, newNode] })
-    get().applyAutoLayout()
   },
   updateNodeConfig: (nodeId, config) => {
     set({
@@ -128,6 +125,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
   setWorkflowName: (name) => {
     set({ workflowName: name })
+  },
+  setOriginalName: (name) => {
+    set({ originalName: name })
   },
 
   createGroup: (nodeIds) => {

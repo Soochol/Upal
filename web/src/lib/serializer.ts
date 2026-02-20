@@ -48,10 +48,13 @@ export function serializeWorkflow(
     name,
     version: 1,
     nodes: regularNodes.map((n) => {
+      const config = n.data.description
+        ? { ...n.data.config, description: n.data.description }
+        : n.data.config
       const node: WorkflowNode = {
         id: n.id,
         type: n.data.nodeType,
-        config: n.data.config,
+        config,
       }
       if (n.parentId) {
         node.group = n.parentId
@@ -71,13 +74,19 @@ export function serializeWorkflow(
   return wf
 }
 
+/** Convert a snake_case / kebab-case node ID into a Title Case label. */
+function humanizeId(id: string): string {
+  return id
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export function deserializeWorkflow(
   wf: WorkflowDefinition,
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
-  const labels: Record<string, string> = {
+  // Fixed labels for structural node types; agent derives from node ID
+  const fixedLabels: Record<string, string> = {
     input: 'User Input',
-    agent: 'Agent',
-    tool: 'Tool',
     output: 'Output',
   }
 
@@ -109,7 +118,7 @@ export function deserializeWorkflow(
       type: 'upalNode',
       position: { x: i * 350, y: 0 },
       data: {
-        label: labels[n.type] || n.type,
+        label: (n.config.label as string) || fixedLabels[n.type] || humanizeId(n.id),
         nodeType: n.type as NodeData['nodeType'],
         description: (n.config.description as string) || '',
         config: n.config,
@@ -129,7 +138,7 @@ export function deserializeWorkflow(
     id: `edge-${i}`,
     source: e.from,
     target: e.to,
-    type: 'smoothstep',
+    type: 'default',
   }))
 
   // Only apply auto-layout to non-grouped nodes

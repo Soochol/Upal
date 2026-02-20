@@ -1,4 +1,3 @@
-import { Inbox, Bot, Wrench, ArrowRightFromLine, Globe } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
@@ -7,51 +6,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
-type NodeType = 'input' | 'agent' | 'tool' | 'output' | 'external'
-
-const paletteItems = [
-  {
-    type: 'input' as NodeType,
-    label: 'Input',
-    description: 'User-provided data entry point',
-    icon: Inbox,
-    colorClass:
-      'bg-node-input/15 text-node-input border-node-input/30 hover:bg-node-input/25',
-  },
-  {
-    type: 'agent' as NodeType,
-    label: 'Agent',
-    description: 'AI model processing step',
-    icon: Bot,
-    colorClass:
-      'bg-node-agent/15 text-node-agent border-node-agent/30 hover:bg-node-agent/25',
-  },
-  {
-    type: 'tool' as NodeType,
-    label: 'Tool',
-    description: 'External tool or function call',
-    icon: Wrench,
-    colorClass:
-      'bg-node-tool/15 text-node-tool border-node-tool/30 hover:bg-node-tool/25',
-  },
-  {
-    type: 'output' as NodeType,
-    label: 'Output',
-    description: 'Workflow result endpoint',
-    icon: ArrowRightFromLine,
-    colorClass:
-      'bg-node-output/15 text-node-output border-node-output/30 hover:bg-node-output/25',
-  },
-  {
-    type: 'external' as NodeType,
-    label: 'External',
-    description: 'External A2A-compatible agent',
-    icon: Globe,
-    colorClass:
-      'bg-purple-500/15 text-purple-500 border-purple-500/30 hover:bg-purple-500/25',
-  },
-]
+const paletteItems = Object.values(NODE_TYPES)
 
 interface NodePaletteProps {
   onAddNode: (type: NodeType) => void
@@ -77,7 +34,7 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
                   onClick={() => onAddNode(item.type)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors cursor-grab active:cursor-grabbing',
-                    item.colorClass
+                    item.paletteBg
                   )}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />

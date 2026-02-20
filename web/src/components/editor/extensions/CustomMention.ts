@@ -4,20 +4,18 @@ import Mention from '@tiptap/extension-mention'
 import type { SuggestionOptions } from '@tiptap/suggestion'
 import { createElement } from 'react'
 import { Bot } from 'lucide-react'
-import { nodeIconMap } from '@/lib/nodeTypes'
+import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
 const pillColorMap: Record<string, string> = {
   input: 'bg-node-input/15 text-node-input',
   agent: 'bg-node-agent/15 text-node-agent',
-  tool: 'bg-node-tool/15 text-node-tool',
   output: 'bg-node-output/15 text-node-output',
-  external: 'bg-purple-500/15 text-purple-500',
 }
 
 // ── Mention pill rendered inside the editor ──
 
 function MentionPill({ node }: ReactNodeViewProps) {
-  const Icon = nodeIconMap[node.attrs.nodeType as string] || Bot
+  const Icon = NODE_TYPES[node.attrs.nodeType as NodeType]?.icon || Bot
   const colors = pillColorMap[node.attrs.nodeType as string] || 'bg-muted text-muted-foreground'
   return createElement(
     NodeViewWrapper,

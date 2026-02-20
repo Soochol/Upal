@@ -9,13 +9,16 @@ type ModelSelectorProps = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  models?: ModelInfo[]
 }
 
-export function ModelSelector({ value, onChange, placeholder = 'Select a model...' }: ModelSelectorProps) {
-  const [models, setModels] = useState<ModelInfo[]>([])
+export function ModelSelector({ value, onChange, placeholder = 'Select a model...', models: externalModels }: ModelSelectorProps) {
+  const [fetchedModels, setFetchedModels] = useState<ModelInfo[]>([])
   useEffect(() => {
-    listModels().then(setModels).catch(() => setModels([]))
-  }, [])
+    if (externalModels) return
+    listModels().then(setFetchedModels).catch(() => setFetchedModels([]))
+  }, [externalModels])
+  const models = externalModels ?? fetchedModels
   const modelsByProvider = groupModelsByProvider(models)
   return (
     <Select value={value} onValueChange={onChange}>

@@ -30,7 +30,7 @@ export default function Editor() {
     ? nodes.find((n) => n.id === selectedNodeId)
     : null
 
-  const handleAddNode = (type: 'input' | 'agent' | 'tool' | 'output' | 'external') => {
+  const handleAddNode = (type: 'input' | 'agent' | 'output') => {
     addNode(type, {
       x: 250,
       y: useWorkflowStore.getState().nodes.length * 150 + 50,
@@ -38,7 +38,7 @@ export default function Editor() {
   }
 
   const handleDropNode = (type: string, position: { x: number; y: number }) => {
-    addNode(type as 'input' | 'agent' | 'tool' | 'output' | 'external', position)
+    addNode(type as 'input' | 'agent' | 'output', position)
   }
 
   const handlePromptSubmit = async (description: string) => {
@@ -48,7 +48,7 @@ export default function Editor() {
     const hasExisting = currentNodes.length > 0
 
     const action = hasExisting ? 'Editing' : 'Generating'
-    addRunEvent({ type: 'info', data: { message: `${action} workflow...` } })
+    addRunEvent({ type: 'info', message: `${action} workflow...` })
 
     try {
       const existingWf = hasExisting
@@ -60,12 +60,12 @@ export default function Editor() {
       if (wf.name) setWorkflowName(wf.name)
       addRunEvent({
         type: 'info',
-        data: { message: `Workflow "${wf.name}" ${hasExisting ? 'updated' : 'generated'} with ${wf.nodes.length} nodes.` },
+        message: `Workflow "${wf.name}" ${hasExisting ? 'updated' : 'generated'} with ${wf.nodes.length} nodes.`,
       })
     } catch (err) {
       addRunEvent({
         type: 'error',
-        data: { message: `Generate failed: ${err instanceof Error ? err.message : String(err)}` },
+        message: `Generate failed: ${err instanceof Error ? err.message : String(err)}`,
       })
     } finally {
       setIsGenerating(false)

@@ -1,9 +1,7 @@
 import { create } from 'zustand'
+import type { RunEvent } from '@/lib/api'
 
-export type RunEvent = {
-  type: string        // 'agent' | 'info' | 'error' | 'done'
-  data: Record<string, unknown>
-}
+export type { RunEvent }
 
 export type NodeRunStatus = 'idle' | 'running' | 'completed' | 'error'
 

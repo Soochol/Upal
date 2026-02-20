@@ -8,6 +8,36 @@ const DEBOUNCE_MS = 2000
 
 export type SaveStatus = 'idle' | 'waiting' | 'saving' | 'saved' | 'error'
 
+/**
+ * Save the current canvas state to the backend immediately.
+ * Reads directly from Zustand stores — safe to call outside React components.
+ */
+async function flushSave(): Promise<void> {
+  const { nodes, edges, workflowName, originalName, setWorkflowName, setOriginalName } =
+    useWorkflowStore.getState()
+
+  if (nodes.length === 0) return
+
+  let name = workflowName
+  if (!name) {
+    const tempWf = serializeWorkflow('untitled', nodes, edges)
+    try {
+      name = await suggestWorkflowName(tempWf)
+    } catch {
+      name = 'untitled-workflow'
+    }
+    setWorkflowName(name)
+  }
+
+  const wf = serializeWorkflow(name, nodes, edges)
+  await saveWorkflow(wf, originalName || undefined)
+
+  // After successful save, sync originalName to current name
+  if (originalName !== name) {
+    setOriginalName(name)
+  }
+}
+
 export function useAutoSave() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -19,8 +49,7 @@ export function useAutoSave() {
     // Clear any pending "Saved" dismiss timer
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
 
-    const { nodes, edges, workflowName, setWorkflowName } =
-      useWorkflowStore.getState()
+    const { nodes, edges, workflowName } = useWorkflowStore.getState()
     const { isRunning } = useExecutionStore.getState()
 
     // Don't save during execution or with empty canvas
@@ -35,21 +64,7 @@ export function useAutoSave() {
     setSaveStatus('saving')
 
     try {
-      let name = workflowName
-
-      // If unnamed, ask LLM for a name
-      if (!name) {
-        const tempWf = serializeWorkflow('untitled', nodes, edges)
-        try {
-          name = await suggestWorkflowName(tempWf)
-        } catch {
-          name = 'untitled-workflow'
-        }
-        setWorkflowName(name)
-      }
-
-      const wf = serializeWorkflow(name, nodes, edges)
-      await saveWorkflow(wf)
+      await flushSave()
 
       lastSnapshotRef.current = snapshot
       setSaveStatus('saved')

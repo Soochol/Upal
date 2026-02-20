@@ -1,18 +1,15 @@
-import { useEffect, useRef } from 'react'
 import { useExecutionStore } from '@/stores/executionStore'
+import { useAutoScroll } from '@/hooks/useAutoScroll'
+import type { RunEvent } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { eventColorMap, formatEvent } from '@/lib/eventFormatting'
 
-function formatTimestamp(timestamp: unknown): string | null {
-  if (!timestamp) return null
-  try {
-    const date = new Date(timestamp as string | number)
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  } catch {
-    return null
-  }
+// Extract nodeId from any event type that carries one.
+function getNodeId(event: RunEvent): string | undefined {
+  if ('nodeId' in event) return event.nodeId
+  return undefined
 }
 
 type PanelLogsProps = {
@@ -21,22 +18,18 @@ type PanelLogsProps = {
 
 export function PanelLogs({ selectedNodeId }: PanelLogsProps) {
   const runEvents = useExecutionStore((s) => s.runEvents)
-  const bottomRef = useRef<HTMLDivElement>(null)
 
   const filteredEvents = selectedNodeId
     ? runEvents.filter(
         (e) =>
-          e.data.Author === selectedNodeId ||
+          getNodeId(e) === selectedNodeId ||
           e.type === 'done' ||
           e.type === 'error' ||
           e.type === 'info',
       )
     : runEvents
 
-  // Auto-scroll to bottom when new events arrive
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [filteredEvents.length])
+  const bottomRef = useAutoScroll(filteredEvents.length)
 
   if (runEvents.length === 0) {
     return (
@@ -55,24 +48,18 @@ export function PanelLogs({ selectedNodeId }: PanelLogsProps) {
             Filtered: {selectedNodeId}
           </p>
         )}
-        {filteredEvents.map((event, i) => {
-          const timestamp = formatTimestamp(event.data.Timestamp)
-          return (
-            <div
-              key={i}
-              className={cn(
-                'flex gap-2 leading-relaxed',
-                eventColorMap[event.type] ?? 'text-muted-foreground',
-              )}
-            >
-              {timestamp && (
-                <span className="text-muted-foreground/60 shrink-0">{timestamp}</span>
-              )}
-              <span className="text-muted-foreground shrink-0">{event.type}</span>
-              <span className="break-all">{formatEvent(event)}</span>
-            </div>
-          )
-        })}
+        {filteredEvents.map((event, i) => (
+          <div
+            key={i}
+            className={cn(
+              'flex gap-2 leading-relaxed',
+              eventColorMap[event.type] ?? 'text-muted-foreground',
+            )}
+          >
+            <span className="text-muted-foreground shrink-0">{event.type}</span>
+            <span className="break-all">{formatEvent(event)}</span>
+          </div>
+        ))}
         <div ref={bottomRef} />
       </div>
     </ScrollArea>

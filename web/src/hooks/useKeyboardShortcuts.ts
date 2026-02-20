@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useWorkflowStore } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
 
 type ShortcutHandlers = {
@@ -8,8 +7,6 @@ type ShortcutHandlers = {
 
 export function useKeyboardShortcuts({ onSave }: ShortcutHandlers) {
   const selectNode = useUIStore((s) => s.selectNode)
-  const selectedNodeId = useUIStore((s) => s.selectedNodeId)
-  const onNodesChange = useWorkflowStore((s) => s.onNodesChange)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -41,15 +38,10 @@ export function useKeyboardShortcuts({ onSave }: ShortcutHandlers) {
         return
       }
 
-      // Delete/Backspace = Delete selected node
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
-        onNodesChange([{ id: selectedNodeId, type: 'remove' }])
-        selectNode(null)
-        return
-      }
+      // Delete/Backspace handled by React Flow's deleteKeyCode
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onSave, selectNode, selectedNodeId, onNodesChange])
+  }, [onSave, selectNode])
 }

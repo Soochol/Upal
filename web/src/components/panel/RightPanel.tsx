@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
@@ -11,12 +11,13 @@ import { PanelPreview } from '@/components/panel/PanelPreview'
 import { PanelLogs } from '@/components/panel/PanelLogs'
 import { PanelData } from '@/components/panel/PanelData'
 import { PanelChat } from '@/components/panel/PanelChat'
+import { PanelSchedule } from '@/components/panel/PanelSchedule'
 import { GroupEditor } from '@/components/panel/GroupEditor'
 import { AIChatEditor } from '@/components/panel/AIChatEditor'
-import { Button } from '@/components/ui/button'
-import { X, Settings2, ScrollText, Database, MessageSquare, Eye } from 'lucide-react'
+import { Settings2, ScrollText, Database, MessageSquare, Eye, Clock } from 'lucide-react'
 import type { NodeData } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
+import { useResizeDrag } from '@/hooks/useResizeDrag'
 import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {
@@ -30,6 +31,7 @@ const tabs = [
   { value: 'data', label: 'Data', icon: Database },
   { value: 'chat', label: 'Chat', icon: MessageSquare },
   { value: 'preview', label: 'Preview', icon: Eye },
+  { value: 'schedule', label: 'Schedule', icon: Clock },
 ] as const
 
 const DEFAULT_WIDTH = 512
@@ -39,8 +41,12 @@ const MAX_WIDTH = 800
 export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState('properties')
   const [expanded, setExpanded] = useState(true)
-  const [width, setWidth] = useState(DEFAULT_WIDTH)
-  const isResizing = useRef(false)
+  const { size: width, handleMouseDown } = useResizeDrag({
+    direction: 'horizontal',
+    min: MIN_WIDTH,
+    max: MAX_WIDTH,
+    initial: DEFAULT_WIDTH,
+  })
 
   // Refs: read latest state inside effects without adding dependencies
   const activeTabRef = useRef(activeTab)
@@ -53,7 +59,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   // - Node deselected + on Properties → collapse
   // - Node deselected + on Logs/Data/… → stay expanded
   const prevNodeIdRef = useRef<string | null>(selectedNode?.id ?? null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (selectedNode) {
       setActiveTab('properties')
@@ -77,34 +82,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
       },
     )
     return unsub
-  }, [])
-
-  // ── Resize drag ──
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isResizing.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }, [])
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing.current) return
-      const newWidth = window.innerWidth - e.clientX
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)))
-    }
-    const handleMouseUp = () => {
-      if (!isResizing.current) return
-      isResizing.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
   }, [])
 
   const selectedNodeId = selectedNode?.id ?? null
@@ -169,15 +146,11 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
               })}
             </TabsList>
           </TooltipProvider>
-          {selectedNode && activeTab === 'properties' && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCloseNode}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          {/* Close button is inside NodeEditor header for properties tab */}
         </div>
 
-        {/* Properties: natural height so AI chat sits right below */}
-        <TabsContent value="properties" className="min-h-0 overflow-y-auto mt-0">
+        {/* Properties: flex-fill so prompt fields expand to fill space */}
+        <TabsContent value="properties" className="flex-1 min-h-0 flex flex-col mt-0">
           {selectedNode && selectedNode.type === 'groupNode' ? (
             <GroupEditor groupId={selectedNode.id} data={selectedNode.data as NodeData} onClose={onCloseNode} />
           ) : selectedNode ? (
@@ -209,6 +182,10 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
         <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
           <PanelPreview />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PanelSchedule />
         </TabsContent>
 
         {/* AI Assistant — pinned to bottom of panel */}

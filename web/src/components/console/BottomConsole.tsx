@@ -5,6 +5,12 @@ import { Badge } from '@/components/ui/badge'
 import { ChevronUp, ChevronDown, Trash2, Terminal, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { eventColorMap, formatEvent } from '@/lib/eventFormatting'
+import { useResizeDrag } from '@/hooks/useResizeDrag'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+
+const DEFAULT_HEIGHT = 160
+const MIN_HEIGHT = 80
+const MAX_HEIGHT = 500
 
 export function BottomConsole() {
   const runEvents = useExecutionStore((s) => s.runEvents)
@@ -12,13 +18,17 @@ export function BottomConsole() {
   const clearRunEvents = useExecutionStore((s) => s.clearRunEvents)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isExpanded, setIsExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const { size: height, handleMouseDown } = useResizeDrag({
+    direction: 'vertical',
+    min: MIN_HEIGHT,
+    max: MAX_HEIGHT,
+    initial: DEFAULT_HEIGHT,
+  })
+  const { copied, copyToClipboard } = useCopyToClipboard()
 
   const handleCopy = () => {
     const text = runEvents.map((e) => `[${e.type}] ${formatEvent(e)}`).join('\n')
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    copyToClipboard(text)
   }
 
   // Auto-expand when a run starts
@@ -35,6 +45,14 @@ export function BottomConsole() {
 
   return (
     <footer className="border-t border-border bg-background">
+      {/* Resize handle — only when expanded */}
+      {isExpanded && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="h-1 cursor-row-resize hover:bg-primary/20 active:bg-primary/40 transition-colors"
+        />
+      )}
+
       {/* Toggle bar */}
       <div className="flex items-center justify-between px-4 h-9">
         <button
@@ -78,7 +96,8 @@ export function BottomConsole() {
       {isExpanded && (
         <div
           ref={scrollRef}
-          className="h-40 overflow-y-auto px-4 pb-3 font-mono text-xs space-y-0.5 border-t border-border"
+          style={{ height }}
+          className="overflow-y-auto px-4 pb-3 font-mono text-xs space-y-0.5 border-t border-border"
         >
           {runEvents.length === 0 ? (
             <p className="text-muted-foreground pt-2">

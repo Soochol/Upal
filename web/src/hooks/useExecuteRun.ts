@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { useExecutionStore } from '@/stores/executionStore'
 import { runWorkflow } from '@/lib/api'
+import { serializeWorkflow } from '@/lib/serializer'
 
 export function useExecuteRun() {
   const workflowName = useWorkflowStore((s) => s.workflowName)
@@ -18,43 +19,45 @@ export function useExecuteRun() {
       const name = workflowName
       if (!name) return
 
+      // Serialize current canvas state to send directly to the backend
+      const { nodes, edges } = useWorkflowStore.getState()
+      const workflow = serializeWorkflow(name, nodes, edges)
+
       clearRunEvents()
       clearNodeStatuses()
       setIsRunning(true)
-      addRunEvent({ type: 'info', data: { message: `Running workflow "${name}"...` } })
+
+      addRunEvent({ type: 'info', message: `Running workflow "${name}"...` })
 
       await runWorkflow(
         name,
         inputs,
         (event) => {
-          const nodeId = event.data.Author as string | undefined
-          if (nodeId) {
-            // Distinguish "started" events (no content) from "completed" events.
-            // The backend emits a lightweight event with just Author when a node
-            // begins, and a full event with Content/StateDelta when it finishes.
-            const actions = event.data.Actions as { StateDelta?: Record<string, unknown> } | undefined
-            const content = event.data.Content as { parts?: { text?: string }[] } | undefined
-            const hasOutput =
-              content?.parts?.some((p) => p?.text) ||
-              (actions?.StateDelta && Object.keys(actions.StateDelta).length > 0)
-
-            if (hasOutput) {
-              // Node produced output — mark completed and log to console
-              setNodeStatus(nodeId, 'completed')
+          switch (event.type) {
+            case 'node_started':
+              setNodeStatus(event.nodeId, 'running')
               addRunEvent(event)
-            } else {
-              // Node just started — show running spinner (don't log bare start events)
-              const current = useExecutionStore.getState().nodeStatuses[nodeId]
-              if (current !== 'completed') {
-                setNodeStatus(nodeId, 'running')
-              }
-            }
-          } else {
-            addRunEvent(event)
+              break
+            case 'tool_call':
+            case 'tool_result':
+              // Log intermediate tool events without changing node status
+              addRunEvent(event)
+              break
+            case 'node_completed':
+              setNodeStatus(event.nodeId, 'completed')
+              addRunEvent(event)
+              break
+            default:
+              addRunEvent(event)
           }
         },
         (result) => {
-          addRunEvent({ type: 'done', data: result })
+          addRunEvent({
+            type: 'done',
+            status: result.status as string,
+            sessionId: result.session_id as string,
+            state: (result.state ?? {}) as Record<string, unknown>,
+          })
           const statuses = useExecutionStore.getState().nodeStatuses
 
           // Mark any still-running nodes as completed (edge case: multi-event nodes)
@@ -79,9 +82,10 @@ export function useExecuteRun() {
           setIsRunning(false)
         },
         (error) => {
-          addRunEvent({ type: 'error', data: { message: error.message } })
+          addRunEvent({ type: 'error', message: error.message })
           setIsRunning(false)
         },
+        workflow,
       )
     },
     [workflowName, clearRunEvents, clearNodeStatuses, setIsRunning, addRunEvent, setNodeStatus, setSessionState],
