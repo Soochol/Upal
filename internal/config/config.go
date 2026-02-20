@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -79,9 +81,34 @@ func LoadDefault() (*Config, error) {
 	cfg, err := Load("config.yaml")
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return defaults(), nil
+			cfg = defaults()
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
+	applyEnvOverrides(cfg)
 	return cfg, nil
+}
+
+// applyEnvOverrides loads .env (if present) and overrides sensitive config
+// fields from environment variables.
+//
+// Supported variables:
+//   - DATABASE_URL         → cfg.Database.URL
+//   - {PROVIDER}_API_KEY   → cfg.Providers[provider].APIKey
+//     (provider name uppercased, hyphens replaced with underscores)
+func applyEnvOverrides(cfg *Config) {
+	_ = godotenv.Load() // ignore error — .env is optional
+
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		cfg.Database.URL = v
+	}
+
+	for name, pc := range cfg.Providers {
+		envKey := strings.ToUpper(strings.ReplaceAll(name, "-", "_")) + "_API_KEY"
+		if v := os.Getenv(envKey); v != "" {
+			pc.APIKey = v
+			cfg.Providers[name] = pc
+		}
+	}
 }

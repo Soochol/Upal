@@ -135,7 +135,6 @@ var knownModels = map[string][]modelEntry{
 		{"haiku", ModelTierLow, "fast and cheap, simple tasks"},
 	},
 	"gemini-image": {
-		{"gemini-2.0-flash-preview-image-generation", ModelTierMid, "image generation"},
 		{"gemini-2.5-flash-preview-image-generation", ModelTierMid, "image generation"},
 	},
 	"zimage": {

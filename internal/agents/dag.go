@@ -55,6 +55,11 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 					done[nodeID] = make(chan struct{})
 				}
 
+				// Cancel channel: closed on first node error to stop siblings.
+				cancelCh := make(chan struct{})
+				var cancelOnce sync.Once
+				cancelFn := func() { cancelOnce.Do(func() { close(cancelCh) }) }
+
 				var wg sync.WaitGroup
 
 				// Channel to collect events from goroutines in order.
@@ -80,10 +85,17 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 							case <-done[parentID]:
 							case <-ctx.Done():
 								return
+							case <-cancelCh:
+								return
 							}
 						}
 
-						// Check if we already have an error.
+						// Check if we already have an error or cancellation.
+						select {
+						case <-cancelCh:
+							return
+						default:
+						}
 						if ctx.Err() != nil {
 							return
 						}
@@ -114,7 +126,11 @@ func NewDAGAgent(wf *upal.WorkflowDefinition, llms map[string]adkmodel.LLM, tool
 
 				// Yield events as they arrive.
 				for ne := range eventCh {
+					if ne.err != nil {
+						cancelFn()
+					}
 					if !yield(ne.event, ne.err) {
+						cancelFn()
 						return
 					}
 				}

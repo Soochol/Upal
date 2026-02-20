@@ -135,9 +135,24 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 		defer close(eventCh)
 		defer close(resultCh)
 
+		// done is closed when this goroutine exits, signalling log
+		// callbacks that eventCh is no longer accepting sends.
+		done := make(chan struct{})
+		defer close(done)
+
 		// Wire up model-level logging into the event stream.
+		// NOTE: select does NOT protect against sending on a closed channel
+		// — Go panics during case evaluation. We check done first and use
+		// recover() as a safety net for the race between done-check and
+		// eventCh closure.
 		nodeLogFn := agents.NodeLogFunc(func(nodeID, msg string) {
 			slog.Info("model-log", "node", nodeID, "msg", msg)
+			select {
+			case <-done:
+				return
+			default:
+			}
+			defer func() { recover() }()
 			eventCh <- WorkflowEvent{
 				Type:   "log",
 				NodeID: nodeID,

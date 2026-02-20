@@ -103,7 +103,6 @@ func (g *GeminiImageLLM) convertResponse(resp *genai.GenerateContentResponse) (*
 func isImageCapableModel(model string) bool {
 	imageModels := []string{
 		"gemini-2.0-flash-exp",
-		"gemini-2.0-flash-preview-image-generation",
 		"gemini-2.5-flash-preview-image-generation",
 	}
 	for _, m := range imageModels {

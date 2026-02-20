@@ -3,7 +3,7 @@ server:
   port: 8081
 
 database:
-  url: "postgres://upal:upal@localhost:5432/upal?sslmode=disable"
+  url: "" # Set DATABASE_URL in .env
 
 # AI Providers — uncomment and configure the ones you need.
 # Each provider name becomes the prefix for model IDs (e.g., "openai/gpt-4o").
@@ -34,12 +34,12 @@ providers:
   gemini:
     type: gemini
     url: "https://generativelanguage.googleapis.com"
-    api_key: "AIzaSyAUerVuk-jjN_N3r3lx_r3kANcUHwgAoRQ"
+    api_key: "" # Set GEMINI_API_KEY in .env
   #
   # Google Gemini Image Generation (Nano Banana)
   nano-banana:
     type: gemini-image
-    api_key: "AIzaSyAUerVuk-jjN_N3r3lx_r3kANcUHwgAoRQ"
+    api_key: "" # Set NANO_BANANA_API_KEY in .env
   #
   # Z-IMAGE local inference server (run: python scripts/zimage_server.py)
   zimage:
