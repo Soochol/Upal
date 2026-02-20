@@ -4,8 +4,10 @@ import {
   Background,
   Controls,
   MiniMap,
+  SelectionMode,
   useOnSelectionChange,
   type OnSelectionChangeParams,
+  type IsValidConnection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useWorkflowStore } from '@/stores/workflowStore'
@@ -65,6 +67,64 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
 
   const isEmpty = nodes.length === 0
 
+  /** Prevent self-connections at the React Flow level */
+  const isValidConnection: IsValidConnection = useCallback(
+    (connection) => connection.source !== connection.target,
+    [],
+  )
+
+  /** When a connection drag ends outside a handle, check if it landed on a node body */
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      // Get cursor position (mouse or touch)
+      const clientX = 'changedTouches' in event
+        ? event.changedTouches[0].clientX
+        : (event as MouseEvent).clientX
+      const clientY = 'changedTouches' in event
+        ? event.changedTouches[0].clientY
+        : (event as MouseEvent).clientY
+
+      // Find the node element under the cursor via DOM hit-testing
+      const targetEl = document
+        .elementFromPoint(clientX, clientY)
+        ?.closest('.react-flow__node')
+      if (!targetEl) return
+
+      const targetNodeId = targetEl.getAttribute('data-id')
+      if (!targetNodeId) return
+
+      const { nodes: currentNodes, edges: currentEdges, onConnect: connect } =
+        useWorkflowStore.getState()
+
+      // Find the source node: the one whose source handle started the drag.
+      // React Flow adds a "connecting" class to the source node during drag.
+      const sourceEl = document.querySelector('.react-flow__node.connecting')
+      const sourceNodeId = sourceEl?.getAttribute('data-id')
+      if (!sourceNodeId) return
+
+      // Prevent self-connections
+      if (targetNodeId === sourceNodeId) return
+
+      // Skip group nodes (no handles)
+      const targetNode = currentNodes.find((n) => n.id === targetNodeId)
+      if (!targetNode || targetNode.type === 'groupNode') return
+
+      // Skip if already connected
+      const alreadyConnected = currentEdges.some(
+        (e) => e.source === sourceNodeId && e.target === targetNodeId,
+      )
+      if (alreadyConnected) return
+
+      connect({
+        source: sourceNodeId,
+        target: targetNodeId,
+        sourceHandle: null,
+        targetHandle: null,
+      })
+    },
+    [],
+  )
+
   const onDragOver = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
@@ -96,11 +156,17 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
+        isValidConnection={isValidConnection}
+        connectionRadius={80}
         nodeTypes={nodeTypes}
         fitView
         className="bg-background"
         multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
         selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={[1, 2]}
+        deleteKeyCode={['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
       >
         <SelectionGrouper />

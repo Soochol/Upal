@@ -1,44 +1,12 @@
 import { type ComponentType, useState, useEffect } from 'react'
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react'
+import { Handle, Position, useConnection, type NodeProps, type Node } from '@xyflow/react'
 import { Loader2, Check, X } from 'lucide-react'
 import { useUIStore } from '@/stores/uiStore'
 import { useExecutionStore } from '@/stores/executionStore'
 import type { NodeRunStatus } from '@/stores/executionStore'
 import type { NodeData } from '@/stores/workflowStore'
 import { cn } from '@/lib/utils'
-import { nodeIconMap } from '@/lib/nodeTypes'
-
-const colorMap: Record<string, string> = {
-  input: 'border-node-input/30',
-  agent: 'border-node-agent/30',
-  tool: 'border-node-tool/30',
-  output: 'border-node-output/30',
-  external: 'border-purple-500/30',
-}
-
-const headerMap: Record<string, string> = {
-  input: 'bg-node-input/15',
-  agent: 'bg-node-agent/15',
-  tool: 'bg-node-tool/15',
-  output: 'bg-node-output/15',
-  external: 'bg-purple-500/15',
-}
-
-const accentMap: Record<string, string> = {
-  input: 'bg-node-input text-node-input-foreground',
-  agent: 'bg-node-agent text-node-agent-foreground',
-  tool: 'bg-node-tool text-node-tool-foreground',
-  output: 'bg-node-output text-node-output-foreground',
-  external: 'bg-purple-500 text-white',
-}
-
-const glowMap: Record<string, string> = {
-  input: 'shadow-[0_0_16px_oklch(0.795_0.184_86.047/0.4)]',
-  agent: 'shadow-[0_0_16px_oklch(0.588_0.158_241.966/0.4)]',
-  tool: 'shadow-[0_0_16px_oklch(0.637_0.237_25.331/0.4)]',
-  output: 'shadow-[0_0_16px_oklch(0.648_0.2_142.495/0.4)]',
-  external: 'shadow-[0_0_16px_oklch(0.553_0.235_303.4/0.4)]',
-}
+import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
 const statusConfig: Record<
   NodeRunStatus,
@@ -50,7 +18,7 @@ const statusConfig: Record<
   error: { icon: X, ring: 'ring-2 ring-destructive' },
 }
 
-export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
+export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
   const selectedNodeId = useUIStore((s) => s.selectedNodeId)
   const selectNode = useUIStore((s) => s.selectNode)
   const runStatus = useExecutionStore((s) => s.nodeStatuses[id] ?? 'idle')
@@ -83,17 +51,25 @@ export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
     selectNode(id)
   }
 
-  const Icon = nodeIconMap[data.nodeType]
+  // Connection drag visual feedback
+  const connection = useConnection()
+  const isTarget = connection.inProgress && connection.fromNode?.id !== id
+  const isSource = connection.inProgress && connection.fromNode?.id === id
+
+  const ntCfg = NODE_TYPES[data.nodeType as NodeType]
+  const Icon = ntCfg?.icon
   const status = statusConfig[runStatus]
   const StatusIcon = status.icon
 
   return (
     <div
       className={cn(
-        'rounded-xl border bg-card shadow-sm w-[280px] cursor-pointer transition-all duration-200',
-        colorMap[data.nodeType],
-        isSelected && `ring-2 ring-ring ${glowMap[data.nodeType]}`,
+        'rounded-xl bg-card shadow-sm w-[280px] cursor-pointer transition-all duration-200',
+        selected ? `border-2 ${ntCfg?.borderSelected}` : `border ${ntCfg?.border}`,
+        isSelected && `ring-2 ring-ring ${ntCfg?.glow}`,
         status.ring,
+        isTarget && `ring-2 ring-ring/50 ${ntCfg?.glow}`,
+        isSource && 'opacity-50',
       )}
       onClick={handleClick}
     >
@@ -107,14 +83,14 @@ export function UpalNode({ id, data }: NodeProps<Node<NodeData>>) {
       <div
         className={cn(
           'flex items-center gap-2.5 px-3 py-2.5',
-          headerMap[data.nodeType],
+          ntCfg?.headerBg,
           data.description ? 'rounded-t-xl' : 'rounded-xl',
         )}
       >
         <div
           className={cn(
             'h-7 w-7 rounded-md flex items-center justify-center shrink-0',
-            accentMap[data.nodeType],
+            ntCfg?.accent,
           )}
         >
           {Icon && <Icon className="h-3.5 w-3.5" />}
