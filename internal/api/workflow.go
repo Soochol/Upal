@@ -34,6 +34,9 @@ func (s *Server) listWorkflows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if result == nil {
+		result = []*upal.WorkflowDefinition{}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }

@@ -13,7 +13,7 @@ export function TriggerRow({ trigger, onDelete }: Props) {
   const { copied: copiedSecret, copyToClipboard: copySecret } = useCopyToClipboard()
 
   return (
-    <div className="flex items-center justify-between py-3 px-4 border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+    <div data-testid={`trigger-row-${trigger.id}`} className="flex items-center justify-between py-3 px-4 border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <Webhook className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

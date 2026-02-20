@@ -1,4 +1,4 @@
-.PHONY: build run test dev build-frontend dev-frontend dev-backend test-zimage-mock
+.PHONY: build run test dev build-frontend dev-frontend dev-backend test-e2e test-zimage-mock
 
 build-frontend:
 	cd web && npm run build
@@ -14,6 +14,9 @@ test:
 
 test-frontend:
 	cd web && npx tsc -b
+
+test-e2e:
+	cd web && npx playwright test
 
 dev-frontend:
 	cd web && npm run dev

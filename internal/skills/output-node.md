@@ -1,11 +1,11 @@
 ---
 name: output-node
-description: Guide for configuring output nodes — display_mode, layout_prompt, layout_model
+description: Guide for configuring output nodes — output_format, system_prompt, prompt, model
 ---
 
 ## Objective
 
-Configure an output node that displays the final result of the workflow. The output node aggregates all upstream node results and optionally transforms them via LLM into a styled HTML layout.
+Configure an output node that displays the final result of the workflow. The output node aggregates upstream node results and transforms them based on the chosen `output_format`.
 
 ## Schema
 
@@ -13,41 +13,74 @@ Configure an output node that displays the final result of the workflow. The out
 |-------|------|----------|-------------|
 | `label` | string | Yes | Short human-readable label for the node (e.g. `"Final Report"`, `"Dashboard"`) |
 | `description` | string | Yes | Brief explanation of what this node does |
-| `display_mode` | string | No | `"manual"` (default) or `"auto-layout"` |
-| `prompt` | string | No | Template for selecting specific upstream outputs using `{{node_id}}` references. If omitted, all upstream results are concatenated. |
-| `layout_prompt` | string | Conditional | User prompt for layout generation. Required when `display_mode` is `"manual"` and custom layout is desired. Uses `{{node_id}}` template references. |
-| `layout_model` | string | No | Model to use for layout generation (e.g. `"anthropic/claude-sonnet-4-6"`). Falls back to default model if omitted. |
+| `output_format` | `"html"` \| `"md"` | Yes | Output format — `"html"` for styled web page, `"md"` for markdown |
+| `prompt` | string | Yes | User prompt template selecting and arranging upstream data using `{{node_id}}` references |
+| `system_prompt` | string | HTML only | Design direction and visual style — see HTML FORMAT section below |
+| `model` | string | HTML only | Model to use for layout generation. MUST be set for HTML format. Default to `"anthropic/claude-sonnet-4-6"` unless the user specifies otherwise. |
 
-## Display Modes
+---
 
-### `"manual"` (default)
-- Set `layout_prompt` to control how upstream data is presented.
-- The `layout_prompt` is sent as the user prompt with a system prompt that instructs clean HTML generation.
-- Use `{{node_id}}` references to pull specific upstream outputs into the layout.
-- If `layout_prompt` is omitted, upstream results are simply concatenated as plain text.
+## FORMAT: HTML (`output_format: "html"`)
 
-**Example `layout_prompt`:**
-```
-Create an HTML report with the following sections:
+Generates a styled, self-contained HTML page via LLM. Requires `system_prompt` and `prompt`.
 
-## Research Findings
-{{researcher}}
+### System Prompt Guide
 
-## Analysis
-{{analyzer}}
+The `system_prompt` defines the **visual design direction** for the HTML page.
 
-Style it with clean typography and a professional color scheme.
-```
+Structure the system_prompt with these elements:
 
-### `"auto-layout"`
-- The system automatically generates a styled HTML page from all upstream outputs.
-- Uses **both system prompt and user prompt** — the system prompt instructs HTML/CSS best practices, the user prompt contains the aggregated content.
-- No `layout_prompt` needed — the system constructs the prompt automatically.
+1. **THEME** — Define the overall visual identity appropriate to the workflow's content.
+   - BAD: "Make it look nice."
+   - GOOD: "Use a clean, data-driven dashboard aesthetic with a dark background, muted accent colors, and clear visual hierarchy."
+
+2. **LAYOUT** — Describe the page structure and how content sections should be organized.
+   - Example: "Organize content into a hero section with key metrics at the top, followed by detailed analysis cards in a 2-column grid, and a full-width conclusion section."
+
+3. **TYPOGRAPHY & COLOR** — Specify font choices and color palette direction.
+   - Example: "Use Inter for body text and a bold serif for headings. Use a navy-to-teal gradient palette with white text for contrast."
+
+4. **COMPONENTS** — Describe specific UI components appropriate for the data.
+   - Example: "Present statistics in rounded cards with large numbers. Use subtle hover animations on interactive elements. Display lists as clean, well-spaced bullet points."
+
+**Quality bar**: Generic system prompts like "Make a nice HTML page" are NOT acceptable. The system prompt should demonstrate clear design intent matched to the workflow's purpose.
+
+### User Prompt
+
+- ALWAYS use `{{node_id}}` to reference upstream node outputs.
+- Structure the prompt to clearly label each data section.
+- BAD: "Show the results."
+- GOOD: "## Research Findings\n{{researcher}}\n\n## Analysis\n{{analyzer}}\n\nPresent all sections with clear headings."
+
+---
+
+## FORMAT: Markdown (`output_format: "md"`)
+
+Returns upstream content as-is (no LLM call). The `prompt` template structures the data directly as markdown. Fields `system_prompt` and `model` are ignored.
+
+### Prompt Guide
+
+The `prompt` field IS the final output — write it as the markdown document you want:
+
+- Use `{{node_id}}` references to insert upstream data.
+- Use markdown headings, lists, and formatting to structure the output.
+- BAD: "{{researcher}}" (no structure)
+- GOOD: "# Research Report\n\n## Findings\n{{researcher}}\n\n## Analysis\n{{analyzer}}\n\n---\n*Generated by workflow*"
+
+### When to Use Markdown
+
+- Simple text reports or summaries
+- Data that will be saved as `.md` files
+- When LLM cost/latency for layout is unnecessary
+- Intermediate outputs consumed by downstream systems
+
+---
 
 ## Rules
 
-1. ALWAYS set `label`.
-2. Set `display_mode` to `"auto-layout"` for rich visual output (reports, dashboards, presentations).
-3. Use `"manual"` with `layout_prompt` when you need precise control over how upstream data is arranged.
-4. In `layout_prompt`, ALWAYS use `{{node_id}}` template references — never hardcode placeholder text.
-5. Omit `display_mode` entirely for simple plain-text concatenation of upstream results.
+1. ALWAYS set `label`, `description`, `output_format`, and `prompt`.
+2. For `"html"` format: ALWAYS set `system_prompt` AND `model`. Follow the design guide above for system_prompt.
+3. For `"md"` format: DO NOT set `system_prompt` or `model` — they are ignored.
+4. The `prompt` MUST use `{{node_id}}` template references — never hardcode placeholder text.
+5. Every upstream node's output should be consumed — don't ignore available data.
+6. Default to `"html"` when the workflow produces user-facing visual output. Use `"md"` for text-oriented or machine-consumed output.

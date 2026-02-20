@@ -104,8 +104,9 @@ export function AIChatEditor({ nodeId, data }: AIChatEditorProps) {
       if (response.label) {
         updateNodeLabel(nodeId, response.label)
       }
-      if (response.description) {
-        updateNodeDescription(nodeId, response.description)
+      const desc = response.description || (response.config?.description as string)
+      if (desc) {
+        updateNodeDescription(nodeId, desc)
       }
 
       // Add AI explanation as assistant message

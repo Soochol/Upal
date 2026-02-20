@@ -190,6 +190,19 @@ func (s *SchedulerService) ListSchedules(ctx context.Context) ([]*upal.Schedule,
 	return s.scheduleRepo.List(ctx)
 }
 
+// TriggerNow immediately executes a scheduled workflow run, bypassing the cron
+// timer. It looks up the schedule, runs the workflow synchronously, and updates
+// the schedule's LastRunAt / NextRunAt timestamps — exactly the same path as a
+// cron-triggered run.
+func (s *SchedulerService) TriggerNow(ctx context.Context, id string) error {
+	schedule, err := s.scheduleRepo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	s.executeScheduledRun(schedule)
+	return nil
+}
+
 // registerCronJob registers a cron job for the given schedule.
 // Uses cron.Schedule() with a pre-parsed schedule to support both 5-field and 6-field expressions.
 func (s *SchedulerService) registerCronJob(schedule *upal.Schedule) error {

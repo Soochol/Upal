@@ -71,7 +71,7 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
           </Button>
         </div>
         {/* Form body — description editing intentionally omitted (set via AI Chat / generation) */}
-        <div className="p-2 flex-1 flex flex-col gap-3 min-h-0">
+        <div className="p-2 flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
           {TypeEditor && <TypeEditor nodeId={nodeId} config={config} setConfig={setConfig} />}
         </div>
       </div>

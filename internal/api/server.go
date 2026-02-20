@@ -84,6 +84,7 @@ func (s *Server) Handler() http.Handler {
 			r.Delete("/{id}", s.deleteSchedule)
 			r.Post("/{id}/pause", s.pauseSchedule)
 			r.Post("/{id}/resume", s.resumeSchedule)
+			r.Post("/{id}/trigger", s.triggerSchedule)
 		})
 		r.Get("/scheduler/stats", s.getSchedulerStats)
 		r.Route("/triggers", func(r chi.Router) {

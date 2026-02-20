@@ -65,6 +65,7 @@ export function TriggerList({ triggers, workflowNames, onDelete, onCreated }: Pr
             <select
               value={workflowName}
               onChange={(e) => setWorkflowName(e.target.value)}
+              data-testid="trigger-workflow-select"
               className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm text-foreground"
             >
               <option value="">Select workflow...</option>

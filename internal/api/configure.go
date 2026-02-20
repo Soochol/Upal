@@ -61,9 +61,10 @@ IMPORTANT RULES:
 1. ALWAYS set label and description based on the user's intent.
 2. CRITICAL — upstream node references: When upstream nodes exist, you MUST use {{node_id}} template references to receive their output. NEVER write hardcoded placeholder text like "다음 내용을 분석해줘: [여기에 입력]" — instead write "다음 내용을 분석해줘:\n\n{{upstream_node_id}}". The {{node_id}} gets replaced with the actual upstream node's output at runtime.
 3. Fill in ALL fields comprehensively — do not leave fields empty when you can infer reasonable values.
+4. LANGUAGE: ALL user-facing text (label, description, system_prompt, prompt, output, explanation) MUST be written in Korean (한국어).
 
 Return JSON format:
-{"config": {ALL relevant fields}, "label": "descriptive name", "description": "what this node does", "explanation": "1-line summary of fields changed, e.g. 'Set model, wrote persona prompt, added upstream reference'"}
+{"config": {ALL relevant fields}, "label": "설명적 이름", "description": "이 노드가 하는 일", "explanation": "변경된 필드 한 줄 요약, 예: '모델 설정, 페르소나 프롬프트 작성, 업스트림 참조 추가'"}
 
 Return ONLY valid JSON, no markdown fences, no extra text.`
 

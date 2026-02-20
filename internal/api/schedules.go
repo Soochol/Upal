@@ -138,6 +138,27 @@ func (s *Server) pauseSchedule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// triggerSchedule immediately executes a scheduled workflow run.
+// POST /api/schedules/{id}/trigger
+func (s *Server) triggerSchedule(w http.ResponseWriter, r *http.Request) {
+	if s.schedulerSvc == nil {
+		http.Error(w, "scheduler not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if err := s.schedulerSvc.TriggerNow(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":   "completed",
+		"schedule": id,
+	})
+}
+
 // resumeSchedule re-enables a paused schedule.
 // POST /api/schedules/{id}/resume
 func (s *Server) resumeSchedule(w http.ResponseWriter, r *http.Request) {

@@ -13,16 +13,16 @@ import (
 // CreateSchedule stores a new schedule.
 func (d *DB) CreateSchedule(ctx context.Context, s *upal.Schedule) error {
 	inputsJSON, _ := json.Marshal(s.Inputs)
-	var retryJSON []byte
+	var retryParam any // SQL NULL when nil; lib/pq rejects nil []byte for JSONB
 	if s.RetryPolicy != nil {
-		retryJSON, _ = json.Marshal(s.RetryPolicy)
+		retryParam, _ = json.Marshal(s.RetryPolicy)
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
 		`INSERT INTO schedules (id, workflow_name, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		s.ID, s.WorkflowName, s.CronExpr, inputsJSON,
-		s.Enabled, s.Timezone, retryJSON,
+		s.Enabled, s.Timezone, retryParam,
 		s.NextRunAt, s.LastRunAt, s.CreatedAt, s.UpdatedAt,
 	)
 	if err != nil {
@@ -61,16 +61,16 @@ func (d *DB) GetSchedule(ctx context.Context, id string) (*upal.Schedule, error)
 // UpdateSchedule updates an existing schedule.
 func (d *DB) UpdateSchedule(ctx context.Context, s *upal.Schedule) error {
 	inputsJSON, _ := json.Marshal(s.Inputs)
-	var retryJSON []byte
+	var retryParam any
 	if s.RetryPolicy != nil {
-		retryJSON, _ = json.Marshal(s.RetryPolicy)
+		retryParam, _ = json.Marshal(s.RetryPolicy)
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
 		`UPDATE schedules SET workflow_name = $1, cron_expr = $2, inputs = $3, enabled = $4, timezone = $5, retry_policy = $6, next_run_at = $7, last_run_at = $8, updated_at = $9
 		 WHERE id = $10`,
 		s.WorkflowName, s.CronExpr, inputsJSON,
-		s.Enabled, s.Timezone, retryJSON,
+		s.Enabled, s.Timezone, retryParam,
 		s.NextRunAt, s.LastRunAt, s.UpdatedAt, s.ID,
 	)
 	if err != nil {

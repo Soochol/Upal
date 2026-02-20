@@ -74,11 +74,15 @@ func (g *GeminiImageLLM) generate(ctx context.Context, req *adkmodel.LLMRequest)
 		cfg.ResponseModalities = modalities
 	}
 
+	emitLog(ctx, fmt.Sprintf("gemini-image: calling model %s", req.Model))
+
 	result, err := g.client.Models.GenerateContent(ctx, req.Model, req.Contents, cfg)
 	if err != nil {
+		emitLog(ctx, fmt.Sprintf("gemini-image error: %s", err))
 		return nil, fmt.Errorf("gemini-image: %w", err)
 	}
 
+	emitLog(ctx, "gemini-image: response received")
 	return g.convertResponse(result)
 }
 
@@ -102,8 +106,9 @@ func (g *GeminiImageLLM) convertResponse(resp *genai.GenerateContentResponse) (*
 // isImageCapableModel returns true for Gemini models that support image output.
 func isImageCapableModel(model string) bool {
 	imageModels := []string{
-		"gemini-2.0-flash-exp",
-		"gemini-2.5-flash-preview-image-generation",
+		"gemini-2.0-flash-exp-image-generation",
+		"gemini-2.5-flash-image",
+		"gemini-3-pro-image-preview",
 	}
 	for _, m := range imageModels {
 		if strings.EqualFold(model, m) {

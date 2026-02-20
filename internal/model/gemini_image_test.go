@@ -11,9 +11,10 @@ func TestIsImageCapableModel(t *testing.T) {
 		model string
 		want  bool
 	}{
-		{"gemini-2.0-flash-exp", true},
+		{"gemini-2.0-flash-exp-image-generation", true},
+		{"gemini-2.5-flash-image", true},
+		{"gemini-3-pro-image-preview", true},
 		{"gemini-2.0-flash-preview-image-generation", false},
-		{"gemini-2.5-flash-preview-image-generation", true},
 		{"gemini-2.5-flash", false},
 		{"gemini-2.5-pro", false},
 		{"gpt-4o", false},

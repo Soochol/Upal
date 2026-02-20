@@ -6,6 +6,8 @@ web/dist/
 .env
 .venv-zimage/
 .playwright-mcp/
+web/test-results/
+web/playwright-report/
 scripts/test_output.png
 models/
 output/

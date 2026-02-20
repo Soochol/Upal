@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/soochol/upal/internal/db"
@@ -24,7 +25,7 @@ func NewPersistent(mem *MemoryRepository, database *db.DB) *PersistentRepository
 func (r *PersistentRepository) Create(ctx context.Context, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Create(ctx, wf)
 	if _, err := r.db.CreateWorkflow(ctx, wf); err != nil {
-		slog.Warn("db create workflow failed, in-memory only", "err", err)
+		return fmt.Errorf("db persist failed: %w", err)
 	}
 	return nil
 }
@@ -64,7 +65,7 @@ func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefini
 func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Update(ctx, name, wf)
 	if err := r.db.UpdateWorkflow(ctx, name, wf); err != nil {
-		slog.Warn("db update workflow failed, in-memory only", "err", err)
+		return fmt.Errorf("db persist failed: %w", err)
 	}
 	return nil
 }
@@ -72,7 +73,7 @@ func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal
 func (r *PersistentRepository) Delete(ctx context.Context, name string) error {
 	_ = r.mem.Delete(ctx, name)
 	if err := r.db.DeleteWorkflow(ctx, name); err != nil {
-		slog.Warn("db delete workflow failed", "err", err)
+		return fmt.Errorf("db delete failed: %w", err)
 	}
 	return nil
 }

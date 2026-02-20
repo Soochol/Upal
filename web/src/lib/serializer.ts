@@ -1,6 +1,7 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { NodeData } from '../stores/workflowStore'
 import { getLayoutedElements } from '@/lib/layout'
+import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
 export type WorkflowGroup = {
   id: string
@@ -113,6 +114,15 @@ export function deserializeWorkflow(
   }
 
   const regularNodes: Node<NodeData>[] = wf.nodes.map((n, i) => {
+    // Migrate legacy output node config fields
+    if (n.type === 'output') {
+      if (n.config.layout_model && !n.config.model) {
+        n.config.model = n.config.layout_model
+      }
+      delete n.config.layout_model
+      delete n.config.display_mode
+    }
+
     const node: Node<NodeData> = {
       id: n.id,
       type: 'upalNode',
@@ -120,7 +130,7 @@ export function deserializeWorkflow(
       data: {
         label: (n.config.label as string) || fixedLabels[n.type] || humanizeId(n.id),
         nodeType: n.type as NodeData['nodeType'],
-        description: (n.config.description as string) || '',
+        description: (n.config.description as string) || NODE_TYPES[n.type as NodeType]?.description || '',
         config: n.config,
       },
     }

@@ -21,9 +21,9 @@ export type AgentNodeConfig = {
 }
 
 export type OutputNodeConfig = {
-  prompt?: string
-  display_mode?: 'manual' | 'auto-layout'
-  layout_model?: string
+  output_format?: 'html' | 'md'
   system_prompt?: string
+  prompt?: string
+  model?: string
   description?: string
 }

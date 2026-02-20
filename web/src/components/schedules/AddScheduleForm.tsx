@@ -98,6 +98,7 @@ export function AddScheduleForm({ workflowNames, onCreated }: Props) {
         <select
           value={workflowName}
           onChange={(e) => setWorkflowName(e.target.value)}
+          data-testid="workflow-select"
           className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm text-foreground"
         >
           <option value="">Select workflow...</option>
@@ -129,6 +130,7 @@ export function AddScheduleForm({ workflowNames, onCreated }: Props) {
           type="text"
           value={cronExpr}
           onChange={(e) => setCronExpr(e.target.value)}
+          data-testid="cron-input"
           className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm font-mono text-foreground"
           placeholder="0 * * * *"
         />
@@ -140,6 +142,7 @@ export function AddScheduleForm({ workflowNames, onCreated }: Props) {
         <select
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
+          data-testid="timezone-select"
           className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm text-foreground"
         >
           {TIMEZONES.map((tz) => (
@@ -165,6 +168,7 @@ export function AddScheduleForm({ workflowNames, onCreated }: Props) {
             max={10}
             value={maxRetries}
             onChange={(e) => setMaxRetries(Number(e.target.value))}
+            data-testid="max-retries-input"
             className="w-20 h-8 px-2 rounded-md border border-border bg-background text-sm text-foreground"
           />
         </div>
