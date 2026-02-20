@@ -1,0 +1,15 @@
+# Z-IMAGE inference server dependencies
+# Install: pip install -r scripts/requirements-zimage.txt
+#
+# For mock mode only (no GPU): pip install fastapi uvicorn Pillow pydantic
+
+diffusers>=0.36.0
+transformers>=4.51.0
+torch>=2.1.0
+safetensors>=0.4.0
+accelerate>=0.25.0
+sentencepiece>=0.2.0
+Pillow>=10.0.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0

@@ -44,7 +44,7 @@ The backend follows a layered architecture with clear interfaces between layers:
 - `types.go` — WorkflowDefinition, NodeDefinition, EdgeDefinition, Event types
 
 **`internal/nodes/`** — Node type implementations (all satisfy `NodeExecutor` interface):
-- `agent.go` — LLM call with optional agentic tool-use loop (max_turns)
+- `agent.go` — LLM call with optional agentic tool-use loop
 - `input.go` / `output.go` / `tool.go` — Input collection, result aggregation, direct tool execution
 
 **`internal/provider/`** — LLM provider abstraction:
@@ -125,7 +125,7 @@ POST   /api/upload                 Upload file
 | Type | Purpose | Key Config Fields |
 |------|---------|-------------------|
 | `input` | Collect user inputs | `value` |
-| `agent` | LLM call with optional tool loop | `model`, `system_prompt`, `prompt`, `tools`, `max_turns` |
+| `agent` | LLM call with optional tool loop | `model`, `system_prompt`, `prompt`, `tools` |
 | `tool` | Direct tool execution | `tool`, `input` |
 | `output` | Aggregate results | — |
 
