@@ -26,6 +26,3 @@ func Extract(contentType string, r io.Reader) (string, error) {
 		return "", nil
 	}
 }
-
-// Stub — replaced by real implementation in a later task
-func extractImage(mime string, r io.Reader) (string, error) { return "", nil }
