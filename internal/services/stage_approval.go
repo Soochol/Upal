@@ -9,14 +9,11 @@ import (
 )
 
 // ApprovalStageExecutor pauses the pipeline and waits for user approval.
-type ApprovalStageExecutor struct {
-	waitHandles map[string]chan map[string]any // runID+stageID → response channel
-}
+// Resume logic (approve/reject) is handled by the API layer — not stored here.
+type ApprovalStageExecutor struct{}
 
 func NewApprovalStageExecutor() *ApprovalStageExecutor {
-	return &ApprovalStageExecutor{
-		waitHandles: make(map[string]chan map[string]any),
-	}
+	return &ApprovalStageExecutor{}
 }
 
 func (e *ApprovalStageExecutor) Type() string { return "approval" }

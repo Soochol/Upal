@@ -76,7 +76,8 @@ func (r *RSSFeedTool) Execute(ctx context.Context, input any) (any, error) {
 
 	var items []map[string]any
 	for _, item := range feed.Items {
-		if !sinceDate.IsZero() && item.PublishedParsed != nil && item.PublishedParsed.Before(sinceDate) {
+		// When since_date is set, exclude items with no parseable date and items older than the cutoff.
+		if !sinceDate.IsZero() && (item.PublishedParsed == nil || item.PublishedParsed.Before(sinceDate)) {
 			continue
 		}
 

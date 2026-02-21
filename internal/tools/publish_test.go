@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,7 +36,7 @@ func TestPublishTool_MarkdownFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read output file: %v", err)
 	}
-	if !containsStr(string(content), "# Hello World") {
+	if !strings.Contains(string(content), "# Hello World") {
 		t.Error("output file should contain the content")
 	}
 }
@@ -79,19 +80,6 @@ func TestPublishTool_UnknownChannel(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown channel")
 	}
-}
-
-// containsStr checks if s contains substr (avoids import of strings in test file).
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStrHelper(s, substr))
-}
-func containsStrHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // Verify the output directory is created correctly

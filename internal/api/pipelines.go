@@ -87,7 +87,7 @@ func (s *Server) startPipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	run, err := s.pipelineRunner.Start(r.Context(), p)
-	if err != nil && run == nil {
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -93,6 +93,54 @@ func TestRSSFeedTool_MaxItems(t *testing.T) {
 	}
 }
 
+func TestRSSFeedTool_SinceDateExcludesNilDate(t *testing.T) {
+	// Feed with one item that has a pubDate and one without.
+	feed := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://example.com</link>
+    <item>
+      <title>Dated Article</title>
+      <link>https://example.com/dated</link>
+      <description>Has a date</description>
+      <pubDate>Mon, 20 Feb 2026 09:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Undated Article</title>
+      <link>https://example.com/undated</link>
+      <description>No date at all</description>
+    </item>
+  </channel>
+</rss>`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.Write([]byte(feed))
+	}))
+	defer srv.Close()
+
+	tool := &RSSFeedTool{}
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"url":        srv.URL,
+		"since_date": "2026-02-19T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	res := result.(map[string]any)
+	items := res["items"].([]map[string]any)
+	// Only "Dated Article" (Feb 20) should pass the since_date=Feb 19 filter.
+	// "Undated Article" has nil PublishedParsed and must be excluded.
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item (undated excluded), got %d", len(items))
+	}
+	if items[0]["title"] != "Dated Article" {
+		t.Errorf("expected 'Dated Article', got %v", items[0]["title"])
+	}
+}
+
 func TestRSSFeedTool_InvalidURL(t *testing.T) {
 	tool := &RSSFeedTool{}
 	_, err := tool.Execute(context.Background(), map[string]any{

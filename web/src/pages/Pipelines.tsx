@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Plus, Play, Loader2, Trash2, Clock, CheckCircle2,
-  AlertCircle, PauseCircle, GitBranch,
+  AlertCircle, PauseCircle, GitBranch, Zap, RefreshCw,
 } from 'lucide-react'
 import { Header } from '@/components/Header'
 import {
@@ -14,12 +14,12 @@ import type { Pipeline } from '@/lib/api/types'
 import { PipelineEditor } from '@/components/pipelines/PipelineEditor'
 import { PipelineRunHistory } from '@/components/pipelines/PipelineRunHistory'
 
-const stageTypeIcons: Record<string, string> = {
-  workflow: '▶',
-  approval: '⏸',
-  schedule: '⏰',
-  trigger: '⚡',
-  transform: '🔄',
+const stageTypeIcons: Record<string, typeof CheckCircle2> = {
+  workflow:  Play,
+  approval:  PauseCircle,
+  schedule:  Clock,
+  trigger:   Zap,
+  transform: RefreshCw,
 }
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string }> = {
@@ -165,14 +165,18 @@ export default function Pipelines() {
 
                       {p.stages.length > 0 && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          {p.stages.map((stage, i) => (
-                            <span key={stage.id} className="flex items-center gap-1">
-                              {i > 0 && <span className="text-border">→</span>}
-                              <span className="px-1.5 py-0.5 rounded bg-muted">
-                                {stageTypeIcons[stage.type] || '○'} {stage.name || stage.type}
+                          {p.stages.map((stage, i) => {
+                            const StageIcon = stageTypeIcons[stage.type] || GitBranch
+                            return (
+                              <span key={stage.id} className="flex items-center gap-1">
+                                {i > 0 && <span className="text-border">→</span>}
+                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted">
+                                  <StageIcon className="h-3 w-3" />
+                                  {stage.name || stage.type}
+                                </span>
                               </span>
-                            </span>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>

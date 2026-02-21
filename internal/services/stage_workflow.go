@@ -36,7 +36,7 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, stage upal.Stage, p
 	}
 
 	// Look up and run the workflow
-	wf, err := e.workflowSvc.repo.Get(ctx, wfName)
+	wf, err := e.workflowSvc.Lookup(ctx, wfName)
 	if err != nil {
 		return nil, fmt.Errorf("workflow %q not found: %w", wfName, err)
 	}
