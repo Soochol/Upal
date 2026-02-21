@@ -296,8 +296,8 @@ func TestNewRetryExecutor(t *testing.T) {
 	if executor == nil {
 		t.Fatal("NewRetryExecutor returned nil")
 	}
-	if executor.workflowSvc != nil {
-		t.Error("expected workflowSvc to be nil")
+	if executor.workflowExec != nil {
+		t.Error("expected workflowExec to be nil")
 	}
 	if executor.runHistorySvc != nil {
 		t.Error("expected runHistorySvc to be nil")

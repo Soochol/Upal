@@ -90,6 +90,17 @@ func (s *RunHistoryService) UpdateNodeRun(ctx context.Context, runID string, nod
 	return s.runRepo.Update(ctx, record)
 }
 
+// UpdateRunRetryMeta sets retry metadata (RetryCount and RetryOf) on an existing run record.
+func (s *RunHistoryService) UpdateRunRetryMeta(ctx context.Context, id string, retryCount int, retryOf *string) error {
+	record, err := s.runRepo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	record.RetryCount = retryCount
+	record.RetryOf = retryOf
+	return s.runRepo.Update(ctx, record)
+}
+
 // GetRun retrieves a single run record.
 func (s *RunHistoryService) GetRun(ctx context.Context, id string) (*upal.RunRecord, error) {
 	return s.runRepo.Get(ctx, id)

@@ -9,18 +9,19 @@ import (
 	"time"
 
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
 
 // RetryExecutor wraps WorkflowService.Run with configurable retry and backoff.
 type RetryExecutor struct {
-	workflowSvc   *WorkflowService
+	workflowExec  ports.WorkflowExecutor
 	runHistorySvc *RunHistoryService
 }
 
 // NewRetryExecutor creates a RetryExecutor.
-func NewRetryExecutor(workflowSvc *WorkflowService, runHistorySvc *RunHistoryService) *RetryExecutor {
+func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc *RunHistoryService) *RetryExecutor {
 	return &RetryExecutor{
-		workflowSvc:   workflowSvc,
+		workflowExec:  workflowExec,
 		runHistorySvc: runHistorySvc,
 	}
 }
@@ -55,16 +56,14 @@ func (r *RetryExecutor) ExecuteWithRetry(
 			if err != nil {
 				slog.Warn("retry: failed to create run record", "err", err)
 			} else {
-				record.RetryCount = attempt
-				record.RetryOf = retryOf
-				r.runHistorySvc.runRepo.Update(ctx, record)
+				r.runHistorySvc.UpdateRunRetryMeta(ctx, record.ID, attempt, retryOf)
 				if attempt == 0 {
 					firstRunID = record.ID
 				}
 			}
 
 			// Execute workflow.
-			events, result, execErr := r.workflowSvc.Run(ctx, wf, inputs)
+			events, result, execErr := r.workflowExec.Run(ctx, wf, inputs)
 			if execErr != nil {
 				if record != nil {
 					r.runHistorySvc.FailRun(ctx, record.ID, execErr.Error())
@@ -72,7 +71,7 @@ func (r *RetryExecutor) ExecuteWithRetry(
 
 				if !isRetryable(execErr) || attempt >= policy.MaxRetries {
 					outEvents <- upal.WorkflowEvent{
-						Type:    "error",
+						Type:    upal.EventError,
 						Payload: map[string]any{"error": execErr.Error()},
 					}
 					return
@@ -87,7 +86,7 @@ func (r *RetryExecutor) ExecuteWithRetry(
 			var errMsg string
 			for ev := range events {
 				outEvents <- ev
-				if ev.Type == "error" {
+				if ev.Type == upal.EventError {
 					hadError = true
 					errMsg = fmt.Sprintf("%v", ev.Payload["error"])
 				}
