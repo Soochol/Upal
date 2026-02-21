@@ -94,8 +94,8 @@ func (e *upalA2AExecutor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestCont
 }
 
 // extractPayloadText pulls text from a WorkflowEvent payload.
-func extractPayloadText(ev services.WorkflowEvent) string {
-	if ev.Type != services.EventNodeCompleted {
+func extractPayloadText(ev upal.WorkflowEvent) string {
+	if ev.Type != upal.EventNodeCompleted {
 		return ""
 	}
 	if output, ok := ev.Payload["output"].(string); ok {

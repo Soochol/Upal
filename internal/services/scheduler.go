@@ -9,6 +9,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
 
 // parseCronExpr tries 6-field (with seconds) then 5-field (standard) parsing.
@@ -31,7 +32,7 @@ func parseCronExpr(expr string, timezone string) (cron.Schedule, error) {
 type SchedulerService struct {
 	cron           *cron.Cron
 	scheduleRepo   repository.ScheduleRepository
-	workflowSvc    *WorkflowService
+	workflowExec   ports.WorkflowExecutor
 	retryExecutor  *RetryExecutor
 	limiter        *ConcurrencyLimiter
 	runHistorySvc  *RunHistoryService
@@ -54,7 +55,7 @@ func (s *SchedulerService) SetPipelineService(svc *PipelineService) {
 // NewSchedulerService creates a SchedulerService with all dependencies.
 func NewSchedulerService(
 	scheduleRepo repository.ScheduleRepository,
-	workflowSvc *WorkflowService,
+	workflowExec ports.WorkflowExecutor,
 	retryExecutor *RetryExecutor,
 	limiter *ConcurrencyLimiter,
 	runHistorySvc *RunHistoryService,
@@ -62,7 +63,7 @@ func NewSchedulerService(
 	return &SchedulerService{
 		cron:          cron.New(cron.WithSeconds()),
 		scheduleRepo:  scheduleRepo,
-		workflowSvc:   workflowSvc,
+		workflowExec:  workflowExec,
 		retryExecutor: retryExecutor,
 		limiter:       limiter,
 		runHistorySvc: runHistorySvc,
@@ -290,7 +291,7 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	defer s.limiter.Release(schedule.WorkflowName)
 
 	// Lookup workflow.
-	wf, err := s.workflowSvc.Lookup(ctx, schedule.WorkflowName)
+	wf, err := s.workflowExec.Lookup(ctx, schedule.WorkflowName)
 	if err != nil {
 		slog.Error("scheduler: workflow not found",
 			"schedule", schedule.ID, "workflow", schedule.WorkflowName, "err", err)

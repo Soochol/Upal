@@ -109,7 +109,7 @@ func (s *Server) executeRunBackground(runID string, wf *upal.WorkflowDefinition,
 
 		// Inject server timestamp into node_started events so reconnecting
 		// clients can restore accurate elapsed timers.
-		if ev.Type == services.EventNodeStarted {
+		if ev.Type == upal.EventNodeStarted {
 			ev.Payload["started_at"] = time.Now().UnixMilli()
 		}
 
@@ -265,7 +265,7 @@ func (s *Server) sendSyntheticDone(w http.ResponseWriter, record *upal.RunRecord
 }
 
 // trackNodeRun updates the run record with node-level execution status.
-func (s *Server) trackNodeRun(ctx context.Context, runID string, ev services.WorkflowEvent) {
+func (s *Server) trackNodeRun(ctx context.Context, runID string, ev upal.WorkflowEvent) {
 	if s.runHistorySvc == nil || ev.NodeID == "" {
 		return
 	}
@@ -273,13 +273,13 @@ func (s *Server) trackNodeRun(ctx context.Context, runID string, ev services.Wor
 	now := time.Now()
 
 	switch ev.Type {
-	case services.EventNodeStarted:
+	case upal.EventNodeStarted:
 		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:    ev.NodeID,
 			Status:    "running",
 			StartedAt: now,
 		})
-	case services.EventNodeCompleted:
+	case upal.EventNodeCompleted:
 		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:      ev.NodeID,
 			Status:      "completed",

@@ -34,9 +34,9 @@ func (r *RetryExecutor) ExecuteWithRetry(
 	inputs map[string]any,
 	policy upal.RetryPolicy,
 	triggerType, triggerRef string,
-) (<-chan WorkflowEvent, <-chan RunResult, error) {
-	outEvents := make(chan WorkflowEvent, 64)
-	outResult := make(chan RunResult, 1)
+) (<-chan upal.WorkflowEvent, <-chan upal.RunResult, error) {
+	outEvents := make(chan upal.WorkflowEvent, 64)
+	outResult := make(chan upal.RunResult, 1)
 
 	go func() {
 		defer close(outEvents)
@@ -71,7 +71,7 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				}
 
 				if !isRetryable(execErr) || attempt >= policy.MaxRetries {
-					outEvents <- WorkflowEvent{
+					outEvents <- upal.WorkflowEvent{
 						Type:    "error",
 						Payload: map[string]any{"error": execErr.Error()},
 					}
