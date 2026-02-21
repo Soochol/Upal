@@ -159,11 +159,7 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
       // File drop: upload each file and create an asset node
       if (e.dataTransfer.files.length > 0) {
         const files = Array.from(e.dataTransfer.files)
-        const bounds = e.currentTarget.getBoundingClientRect()
-        const basePosition = screenToFlowPosition({
-          x: e.clientX - bounds.left,
-          y: e.clientY - bounds.top,
-        })
+        const basePosition = screenToFlowPosition({ x: e.clientX, y: e.clientY })
         for (let i = 0; i < files.length; i++) {
           try {
             const info = await uploadFile(files[i])
@@ -171,6 +167,7 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
               file_id: info.id,
               filename: info.filename,
               content_type: info.content_type,
+              preview_text: info.preview_text,
             })
           } catch (err) {
             console.error('Failed to upload file:', err)

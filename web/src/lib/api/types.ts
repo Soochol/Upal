@@ -36,6 +36,7 @@ export type UploadResult = {
   filename: string
   content_type: string
   size: number
+  preview_text?: string
 }
 
 // --- AI Node Configuration ---
@@ -172,7 +173,7 @@ export type Pipeline = {
 export type Stage = {
   id: string
   name: string
-  type: 'workflow' | 'approval' | 'schedule' | 'trigger' | 'transform'
+  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform'
   config: StageConfig
   depends_on?: string[]
 }
@@ -182,6 +183,7 @@ export type StageConfig = {
   input_mapping?: Record<string, string>
   message?: string
   connection_id?: string
+  subject?: string
   timeout?: number
   cron?: string
   timezone?: string

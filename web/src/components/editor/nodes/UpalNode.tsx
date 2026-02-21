@@ -152,7 +152,7 @@ export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
           )}
           {(data.config.preview_text as string | undefined) && (
             <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 break-words">
-              {(data.config.preview_text as string).slice(0, 80)}
+              {data.config.preview_text as string}
             </p>
           )}
         </div>
