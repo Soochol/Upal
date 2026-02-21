@@ -42,16 +42,57 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 		StageResults: make(map[string]*upal.StageResult),
 		StartedAt:    time.Now(),
 	}
-	r.runRepo.Create(ctx, run)
+	if err := r.runRepo.Create(ctx, run); err != nil {
+		return nil, fmt.Errorf("create run: %w", err)
+	}
+	if err := r.executeFrom(ctx, pipeline, run, 0); err != nil {
+		return run, err
+	}
+	return run, nil
+}
 
+// Resume continues a paused pipeline run from the stage after run.CurrentStage.
+func (r *PipelineRunner) Resume(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun) error {
+	if run.Status != "waiting" {
+		return fmt.Errorf("cannot resume run %q with status %q", run.ID, run.Status)
+	}
+	currentIdx := -1
+	for i, stage := range pipeline.Stages {
+		if stage.ID == run.CurrentStage {
+			currentIdx = i
+			break
+		}
+	}
+	if currentIdx == -1 {
+		return fmt.Errorf("current stage %q not found in pipeline %q", run.CurrentStage, pipeline.ID)
+	}
+	return r.executeFrom(ctx, pipeline, run, currentIdx+1)
+}
+
+// executeFrom runs pipeline stages sequentially starting from startIdx.
+// It updates run in the repository at each transition.
+func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun, startIdx int) error {
+	// Seed prevResult from the last completed stage before startIdx.
+	// Waiting results (e.g., from an approval gate) are excluded because
+	// they represent a paused state, not a usable data output.
 	var prevResult *upal.StageResult
+	for i := 0; i < startIdx; i++ {
+		stage := pipeline.Stages[i]
+		if result, ok := run.StageResults[stage.ID]; ok && result.Status == "completed" {
+			prevResult = result
+		}
+	}
 
-	for _, stage := range pipeline.Stages {
+	for i := startIdx; i < len(pipeline.Stages); i++ {
+		stage := pipeline.Stages[i]
+
 		executor, ok := r.executors[stage.Type]
 		if !ok {
+			now := time.Now()
 			run.Status = "failed"
+			run.CompletedAt = &now
 			r.runRepo.Update(ctx, run)
-			return run, fmt.Errorf("no executor registered for stage type %q", stage.Type)
+			return fmt.Errorf("no executor registered for stage type %q", stage.Type)
 		}
 
 		run.CurrentStage = stage.ID
@@ -72,14 +113,14 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 			run.Status = "failed"
 			run.CompletedAt = &now
 			r.runRepo.Update(ctx, run)
-			return run, fmt.Errorf("stage %q failed: %w", stage.ID, err)
+			return fmt.Errorf("stage %q failed: %w", stage.ID, err)
 		}
 
 		if result.Status == "waiting" {
 			run.Status = "waiting"
 			run.StageResults[stage.ID] = result
 			r.runRepo.Update(ctx, run)
-			return run, nil
+			return nil
 		}
 
 		now := time.Now()
@@ -94,6 +135,5 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 	run.Status = "completed"
 	run.CompletedAt = &now
 	r.runRepo.Update(ctx, run)
-
-	return run, nil
+	return nil
 }
