@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
@@ -22,7 +23,7 @@ import (
 func newEdgeCaseServer() (*Server, repository.TriggerRepository) {
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil)
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
 	trigRepo := repository.NewMemoryTriggerRepository()
 	srv := NewServer(nil, wfSvc, wfRepo, nil)
 	srv.SetTriggerRepository(trigRepo)
@@ -34,7 +35,7 @@ func newEdgeCaseServer() (*Server, repository.TriggerRepository) {
 func newEdgeCaseServerWithScheduler() *Server {
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil)
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
 	schedRepo := repository.NewMemoryScheduleRepository()
 	runRepo := repository.NewMemoryRunRepository()
 	limiter := services.NewConcurrencyLimiter(upal.ConcurrencyLimits{GlobalMax: 10, PerWorkflow: 3})

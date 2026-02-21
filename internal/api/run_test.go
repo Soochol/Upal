@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
@@ -18,8 +20,16 @@ import (
 func newTestServer() *Server {
 	sessionSvc := session.InMemoryService()
 	repo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil)
-	return NewServer(nil, wfSvc, repo, nil)
+	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil, agents.DefaultRegistry())
+	srv := NewServer(nil, wfSvc, repo, nil)
+
+	runRepo := repository.NewMemoryRunRepository()
+	srv.SetRunHistoryService(services.NewRunHistoryService(runRepo))
+
+	rm := services.NewRunManager(5 * time.Minute)
+	srv.SetRunManager(rm)
+
+	return srv
 }
 
 func TestRunWorkflow_NotFound(t *testing.T) {
@@ -35,7 +45,7 @@ func TestRunWorkflow_NotFound(t *testing.T) {
 	}
 }
 
-func TestRunWorkflow_SSE(t *testing.T) {
+func TestRunWorkflow_Returns202(t *testing.T) {
 	srv := newTestServer()
 
 	// Create a workflow with input and output nodes.
@@ -66,23 +76,22 @@ func TestRunWorkflow_SSE(t *testing.T) {
 	runW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(runW, runReq)
 
-	if runW.Code != http.StatusOK {
-		t.Fatalf("run workflow: got %d, want 200, body: %s", runW.Code, runW.Body.String())
+	if runW.Code != http.StatusAccepted {
+		t.Fatalf("run workflow: got %d, want 202, body: %s", runW.Code, runW.Body.String())
 	}
 
-	// Verify SSE content type.
+	// Verify JSON response with run_id.
 	contentType := runW.Header().Get("Content-Type")
-	if contentType != "text/event-stream" {
-		t.Errorf("Content-Type: got %q, want %q", contentType, "text/event-stream")
+	if !strings.Contains(contentType, "application/json") {
+		t.Errorf("Content-Type: got %q, want application/json", contentType)
 	}
 
-	// Verify we got a done event.
-	responseBody := runW.Body.String()
-	if !strings.Contains(responseBody, "event: done") {
-		t.Errorf("expected done event in response, got: %s", responseBody)
+	var result map[string]string
+	if err := json.Unmarshal(runW.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
 	}
-	if !strings.Contains(responseBody, `"completed"`) {
-		t.Errorf("expected completed status in response, got: %s", responseBody)
+	if result["run_id"] == "" {
+		t.Error("expected non-empty run_id in response")
 	}
 }
 
@@ -111,13 +120,28 @@ func TestRunWorkflow_EmptyBody(t *testing.T) {
 	runW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(runW, runReq)
 
-	if runW.Code != http.StatusOK {
-		t.Fatalf("run workflow: got %d, want 200, body: %s", runW.Code, runW.Body.String())
+	if runW.Code != http.StatusAccepted {
+		t.Fatalf("run workflow: got %d, want 202, body: %s", runW.Code, runW.Body.String())
 	}
 
-	// Verify it has a done event.
-	responseBody := runW.Body.String()
-	if !strings.Contains(responseBody, "event: done") {
-		t.Error("expected done event in response")
+	var result map[string]string
+	if err := json.Unmarshal(runW.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	// run_id should be present (may be non-empty with history service).
+	if _, ok := result["run_id"]; !ok {
+		t.Error("expected run_id key in response")
+	}
+}
+
+func TestStreamRunEvents_NotFound(t *testing.T) {
+	srv := newTestServer()
+
+	req := httptest.NewRequest("GET", "/api/runs/nonexistent/events", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d, body: %s", w.Code, w.Body.String())
 	}
 }

@@ -41,6 +41,8 @@ type WorkflowService struct {
 	llms           map[string]adkmodel.LLM
 	sessionService session.Service
 	toolReg        *tools.Registry
+	nodeRegistry   *agents.NodeRegistry
+	buildDeps      agents.BuildDeps
 }
 
 // NewWorkflowService creates a WorkflowService with all required dependencies.
@@ -49,13 +51,23 @@ func NewWorkflowService(
 	llms map[string]adkmodel.LLM,
 	sessionService session.Service,
 	toolReg *tools.Registry,
+	nodeRegistry *agents.NodeRegistry,
 ) *WorkflowService {
 	return &WorkflowService{
 		repo:           repo,
 		llms:           llms,
 		sessionService: sessionService,
 		toolReg:        toolReg,
+		nodeRegistry:   nodeRegistry,
+		buildDeps:      agents.BuildDeps{LLMs: llms, ToolReg: toolReg},
 	}
+}
+
+// SetBuildDeps replaces the BuildDeps used when building DAG agents.
+// Call this after construction to inject optional dependencies like
+// SenderReg and ConnResolver.
+func (s *WorkflowService) SetBuildDeps(deps agents.BuildDeps) {
+	s.buildDeps = deps
 }
 
 // Lookup resolves a workflow by name via the repository.
@@ -93,7 +105,7 @@ func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 // when execution completes. The events channel is closed when done.
 func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, inputs map[string]any) (<-chan WorkflowEvent, <-chan RunResult, error) {
 	// 1. Build DAGAgent from workflow.
-	dagAgent, err := agents.NewDAGAgent(wf, s.llms, s.toolReg)
+	dagAgent, err := agents.NewDAGAgent(wf, s.nodeRegistry, s.buildDeps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build DAG: %w", err)
 	}
@@ -192,6 +204,21 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 			}
 		}
 
+		// Expose output node results under a dedicated key so the frontend
+		// can locate the final output deterministically (Go map JSON
+		// serialization order is random).
+		outputs := make(map[string]any)
+		for _, n := range wf.Nodes {
+			if n.Type == upal.NodeTypeOutput {
+				if v, ok := finalState[n.ID]; ok {
+					outputs[n.ID] = v
+				}
+			}
+		}
+		if len(outputs) > 0 {
+			finalState["__output__"] = outputs
+		}
+
 		resultCh <- RunResult{
 			SessionID: sessionID,
 			State:     finalState,
@@ -207,6 +234,9 @@ const (
 	EventToolCall      = "tool_call"
 	EventToolResult    = "tool_result"
 	EventNodeCompleted = "node_completed"
+	EventNodeSkipped   = "node_skipped"
+	EventNodeWaiting   = "node_waiting"
+	EventNodeResumed   = "node_resumed"
 )
 
 // classifyEvent inspects an ADK session.Event and returns a WorkflowEvent
@@ -214,6 +244,24 @@ const (
 func classifyEvent(event *session.Event) WorkflowEvent {
 	nodeID := event.Author
 	content := event.LLMResponse.Content
+
+	// Check for special status markers in StateDelta (e.g. skipped nodes).
+	if status, ok := event.Actions.StateDelta["__status__"].(string); ok {
+		switch status {
+		case "skipped":
+			return WorkflowEvent{
+				Type:    EventNodeSkipped,
+				NodeID:  nodeID,
+				Payload: map[string]any{"node_id": nodeID},
+			}
+		case "waiting":
+			return WorkflowEvent{
+				Type:    EventNodeWaiting,
+				NodeID:  nodeID,
+				Payload: map[string]any{"node_id": nodeID},
+			}
+		}
+	}
 
 	// No content → started event.
 	if content == nil || len(content.Parts) == 0 {

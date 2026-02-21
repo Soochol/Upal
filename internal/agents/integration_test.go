@@ -52,7 +52,7 @@ func TestDAGAgent_EndToEnd(t *testing.T) {
 	}
 
 	// 4. Build DAGAgent
-	dagAgent, err := agents.NewDAGAgent(wf, llms, nil)
+	dagAgent, err := agents.NewDAGAgent(wf, agents.DefaultRegistry(), agents.BuildDeps{LLMs: llms})
 	if err != nil {
 		t.Fatalf("new dag agent: %v", err)
 	}

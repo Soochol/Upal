@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
@@ -18,7 +19,7 @@ import (
 func newTestServerWithScheduler() *Server {
 	sessionSvc := session.InMemoryService()
 	repo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil)
+	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil, agents.DefaultRegistry())
 	srv := NewServer(nil, wfSvc, repo, nil)
 
 	schedRepo := repository.NewMemoryScheduleRepository()

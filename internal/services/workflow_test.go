@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
@@ -14,7 +15,7 @@ func TestLookup_Found(t *testing.T) {
 	repo := repository.NewMemory()
 	repo.Create(context.Background(), &upal.WorkflowDefinition{Name: "test-wf"})
 
-	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil, agents.DefaultRegistry())
 	wf, err := svc.Lookup(context.Background(), "test-wf")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -26,7 +27,7 @@ func TestLookup_Found(t *testing.T) {
 
 func TestLookup_NotFound(t *testing.T) {
 	repo := repository.NewMemory()
-	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	_, err := svc.Lookup(context.Background(), "missing")
 	if err == nil {
@@ -35,7 +36,7 @@ func TestLookup_NotFound(t *testing.T) {
 }
 
 func TestValidate_NoModel(t *testing.T) {
-	svc := NewWorkflowService(repository.NewMemory(), nil, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repository.NewMemory(), nil, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	wf := &upal.WorkflowDefinition{
 		Nodes: []upal.NodeDefinition{
@@ -49,7 +50,7 @@ func TestValidate_NoModel(t *testing.T) {
 }
 
 func TestValidate_InvalidModelFormat(t *testing.T) {
-	svc := NewWorkflowService(repository.NewMemory(), nil, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repository.NewMemory(), nil, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	wf := &upal.WorkflowDefinition{
 		Nodes: []upal.NodeDefinition{
@@ -64,7 +65,7 @@ func TestValidate_InvalidModelFormat(t *testing.T) {
 
 func TestValidate_UnknownProvider(t *testing.T) {
 	llms := map[string]adkmodel.LLM{"anthropic": nil}
-	svc := NewWorkflowService(repository.NewMemory(), llms, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repository.NewMemory(), llms, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	wf := &upal.WorkflowDefinition{
 		Nodes: []upal.NodeDefinition{
@@ -79,7 +80,7 @@ func TestValidate_UnknownProvider(t *testing.T) {
 
 func TestValidate_Valid(t *testing.T) {
 	llms := map[string]adkmodel.LLM{"anthropic": nil}
-	svc := NewWorkflowService(repository.NewMemory(), llms, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repository.NewMemory(), llms, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	wf := &upal.WorkflowDefinition{
 		Nodes: []upal.NodeDefinition{
@@ -96,7 +97,7 @@ func TestValidate_Valid(t *testing.T) {
 
 func TestRun_InputOutput(t *testing.T) {
 	repo := repository.NewMemory()
-	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil)
+	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil, agents.DefaultRegistry())
 
 	wf := &upal.WorkflowDefinition{
 		Name: "run-test",

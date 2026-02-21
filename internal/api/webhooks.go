@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -70,7 +71,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		if s.retryExecutor != nil {
 			policy := upal.DefaultRetryPolicy()
 			events, result, err := s.retryExecutor.ExecuteWithRetry(
-				r.Context(), wf, inputs, policy,
+				context.Background(), wf, inputs, policy,
 				string(upal.TriggerWebhook), trigger.ID,
 			)
 			if err != nil {

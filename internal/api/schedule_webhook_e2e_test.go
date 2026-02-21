@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
@@ -33,7 +34,7 @@ type testEnv struct {
 func newFullTestServer() *testEnv {
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil)
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
 	schedRepo := repository.NewMemoryScheduleRepository()
 	trigRepo := repository.NewMemoryTriggerRepository()
 	runRepo := repository.NewMemoryRunRepository()
