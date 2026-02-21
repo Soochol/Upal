@@ -16,14 +16,14 @@ import (
 type RunPublisher struct {
 	workflowExec  ports.WorkflowExecutor
 	runManager    *services.RunManager
-	runHistorySvc *services.RunHistoryService
+	runHistorySvc ports.RunHistoryPort
 }
 
 // NewRunPublisher creates a RunPublisher that drives background workflow executions.
 func NewRunPublisher(
 	workflowExec ports.WorkflowExecutor,
 	runManager *services.RunManager,
-	runHistorySvc *services.RunHistoryService,
+	runHistorySvc ports.RunHistoryPort,
 ) *RunPublisher {
 	return &RunPublisher{
 		workflowExec:  workflowExec,

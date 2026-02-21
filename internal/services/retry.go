@@ -15,11 +15,11 @@ import (
 // RetryExecutor wraps ports.WorkflowExecutor.Run with configurable retry and backoff.
 type RetryExecutor struct {
 	workflowExec  ports.WorkflowExecutor
-	runHistorySvc *RunHistoryService
+	runHistorySvc ports.RunHistoryPort
 }
 
 // NewRetryExecutor creates a RetryExecutor.
-func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc *RunHistoryService) *RetryExecutor {
+func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc ports.RunHistoryPort) *RetryExecutor {
 	return &RetryExecutor{
 		workflowExec:  workflowExec,
 		runHistorySvc: runHistorySvc,

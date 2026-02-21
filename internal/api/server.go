@@ -22,7 +22,7 @@ import (
 
 type Server struct {
 	workflowSvc          ports.WorkflowExecutor
-	runHistorySvc        *services.RunHistoryService
+	runHistorySvc        ports.RunHistoryPort
 	schedulerSvc         *services.SchedulerService
 	limiter              *services.ConcurrencyLimiter
 	repo                 repository.WorkflowRepository
@@ -157,7 +157,7 @@ func (s *Server) SetSkills(provider skills.Provider) {
 }
 
 // SetRunHistoryService configures the run history service.
-func (s *Server) SetRunHistoryService(svc *services.RunHistoryService) {
+func (s *Server) SetRunHistoryService(svc ports.RunHistoryPort) {
 	s.runHistorySvc = svc
 }
 

@@ -7,7 +7,10 @@ import (
 
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.RunHistoryPort = (*RunHistoryService)(nil)
 
 // RunHistoryService manages workflow execution records.
 type RunHistoryService struct {

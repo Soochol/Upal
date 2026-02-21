@@ -26,7 +26,7 @@ type SchedulerService struct {
 	workflowExec   ports.WorkflowExecutor
 	retryExecutor  *RetryExecutor
 	limiter        *ConcurrencyLimiter
-	runHistorySvc  *RunHistoryService
+	runHistorySvc  ports.RunHistoryPort
 	entryMap       map[string]cron.EntryID // schedule ID → cron entry
 	mu             sync.RWMutex
 	pipelineRunner *PipelineRunner
@@ -49,7 +49,7 @@ func NewSchedulerService(
 	workflowExec ports.WorkflowExecutor,
 	retryExecutor *RetryExecutor,
 	limiter *ConcurrencyLimiter,
-	runHistorySvc *RunHistoryService,
+	runHistorySvc ports.RunHistoryPort,
 ) *SchedulerService {
 	return &SchedulerService{
 		cron:          cron.New(cron.WithSeconds()),
