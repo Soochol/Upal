@@ -1,14 +1,13 @@
-import { Trash2, Clock } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import type { WorkflowDefinition } from '@/lib/serializer'
 import { NODE_TYPES } from '@/lib/nodeTypes'
+import { WorkflowMiniGraph } from '@/components/WorkflowMiniGraph'
 
 type WorkflowCardProps = {
   workflow: WorkflowDefinition
   description?: string
   onClick: () => void
   onDelete?: () => void
-  scheduleCount?: number
-  nextRun?: string
   isRunning?: boolean
 }
 
@@ -17,11 +16,8 @@ export function WorkflowCard({
   description,
   onClick,
   onDelete,
-  scheduleCount,
-  nextRun,
   isRunning,
 }: WorkflowCardProps) {
-  // Count nodes by type
   const typeCounts: Record<string, number> = {}
   for (const n of workflow.nodes) {
     typeCounts[n.type] = (typeCounts[n.type] || 0) + 1
@@ -29,10 +25,10 @@ export function WorkflowCard({
 
   return (
     <div
-      className={`group relative text-left w-full rounded-2xl p-5 transition-all duration-200
-        bg-card/60 border border-border hover:border-foreground/20
-        hover:bg-card hover:shadow-lg hover:shadow-black/10
-        hover:-translate-y-0.5 cursor-pointer${isRunning ? ' workflow-card-running' : ''}`}
+      className={`group relative text-left w-full rounded-2xl overflow-hidden transition-all duration-200
+        bg-card border border-border hover:border-foreground/20
+        hover:shadow-lg hover:shadow-black/8 hover:-translate-y-0.5 cursor-pointer
+        ${isRunning ? 'workflow-card-running' : ''}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -41,7 +37,7 @@ export function WorkflowCard({
       {onDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
+          className="absolute top-2.5 right-2.5 z-10 p-1.5 rounded-lg opacity-0 group-hover:opacity-100
             hover:bg-destructive/10 text-muted-foreground hover:text-destructive
             transition-all duration-150 cursor-pointer"
           title="Delete workflow"
@@ -50,82 +46,60 @@ export function WorkflowCard({
         </button>
       )}
 
-      {/* Mini node graph preview */}
-      <div className="flex items-center gap-1.5 mb-4">
-        {workflow.nodes.slice(0, 6).map((n, i) => (
-          <div key={n.id} className="flex items-center gap-1.5">
-            <div
-              className="w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{
-                background: `color-mix(in oklch, ${NODE_TYPES[n.type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted)'}, transparent 80%)`,
-              }}
-            >
-              {(() => {
-                const ntCfg = NODE_TYPES[n.type as keyof typeof NODE_TYPES]
-                return ntCfg ? (
-                  <span style={{ color: ntCfg.cssVar }}><ntCfg.icon className="w-3 h-3" /></span>
-                ) : null
-              })()}
-            </div>
-            {i < Math.min(workflow.nodes.length, 6) - 1 && (
-              <div className="w-3 h-px bg-border" />
-            )}
-          </div>
-        ))}
-        {workflow.nodes.length > 6 && (
-          <span className="text-[10px] text-muted-foreground ml-1">
-            +{workflow.nodes.length - 6}
-          </span>
+      {/* ── Canvas preview area ── */}
+      <div className="relative h-[68px] border-b border-border overflow-hidden">
+        {workflow.thumbnail_svg ? (
+          <div
+            className="workflow-thumbnail w-full h-full"
+            dangerouslySetInnerHTML={{ __html: workflow.thumbnail_svg }}
+          />
+        ) : (
+          <WorkflowMiniGraph
+            nodes={workflow.nodes}
+            edges={workflow.edges}
+            uid={workflow.name}
+          />
         )}
       </div>
 
-      {/* Name */}
-      <h3 className="landing-display font-semibold text-base text-foreground group-hover:text-foreground truncate">
-        {workflow.name}
-      </h3>
+      {/* ── Card body ── */}
+      <div className="px-4 pt-3 pb-3.5">
+        {/* Name */}
+        <h3 className="landing-display font-semibold text-sm text-foreground truncate pr-5 leading-snug">
+          {workflow.name}
+        </h3>
 
-      {/* Description */}
-      {description && (
-        <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
-          {description}
-        </p>
-      )}
+        {/* Description */}
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1 line-clamp-1 leading-relaxed">
+            {description}
+          </p>
+        )}
 
-      {/* Node type badges */}
-      <div className="flex items-center gap-2 mt-4 flex-wrap">
-        {Object.entries(typeCounts).map(([type, count]) => (
-          <span
-            key={type}
-            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full landing-body"
-            style={{
-              background: `color-mix(in oklch, ${NODE_TYPES[type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted)'}, transparent 88%)`,
-              color: NODE_TYPES[type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted-foreground)',
-            }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: NODE_TYPES[type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted-foreground)' }}
-            />
-            {count} {type}
+        {/* Node type badges */}
+        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+          {Object.entries(typeCounts).map(([type, count]) => {
+            const cssVar = NODE_TYPES[type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted-foreground)'
+            return (
+              <span
+                key={type}
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full landing-body font-medium"
+                style={{
+                  background: `color-mix(in oklch, ${cssVar}, transparent 88%)`,
+                  color: cssVar,
+                }}
+              >
+                <span className="w-1 h-1 rounded-full shrink-0" style={{ background: cssVar }} />
+                {count} {type}
+              </span>
+            )
+          })}
+          <span className="text-[10px] text-muted-foreground/40 ml-auto landing-body tabular-nums">
+            {workflow.edges.length}e
           </span>
-        ))}
-        <span className="text-[11px] text-muted-foreground/60 ml-auto landing-body">
-          {workflow.edges.length} edge{workflow.edges.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Schedule badge */}
-      {scheduleCount && scheduleCount > 0 && (
-        <div className="flex items-center gap-1.5 mt-3 text-[11px] text-muted-foreground landing-body">
-          <Clock className="w-3 h-3" />
-          <span>{scheduleCount} schedule{scheduleCount !== 1 ? 's' : ''}</span>
-          {nextRun && (
-            <span className="ml-auto text-muted-foreground/60">
-              next: {new Date(nextRun).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
         </div>
-      )}
+
+      </div>
     </div>
   )
 }

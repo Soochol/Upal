@@ -85,7 +85,8 @@ func DefaultConcurrencyLimits() ConcurrencyLimits {
 // Schedule defines a cron-based recurring workflow execution.
 type Schedule struct {
 	ID           string         `json:"id"`
-	WorkflowName string         `json:"workflow_name"`
+	WorkflowName string         `json:"workflow_name,omitempty"`
+	PipelineID   string         `json:"pipeline_id,omitempty"`
 	CronExpr     string         `json:"cron_expr"`
 	Inputs       map[string]any `json:"inputs,omitempty"`
 	Enabled      bool           `json:"enabled"`
@@ -111,7 +112,8 @@ const (
 // Trigger defines an event-based workflow execution rule.
 type Trigger struct {
 	ID           string        `json:"id"`
-	WorkflowName string        `json:"workflow_name"`
+	WorkflowName string        `json:"workflow_name,omitempty"`
+	PipelineID   string        `json:"pipeline_id,omitempty"`
 	Type         TriggerType   `json:"type"`
 	Config       TriggerConfig `json:"config"`
 	Enabled      bool          `json:"enabled"`

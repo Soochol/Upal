@@ -59,32 +59,52 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	inputs := mapInputs(payload, trigger.Config.InputMapping)
 
-	// 5. Look up workflow.
-	wf, err := s.workflowSvc.Lookup(r.Context(), trigger.WorkflowName)
-	if err != nil {
-		http.Error(w, "workflow not found", http.StatusNotFound)
-		return
-	}
-
-	// 6. Execute asynchronously.
-	go func() {
-		if s.retryExecutor != nil {
-			policy := upal.DefaultRetryPolicy()
-			events, result, err := s.retryExecutor.ExecuteWithRetry(
-				context.Background(), wf, inputs, policy,
-				string(upal.TriggerWebhook), trigger.ID,
-			)
-			if err != nil {
-				slog.Error("webhook: execution failed", "trigger", id, "err", err)
-				return
-			}
-			for range events {
-			}
-			if res, ok := <-result; ok {
-				slog.Info("webhook: run completed", "trigger", id, "session", res.SessionID)
-			}
+	// 5. Execute asynchronously — pipeline or workflow.
+	if trigger.PipelineID != "" {
+		// Pipeline trigger: start pipeline run.
+		if s.pipelineSvc == nil || s.pipelineRunner == nil {
+			http.Error(w, "pipeline service not available", http.StatusServiceUnavailable)
+			return
 		}
-	}()
+		pipeline, err := s.pipelineSvc.Get(r.Context(), trigger.PipelineID)
+		if err != nil {
+			http.Error(w, "pipeline not found", http.StatusNotFound)
+			return
+		}
+		go func() {
+			_, err := s.pipelineRunner.Start(context.Background(), pipeline)
+			if err != nil {
+				slog.Error("webhook: pipeline start failed", "trigger", id, "pipeline", trigger.PipelineID, "err", err)
+			} else {
+				slog.Info("webhook: pipeline started", "trigger", id, "pipeline", trigger.PipelineID)
+			}
+		}()
+	} else {
+		// Workflow trigger: execute workflow.
+		wf, err := s.workflowSvc.Lookup(r.Context(), trigger.WorkflowName)
+		if err != nil {
+			http.Error(w, "workflow not found", http.StatusNotFound)
+			return
+		}
+		go func() {
+			if s.retryExecutor != nil {
+				policy := upal.DefaultRetryPolicy()
+				events, result, err := s.retryExecutor.ExecuteWithRetry(
+					context.Background(), wf, inputs, policy,
+					string(upal.TriggerWebhook), trigger.ID,
+				)
+				if err != nil {
+					slog.Error("webhook: execution failed", "trigger", id, "err", err)
+					return
+				}
+				for range events {
+				}
+				if res, ok := <-result; ok {
+					slog.Info("webhook: run completed", "trigger", id, "session", res.SessionID)
+				}
+			}
+		}()
+	}
 
 	// 7. Return 202 Accepted immediately.
 	w.WriteHeader(http.StatusAccepted)

@@ -30,11 +30,12 @@ const (
 )
 
 type WorkflowDefinition struct {
-	Name    string            `json:"name" yaml:"name"`
-	Version int               `json:"version" yaml:"version"`
-	Nodes   []NodeDefinition  `json:"nodes" yaml:"nodes"`
-	Edges   []EdgeDefinition  `json:"edges" yaml:"edges"`
-	Groups  []GroupDefinition `json:"groups,omitempty" yaml:"groups,omitempty"`
+	Name         string            `json:"name" yaml:"name"`
+	Version      int               `json:"version" yaml:"version"`
+	Nodes        []NodeDefinition  `json:"nodes" yaml:"nodes"`
+	Edges        []EdgeDefinition  `json:"edges" yaml:"edges"`
+	Groups       []GroupDefinition `json:"groups,omitempty" yaml:"groups,omitempty"`
+	ThumbnailSVG string            `json:"thumbnail_svg,omitempty" yaml:"thumbnail_svg,omitempty"`
 }
 
 type NodeDefinition struct {
@@ -208,8 +209,9 @@ type StageConfig struct {
 	Timeout      int    `json:"timeout,omitempty"`
 
 	// Schedule stage
-	Cron     string `json:"cron,omitempty"`
-	Timezone string `json:"timezone,omitempty"`
+	Cron       string `json:"cron,omitempty"`
+	Timezone   string `json:"timezone,omitempty"`
+	ScheduleID string `json:"schedule_id,omitempty"`
 
 	// Trigger stage
 	TriggerID string `json:"trigger_id,omitempty"`

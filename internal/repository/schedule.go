@@ -15,4 +15,5 @@ type ScheduleRepository interface {
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context) ([]*upal.Schedule, error)
 	ListDue(ctx context.Context, now time.Time) ([]*upal.Schedule, error)
+	ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Schedule, error)
 }

@@ -83,3 +83,16 @@ func (r *MemoryScheduleRepository) ListDue(_ context.Context, now time.Time) ([]
 	}
 	return due, nil
 }
+
+func (r *MemoryScheduleRepository) ListByPipeline(_ context.Context, pipelineID string) ([]*upal.Schedule, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*upal.Schedule
+	for _, s := range r.schedules {
+		if s.PipelineID == pipelineID {
+			result = append(result, s)
+		}
+	}
+	return result, nil
+}

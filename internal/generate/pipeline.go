@@ -2,6 +2,7 @@ package generate
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -19,139 +20,115 @@ type PipelineBundle struct {
 	Workflows []upal.WorkflowDefinition `json:"workflows"`
 }
 
-var createPipelinePrompt = `You are a pipeline generator for the Upal platform. Given a user's natural language description, you must produce a valid pipeline bundle JSON containing a pipeline and all its workflow definitions.
-
-A pipeline bundle has two top-level keys:
-1. "pipeline" — the pipeline metadata and stages
-2. "workflows" — array of WorkflowDefinition objects, one per workflow stage
-
-PIPELINE STRUCTURE:
-{
-  "name": "slug-style-name",
-  "description": "파이프라인 설명",
-  "stages": [
-    {
-      "id": "stage-1",
-      "name": "Stage Name",
-      "type": "workflow",
-      "config": {
-        "workflow_name": "my-workflow-name"
-      }
-    },
-    {
-      "id": "stage-2",
-      "name": "Approval Stage",
-      "type": "approval",
-      "config": {
-        "message": "승인을 기다리고 있습니다.",
-        "timeout": 3600
-      },
-      "depends_on": ["stage-1"]
-    }
-  ]
+// PipelineStageDelta describes a single stage change operation.
+type PipelineStageDelta struct {
+	Op      string      `json:"op"`              // "add", "update", "remove"
+	Stage   *upal.Stage `json:"stage,omitempty"` // for "add" and "update"
+	StageID string      `json:"stage_id,omitempty"` // for "remove"
 }
 
-Valid stage types:
-- "workflow"  — runs a workflow (config must include "workflow_name" matching a workflow in "workflows" array)
-- "approval"  — pauses for human approval (config: message, connection_id, timeout)
-- "schedule"  — triggers on a cron schedule (config: cron, timezone)
-- "transform" — transforms data between stages (config: expression)
-
-WORKFLOW STRUCTURE (same rules as standalone workflows):
-A workflow has:
-- "name": a slug-style name (lowercase, hyphens) — must match the "workflow_name" in the corresponding pipeline stage
-- "version": always 1
-- "nodes": array of node objects with {id, type, config}
-- "edges": array of edge objects connecting nodes
-
-Node types (ONLY these three types are valid):
-1. "input"  — collects user input
-2. "agent"  — calls an AI model
-3. "output" — produces final output
-
-EXAMPLE — a two-stage pipeline: research then approve:
-{
-  "pipeline": {
-    "name": "research-and-approve",
-    "description": "리서치를 수행하고 결과를 승인합니다.",
-    "stages": [
-      {
-        "id": "stage-1",
-        "name": "Research Workflow",
-        "type": "workflow",
-        "config": {
-          "workflow_name": "research-workflow"
-        }
-      },
-      {
-        "id": "stage-2",
-        "name": "Approval",
-        "type": "approval",
-        "config": {
-          "message": "리서치 결과를 검토하고 승인해 주세요.",
-          "timeout": 86400
-        },
-        "depends_on": ["stage-1"]
-      }
-    ]
-  },
-  "workflows": [
-    {
-      "name": "research-workflow",
-      "version": 1,
-      "nodes": [
-        {"id": "topic", "type": "input", "config": {"label": "리서치 주제", "placeholder": "조사할 주제를 입력하세요...", "description": "리서치할 주제"}},
-        {"id": "researcher", "type": "agent", "config": {"model": "anthropic/claude-sonnet-4-6", "label": "리서처", "system_prompt": "당신은 전문 리서처입니다.", "prompt": "다음 주제를 조사하세요:\n\n{{topic}}", "description": "주제를 리서치"}},
-        {"id": "final_output", "type": "output", "config": {"label": "리서치 결과", "prompt": "{{researcher}}", "description": "리서치 결과를 표시"}}
-      ],
-      "edges": [{"from": "topic", "to": "researcher"}, {"from": "researcher", "to": "final_output"}]
-    }
-  ]
+// PipelineEditDelta is the LLM response format in edit mode.
+// It describes only what should change; unchanged stages are preserved by applyDelta.
+type PipelineEditDelta struct {
+	Name         string                    `json:"name,omitempty"`
+	Description  string                    `json:"description,omitempty"`
+	StageChanges []PipelineStageDelta      `json:"stage_changes"`
+	StageOrder   []string                  `json:"stage_order,omitempty"` // full ordered list of stage IDs after all changes
+	Workflows    []upal.WorkflowDefinition `json:"workflows"`
 }
 
-Rules:
-- Every "workflow" stage MUST have a corresponding entry in "workflows[]" with a "name" matching the stage's "workflow_name".
-- Stage IDs must be "stage-1", "stage-2", etc. (sequential).
-- The pipeline "name" and stage "workflow_name" values must be English slugs (lowercase, hyphens).
-- ALL user-facing text (pipeline description, stage names, node labels, descriptions, prompts, system_prompt, placeholder) MUST be written in Korean (한국어).
-- Node IDs and workflow names remain English slugs.
-- Every workflow must have at least one "input" node and one "output" node.
-- Agent prompts should use {{node_id}} template syntax to reference upstream node outputs.
-- Keep workflows minimal — only add nodes necessary for the described task.`
+// applyDelta merges a PipelineEditDelta into an existing Pipeline.
+// Stages not referenced in delta.StageChanges are kept verbatim.
+func applyDelta(existing *upal.Pipeline, delta *PipelineEditDelta) *upal.Pipeline {
+	result := *existing
+	if delta.Name != "" {
+		result.Name = delta.Name
+	}
+	if delta.Description != "" {
+		result.Description = delta.Description
+	}
+
+	updates := make(map[string]upal.Stage)
+	removals := make(map[string]bool)
+	var additions []upal.Stage
+
+	for _, change := range delta.StageChanges {
+		switch change.Op {
+		case "update":
+			if change.Stage != nil {
+				updates[change.Stage.ID] = *change.Stage
+			}
+		case "remove":
+			if change.StageID != "" {
+				removals[change.StageID] = true
+			}
+		case "add":
+			if change.Stage != nil {
+				additions = append(additions, *change.Stage)
+			}
+		}
+	}
+
+	stages := make([]upal.Stage, 0, len(existing.Stages)+len(additions))
+	for _, s := range existing.Stages {
+		if removals[s.ID] {
+			continue
+		}
+		if updated, ok := updates[s.ID]; ok {
+			stages = append(stages, updated)
+		} else {
+			stages = append(stages, s)
+		}
+	}
+	stages = append(stages, additions...)
+
+	// If stage_order is provided, reorder stages accordingly.
+	if len(delta.StageOrder) > 0 {
+		byID := make(map[string]upal.Stage, len(stages))
+		for _, s := range stages {
+			byID[s.ID] = s
+		}
+		reordered := make([]upal.Stage, 0, len(stages))
+		used := make(map[string]bool)
+		for _, id := range delta.StageOrder {
+			if s, ok := byID[id]; ok {
+				reordered = append(reordered, s)
+				used[id] = true
+			}
+		}
+		// Safety net: append any stages not listed in stage_order.
+		for _, s := range stages {
+			if !used[s.ID] {
+				reordered = append(reordered, s)
+			}
+		}
+		stages = reordered
+	}
+
+	result.Stages = stages
+	return &result
+}
+
+//go:embed prompts/pipeline-edit.md
+var editPipelinePrompt string
+
+//go:embed prompts/pipeline-create.md
+var createPipelinePrompt string
 
 // GeneratePipelineBundle generates a Pipeline and its WorkflowDefinitions in a single LLM call.
-func (g *Generator) GeneratePipelineBundle(ctx context.Context, description string) (*PipelineBundle, error) {
-	sysPrompt := createPipelinePrompt
-
-	// Inject available models grouped by category so the LLM matches purpose to model.
-	if len(g.models) > 0 {
-		sysPrompt += g.buildModelPrompt()
+// When existingPipeline is non-nil, the generator operates in edit mode — it asks the LLM for
+// a delta (only the changes) and applies it to the existing pipeline, guaranteeing that
+// unchanged stages are preserved verbatim.
+func (g *Generator) GeneratePipelineBundle(ctx context.Context, description string, existingPipeline *upal.Pipeline) (*PipelineBundle, error) {
+	if existingPipeline != nil {
+		return g.generatePipelineEdit(ctx, description, existingPipeline)
 	}
+	return g.generatePipelineCreate(ctx, description)
+}
 
-	// Inject available tools so the LLM only references real tools.
-	if len(g.toolNames) > 0 {
-		sysPrompt += "\n\nAvailable tools for agent nodes (use in config \"tools\" array):\n"
-		for _, name := range g.toolNames {
-			sysPrompt += fmt.Sprintf("- %q\n", name)
-		}
-		sysPrompt += "IMPORTANT: ONLY use tools from this list. Do NOT invent or hallucinate tool names that are not listed here. If the task requires a capability not covered by these tools, use an agent node with a detailed prompt instead."
-	}
-
-	// Inject node-type skills so the LLM has detailed config guidance.
-	if g.skills != nil {
-		if agentSkill := g.skills.Get("agent-node"); agentSkill != "" {
-			sysPrompt += "\n\n--- AGENT NODE GUIDE ---\n\n" + agentSkill
-		}
-		if inputSkill := g.skills.Get("input-node"); inputSkill != "" {
-			sysPrompt += "\n\n--- INPUT NODE GUIDE ---\n\n" + inputSkill
-		}
-		if outputSkill := g.skills.Get("output-node"); outputSkill != "" {
-			sysPrompt += "\n\n--- OUTPUT NODE GUIDE ---\n\n" + outputSkill
-		}
-	}
-
-	// Final reinforcement — must be the LAST thing in the system prompt.
-	sysPrompt += "\n\nOutput ONLY raw JSON"
+// generatePipelineCreate creates a brand-new pipeline bundle from a description.
+func (g *Generator) generatePipelineCreate(ctx context.Context, description string) (*PipelineBundle, error) {
+	sysPrompt := g.buildPipelineSysPrompt(createPipelinePrompt)
 
 	req := &adkmodel.LLMRequest{
 		Model: g.model,
@@ -163,69 +140,191 @@ func (g *Generator) GeneratePipelineBundle(ctx context.Context, description stri
 		},
 	}
 
-	// Pipeline generation requires careful instruction following, so request high effort.
 	ctx = upalmodel.WithEffort(ctx, "high")
 
-	var resp *adkmodel.LLMResponse
-	for r, err := range g.llm.GenerateContent(ctx, req, false) {
-		if err != nil {
-			return nil, fmt.Errorf("generate pipeline bundle: %w", err)
-		}
-		resp = r
-	}
-
-	if resp == nil || resp.Content == nil {
-		return nil, fmt.Errorf("empty response from LLM")
-	}
-
-	// Extract text from response parts.
-	text := llmutil.ExtractText(resp)
-
-	content, err := llmutil.StripMarkdownJSON(text)
+	text, err := g.callLLM(ctx, req, "generate pipeline bundle")
 	if err != nil {
+		return nil, err
+	}
+
+	var bundle PipelineBundle
+	if err := json.NewDecoder(strings.NewReader(text)).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("parse generated pipeline bundle (model output may be malformed): %w\nraw output: %s", err, text)
 	}
 
-	// Use json.Decoder to parse only the first JSON value and ignore trailing text.
-	var bundle PipelineBundle
-	if err := json.NewDecoder(strings.NewReader(content)).Decode(&bundle); err != nil {
-		return nil, fmt.Errorf("parse generated pipeline bundle (model output may be malformed): %w\nraw output: %s", err, content)
-	}
-
-	// Backfill pipeline name when the LLM omits it.
 	if bundle.Pipeline.Name == "" {
 		bundle.Pipeline.Name = "generated-pipeline"
 	}
 
-	// Backfill missing stage IDs.
+	bundle.Pipeline.Stages = stripInvalidStageTypes(bundle.Pipeline.Stages)
+
 	for i := range bundle.Pipeline.Stages {
 		if bundle.Pipeline.Stages[i].ID == "" {
 			bundle.Pipeline.Stages[i].ID = fmt.Sprintf("stage-%d", i+1)
 		}
 	}
 
-	// Build a set of workflow_name values referenced by pipeline stages.
-	referencedWorkflows := make(map[string]bool)
-	for _, stage := range bundle.Pipeline.Stages {
-		if stage.Type == "workflow" && stage.Config.WorkflowName != "" {
-			referencedWorkflows[stage.Config.WorkflowName] = true
+	bundle.Workflows = g.cleanWorkflows(bundle.Workflows, bundle.Pipeline.Stages)
+	return &bundle, nil
+}
+
+// generatePipelineEdit asks the LLM for a delta and applies it to the existing pipeline.
+// Only stages explicitly mentioned in the delta are changed; all others are preserved verbatim.
+func (g *Generator) generatePipelineEdit(ctx context.Context, description string, existing *upal.Pipeline) (*PipelineBundle, error) {
+	sysPrompt := g.buildPipelineSysPrompt(editPipelinePrompt)
+
+	pipelineJSON, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal existing pipeline: %w", err)
+	}
+	userContent := fmt.Sprintf("Current pipeline:\n%s\n\nInstruction: %s", string(pipelineJSON), description)
+
+	req := &adkmodel.LLMRequest{
+		Model: g.model,
+		Config: &genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
+		},
+		Contents: []*genai.Content{
+			genai.NewContentFromText(userContent, genai.RoleUser),
+		},
+	}
+
+	ctx = upalmodel.WithEffort(ctx, "high")
+
+	text, err := g.callLLM(ctx, req, "generate pipeline edit delta")
+	if err != nil {
+		return nil, err
+	}
+
+	var delta PipelineEditDelta
+	if err := json.NewDecoder(strings.NewReader(text)).Decode(&delta); err != nil {
+		return nil, fmt.Errorf("parse generated pipeline delta (model output may be malformed): %w\nraw output: %s", err, text)
+	}
+
+	// Strip hallucinated stage types from the delta before applying.
+	for i := range delta.StageChanges {
+		if delta.StageChanges[i].Stage != nil && !validStageTypes[delta.StageChanges[i].Stage.Type] {
+			delta.StageChanges[i].Stage = nil // nullify so applyDelta skips it
 		}
 	}
 
-	// Post-process each workflow: strip invalid node types, tools, and models.
-	cleaned := make([]upal.WorkflowDefinition, 0, len(bundle.Workflows))
-	for i := range bundle.Workflows {
-		wf := &bundle.Workflows[i]
+	// Apply delta: unchanged stages are preserved, only the LLM's explicit changes go through.
+	merged := applyDelta(existing, &delta)
+
+	// Backfill missing stage IDs on any newly added stages.
+	usedIDs := make(map[string]bool)
+	for _, s := range merged.Stages {
+		usedIDs[s.ID] = true
+	}
+	counter := len(merged.Stages)
+	for i := range merged.Stages {
+		if merged.Stages[i].ID == "" {
+			for {
+				counter++
+				id := fmt.Sprintf("stage-%d", counter)
+				if !usedIDs[id] {
+					merged.Stages[i].ID = id
+					usedIDs[id] = true
+					break
+				}
+			}
+		}
+	}
+
+	workflows := g.cleanWorkflows(delta.Workflows, merged.Stages)
+	return &PipelineBundle{Pipeline: *merged, Workflows: workflows}, nil
+}
+
+// buildPipelineSysPrompt constructs the system prompt from a base prompt,
+// injecting available models, tools, and skill guides.
+func (g *Generator) buildPipelineSysPrompt(base string) string {
+	sysPrompt := base
+
+	if len(g.models) > 0 {
+		sysPrompt += g.buildModelPrompt()
+	}
+	if len(g.toolNames) > 0 {
+		sysPrompt += "\n\nAvailable tools for agent nodes (use in config \"tools\" array):\n"
+		for _, name := range g.toolNames {
+			sysPrompt += fmt.Sprintf("- %q\n", name)
+		}
+		sysPrompt += "IMPORTANT: ONLY use tools from this list. Do NOT invent or hallucinate tool names that are not listed here. If the task requires a capability not covered by these tools, use an agent node with a detailed prompt instead."
+	}
+	if g.skills != nil {
+		if agentSkill := g.skills.Get("agent-node"); agentSkill != "" {
+			sysPrompt += "\n\n--- AGENT NODE GUIDE ---\n\n" + agentSkill
+		}
+		if inputSkill := g.skills.Get("input-node"); inputSkill != "" {
+			sysPrompt += "\n\n--- INPUT NODE GUIDE ---\n\n" + inputSkill
+		}
+		if outputSkill := g.skills.Get("output-node"); outputSkill != "" {
+			sysPrompt += "\n\n--- OUTPUT NODE GUIDE ---\n\n" + outputSkill
+		}
+	}
+	sysPrompt += "\n\nOutput ONLY raw JSON"
+	return sysPrompt
+}
+
+// callLLM sends a request and returns the stripped JSON text from the response.
+func (g *Generator) callLLM(ctx context.Context, req *adkmodel.LLMRequest, opName string) (string, error) {
+	var resp *adkmodel.LLMResponse
+	for r, err := range g.llm.GenerateContent(ctx, req, false) {
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", opName, err)
+		}
+		resp = r
+	}
+	if resp == nil || resp.Content == nil {
+		return "", fmt.Errorf("empty response from LLM")
+	}
+
+	text := llmutil.ExtractText(resp)
+	content, err := llmutil.StripMarkdownJSON(text)
+	if err != nil {
+		return "", fmt.Errorf("parse %s (model output may be malformed): %w\nraw output: %s", opName, err, text)
+	}
+	return content, nil
+}
+
+// validStageTypes is the set of stage types the pipeline editor supports.
+var validStageTypes = map[string]bool{
+	"workflow":  true,
+	"approval":  true,
+	"schedule":  true,
+	"trigger":   true,
+	"transform": true,
+}
+
+// stripInvalidStageTypes removes stages whose type is not in validStageTypes.
+func stripInvalidStageTypes(stages []upal.Stage) []upal.Stage {
+	filtered := make([]upal.Stage, 0, len(stages))
+	for _, s := range stages {
+		if validStageTypes[s.Type] {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+}
+
+// cleanWorkflows post-processes workflows: strips invalid node types/tools/models,
+// and keeps only those referenced by the given stages.
+func (g *Generator) cleanWorkflows(workflows []upal.WorkflowDefinition, stages []upal.Stage) []upal.WorkflowDefinition {
+	referenced := make(map[string]bool)
+	for _, stage := range stages {
+		if stage.Type == "workflow" && stage.Config.WorkflowName != "" {
+			referenced[stage.Config.WorkflowName] = true
+		}
+	}
+
+	cleaned := make([]upal.WorkflowDefinition, 0, len(workflows))
+	for i := range workflows {
+		wf := &workflows[i]
 		stripInvalidNodeTypes(wf)
 		g.stripInvalidTools(wf)
 		g.fixInvalidModels(wf)
-
-		// Only keep workflows that are referenced by a pipeline stage.
-		if referencedWorkflows[wf.Name] {
+		if referenced[wf.Name] {
 			cleaned = append(cleaned, *wf)
 		}
 	}
-	bundle.Workflows = cleaned
-
-	return &bundle, nil
+	return cleaned
 }

@@ -9,10 +9,9 @@ import {
 import { NodeEditor } from '@/components/editor/nodes/NodeEditor'
 import { PanelPreview } from '@/components/panel/PanelPreview'
 import { PanelConsole } from '@/components/panel/PanelConsole'
-import { PanelSchedule } from '@/components/panel/PanelSchedule'
 import { GroupEditor } from '@/components/panel/GroupEditor'
 import { AIChatEditor } from '@/components/panel/AIChatEditor'
-import { Settings2, Terminal, Eye, Clock } from 'lucide-react'
+import { Settings2, Terminal, Eye } from 'lucide-react'
 import type { NodeData } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useResizeDrag } from '@/hooks/useResizeDrag'
@@ -27,7 +26,6 @@ const tabs = [
   { value: 'properties', label: 'Properties', icon: Settings2 },
   { value: 'console', label: 'Console', icon: Terminal },
   { value: 'preview', label: 'Preview', icon: Eye },
-  { value: 'schedule', label: 'Schedule', icon: Clock },
 ] as const
 
 const DEFAULT_WIDTH = 512
@@ -170,10 +168,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
         <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
           <PanelPreview />
-        </TabsContent>
-
-        <TabsContent value="schedule" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelSchedule />
         </TabsContent>
 
         {/* AI Assistant — pinned to bottom of panel */}

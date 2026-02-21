@@ -171,6 +171,7 @@ func serve() {
 	nodeReg := agents.DefaultRegistry()
 	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg)
 	runHistorySvc := services.NewRunHistoryService(runRepo)
+	runHistorySvc.CleanupOrphanedRuns(context.Background())
 
 	// Create concurrency limiter from config (with defaults).
 	concurrencyLimits := upal.ConcurrencyLimits{
@@ -205,8 +206,12 @@ func serve() {
 	srv.SetRetryExecutor(retryExecutor)
 	srv.SetTriggerRepository(triggerRepo)
 
-	// Connection management (in-memory store, no-op encryption by default).
-	connRepo := repository.NewMemoryConnectionRepository()
+	// Connection management (persistent if DB is available).
+	memConnRepo := repository.NewMemoryConnectionRepository()
+	var connRepo repository.ConnectionRepository = memConnRepo
+	if database != nil {
+		connRepo = repository.NewPersistentConnectionRepository(memConnRepo, database)
+	}
 	connEnc, _ := upalcrypto.NewEncryptor(nil)
 	connSvc := services.NewConnectionService(connRepo, connEnc)
 	srv.SetConnectionService(connSvc)
@@ -251,10 +256,14 @@ func serve() {
 	pipelineSvc := services.NewPipelineService(pipelineRepo, pipelineRunRepo)
 	pipelineRunner := services.NewPipelineRunner(pipelineRunRepo)
 	pipelineRunner.RegisterExecutor(services.NewWorkflowStageExecutor(workflowSvc))
-	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor())
+	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(&services.TransformStageExecutor{})
+	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("schedule"))
+	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("trigger"))
 	srv.SetPipelineService(pipelineSvc)
 	srv.SetPipelineRunner(pipelineRunner)
+	schedulerSvc.SetPipelineRunner(pipelineRunner)
+	schedulerSvc.SetPipelineService(pipelineSvc)
 
 	// Configure natural language workflow generator if any provider is available.
 	skillReg := skills.New()

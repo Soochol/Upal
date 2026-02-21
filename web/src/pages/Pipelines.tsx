@@ -1,44 +1,32 @@
 // web/src/pages/Pipelines.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  Plus, Play, Loader2, Trash2, Clock, CheckCircle2,
-  AlertCircle, PauseCircle, GitBranch, Zap, RefreshCw, Sparkles,
+  Plus, GitBranch,
+  CheckCircle2, AlertCircle, PauseCircle, Clock,
 } from 'lucide-react'
 import { Header } from '@/components/Header'
 import {
   fetchPipelines, fetchPipeline, createPipeline, updatePipeline,
-  deletePipeline, startPipeline,
+  deletePipeline, startPipeline, generatePipelineBundle, saveWorkflow,
 } from '@/lib/api'
+import { ApiError } from '@/lib/api/client'
 import type { Pipeline } from '@/lib/api/types'
+import { PipelineCard } from '@/components/pipelines/PipelineCard'
 import { PipelineEditor } from '@/components/pipelines/PipelineEditor'
 import { PipelineRunHistory } from '@/components/pipelines/PipelineRunHistory'
-import { PipelineTemplateGallery } from '@/components/pipelines/PipelineTemplateGallery'
-import { GeneratePipelineDialog } from '@/components/pipelines/GeneratePipelineDialog'
+import { PromptBar } from '@/components/editor/PromptBar'
 
-const stageTypeIcons: Record<string, typeof CheckCircle2> = {
-  workflow:  Play,
-  approval:  PauseCircle,
-  schedule:  Clock,
-  trigger:   Zap,
-  transform: RefreshCw,
-}
-
-const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string }> = {
-  idle:      { icon: Clock,         color: 'text-muted-foreground' },
-  running:   { icon: Loader2,       color: 'text-info' },
-  waiting:   { icon: PauseCircle,   color: 'text-warning' },
-  completed: { icon: CheckCircle2,  color: 'text-success' },
-  failed:    { icon: AlertCircle,   color: 'text-destructive' },
-}
 // Suppress unused warning — referenced for type completeness
-void statusConfig
+void ({ CheckCircle2, AlertCircle, PauseCircle, Clock } as Record<string, unknown>)
 
 export default function Pipelines() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Pipeline | null>(null)
-  const [generateOpen, setGenerateOpen] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [editorKey, setEditorKey] = useState(0)
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
 
@@ -61,7 +49,7 @@ export default function Pipelines() {
     } else {
       setSelected(null)
     }
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     try {
@@ -72,11 +60,42 @@ export default function Pipelines() {
     }
   }
 
-  const handleTemplateCreated = (p: Pipeline) => {
-    navigate(`/pipelines/${p.id}`)
-  }
+  const handleGenerate = useCallback(async (description: string) => {
+    setIsGenerating(true)
+    setGenerateError(null)
+    try {
+      const existingPipeline = selected
+        ? { name: selected.name, description: selected.description, stages: selected.stages }
+        : undefined
+      const bundle = await generatePipelineBundle(description, existingPipeline)
+      await Promise.all(
+        bundle.workflows.map((wf) =>
+          saveWorkflow(wf).catch((e) => {
+            if (e instanceof ApiError && e.status === 409) return
+            throw e
+          }),
+        ),
+      )
+      if (selected) {
+        // Edit mode: update existing pipeline and remount editor
+        await updatePipeline(selected.id, bundle.pipeline)
+        const fresh = await fetchPipeline(selected.id)
+        setSelected(fresh)
+        setEditorKey((k) => k + 1)
+      } else {
+        // Create mode: create new pipeline and navigate to it
+        const pipeline = await createPipeline(bundle.pipeline)
+        navigate(`/pipelines/${pipeline.id}`)
+      }
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [isGenerating, selected, navigate])
 
   const handleDelete = async (pid: string) => {
+    if (!confirm('Delete this pipeline?')) return
     try {
       await deletePipeline(pid)
       reload()
@@ -103,117 +122,116 @@ export default function Pipelines() {
   return (
     <div className="flex flex-col h-screen bg-background">
       <Header />
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+      {/* ─── Floating prompt bar ─── */}
+      <PromptBar
+        onSubmit={handleGenerate}
+        isGenerating={isGenerating}
+        placeholder={selected ? 'Edit these stages...' : 'Describe your pipeline...'}
+        positioning="fixed"
+        error={generateError}
+        onValueChange={() => setGenerateError(null)}
+      />
+      <main className="flex-1 overflow-y-auto pb-24">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
           {selected ? (
             <>
               <PipelineEditor
+                key={editorKey}
                 pipeline={selected}
                 onSave={handleSave}
                 onBack={() => navigate('/pipelines')}
               />
-              <PipelineRunHistory pipeline={selected} />
+              <div className="mt-6">
+                <PipelineRunHistory pipeline={selected} />
+              </div>
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold">Pipelines</h1>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setGenerateOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border hover:bg-muted transition-colors"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    생성
-                  </button>
-                  <button
-                    onClick={handleCreate}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    New Pipeline
-                  </button>
+              {/* ─── Page header ─── */}
+              <div className="flex items-start justify-between mb-6 gap-4">
+                <div>
+                  <h1 className="landing-display text-2xl font-bold tracking-tight">Pipelines</h1>
+                  {!loading && (
+                    <div className="flex items-center gap-5 mt-1.5">
+                      <span className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-semibold tabular-nums">{pipelines.length}</span>
+                        {' '}total
+                      </span>
+                    </div>
+                  )}
                 </div>
+                <button
+                  onClick={handleCreate}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-xl
+                    bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New Pipeline
+                </button>
               </div>
 
               {loading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                /* Skeleton */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-2xl bg-card border border-border animate-pulse overflow-hidden">
+                      <div className="h-[68px] bg-muted/20 border-b border-border" />
+                      <div className="p-4 space-y-2.5">
+                        <div className="h-3.5 w-28 bg-muted/40 rounded" />
+                        <div className="h-3 w-16 bg-muted/25 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : pipelines.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Create new card */}
+                  <button
+                    onClick={handleCreate}
+                    className="group rounded-2xl border-2 border-dashed border-border
+                      hover:border-foreground/25 hover:bg-card/60 transition-all duration-200
+                      flex flex-col items-center justify-center min-h-[164px] cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center mb-2.5
+                      group-hover:bg-muted/50 group-hover:scale-110 transition-all duration-200">
+                      <Plus className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                      New pipeline
+                    </span>
+                  </button>
+
+                  {pipelines.map((p, i) => (
+                    <div
+                      key={p.id}
+                      className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+                      style={{ animationDelay: `${i * 35}ms` }}
+                    >
+                      <PipelineCard
+                        pipeline={p}
+                        onClick={() => navigate(`/pipelines/${p.id}`)}
+                        onStart={() => handleStart(p.id)}
+                        onDelete={() => handleDelete(p.id)}
+                      />
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <>
-                  {pipelines.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <GitBranch className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                      <p className="text-sm">파이프라인이 없습니다</p>
-                      <p className="text-xs mt-1">아래 템플릿으로 시작하거나 직접 만들어보세요</p>
-                    </div>
-                  )}
-
-                  <PipelineTemplateGallery onCreated={handleTemplateCreated} />
-
-                  {pipelines.length > 0 && (
-                    <div className="space-y-3">
-                      {pipelines.map((p) => (
-                        <div
-                          key={p.id}
-                          className="border rounded-xl p-4 hover:border-foreground/20 transition-colors cursor-pointer"
-                          onClick={() => navigate(`/pipelines/${p.id}`)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-medium">{p.name}</h3>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleStart(p.id) }}
-                                className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                                title="Start"
-                              >
-                                <Play className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}
-                                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {p.description && (
-                            <p className="text-xs text-muted-foreground mb-2">{p.description}</p>
-                          )}
-
-                          {p.stages.length > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {p.stages.map((stage, i) => {
-                                const StageIcon = stageTypeIcons[stage.type] || GitBranch
-                                return (
-                                  <span key={stage.id} className="flex items-center gap-1">
-                                    {i > 0 && <span className="text-border">→</span>}
-                                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted">
-                                      <StageIcon className="h-3 w-3" />
-                                      {stage.name || stage.type}
-                                    </span>
-                                  </span>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                /* Empty state */
+                <div className="text-center py-16">
+                  <div className="w-14 h-14 rounded-2xl bg-muted/20 flex items-center justify-center mx-auto mb-5">
+                    <GitBranch className="w-6 h-6 text-muted-foreground/40" />
+                  </div>
+                  <h3 className="landing-display text-lg font-semibold mb-2">No pipelines yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                    Describe a pipeline above to generate one with AI, or create one manually.
+                  </p>
+                </div>
               )}
-              <GeneratePipelineDialog
-                open={generateOpen}
-                onClose={() => setGenerateOpen(false)}
-                onCreated={(p) => { setGenerateOpen(false); handleTemplateCreated(p) }}
-              />
             </>
           )}
+
         </div>
       </main>
     </div>

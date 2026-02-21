@@ -27,6 +27,12 @@ func (s *Server) createPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Sync schedule stages: register cron jobs and fill in schedule_id.
+	if s.schedulerSvc != nil {
+		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
+			_ = s.pipelineSvc.Update(r.Context(), &p)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(p)
@@ -68,12 +74,22 @@ func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Sync schedule stages: register cron jobs and fill in schedule_id.
+	if s.schedulerSvc != nil {
+		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
+			_ = s.pipelineSvc.Update(r.Context(), &p)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
 }
 
 func (s *Server) deletePipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	// Clean up associated cron jobs before deleting.
+	if s.schedulerSvc != nil {
+		_ = s.schedulerSvc.RemovePipelineSchedules(r.Context(), id)
+	}
 	if err := s.pipelineSvc.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -161,6 +177,26 @@ func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
 			slog.Error("pipeline resume failed", "run_id", run.ID, "pipeline_id", p.ID, "error", err)
 		}
 	}()
+}
+
+func (s *Server) listPipelineTriggers(w http.ResponseWriter, r *http.Request) {
+	if s.triggerRepo == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]*upal.Trigger{})
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	triggers, err := s.triggerRepo.ListByPipeline(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if triggers == nil {
+		triggers = []*upal.Trigger{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(triggers)
 }
 
 func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {

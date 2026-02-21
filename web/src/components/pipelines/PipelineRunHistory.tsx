@@ -105,6 +105,22 @@ export function PipelineRunHistory({ pipeline }: Props) {
               })}
             </div>
 
+            {run.status === 'failed' && (() => {
+              const failedEntry = Object.entries(run.stage_results ?? {}).find(([, r]) => r.status === 'failed')
+              const errMsg = failedEntry?.[1].error
+              if (!errMsg) return null
+              const failedStage = pipeline.stages.find((s) => s.id === failedEntry?.[0])
+              return (
+                <div className="mt-2 pt-2 border-t text-xs text-destructive flex items-start gap-1.5">
+                  <XCircle className="h-3.5 w-3.5 mt-px shrink-0" />
+                  <span>
+                    {failedStage ? <strong>{failedStage.name || failedStage.type}: </strong> : null}
+                    {errMsg}
+                  </span>
+                </div>
+              )
+            })()}
+
             {run.status === 'waiting' && run.current_stage && (
               <div className="flex items-center gap-2 mt-2 pt-2 border-t">
                 <span className="text-xs text-muted-foreground">Awaiting approval:</span>

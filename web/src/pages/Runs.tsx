@@ -25,7 +25,7 @@ export default function Runs() {
 
   const loadRuns = (showSpinner = true) => {
     if (showSpinner) setLoading(true)
-    fetchRuns(limit, offset)
+    fetchRuns(limit, offset, filter === 'all' ? '' : filter)
       .then(({ runs, total }) => {
         setRuns(runs ?? [])
         setTotal(total)
@@ -36,7 +36,7 @@ export default function Runs() {
 
   useEffect(() => {
     loadRuns()
-  }, [offset]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [offset, filter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refetch when there are running runs
   useEffect(() => {
@@ -55,7 +55,8 @@ export default function Runs() {
     }
   }, [runs]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = filter === 'all' ? runs : runs.filter(r => r.status === filter)
+  // Runs are already filtered server-side; use directly.
+  const filtered = runs
 
   function formatDuration(r: RunRecord): string {
     if (!r.started_at || !r.completed_at) return '-'
@@ -85,7 +86,7 @@ export default function Runs() {
             {['all', 'success', 'failed', 'running', 'pending'].map(f => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => { setFilter(f); setOffset(0) }}
                 className={`px-3 py-1 rounded-full text-sm capitalize ${
                   filter === f
                     ? 'bg-primary text-primary-foreground'

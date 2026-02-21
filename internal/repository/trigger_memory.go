@@ -60,3 +60,16 @@ func (r *MemoryTriggerRepository) ListByWorkflow(_ context.Context, workflowName
 	}
 	return result, nil
 }
+
+func (r *MemoryTriggerRepository) ListByPipeline(_ context.Context, pipelineID string) ([]*upal.Trigger, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*upal.Trigger
+	for _, t := range r.triggers {
+		if t.PipelineID == pipelineID {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}

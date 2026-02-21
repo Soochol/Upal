@@ -59,3 +59,12 @@ func (r *PersistentTriggerRepository) ListByWorkflow(ctx context.Context, workfl
 	slog.Warn("db list triggers failed, falling back to in-memory", "err", err)
 	return r.mem.ListByWorkflow(ctx, workflowName)
 }
+
+func (r *PersistentTriggerRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Trigger, error) {
+	triggers, err := r.db.ListTriggersByPipeline(ctx, pipelineID)
+	if err == nil {
+		return triggers, nil
+	}
+	slog.Warn("db list pipeline triggers failed, falling back to in-memory", "err", err)
+	return r.mem.ListByPipeline(ctx, pipelineID)
+}

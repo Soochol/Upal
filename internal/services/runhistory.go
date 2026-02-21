@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/soochol/upal/internal/repository"
@@ -99,7 +100,25 @@ func (s *RunHistoryService) ListRuns(ctx context.Context, workflowName string, l
 	return s.runRepo.ListByWorkflow(ctx, workflowName, limit, offset)
 }
 
-// ListAllRuns returns all runs with pagination.
-func (s *RunHistoryService) ListAllRuns(ctx context.Context, limit, offset int) ([]*upal.RunRecord, int, error) {
-	return s.runRepo.ListAll(ctx, limit, offset)
+// ListAllRuns returns all runs with pagination. status filters by run status when non-empty.
+func (s *RunHistoryService) ListAllRuns(ctx context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
+	return s.runRepo.ListAll(ctx, limit, offset, status)
+}
+
+// CleanupOrphanedRuns marks all running/pending runs as failed.
+// Should be called once at server startup.
+func (s *RunHistoryService) CleanupOrphanedRuns(ctx context.Context) {
+	type orphanCleaner interface {
+		MarkOrphanedRunsFailed(ctx context.Context) (int64, error)
+	}
+	if c, ok := s.runRepo.(orphanCleaner); ok {
+		n, err := c.MarkOrphanedRunsFailed(ctx)
+		if err != nil {
+			slog.Warn("failed to clean up orphaned runs", "err", err)
+			return
+		}
+		if n > 0 {
+			slog.Info("marked orphaned runs as failed", "count", n)
+		}
+	}
 }

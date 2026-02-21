@@ -77,3 +77,12 @@ func (r *PersistentScheduleRepository) ListDue(ctx context.Context, now time.Tim
 	slog.Warn("db list due schedules failed, falling back to in-memory", "err", err)
 	return r.mem.ListDue(ctx, now)
 }
+
+func (r *PersistentScheduleRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Schedule, error) {
+	schedules, err := r.db.ListSchedulesByPipeline(ctx, pipelineID)
+	if err == nil {
+		return schedules, nil
+	}
+	slog.Warn("db list schedules by pipeline failed, falling back to in-memory", "err", err)
+	return r.mem.ListByPipeline(ctx, pipelineID)
+}

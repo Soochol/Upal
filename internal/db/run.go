@@ -97,27 +97,54 @@ func (d *DB) ListRunsByWorkflow(ctx context.Context, workflowName string, limit,
 	return scanRuns(rows, total)
 }
 
-// ListAllRuns returns all runs with pagination.
-func (d *DB) ListAllRuns(ctx context.Context, limit, offset int) ([]*upal.RunRecord, int, error) {
+// ListAllRuns returns all runs with pagination. status filters by run status when non-empty.
+func (d *DB) ListAllRuns(ctx context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
 	var total int
-	err := d.Pool.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM runs`,
-	).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count runs: %w", err)
+	var countErr error
+	if status == "" {
+		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`).Scan(&total)
+	} else {
+		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE status = $1`, status).Scan(&total)
+	}
+	if countErr != nil {
+		return nil, 0, fmt.Errorf("count runs: %w", countErr)
 	}
 
-	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, created_at, started_at, completed_at
-		 FROM runs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-		limit, offset,
-	)
+	var rows *sql.Rows
+	var err error
+	if status == "" {
+		rows, err = d.Pool.QueryContext(ctx,
+			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, created_at, started_at, completed_at
+			 FROM runs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+			limit, offset,
+		)
+	} else {
+		rows, err = d.Pool.QueryContext(ctx,
+			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, created_at, started_at, completed_at
+			 FROM runs WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+			status, limit, offset,
+		)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("list runs: %w", err)
 	}
 	defer rows.Close()
 
 	return scanRuns(rows, total)
+}
+
+// MarkOrphanedRunsFailed updates all running/pending runs to failed.
+// Called on server startup to clean up runs that never completed due to a crash/restart.
+func (d *DB) MarkOrphanedRunsFailed(ctx context.Context) (int64, error) {
+	result, err := d.Pool.ExecContext(ctx,
+		`UPDATE runs SET status = 'failed', error = 'server restarted', completed_at = NOW()
+		 WHERE status IN ('running', 'pending')`,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("mark orphaned runs failed: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
 }
 
 func scanRuns(rows *sql.Rows, total int) ([]*upal.RunRecord, int, error) {

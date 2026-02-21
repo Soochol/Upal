@@ -15,8 +15,8 @@ const navLinks = [
   { to: "/workflows", label: "Workflows" },
   { to: "/editor", label: "Editor" },
   { to: "/runs", label: "Runs" },
-  { to: "/schedules", label: "Schedules" },
   { to: "/pipelines", label: "Pipelines" },
+  { to: "/connections", label: "Connections" },
 ];
 
 export function Header({

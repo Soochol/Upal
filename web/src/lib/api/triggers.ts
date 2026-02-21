@@ -16,3 +16,7 @@ export async function fetchTriggers(workflowName: string): Promise<Trigger[]> {
 export async function deleteTrigger(id: string): Promise<void> {
   return apiFetch<void>(`${API_BASE}/triggers/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
+
+export async function fetchPipelineTriggers(pipelineId: string): Promise<Trigger[]> {
+  return apiFetch<Trigger[]>(`${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/triggers`)
+}

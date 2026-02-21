@@ -88,13 +88,15 @@ func (r *MemoryRunRepository) ListByWorkflow(_ context.Context, workflowName str
 	return filtered[offset:end], total, nil
 }
 
-func (r *MemoryRunRepository) ListAll(_ context.Context, limit, offset int) ([]*upal.RunRecord, int, error) {
+func (r *MemoryRunRepository) ListAll(_ context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	all := make([]*upal.RunRecord, 0, len(r.records))
 	for _, rec := range r.records {
-		all = append(all, rec)
+		if status == "" || string(rec.Status) == status {
+			all = append(all, rec)
+		}
 	}
 
 	// Sort by created_at descending.

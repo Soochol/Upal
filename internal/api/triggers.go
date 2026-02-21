@@ -25,8 +25,8 @@ func (s *Server) createTrigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if trigger.WorkflowName == "" {
-		http.Error(w, "workflow_name is required", http.StatusBadRequest)
+	if trigger.WorkflowName == "" && trigger.PipelineID == "" {
+		http.Error(w, "workflow_name or pipeline_id is required", http.StatusBadRequest)
 		return
 	}
 

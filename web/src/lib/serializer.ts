@@ -15,6 +15,7 @@ export type WorkflowDefinition = {
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
   groups?: WorkflowGroup[]
+  thumbnail_svg?: string
 }
 
 type WorkflowNode = {

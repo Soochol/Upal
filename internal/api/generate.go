@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/soochol/upal/internal/upal"
 )
@@ -16,8 +18,10 @@ type GenerateRequest struct {
 }
 
 // GeneratePipelineRequest is the JSON body for pipeline generation from natural language.
+// When ExistingPipeline is provided, the generator operates in edit mode.
 type GeneratePipelineRequest struct {
-	Description string `json:"description"`
+	Description      string         `json:"description"`
+	ExistingPipeline *upal.Pipeline `json:"existing_pipeline,omitempty"`
 }
 
 func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +39,7 @@ func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description)
+	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description, req.ExistingPipeline)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -70,6 +74,13 @@ func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Generate thumbnail best-effort — don't fail the request if this fails.
+	thumbCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	if svg, thumbErr := s.generator.GenerateThumbnail(thumbCtx, wf); thumbErr == nil {
+		wf.ThumbnailSVG = svg
 	}
 
 	w.Header().Set("Content-Type", "application/json")

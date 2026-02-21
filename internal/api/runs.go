@@ -18,8 +18,9 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit, offset := parsePagination(r)
+	status := r.URL.Query().Get("status")
 
-	runs, total, err := s.runHistorySvc.ListAllRuns(r.Context(), limit, offset)
+	runs, total, err := s.runHistorySvc.ListAllRuns(r.Context(), limit, offset, status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

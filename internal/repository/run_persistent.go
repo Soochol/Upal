@@ -60,11 +60,15 @@ func (r *PersistentRunRepository) ListByWorkflow(ctx context.Context, workflowNa
 	return r.mem.ListByWorkflow(ctx, workflowName, limit, offset)
 }
 
-func (r *PersistentRunRepository) ListAll(ctx context.Context, limit, offset int) ([]*upal.RunRecord, int, error) {
-	runs, total, err := r.db.ListAllRuns(ctx, limit, offset)
+func (r *PersistentRunRepository) MarkOrphanedRunsFailed(ctx context.Context) (int64, error) {
+	return r.db.MarkOrphanedRunsFailed(ctx)
+}
+
+func (r *PersistentRunRepository) ListAll(ctx context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
+	runs, total, err := r.db.ListAllRuns(ctx, limit, offset, status)
 	if err == nil {
 		return runs, total, nil
 	}
 	slog.Warn("db list all runs failed, falling back to in-memory", "err", err)
-	return r.mem.ListAll(ctx, limit, offset)
+	return r.mem.ListAll(ctx, limit, offset, status)
 }

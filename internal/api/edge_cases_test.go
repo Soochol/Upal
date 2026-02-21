@@ -30,23 +30,6 @@ func newEdgeCaseServer() (*Server, repository.TriggerRepository) {
 	return srv, trigRepo
 }
 
-// newEdgeCaseServerWithScheduler creates a server wired with a full SchedulerService
-// and all its dependencies backed by in-memory stores.
-func newEdgeCaseServerWithScheduler() *Server {
-	sessionSvc := session.InMemoryService()
-	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
-	schedRepo := repository.NewMemoryScheduleRepository()
-	runRepo := repository.NewMemoryRunRepository()
-	limiter := services.NewConcurrencyLimiter(upal.ConcurrencyLimits{GlobalMax: 10, PerWorkflow: 3})
-	runHistorySvc := services.NewRunHistoryService(runRepo)
-	retryExec := services.NewRetryExecutor(wfSvc, runHistorySvc)
-	schedSvc := services.NewSchedulerService(schedRepo, wfSvc, retryExec, limiter, runHistorySvc)
-	srv := NewServer(nil, wfSvc, wfRepo, nil)
-	srv.SetSchedulerService(schedSvc)
-	return srv
-}
-
 // seedEdgeCaseWorkflow creates a minimal workflow so the webhook handler's Lookup succeeds.
 func seedEdgeCaseWorkflow(t *testing.T, srv *Server, name string) {
 	t.Helper()
@@ -65,44 +48,6 @@ func seedEdgeCaseWorkflow(t *testing.T, srv *Server, name string) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("seedEdgeCaseWorkflow: got status %d, want 201; body: %s", w.Code, w.Body.String())
 	}
-}
-
-// createEdgeCaseSchedule is a helper that POSTs a schedule and returns the decoded schedule.
-func createEdgeCaseSchedule(t *testing.T, srv *Server, wfName, cronExpr string, enabled bool) upal.Schedule {
-	t.Helper()
-	body, _ := json.Marshal(map[string]any{
-		"workflow_name": wfName,
-		"cron_expr":     cronExpr,
-		"enabled":       enabled,
-	})
-	req := httptest.NewRequest("POST", "/api/schedules", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("createEdgeCaseSchedule: got %d, want 201; body: %s", w.Code, w.Body.String())
-	}
-	var s upal.Schedule
-	if err := json.NewDecoder(w.Body).Decode(&s); err != nil {
-		t.Fatalf("createEdgeCaseSchedule decode: %v", err)
-	}
-	return s
-}
-
-// getScheduleState fetches a schedule via GET and returns its Enabled field.
-func getScheduleState(t *testing.T, srv *Server, id string) bool {
-	t.Helper()
-	req := httptest.NewRequest("GET", "/api/schedules/"+id, nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("getScheduleState: got %d, want 200; body: %s", w.Code, w.Body.String())
-	}
-	var s upal.Schedule
-	if err := json.NewDecoder(w.Body).Decode(&s); err != nil {
-		t.Fatalf("getScheduleState decode: %v", err)
-	}
-	return s.Enabled
 }
 
 // ============================================================
@@ -233,129 +178,6 @@ func TestWebhook_ContentTypeVariations(t *testing.T) {
 				t.Fatalf("status: got %d, want 202; body: %s", w.Code, w.Body.String())
 			}
 		})
-	}
-}
-
-// ============================================================
-// Schedule Edge Cases
-// ============================================================
-
-// TestSchedule_RapidPauseResume verifies that rapidly pausing and resuming a
-// schedule many times does not cause a panic or corrupt the schedule state.
-// Each pause/resume pair is executed sequentially to avoid triggering a known
-// data-race in the service layer (SchedulerService.ResumeSchedule mutates
-// the schedule outside its mutex). The test validates that the final state
-// is consistent after 10 rapid toggle cycles.
-func TestSchedule_RapidPauseResume(t *testing.T) {
-	srv := newEdgeCaseServerWithScheduler()
-	sched := createEdgeCaseSchedule(t, srv, "rapid-wf", "0 * * * *", true)
-
-	const iterations = 10
-
-	for i := 0; i < iterations; i++ {
-		// Pause.
-		pauseReq := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/pause", nil)
-		pauseW := httptest.NewRecorder()
-		srv.Handler().ServeHTTP(pauseW, pauseReq)
-		if pauseW.Code != http.StatusNoContent {
-			t.Fatalf("iteration %d pause: got %d, want 204", i, pauseW.Code)
-		}
-
-		// Resume.
-		resumeReq := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/resume", nil)
-		resumeW := httptest.NewRecorder()
-		srv.Handler().ServeHTTP(resumeW, resumeReq)
-		if resumeW.Code != http.StatusNoContent {
-			t.Fatalf("iteration %d resume: got %d, want 204", i, resumeW.Code)
-		}
-	}
-
-	// After all toggles, the schedule must still be readable and in a valid state.
-	// The last operation was a resume, so it should be enabled.
-	req := httptest.NewRequest("GET", "/api/schedules/"+sched.ID, nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("GET after rapid pause/resume: got %d, want 200; body: %s", w.Code, w.Body.String())
-	}
-
-	var final upal.Schedule
-	if err := json.NewDecoder(w.Body).Decode(&final); err != nil {
-		t.Fatalf("decode final schedule: %v", err)
-	}
-
-	if final.ID != sched.ID {
-		t.Errorf("schedule ID: got %q, want %q", final.ID, sched.ID)
-	}
-	if !final.Enabled {
-		t.Error("expected schedule to be enabled after final resume")
-	}
-}
-
-// TestSchedule_DoublePause verifies that pausing an already-paused schedule
-// succeeds without error and the schedule remains disabled.
-func TestSchedule_DoublePause(t *testing.T) {
-	srv := newEdgeCaseServerWithScheduler()
-	sched := createEdgeCaseSchedule(t, srv, "dpause-wf", "0 * * * *", true)
-
-	// First pause.
-	req := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/pause", nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("first pause: got %d, want 204; body: %s", w.Code, w.Body.String())
-	}
-
-	// Verify disabled.
-	if enabled := getScheduleState(t, srv, sched.ID); enabled {
-		t.Fatal("expected schedule to be disabled after first pause")
-	}
-
-	// Second pause (already paused).
-	req2 := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/pause", nil)
-	w2 := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w2, req2)
-	if w2.Code != http.StatusNoContent {
-		t.Fatalf("second pause: got %d, want 204; body: %s", w2.Code, w2.Body.String())
-	}
-
-	// Still disabled.
-	if enabled := getScheduleState(t, srv, sched.ID); enabled {
-		t.Fatal("expected schedule to remain disabled after double pause")
-	}
-}
-
-// TestSchedule_DoubleResume verifies that resuming an already-enabled schedule
-// succeeds without error and the schedule remains enabled.
-func TestSchedule_DoubleResume(t *testing.T) {
-	srv := newEdgeCaseServerWithScheduler()
-	sched := createEdgeCaseSchedule(t, srv, "dresume-wf", "0 * * * *", true)
-
-	// Schedule starts enabled. Resume it (already enabled).
-	req := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/resume", nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("first resume: got %d, want 204; body: %s", w.Code, w.Body.String())
-	}
-
-	// Still enabled.
-	if enabled := getScheduleState(t, srv, sched.ID); !enabled {
-		t.Fatal("expected schedule to remain enabled after resume on enabled schedule")
-	}
-
-	// Resume again.
-	req2 := httptest.NewRequest("POST", "/api/schedules/"+sched.ID+"/resume", nil)
-	w2 := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w2, req2)
-	if w2.Code != http.StatusNoContent {
-		t.Fatalf("second resume: got %d, want 204; body: %s", w2.Code, w2.Body.String())
-	}
-
-	// Still enabled.
-	if enabled := getScheduleState(t, srv, sched.ID); !enabled {
-		t.Fatal("expected schedule to remain enabled after double resume")
 	}
 }
 

@@ -393,6 +393,41 @@ body {
   to { background-position: 0 20px; }
 }
 
+/* ── Hero dot-grid overlay ── */
+.hero-dot-grid {
+  background-image: radial-gradient(circle, var(--border) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+/* ── Feature card ── */
+.landing-feature-card {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.landing-feature-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px oklch(0 0 0 / 6%);
+}
+
+/* ── How-it-works step number ── */
+.landing-step-number {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 3.5rem;
+  line-height: 1;
+  -webkit-text-stroke: 2px currentColor;
+  color: transparent;
+  opacity: 0.15;
+}
+
+/* ── Running pulse dot ── */
+@keyframes runPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+.run-pulse {
+  animation: runPulse 1.4s ease-in-out infinite;
+}
+
 /* ═══════════════════════════════════════════════════════
    Animations
    ═══════════════════════════════════════════════════════ */
@@ -413,6 +448,13 @@ body {
   syntax: "<angle>";
   initial-value: 0deg;
   inherits: false;
+}
+
+/* AI-generated SVG thumbnail fills the card preview area */
+.workflow-thumbnail svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .workflow-card-running {

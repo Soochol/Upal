@@ -12,7 +12,11 @@ import (
 )
 
 // parseCronExpr tries 6-field (with seconds) then 5-field (standard) parsing.
-func parseCronExpr(expr string) (cron.Schedule, error) {
+// If timezone is non-empty and non-UTC, it is applied via the CRON_TZ= prefix.
+func parseCronExpr(expr string, timezone string) (cron.Schedule, error) {
+	if timezone != "" && timezone != "UTC" {
+		expr = "CRON_TZ=" + timezone + " " + expr
+	}
 	parser6 := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	sched, err := parser6.Parse(expr)
 	if err == nil {
@@ -25,14 +29,26 @@ func parseCronExpr(expr string) (cron.Schedule, error) {
 // SchedulerService manages cron-based workflow scheduling.
 // It wraps robfig/cron and integrates retry, concurrency, and run history.
 type SchedulerService struct {
-	cron          *cron.Cron
-	scheduleRepo  repository.ScheduleRepository
-	workflowSvc   *WorkflowService
-	retryExecutor *RetryExecutor
-	limiter       *ConcurrencyLimiter
-	runHistorySvc *RunHistoryService
-	entryMap      map[string]cron.EntryID // schedule ID → cron entry
-	mu            sync.RWMutex
+	cron           *cron.Cron
+	scheduleRepo   repository.ScheduleRepository
+	workflowSvc    *WorkflowService
+	retryExecutor  *RetryExecutor
+	limiter        *ConcurrencyLimiter
+	runHistorySvc  *RunHistoryService
+	entryMap       map[string]cron.EntryID // schedule ID → cron entry
+	mu             sync.RWMutex
+	pipelineRunner *PipelineRunner
+	pipelineSvc    *PipelineService
+}
+
+// SetPipelineRunner configures the pipeline runner for scheduled pipeline execution.
+func (s *SchedulerService) SetPipelineRunner(runner *PipelineRunner) {
+	s.pipelineRunner = runner
+}
+
+// SetPipelineService configures the pipeline service for looking up pipelines.
+func (s *SchedulerService) SetPipelineService(svc *PipelineService) {
+	s.pipelineSvc = svc
 }
 
 // NewSchedulerService creates a SchedulerService with all dependencies.
@@ -87,7 +103,7 @@ func (s *SchedulerService) Stop() {
 // AddSchedule creates a new schedule and registers its cron job.
 func (s *SchedulerService) AddSchedule(ctx context.Context, schedule *upal.Schedule) error {
 	// Compute next run time from cron expression.
-	cronSched, err := parseCronExpr(schedule.CronExpr)
+	cronSched, err := parseCronExpr(schedule.CronExpr, schedule.Timezone)
 	if err != nil {
 		return err
 	}
@@ -206,7 +222,7 @@ func (s *SchedulerService) TriggerNow(ctx context.Context, id string) error {
 // registerCronJob registers a cron job for the given schedule.
 // Uses cron.Schedule() with a pre-parsed schedule to support both 5-field and 6-field expressions.
 func (s *SchedulerService) registerCronJob(schedule *upal.Schedule) error {
-	cronSched, err := parseCronExpr(schedule.CronExpr)
+	cronSched, err := parseCronExpr(schedule.CronExpr, schedule.Timezone)
 	if err != nil {
 		return err
 	}
@@ -219,14 +235,48 @@ func (s *SchedulerService) registerCronJob(schedule *upal.Schedule) error {
 	s.entryMap[schedule.ID] = entryID
 	s.mu.Unlock()
 
-	slog.Info("scheduler: registered cron job",
-		"id", schedule.ID, "workflow", schedule.WorkflowName, "cron", schedule.CronExpr)
+	if schedule.PipelineID != "" {
+		slog.Info("scheduler: registered cron job",
+			"id", schedule.ID, "pipeline", schedule.PipelineID, "cron", schedule.CronExpr)
+	} else {
+		slog.Info("scheduler: registered cron job",
+			"id", schedule.ID, "workflow", schedule.WorkflowName, "cron", schedule.CronExpr)
+	}
 	return nil
 }
 
 // executeScheduledRun is called by cron when a schedule fires.
 func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	ctx := context.Background()
+
+	// Pipeline-triggered execution.
+	if schedule.PipelineID != "" && s.pipelineSvc != nil && s.pipelineRunner != nil {
+		slog.Info("scheduler: executing scheduled pipeline run",
+			"schedule", schedule.ID, "pipeline", schedule.PipelineID)
+
+		pipeline, err := s.pipelineSvc.Get(ctx, schedule.PipelineID)
+		if err != nil {
+			slog.Error("scheduler: pipeline not found",
+				"schedule", schedule.ID, "pipeline", schedule.PipelineID, "err", err)
+			return
+		}
+
+		if _, err := s.pipelineRunner.Start(ctx, pipeline); err != nil {
+			slog.Error("scheduler: pipeline execution failed",
+				"schedule", schedule.ID, "pipeline", schedule.PipelineID, "err", err)
+		}
+
+		now := time.Now()
+		schedule.LastRunAt = &now
+		if cronSched, parseErr := parseCronExpr(schedule.CronExpr, schedule.Timezone); parseErr == nil {
+			schedule.NextRunAt = cronSched.Next(now)
+		}
+		schedule.UpdatedAt = now
+		if updateErr := s.scheduleRepo.Update(ctx, schedule); updateErr != nil {
+			slog.Warn("scheduler: failed to update schedule after pipeline run", "err", updateErr)
+		}
+		return
+	}
 
 	slog.Info("scheduler: executing scheduled run",
 		"schedule", schedule.ID, "workflow", schedule.WorkflowName)
@@ -279,7 +329,7 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	schedule.LastRunAt = &now
 
 	// Compute next run time.
-	cronSched, parseErr := parseCronExpr(schedule.CronExpr)
+	cronSched, parseErr := parseCronExpr(schedule.CronExpr, schedule.Timezone)
 	if parseErr == nil {
 		schedule.NextRunAt = cronSched.Next(now)
 	}
@@ -288,4 +338,66 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	if updateErr := s.scheduleRepo.Update(ctx, schedule); updateErr != nil {
 		slog.Warn("scheduler: failed to update schedule after run", "err", updateErr)
 	}
+}
+
+// SyncPipelineSchedules synchronizes cron jobs with a pipeline's schedule stages.
+// Call after creating or updating a pipeline.
+// Stages with existing schedule_id are kept; new stages get a cron job registered.
+// Orphaned pipeline schedules (no longer referenced) are removed.
+// NOTE: pipeline.Stages is modified in-place; caller must re-save the pipeline.
+func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *upal.Pipeline) error {
+	// Collect schedule IDs still referenced by stages.
+	inUse := map[string]bool{}
+	for _, stage := range pipeline.Stages {
+		if stage.Config.ScheduleID != "" {
+			inUse[stage.Config.ScheduleID] = true
+		}
+	}
+
+	// Remove orphaned schedules for this pipeline.
+	existing, _ := s.scheduleRepo.ListByPipeline(ctx, pipeline.ID)
+	for _, sched := range existing {
+		if !inUse[sched.ID] {
+			if err := s.RemoveSchedule(ctx, sched.ID); err != nil {
+				slog.Warn("scheduler: failed to remove orphaned schedule", "id", sched.ID, "err", err)
+			}
+		}
+	}
+
+	// Create cron jobs for new schedule stages without a schedule_id.
+	for i := range pipeline.Stages {
+		stage := &pipeline.Stages[i]
+		if stage.Type != "schedule" || stage.Config.Cron == "" || stage.Config.ScheduleID != "" {
+			continue
+		}
+		tz := stage.Config.Timezone
+		if tz == "" {
+			tz = "UTC"
+		}
+		sched := &upal.Schedule{
+			PipelineID: pipeline.ID,
+			CronExpr:   stage.Config.Cron,
+			Enabled:    true,
+			Timezone:   tz,
+		}
+		if err := s.AddSchedule(ctx, sched); err != nil {
+			slog.Warn("scheduler: failed to register pipeline schedule stage",
+				"pipeline", pipeline.ID, "cron", stage.Config.Cron, "err", err)
+			continue
+		}
+		stage.Config.ScheduleID = sched.ID
+	}
+	return nil
+}
+
+// RemovePipelineSchedules removes all cron jobs associated with a pipeline.
+// Call before deleting a pipeline.
+func (s *SchedulerService) RemovePipelineSchedules(ctx context.Context, pipelineID string) error {
+	schedules, _ := s.scheduleRepo.ListByPipeline(ctx, pipelineID)
+	for _, sched := range schedules {
+		if err := s.RemoveSchedule(ctx, sched.ID); err != nil {
+			slog.Warn("scheduler: failed to remove pipeline schedule", "id", sched.ID, "err", err)
+		}
+	}
+	return nil
 }

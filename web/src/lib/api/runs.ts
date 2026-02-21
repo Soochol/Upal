@@ -2,8 +2,10 @@ import { API_BASE, apiFetch } from './client'
 import type { RunRecord, RunListResponse, RunEvent, ToolCall } from './types'
 import type { WorkflowDefinition } from '../serializer'
 
-export async function fetchRuns(limit = 20, offset = 0): Promise<RunListResponse> {
-  return apiFetch<RunListResponse>(`${API_BASE}/runs?limit=${limit}&offset=${offset}`)
+export async function fetchRuns(limit = 20, offset = 0, status = ''): Promise<RunListResponse> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  if (status) params.set('status', status)
+  return apiFetch<RunListResponse>(`${API_BASE}/runs?${params}`)
 }
 
 export async function fetchWorkflowRuns(name: string, limit = 20, offset = 0): Promise<RunListResponse> {

@@ -12,4 +12,5 @@ type TriggerRepository interface {
 	Get(ctx context.Context, id string) (*upal.Trigger, error)
 	Delete(ctx context.Context, id string) error
 	ListByWorkflow(ctx context.Context, workflowName string) ([]*upal.Trigger, error)
+	ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Trigger, error)
 }

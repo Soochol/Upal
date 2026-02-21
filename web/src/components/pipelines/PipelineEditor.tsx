@@ -1,12 +1,16 @@
 // web/src/components/pipelines/PipelineEditor.tsx
-import { useState } from 'react'
-import { Plus, ArrowLeft, Save } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { StageCard } from './StageCard'
-import type { Pipeline, Stage, StageConfig } from '@/lib/api/types'
+import { listWorkflows, loadWorkflow, listConnections } from '@/lib/api'
+import { deserializeWorkflow } from '@/lib/serializer'
+import { useWorkflowStore } from '@/stores/workflowStore'
+import type { Pipeline, Stage, StageConfig, Connection } from '@/lib/api/types'
 
 type Props = {
   pipeline: Pipeline
-  onSave: (pipeline: Pipeline) => void
+  onSave: (pipeline: Pipeline) => Promise<void>
   onBack: () => void
 }
 
@@ -14,11 +18,72 @@ const newStageDefaults: Record<string, Partial<Stage>> = {
   workflow:  { type: 'workflow',  config: {} },
   approval:  { type: 'approval',  config: { timeout: 3600 } },
   schedule:  { type: 'schedule',  config: {} },
+  trigger:   { type: 'trigger',   config: {} },
   transform: { type: 'transform', config: {} },
 }
 
 export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   const [draft, setDraft] = useState<Pipeline>({ ...pipeline })
+  const [workflowNames, setWorkflowNames] = useState<string[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const navigate = useNavigate()
+
+  const draftRef = useRef(draft)
+  const onSaveRef = useRef(onSave)
+  const initialRef = useRef(JSON.stringify(pipeline))
+  const isFirstRender = useRef(true)
+
+  draftRef.current = draft
+  onSaveRef.current = onSave
+
+  useEffect(() => {
+    listWorkflows()
+      .then((wfs) => setWorkflowNames(wfs.map((w) => w.name)))
+      .catch(() => {})
+    listConnections()
+      .then((cs) => setConnections(cs ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Auto-save on change (debounced)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    if (JSON.stringify(draft) === initialRef.current) return
+
+    setSaveStatus('saving')
+    const timer = setTimeout(() => {
+      onSaveRef.current(draft).then(() => {
+        initialRef.current = JSON.stringify(draft)
+        setSaveStatus('saved')
+      }).catch(() => setSaveStatus('idle'))
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [draft])
+
+  // Save on unmount (page leave)
+  useEffect(() => {
+    return () => {
+      if (JSON.stringify(draftRef.current) !== initialRef.current) {
+        void onSaveRef.current(draftRef.current)
+      }
+    }
+  }, [])
+
+  const handleOpenWorkflow = async (name: string) => {
+    try {
+      const wf = await loadWorkflow(name)
+      const { nodes, edges } = deserializeWorkflow(wf)
+      useWorkflowStore.setState({ nodes, edges })
+      useWorkflowStore.getState().setWorkflowName(wf.name)
+      useWorkflowStore.getState().setOriginalName(wf.name)
+      navigate('/editor')
+    } catch {
+      // silent — workflow may not exist yet
+    }
+  }
 
   const updateStage = (index: number, stage: Stage) => {
     const stages = [...draft.stages]
@@ -29,6 +94,29 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   const deleteStage = (index: number) => {
     const stages = draft.stages.filter((_, i) => i !== index)
     setDraft({ ...draft, stages })
+  }
+
+  const handleDragStart = (index: number) => setDragIndex(index)
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    if (index !== dropIndex) setDropIndex(index)
+  }
+
+  const handleDrop = (index: number) => {
+    if (dragIndex !== null && dragIndex !== index) {
+      const stages = [...draft.stages]
+      const [moved] = stages.splice(dragIndex, 1)
+      stages.splice(index, 0, moved)
+      setDraft({ ...draft, stages })
+    }
+    setDragIndex(null)
+    setDropIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDragIndex(null)
+    setDropIndex(null)
   }
 
   const addStage = (type: string) => {
@@ -57,13 +145,10 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
             placeholder="Pipeline name"
           />
         </div>
-        <button
-          onClick={() => onSave(draft)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Save className="h-3.5 w-3.5" />
-          Save
-        </button>
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {saveStatus === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
+          {saveStatus === 'saved'  && <><Check className="h-3 w-3 text-success" />Saved</>}
+        </span>
       </div>
 
       <input
@@ -85,8 +170,18 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
             <StageCard
               stage={stage}
               index={i}
+              pipelineId={pipeline.id}
+              workflowNames={workflowNames}
+              connections={connections}
               onChange={(s) => updateStage(i, s)}
               onDelete={() => deleteStage(i)}
+              onOpenWorkflow={handleOpenWorkflow}
+              isDragging={dragIndex === i}
+              isDragOver={dropIndex === i && dragIndex !== i}
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDrop={() => handleDrop(i)}
+              onDragEnd={handleDragEnd}
             />
           </div>
         ))}

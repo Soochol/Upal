@@ -120,7 +120,8 @@ export type RetryPolicy = {
 
 export type Trigger = {
   id: string
-  workflow_name: string
+  workflow_name?: string
+  pipeline_id?: string
   type: string
   config: { secret?: string; input_mapping?: Record<string, string> }
   enabled: boolean
@@ -183,6 +184,7 @@ export type StageConfig = {
   timeout?: number
   cron?: string
   timezone?: string
+  schedule_id?: string
   trigger_id?: string
   expression?: string
 }
@@ -204,4 +206,29 @@ export type StageResult = {
   error?: string
   started_at: string
   completed_at?: string
+}
+
+export type ConnectionType = 'telegram' | 'slack' | 'http' | 'smtp'
+
+// Connection as returned by API (secrets masked)
+export type Connection = {
+  id: string
+  name: string
+  type: ConnectionType
+  host?: string
+  port?: number
+  login?: string
+  extras?: Record<string, string>
+}
+
+// Connection payload for create/update (includes secrets)
+export type ConnectionCreate = {
+  name: string
+  type: ConnectionType
+  host?: string
+  port?: number
+  login?: string
+  password?: string
+  token?: string
+  extras?: Record<string, string>
 }

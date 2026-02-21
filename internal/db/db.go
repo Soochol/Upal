@@ -107,7 +107,8 @@ CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at);
 
 CREATE TABLE IF NOT EXISTS schedules (
     id             TEXT PRIMARY KEY,
-    workflow_name  TEXT NOT NULL,
+    workflow_name  TEXT NOT NULL DEFAULT '',
+    pipeline_id    TEXT NOT NULL DEFAULT '',
     cron_expr      TEXT NOT NULL,
     inputs         JSONB NOT NULL DEFAULT '{}',
     enabled        BOOLEAN NOT NULL DEFAULT true,
@@ -118,15 +119,18 @@ CREATE TABLE IF NOT EXISTS schedules (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS triggers (
     id             TEXT PRIMARY KEY,
-    workflow_name  TEXT NOT NULL,
+    workflow_name  TEXT NOT NULL DEFAULT '',
+    pipeline_id    TEXT NOT NULL DEFAULT '',
     type           TEXT NOT NULL,
     config         JSONB NOT NULL DEFAULT '{}',
     enabled        BOOLEAN NOT NULL DEFAULT true,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE triggers ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS pipelines (
     id          TEXT PRIMARY KEY,
@@ -148,4 +152,16 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_pipeline_id ON pipeline_runs(pipeline_id);
+
+CREATE TABLE IF NOT EXISTS connections (
+    id       TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    type     TEXT NOT NULL,
+    host     TEXT NOT NULL DEFAULT '',
+    port     INTEGER NOT NULL DEFAULT 0,
+    login    TEXT NOT NULL DEFAULT '',
+    password TEXT NOT NULL DEFAULT '',
+    token    TEXT NOT NULL DEFAULT '',
+    extras   JSONB NOT NULL DEFAULT '{}'
+);
 `

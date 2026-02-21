@@ -369,3 +369,162 @@ func TestValidate_AgentMissingPrompt(t *testing.T) {
 		t.Fatal("expected error for agent missing prompt")
 	}
 }
+
+func makeStage(id, typ string) upal.Stage {
+	return upal.Stage{ID: id, Name: id, Type: typ, Config: upal.StageConfig{}}
+}
+
+func TestStripInvalidStageTypes(t *testing.T) {
+	stages := []upal.Stage{
+		makeStage("s1", "workflow"),
+		makeStage("s2", "notification"), // hallucinated
+		makeStage("s3", "approval"),
+		makeStage("s4", "custom-thing"), // hallucinated
+		makeStage("s5", "trigger"),
+	}
+	result := stripInvalidStageTypes(stages)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 valid stages, got %d", len(result))
+	}
+	for _, s := range result {
+		if !validStageTypes[s.Type] {
+			t.Errorf("invalid stage type %q should have been stripped", s.Type)
+		}
+	}
+}
+
+func TestApplyDelta_PreservesUnchangedStages(t *testing.T) {
+	existing := &upal.Pipeline{
+		Name: "my-pipeline",
+		Stages: []upal.Stage{
+			makeStage("stage-1", "workflow"),
+			makeStage("stage-2", "approval"),
+			makeStage("stage-3", "schedule"),
+		},
+	}
+	delta := &PipelineEditDelta{
+		StageChanges: []PipelineStageDelta{
+			{Op: "update", Stage: &upal.Stage{ID: "stage-2", Name: "updated-approval", Type: "approval"}},
+		},
+	}
+	result := applyDelta(existing, delta)
+	if len(result.Stages) != 3 {
+		t.Fatalf("expected 3 stages, got %d", len(result.Stages))
+	}
+	if result.Stages[0].ID != "stage-1" || result.Stages[0].Name != "stage-1" {
+		t.Errorf("stage-1 should be unchanged, got %+v", result.Stages[0])
+	}
+	if result.Stages[1].Name != "updated-approval" {
+		t.Errorf("stage-2 should be updated, got %+v", result.Stages[1])
+	}
+	if result.Stages[2].ID != "stage-3" || result.Stages[2].Name != "stage-3" {
+		t.Errorf("stage-3 should be unchanged, got %+v", result.Stages[2])
+	}
+}
+
+func TestApplyDelta_AddStage(t *testing.T) {
+	existing := &upal.Pipeline{
+		Stages: []upal.Stage{makeStage("stage-1", "workflow")},
+	}
+	newStage := makeStage("stage-2", "approval")
+	delta := &PipelineEditDelta{
+		StageChanges: []PipelineStageDelta{
+			{Op: "add", Stage: &newStage},
+		},
+	}
+	result := applyDelta(existing, delta)
+	if len(result.Stages) != 2 {
+		t.Fatalf("expected 2 stages, got %d", len(result.Stages))
+	}
+	if result.Stages[1].ID != "stage-2" {
+		t.Errorf("expected added stage at end, got %+v", result.Stages[1])
+	}
+}
+
+func TestApplyDelta_RemoveStage(t *testing.T) {
+	existing := &upal.Pipeline{
+		Stages: []upal.Stage{
+			makeStage("stage-1", "workflow"),
+			makeStage("stage-2", "approval"),
+			makeStage("stage-3", "schedule"),
+		},
+	}
+	delta := &PipelineEditDelta{
+		StageChanges: []PipelineStageDelta{
+			{Op: "remove", StageID: "stage-2"},
+		},
+	}
+	result := applyDelta(existing, delta)
+	if len(result.Stages) != 2 {
+		t.Fatalf("expected 2 stages after removal, got %d", len(result.Stages))
+	}
+	for _, s := range result.Stages {
+		if s.ID == "stage-2" {
+			t.Error("stage-2 should have been removed")
+		}
+	}
+}
+
+func TestApplyDelta_EmptyDeltaPreservesAll(t *testing.T) {
+	existing := &upal.Pipeline{
+		Name: "keep-me",
+		Stages: []upal.Stage{
+			makeStage("stage-1", "workflow"),
+			makeStage("stage-2", "approval"),
+		},
+	}
+	delta := &PipelineEditDelta{}
+	result := applyDelta(existing, delta)
+	if result.Name != "keep-me" {
+		t.Errorf("name should be preserved, got %q", result.Name)
+	}
+	if len(result.Stages) != 2 {
+		t.Fatalf("expected 2 stages, got %d", len(result.Stages))
+	}
+}
+
+func TestApplyDelta_Reorder(t *testing.T) {
+	existing := &upal.Pipeline{
+		Stages: []upal.Stage{
+			makeStage("stage-1", "workflow"),
+			makeStage("stage-2", "approval"),
+			makeStage("stage-3", "schedule"),
+		},
+	}
+	delta := &PipelineEditDelta{
+		StageOrder: []string{"stage-3", "stage-1", "stage-2"},
+	}
+	result := applyDelta(existing, delta)
+	if len(result.Stages) != 3 {
+		t.Fatalf("expected 3 stages, got %d", len(result.Stages))
+	}
+	wantOrder := []string{"stage-3", "stage-1", "stage-2"}
+	for i, want := range wantOrder {
+		if result.Stages[i].ID != want {
+			t.Errorf("position %d: want %q, got %q", i, want, result.Stages[i].ID)
+		}
+	}
+}
+
+func TestApplyDelta_ReorderAndUpdate(t *testing.T) {
+	existing := &upal.Pipeline{
+		Stages: []upal.Stage{
+			makeStage("stage-1", "workflow"),
+			makeStage("stage-2", "approval"),
+		},
+	}
+	updated := upal.Stage{ID: "stage-2", Name: "updated", Type: "approval", Config: upal.StageConfig{Message: "hi"}}
+	delta := &PipelineEditDelta{
+		StageChanges: []PipelineStageDelta{
+			{Op: "update", Stage: &updated},
+		},
+		StageOrder: []string{"stage-2", "stage-1"},
+	}
+	result := applyDelta(existing, delta)
+	if result.Stages[0].ID != "stage-2" || result.Stages[0].Name != "updated" {
+		t.Errorf("expected updated stage-2 first, got %+v", result.Stages[0])
+	}
+	if result.Stages[1].ID != "stage-1" {
+		t.Errorf("expected stage-1 second, got %+v", result.Stages[1])
+	}
+}
