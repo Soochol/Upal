@@ -34,6 +34,11 @@ type Server struct {
 	skills               skills.Provider
 	a2aBaseURL           string
 	retryExecutor        *services.RetryExecutor
+	connectionSvc        *services.ConnectionService
+	executionReg         *services.ExecutionRegistry
+	runManager           *services.RunManager
+	pipelineSvc          *services.PipelineService
+	pipelineRunner       *services.PipelineRunner
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -75,6 +80,8 @@ func (s *Server) Handler() http.Handler {
 		r.Route("/runs", func(r chi.Router) {
 			r.Get("/", s.listRuns)
 			r.Get("/{id}", s.getRun)
+			r.Get("/{id}/events", s.streamRunEvents)
+			r.Post("/{id}/nodes/{nodeId}/resume", s.resumeNode)
 		})
 		r.Route("/schedules", func(r chi.Router) {
 			r.Post("/", s.createSchedule)
@@ -91,6 +98,17 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/", s.createTrigger)
 			r.Delete("/{id}", s.deleteTrigger)
 		})
+		r.Route("/pipelines", func(r chi.Router) {
+			r.Post("/", s.createPipeline)
+			r.Get("/", s.listPipelines)
+			r.Get("/{id}", s.getPipeline)
+			r.Put("/{id}", s.updatePipeline)
+			r.Delete("/{id}", s.deletePipeline)
+			r.Post("/{id}/start", s.startPipeline)
+			r.Get("/{id}/runs", s.listPipelineRuns)
+			r.Post("/{id}/stages/{stageId}/approve", s.approvePipelineStage)
+			r.Post("/{id}/stages/{stageId}/reject", s.rejectPipelineStage)
+		})
 		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
 		r.Post("/nodes/configure", s.configureNode)
@@ -98,6 +116,15 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/files", s.listFiles)
 		r.Get("/models", s.listModels)
 		r.Get("/tools", s.listAvailableTools)
+		if s.connectionSvc != nil {
+			r.Route("/connections", func(r chi.Router) {
+				r.Post("/", s.createConnection)
+				r.Get("/", s.listConnections)
+				r.Get("/{id}", s.getConnection)
+				r.Put("/{id}", s.updateConnection)
+				r.Delete("/{id}", s.deleteConnection)
+			})
+		}
 	})
 
 	// A2A protocol endpoints (agent card + JSON-RPC).
@@ -150,6 +177,31 @@ func (s *Server) SetRetryExecutor(executor *services.RetryExecutor) {
 // SetTriggerRepository configures the trigger repository.
 func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) {
 	s.triggerRepo = repo
+}
+
+// SetConnectionService configures the connection management service.
+func (s *Server) SetConnectionService(svc *services.ConnectionService) {
+	s.connectionSvc = svc
+}
+
+// SetExecutionRegistry configures the execution registry for pause/resume.
+func (s *Server) SetExecutionRegistry(reg *services.ExecutionRegistry) {
+	s.executionReg = reg
+}
+
+// SetRunManager configures the run manager for background execution.
+func (s *Server) SetRunManager(rm *services.RunManager) {
+	s.runManager = rm
+}
+
+// SetPipelineService configures the pipeline management service.
+func (s *Server) SetPipelineService(svc *services.PipelineService) {
+	s.pipelineSvc = svc
+}
+
+// SetPipelineRunner configures the pipeline runner for stage execution.
+func (s *Server) SetPipelineRunner(runner *services.PipelineRunner) {
+	s.pipelineRunner = runner
 }
 
 // SetA2ABaseURL enables A2A protocol endpoints on the server.
