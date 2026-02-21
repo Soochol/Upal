@@ -22,6 +22,7 @@ import (
 	"github.com/soochol/upal/internal/notify"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
+	runpub "github.com/soochol/upal/internal/services/run"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
@@ -240,6 +241,10 @@ func serve() {
 	runManager := services.NewRunManager(15 * time.Minute)
 	srv.SetRunManager(runManager)
 
+	// RunPublisher bridges workflow execution into RunManager + RunHistoryService.
+	publisher := runpub.NewRunPublisher(workflowSvc, runManager, runHistorySvc)
+	srv.SetRunPublisher(publisher)
+
 	// Pipeline
 	memPipelineRepo := repository.NewMemoryPipelineRepository()
 	var pipelineRepo repository.PipelineRepository = memPipelineRepo
@@ -257,6 +262,7 @@ func serve() {
 	pipelineRunner := services.NewPipelineRunner(pipelineRunRepo)
 	pipelineRunner.RegisterExecutor(services.NewWorkflowStageExecutor(workflowSvc))
 	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor(senderReg, connSvc))
+	pipelineRunner.RegisterExecutor(services.NewNotificationStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(&services.TransformStageExecutor{})
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("schedule"))
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("trigger"))
@@ -300,6 +306,29 @@ func serve() {
 		os.Exit(1)
 	}
 	srv.SetStorage(store)
+
+	// Backfill missing descriptions for existing workflows and pipeline stages.
+	// Runs in the background on startup so it doesn't block the server.
+	if defaultLLM != nil {
+		gen := srv.Generator()
+		go func() {
+			ctx := context.Background()
+			wfs, _ := repo.List(ctx)
+			for _, wf := range gen.BackfillWorkflowDescriptions(ctx, wfs) {
+				if err := repo.Update(ctx, wf.Name, wf); err != nil {
+					slog.Warn("backfill: workflow update failed", "name", wf.Name, "err", err)
+				}
+			}
+			pipes, _ := pipelineSvc.List(ctx)
+			for _, p := range pipes {
+				if generate.BackfillStageDescriptions(p) {
+					if err := pipelineSvc.Update(ctx, p); err != nil {
+						slog.Warn("backfill: pipeline update failed", "id", p.ID, "err", err)
+					}
+				}
+			}
+		}()
+	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	slog.Info("starting upal server", "addr", addr)

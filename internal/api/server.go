@@ -12,6 +12,7 @@ import (
 	"github.com/soochol/upal/internal/generate"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
+	runpub "github.com/soochol/upal/internal/services/run"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
@@ -37,6 +38,7 @@ type Server struct {
 	connectionSvc        *services.ConnectionService
 	executionReg         *services.ExecutionRegistry
 	runManager           *services.RunManager
+	runPublisher         *runpub.RunPublisher
 	pipelineSvc          *services.PipelineService
 	pipelineRunner       *services.PipelineRunner
 }
@@ -104,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
 		r.Post("/generate-pipeline", s.generatePipeline)
+		r.Post("/generate/backfill", s.backfillDescriptions)
 		r.Post("/nodes/configure", s.configureNode)
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
@@ -135,6 +138,11 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) SetGenerator(gen *generate.Generator, defaultModel string) {
 	s.generator = gen
 	s.defaultGenerateModel = defaultModel
+}
+
+// Generator returns the configured generator, or nil if not set.
+func (s *Server) Generator() *generate.Generator {
+	return s.generator
 }
 
 // SetStorage configures the file storage backend.
@@ -185,6 +193,11 @@ func (s *Server) SetExecutionRegistry(reg *services.ExecutionRegistry) {
 // SetRunManager configures the run manager for background execution.
 func (s *Server) SetRunManager(rm *services.RunManager) {
 	s.runManager = rm
+}
+
+// SetRunPublisher configures the publisher that drives background workflow executions.
+func (s *Server) SetRunPublisher(pub *runpub.RunPublisher) {
+	s.runPublisher = pub
 }
 
 // SetPipelineService configures the pipeline management service.

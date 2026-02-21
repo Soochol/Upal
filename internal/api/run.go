@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/services"
@@ -71,73 +70,13 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	// 5. Register in RunManager and launch background execution.
 	if s.runManager != nil && runID != "" {
 		s.runManager.Register(runID)
-		go s.executeRunBackground(runID, wf, req.Inputs)
+		go s.runPublisher.Launch(context.Background(), runID, wf, req.Inputs)
 	}
 
 	// 6. Return 202 Accepted with run ID.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"run_id": runID})
-}
-
-// executeRunBackground runs a workflow with a detached context and publishes
-// events to the RunManager. This goroutine is not tied to any HTTP request.
-func (s *Server) executeRunBackground(runID string, wf *upal.WorkflowDefinition, inputs map[string]any) {
-	ctx := context.Background()
-
-	events, result, err := s.workflowSvc.Run(ctx, wf, inputs)
-	if err != nil {
-		slog.Error("background run failed to start", "run_id", runID, "err", err)
-		if s.runHistorySvc != nil {
-			s.runHistorySvc.FailRun(ctx, runID, err.Error())
-		}
-		s.runManager.Fail(runID, err.Error())
-		return
-	}
-
-	// Stream events into the RunManager buffer.
-	for ev := range events {
-		if ev.Type == "error" {
-			errMsg := fmt.Sprintf("%v", ev.Payload["error"])
-			slog.Error("background run error", "run_id", runID, "err", errMsg)
-			if s.runHistorySvc != nil {
-				s.runHistorySvc.FailRun(ctx, runID, errMsg)
-			}
-			s.runManager.Fail(runID, errMsg)
-			return
-		}
-
-		// Inject server timestamp into node_started events so reconnecting
-		// clients can restore accurate elapsed timers.
-		if ev.Type == upal.EventNodeStarted {
-			ev.Payload["started_at"] = time.Now().UnixMilli()
-		}
-
-		s.runManager.Append(runID, services.EventRecord{
-			Type:    ev.Type,
-			NodeID:  ev.NodeID,
-			Payload: ev.Payload,
-		})
-
-		if s.runHistorySvc != nil {
-			s.trackNodeRun(ctx, runID, ev)
-		}
-	}
-
-	// Collect final result.
-	res := <-result
-
-	donePayload := map[string]any{
-		"status":     "completed",
-		"session_id": res.SessionID,
-		"state":      res.State,
-		"run_id":     runID,
-	}
-
-	if s.runHistorySvc != nil {
-		s.runHistorySvc.CompleteRun(ctx, runID, res.State)
-	}
-	s.runManager.Complete(runID, donePayload)
 }
 
 // streamRunEvents streams execution events for a run via SSE.
@@ -264,27 +203,3 @@ func (s *Server) sendSyntheticDone(w http.ResponseWriter, record *upal.RunRecord
 	flusher.Flush()
 }
 
-// trackNodeRun updates the run record with node-level execution status.
-func (s *Server) trackNodeRun(ctx context.Context, runID string, ev upal.WorkflowEvent) {
-	if s.runHistorySvc == nil || ev.NodeID == "" {
-		return
-	}
-
-	now := time.Now()
-
-	switch ev.Type {
-	case upal.EventNodeStarted:
-		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
-			NodeID:    ev.NodeID,
-			Status:    "running",
-			StartedAt: now,
-		})
-	case upal.EventNodeCompleted:
-		s.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
-			NodeID:      ev.NodeID,
-			Status:      "completed",
-			StartedAt:   now,
-			CompletedAt: &now,
-		})
-	}
-}
