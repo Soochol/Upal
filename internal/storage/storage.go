@@ -2,9 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 )
+
+// ErrNotFound is returned when a requested file does not exist.
+var ErrNotFound = errors.New("not found")
 
 // FileInfo describes a stored file.
 type FileInfo struct {

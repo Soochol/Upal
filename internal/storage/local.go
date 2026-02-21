@@ -68,7 +68,7 @@ func (s *LocalStorage) Get(_ context.Context, id string) (*FileInfo, io.ReadClos
 	info, ok := s.files[id]
 	s.mu.RUnlock()
 	if !ok {
-		return nil, nil, fmt.Errorf("file not found: %s", id)
+		return nil, nil, fmt.Errorf("file not found %s: %w", id, ErrNotFound)
 	}
 
 	fullPath := filepath.Join(s.baseDir, info.Path)
@@ -88,7 +88,7 @@ func (s *LocalStorage) Delete(_ context.Context, id string) error {
 	s.mu.Unlock()
 
 	if !ok {
-		return fmt.Errorf("file not found: %s", id)
+		return fmt.Errorf("file not found %s: %w", id, ErrNotFound)
 	}
 
 	fullPath := filepath.Join(s.baseDir, info.Path)

@@ -3,12 +3,16 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/extract"
+	"github.com/soochol/upal/internal/storage"
 )
 
 const maxUploadSize = 50 << 20 // 50MB
@@ -90,14 +94,21 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	info, rc, err := s.storage.Get(r.Context(), id)
 	if err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		if errors.Is(err, storage.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	defer rc.Close()
 
+	escaped := strings.ReplaceAll(info.Filename, `"`, `\"`)
 	w.Header().Set("Content-Type", info.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename=%q`, info.Filename))
-	io.Copy(w, rc)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, escaped))
+	if _, err := io.Copy(w, rc); err != nil {
+		slog.Warn("serveFile: copy interrupted", "id", id, "err", err)
+	}
 }
 
 func (s *Server) deleteFile(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +118,11 @@ func (s *Server) deleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, "id")
 	if err := s.storage.Delete(r.Context(), id); err != nil {
-		http.Error(w, "not found", http.StatusNotFound)
+		if errors.Is(err, storage.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
