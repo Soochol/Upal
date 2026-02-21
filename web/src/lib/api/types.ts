@@ -138,10 +138,13 @@ export type SchedulerStats = {
 export type ToolCall = { name: string; args?: Record<string, unknown> }
 export type ToolResult = { name: string; response?: Record<string, unknown> }
 
-export type NodeStartedEvent   = { type: 'node_started';   nodeId: string }
+export type NodeStartedEvent   = { type: 'node_started';   nodeId: string; startedAt?: number }
 export type ToolCallEvent      = { type: 'tool_call';      nodeId: string; calls: ToolCall[] }
 export type ToolResultEvent    = { type: 'tool_result';    nodeId: string; results: ToolResult[] }
 export type NodeCompletedEvent = { type: 'node_completed'; nodeId: string; output: string; stateDelta: Record<string, unknown> }
+export type NodeSkippedEvent  = { type: 'node_skipped';  nodeId: string }
+export type NodeWaitingEvent  = { type: 'node_waiting';  nodeId: string }
+export type NodeResumedEvent  = { type: 'node_resumed';  nodeId: string }
 export type WorkflowDoneEvent  = { type: 'done';           status: string; sessionId: string; state: Record<string, unknown> }
 export type WorkflowErrorEvent = { type: 'error';          message: string }
 export type InfoEvent          = { type: 'info';           message: string }
@@ -149,5 +152,56 @@ export type LogEvent           = { type: 'log';            nodeId: string; messa
 
 export type RunEvent =
   | NodeStartedEvent | ToolCallEvent | ToolResultEvent
-  | NodeCompletedEvent | WorkflowDoneEvent | WorkflowErrorEvent
+  | NodeCompletedEvent | NodeSkippedEvent | NodeWaitingEvent | NodeResumedEvent
+  | WorkflowDoneEvent | WorkflowErrorEvent
   | InfoEvent | LogEvent
+
+// --- Pipeline ---
+
+export type Pipeline = {
+  id: string
+  name: string
+  description?: string
+  stages: Stage[]
+  created_at: string
+  updated_at: string
+}
+
+export type Stage = {
+  id: string
+  name: string
+  type: 'workflow' | 'approval' | 'schedule' | 'trigger' | 'transform'
+  config: StageConfig
+  depends_on?: string[]
+}
+
+export type StageConfig = {
+  workflow_name?: string
+  input_mapping?: Record<string, string>
+  message?: string
+  connection_id?: string
+  timeout?: number
+  cron?: string
+  timezone?: string
+  trigger_id?: string
+  expression?: string
+}
+
+export type PipelineRun = {
+  id: string
+  pipeline_id: string
+  status: 'pending' | 'running' | 'waiting' | 'completed' | 'failed'
+  current_stage?: string
+  stage_results?: Record<string, StageResult>
+  started_at: string
+  completed_at?: string
+}
+
+export type StageResult = {
+  stage_id: string
+  status: 'pending' | 'running' | 'waiting' | 'completed' | 'skipped' | 'failed'
+  output?: Record<string, unknown>
+  error?: string
+  started_at: string
+  completed_at?: string
+}
