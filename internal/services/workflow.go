@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/soochol/upal/internal/agents"
+	"github.com/soochol/upal/internal/llmutil"
 	"github.com/soochol/upal/internal/upal"
 	"github.com/soochol/upal/internal/upal/ports"
 	"github.com/soochol/upal/internal/repository"
@@ -166,7 +167,7 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 		for event, err := range adkRunner.Run(logCtx, userID, sessionID, userContent, agent.RunConfig{}) {
 			if err != nil {
 				eventCh <- upal.WorkflowEvent{
-					Type:    "error",
+					Type:    upal.EventError,
 					Payload: map[string]any{"error": err.Error()},
 				}
 				return
@@ -174,7 +175,7 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 			if event == nil {
 				continue
 			}
-			wfEvent := upal.ClassifyEvent(event)
+			wfEvent := classifyEvent(event)
 			eventCh <- wfEvent
 		}
 
@@ -215,4 +216,94 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 	}()
 
 	return eventCh, resultCh, nil
+}
+
+// classifyEvent inspects an ADK session.Event and returns a WorkflowEvent
+// with the appropriate type and normalized payload.
+func classifyEvent(event *session.Event) upal.WorkflowEvent {
+	nodeID := event.Author
+	content := event.LLMResponse.Content
+
+	if status, ok := event.Actions.StateDelta["__status__"].(string); ok {
+		switch status {
+		case "skipped":
+			return upal.WorkflowEvent{Type: upal.EventNodeSkipped, NodeID: nodeID, Payload: map[string]any{"node_id": nodeID}}
+		case "waiting":
+			return upal.WorkflowEvent{Type: upal.EventNodeWaiting, NodeID: nodeID, Payload: map[string]any{"node_id": nodeID}}
+		}
+	}
+
+	if content == nil || len(content.Parts) == 0 {
+		return upal.WorkflowEvent{Type: upal.EventNodeStarted, NodeID: nodeID, Payload: map[string]any{"node_id": nodeID}}
+	}
+
+	if hasFunctionCalls(content.Parts) {
+		return upal.WorkflowEvent{
+			Type:   upal.EventToolCall,
+			NodeID: nodeID,
+			Payload: map[string]any{
+				"node_id": nodeID,
+				"calls":   extractFunctionCalls(content.Parts),
+			},
+		}
+	}
+
+	if hasFunctionResponses(content.Parts) {
+		return upal.WorkflowEvent{
+			Type:   upal.EventToolResult,
+			NodeID: nodeID,
+			Payload: map[string]any{
+				"node_id": nodeID,
+				"results": extractFunctionResponses(content.Parts),
+			},
+		}
+	}
+
+	return upal.WorkflowEvent{
+		Type:   upal.EventNodeCompleted,
+		NodeID: nodeID,
+		Payload: map[string]any{
+			"node_id":     nodeID,
+			"output":      llmutil.ExtractContent(&event.LLMResponse),
+			"state_delta": event.Actions.StateDelta,
+		},
+	}
+}
+
+func hasFunctionCalls(parts []*genai.Part) bool {
+	for _, p := range parts {
+		if p.FunctionCall != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func hasFunctionResponses(parts []*genai.Part) bool {
+	for _, p := range parts {
+		if p.FunctionResponse != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func extractFunctionCalls(parts []*genai.Part) []map[string]any {
+	var calls []map[string]any
+	for _, p := range parts {
+		if p.FunctionCall != nil {
+			calls = append(calls, map[string]any{"name": p.FunctionCall.Name, "args": p.FunctionCall.Args})
+		}
+	}
+	return calls
+}
+
+func extractFunctionResponses(parts []*genai.Part) []map[string]any {
+	var results []map[string]any
+	for _, p := range parts {
+		if p.FunctionResponse != nil {
+			results = append(results, map[string]any{"name": p.FunctionResponse.Name, "response": p.FunctionResponse.Response})
+		}
+	}
+	return results
 }

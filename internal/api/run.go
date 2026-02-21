@@ -68,7 +68,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 5. Register in RunManager and launch background execution.
-	if s.runManager != nil && runID != "" {
+	if s.runManager != nil && s.runPublisher != nil && runID != "" {
 		s.runManager.Register(runID)
 		go s.runPublisher.Launch(context.Background(), runID, wf, req.Inputs)
 	}

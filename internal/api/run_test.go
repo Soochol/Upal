@@ -12,6 +12,7 @@ import (
 	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
+	runpub "github.com/soochol/upal/internal/services/run"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/session"
 )
@@ -24,10 +25,14 @@ func newTestServer() *Server {
 	srv := NewServer(nil, wfSvc, repo, nil)
 
 	runRepo := repository.NewMemoryRunRepository()
-	srv.SetRunHistoryService(services.NewRunHistoryService(runRepo))
+	runHistorySvc := services.NewRunHistoryService(runRepo)
+	srv.SetRunHistoryService(runHistorySvc)
 
 	rm := services.NewRunManager(5 * time.Minute)
 	srv.SetRunManager(rm)
+
+	pub := runpub.NewRunPublisher(wfSvc, rm, runHistorySvc)
+	srv.SetRunPublisher(pub)
 
 	return srv
 }

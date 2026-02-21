@@ -47,7 +47,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 
 	// Stream events into the RunManager buffer.
 	for ev := range events {
-		if ev.Type == "error" {
+		if ev.Type == upal.EventError {
 			errMsg := fmt.Sprintf("%v", ev.Payload["error"])
 			slog.Error("background run error", "run_id", runID, "err", errMsg)
 			if p.runHistorySvc != nil {
