@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { Upload } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
@@ -7,6 +9,8 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
+import { uploadFile } from '@/lib/api/upload'
+import { useWorkflowStore } from '@/stores/workflowStore'
 
 const paletteItems = Object.values(NODE_TYPES)
 
@@ -15,6 +19,28 @@ interface NodePaletteProps {
 }
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const addNode = useWorkflowStore((s) => s.addNode)
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    files.forEach((file, i) => {
+      uploadFile(file)
+        .then((result) => {
+          addNode('asset', { x: 100 + i * 20, y: 100 + i * 20 }, {
+            file_id: result.id,
+            filename: result.filename,
+            content_type: result.content_type,
+            preview_text: result.preview_text ?? '',
+          })
+        })
+        .catch((err) => {
+          console.error('Asset upload failed:', err)
+        })
+    })
+    e.target.value = ''
+  }
+
   return (
     <TooltipProvider delayDuration={300}>
       <aside className="w-56 border-r border-border bg-sidebar p-4 flex flex-col">
@@ -45,6 +71,26 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
             </Tooltip>
           ))}
         </div>
+        <Separator className="my-4" />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors bg-node-asset/15 text-node-asset border-node-asset/30 hover:bg-node-asset/25"
+            >
+              <Upload className="h-4 w-4 shrink-0" />
+              <span>Upload File</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Upload a file and create an asset node</TooltipContent>
+        </Tooltip>
         <Separator className="my-4" />
         <p className="text-xs text-muted-foreground">
           Click to add a step, then connect nodes on the canvas.
