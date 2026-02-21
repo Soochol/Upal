@@ -19,11 +19,11 @@ export { useExecutionStore } from './executionStore'
 export { useUIStore } from './uiStore'
 
 // Node types whose prompt field should receive auto-inserted template references on connect
-const AUTO_PROMPT_TYPES = new Set(['agent', 'output', 'branch'])
+const AUTO_PROMPT_TYPES = new Set(['agent', 'output'])
 
 export type NodeData = {
   label: string
-  nodeType: 'input' | 'agent' | 'output' | 'branch' | 'iterator' | 'notification' | 'sensor' | 'approval' | 'subworkflow' | 'group'
+  nodeType: 'input' | 'agent' | 'output' | 'asset' | 'group'
   description: string
   config: Record<string, unknown>
 }
@@ -119,7 +119,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     if (!connection.source || !connection.target) return
     const targetNode = get().nodes.find((n) => n.id === connection.target)
     if (!targetNode || !AUTO_PROMPT_TYPES.has(targetNode.data.nodeType)) return
-    if (targetNode.data.nodeType === 'branch' && targetNode.data.config.mode !== 'llm') return
 
     const currentPrompt = (targetNode.data.config.prompt as string) ?? ''
     const ref = `{{${connection.source}}}`
