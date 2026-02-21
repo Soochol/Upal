@@ -57,8 +57,8 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				slog.Warn("retry: failed to create run record", "err", err)
 			} else {
 				if err := r.runHistorySvc.UpdateRunRetryMeta(ctx, record.ID, attempt, retryOf); err != nil {
-				slog.Warn("retry: failed to update retry metadata", "err", err)
-			}
+					slog.Warn("retry: failed to update retry metadata", "err", err)
+				}
 				if attempt == 0 {
 					firstRunID = record.ID
 				}
