@@ -1,6 +1,7 @@
 package generate
 
 import (
+	_ "embed"
 	"context"
 	"fmt"
 	"regexp"
@@ -13,20 +14,8 @@ import (
 	"google.golang.org/genai"
 )
 
-const thumbnailSystemPrompt = `You are an SVG graphic designer creating card thumbnails for an AI workflow platform.
-
-Generate a beautiful, minimal SVG banner image that visually represents an AI workflow.
-
-STRICT REQUIREMENTS:
-- SVG dimensions: width="300" height="68" viewBox="0 0 300 68"
-- Use 2-4 harmonious colors with hardcoded hex values only (e.g., #3b82f6) — NO CSS variables, NO CSS classes, NO style attributes with CSS
-- Use only basic SVG shapes: rect, circle, path, polygon, line, ellipse, linearGradient, radialGradient, defs
-- NO text, NO labels, NO <script> tags, NO <foreignObject> tags, NO external references
-- Flat, abstract, or geometric design that visually suggests the workflow's domain or purpose
-- The image should look professional and polished as a small card thumbnail
-- Make the design feel specific to the described workflow — not generic
-
-Return ONLY the complete SVG element. Start your response with <svg and end with </svg>. No markdown fences, no explanation.`
+//go:embed prompts/thumbnail.md
+var thumbnailSystemPrompt string
 
 // GenerateThumbnail asks the LLM to create a small SVG banner that visually
 // represents the given workflow. The returned SVG is sanitized. Errors are
