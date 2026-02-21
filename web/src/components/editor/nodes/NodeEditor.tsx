@@ -7,12 +7,7 @@ import { cn } from '@/lib/utils'
 import { InputNodeEditor } from './InputNodeEditor'
 import { AgentNodeEditor } from './AgentNodeEditor'
 import { OutputNodeEditor } from './OutputNodeEditor'
-import { BranchNodeEditor } from './BranchNodeEditor'
-import { IteratorNodeEditor } from './IteratorNodeEditor'
-import { NotificationNodeEditor } from './NotificationNodeEditor'
-import { SensorNodeEditor } from './SensorNodeEditor'
-import { ApprovalNodeEditor } from './ApprovalNodeEditor'
-import { SubWorkflowNodeEditor } from './SubWorkflowNodeEditor'
+import { AssetNodeEditor } from './AssetNodeEditor'
 
 /** Shared read-only field style used by Agent and Output node editors. */
 const fieldBoxBase = "text-xs overflow-y-auto cursor-default select-text rounded-md border border-input bg-transparent px-3 py-2 whitespace-pre-wrap break-words"
@@ -37,12 +32,7 @@ const nodeEditors: Record<string, React.ComponentType<NodeEditorFieldProps>> = {
   input: InputNodeEditor,
   agent: AgentNodeEditor,
   output: OutputNodeEditor,
-  branch: BranchNodeEditor,
-  iterator: IteratorNodeEditor,
-  notification: NotificationNodeEditor,
-  sensor: SensorNodeEditor,
-  approval: ApprovalNodeEditor,
-  subworkflow: SubWorkflowNodeEditor,
+  asset: AssetNodeEditor,
 }
 
 
