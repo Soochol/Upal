@@ -96,7 +96,7 @@ func TestRunHistoryService_ListRuns(t *testing.T) {
 	}
 
 	// List all.
-	all, total, err := svc.ListAllRuns(ctx, 10, 0)
+	all, total, err := svc.ListAllRuns(ctx, 10, 0, "")
 	if err != nil {
 		t.Fatalf("ListAllRuns: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestRunHistoryService_ListRuns(t *testing.T) {
 	}
 
 	// Pagination.
-	page, pageTotal, err := svc.ListAllRuns(ctx, 2, 0)
+	page, pageTotal, err := svc.ListAllRuns(ctx, 2, 0, "")
 	if err != nil {
 		t.Fatalf("ListAllRuns paginated: %v", err)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestParseCronExpr_5Field(t *testing.T) {
-	sched, err := parseCronExpr("*/5 * * * *")
+	sched, err := parseCronExpr("*/5 * * * *", "")
 	if err != nil {
 		t.Fatalf("expected 5-field expression to parse, got error: %v", err)
 	}
@@ -21,7 +21,7 @@ func TestParseCronExpr_5Field(t *testing.T) {
 }
 
 func TestParseCronExpr_6Field(t *testing.T) {
-	sched, err := parseCronExpr("0 */5 * * * *")
+	sched, err := parseCronExpr("0 */5 * * * *", "")
 	if err != nil {
 		t.Fatalf("expected 6-field expression to parse, got error: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestParseCronExpr_6Field(t *testing.T) {
 }
 
 func TestParseCronExpr_Invalid(t *testing.T) {
-	_, err := parseCronExpr("invalid cron")
+	_, err := parseCronExpr("invalid cron", "")
 	if err == nil {
 		t.Fatal("expected error for invalid cron expression")
 	}
