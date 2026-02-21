@@ -8,12 +8,14 @@ import (
 
 // FileInfo describes a stored file.
 type FileInfo struct {
-	ID          string    `json:"id"`
-	Filename    string    `json:"filename"`
-	ContentType string    `json:"content_type"`
-	Size        int64     `json:"size"`
-	Path        string    `json:"path"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	Filename      string    `json:"filename"`
+	ContentType   string    `json:"content_type"`
+	Size          int64     `json:"size"`
+	Path          string    `json:"path"`
+	CreatedAt     time.Time `json:"created_at"`
+	ExtractedText string    `json:"extracted_text,omitempty"`
+	PreviewText   string    `json:"preview_text,omitempty"`
 }
 
 // Storage is the interface for file persistence backends.
@@ -26,4 +28,6 @@ type Storage interface {
 	Delete(ctx context.Context, id string) error
 	// List returns all stored files.
 	List(ctx context.Context) ([]FileInfo, error)
+	// UpdateInfo stores updated metadata (e.g. after text extraction).
+	UpdateInfo(ctx context.Context, info *FileInfo) error
 }

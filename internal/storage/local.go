@@ -95,6 +95,16 @@ func (s *LocalStorage) Delete(_ context.Context, id string) error {
 	return os.Remove(fullPath)
 }
 
+func (s *LocalStorage) UpdateInfo(_ context.Context, info *FileInfo) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.files[info.ID]; !ok {
+		return fmt.Errorf("file not found: %s", info.ID)
+	}
+	s.files[info.ID] = info
+	return nil
+}
+
 func (s *LocalStorage) List(_ context.Context) ([]FileInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

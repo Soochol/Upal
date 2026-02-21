@@ -146,3 +146,33 @@ func TestLocalStorage_SavePreservesExtension(t *testing.T) {
 		t.Errorf("path should preserve .png extension: got %q", info.Path)
 	}
 }
+
+func TestLocalStorage_UpdateInfo(t *testing.T) {
+	store, err := NewLocalStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	// Save a file first
+	info, err := store.Save(ctx, "test.txt", "text/plain", strings.NewReader("content"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update with extracted text
+	info.ExtractedText = "extracted content"
+	info.PreviewText = "extracted"
+	if err := store.UpdateInfo(ctx, info); err != nil {
+		t.Fatalf("UpdateInfo: %v", err)
+	}
+
+	// Verify via Get
+	retrieved, _, err := store.Get(ctx, info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retrieved.ExtractedText != "extracted content" {
+		t.Errorf("want ExtractedText %q, got %q", "extracted content", retrieved.ExtractedText)
+	}
+}

@@ -1,8 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+
+	"github.com/soochol/upal/internal/extract"
 )
 
 const maxUploadSize = 50 << 20 // 50MB
@@ -31,10 +35,28 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	info, err := s.storage.Save(r.Context(), header.Filename, contentType, file)
+	// Buffer body to allow reading twice (save + extract)
+	body, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "read file", http.StatusInternalServerError)
+		return
+	}
+
+	info, err := s.storage.Save(r.Context(), header.Filename, contentType, bytes.NewReader(body))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Best-effort text extraction — never fail the upload
+	if extracted, _ := extract.Extract(contentType, bytes.NewReader(body)); extracted != "" {
+		info.ExtractedText = extracted
+		preview := []rune(extracted)
+		if len(preview) > 300 {
+			preview = preview[:300]
+		}
+		info.PreviewText = string(preview)
+		_ = s.storage.UpdateInfo(r.Context(), info)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
