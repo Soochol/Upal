@@ -184,6 +184,9 @@ func TestBuildPromptParts_WithImage(t *testing.T) {
 	if parts[1].InlineData.MIMEType != "image/png" {
 		t.Errorf("want mime image/png, got %q", parts[1].InlineData.MIMEType)
 	}
+	if !strings.Contains(parts[2].Text, "after") {
+		t.Errorf("third part should contain 'after', got %q", parts[2].Text)
+	}
 }
 
 func TestParseDataURIPart_Valid(t *testing.T) {

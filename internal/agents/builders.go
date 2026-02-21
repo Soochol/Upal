@@ -3,6 +3,7 @@ package agents
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -146,11 +147,12 @@ func buildPromptParts(prompt string) []*genai.Part {
 			remaining = ""
 		} else {
 			uri = rest[:end]
-			remaining = rest[end:]
+			remaining = strings.TrimLeft(rest[end:], " \n\r\t")
 		}
 		if p := parseDataURIPart(uri); p != nil {
 			parts = append(parts, p)
 		} else {
+			slog.Warn("buildPromptParts: failed to parse data URI, falling back to text", "uri_prefix", uri[:min(len(uri), 40)])
 			parts = append(parts, genai.NewPartFromText(uri))
 		}
 	}
