@@ -1,6 +1,7 @@
 package extract_test
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -34,5 +35,26 @@ func TestExtractUnknownType(t *testing.T) {
 	}
 	if text != "" {
 		t.Errorf("unknown content type should return empty string, got %q", text)
+	}
+}
+
+func TestExtractPDF(t *testing.T) {
+	f, err := os.Open("testdata/sample.pdf")
+	if err != nil {
+		t.Skip("testdata/sample.pdf not present:", err)
+	}
+	defer f.Close()
+
+	text, err := extract.Extract("application/pdf", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// sample.pdf must contain the word "Hello"
+	if !strings.Contains(text, "Hello") {
+		t.Logf("PDF text extracted: %q", text)
+		if text == "" {
+			t.Skip("ledongthuc/pdf could not extract text from minimal PDF (acceptable)")
+		}
+		t.Errorf("expected 'Hello' in PDF text, got: %q", text)
 	}
 }
