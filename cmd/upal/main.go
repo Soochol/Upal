@@ -235,6 +235,17 @@ func serve() {
 	runManager := services.NewRunManager(15 * time.Minute)
 	srv.SetRunManager(runManager)
 
+	// Pipeline
+	pipelineRepo := repository.NewMemoryPipelineRepository()
+	pipelineRunRepo := repository.NewMemoryPipelineRunRepository()
+	pipelineSvc := services.NewPipelineService(pipelineRepo, pipelineRunRepo)
+	pipelineRunner := services.NewPipelineRunner(pipelineRunRepo)
+	pipelineRunner.RegisterExecutor(services.NewWorkflowStageExecutor(workflowSvc))
+	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor())
+	pipelineRunner.RegisterExecutor(&services.TransformStageExecutor{})
+	srv.SetPipelineService(pipelineSvc)
+	srv.SetPipelineRunner(pipelineRunner)
+
 	// Configure natural language workflow generator if any provider is available.
 	skillReg := skills.New()
 	srv.SetSkills(skillReg)
