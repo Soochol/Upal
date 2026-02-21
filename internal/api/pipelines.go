@@ -2,8 +2,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -117,14 +120,80 @@ func (s *Server) listPipelineRuns(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(runs)
 }
 
-func (s *Server) approvePipelineStage(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement resume logic — look up waiting run, advance to next stage
+func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
+	pipelineID := chi.URLParam(r, "id")
+	runID := chi.URLParam(r, "runId")
+
+	p, err := s.pipelineSvc.Get(r.Context(), pipelineID)
+	if err != nil {
+		http.Error(w, "pipeline not found", http.StatusNotFound)
+		return
+	}
+
+	run, err := s.pipelineSvc.GetRun(r.Context(), runID)
+	if err != nil {
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if run.PipelineID != pipelineID {
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if run.Status != "waiting" {
+		http.Error(w, "run is not waiting for approval", http.StatusBadRequest)
+		return
+	}
+
+	run.Status = "running"
+	if err := s.pipelineSvc.UpdateRun(r.Context(), run); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Encode the response before launching the goroutine so that Resume's
+	// mutations to run.StageResults do not race with json.Encode.
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(run)
+
+	go func() {
+		if err := s.pipelineRunner.Resume(context.Background(), p, run); err != nil {
+			slog.Error("pipeline resume failed", "run_id", run.ID, "pipeline_id", p.ID, "error", err)
+		}
+	}()
 }
 
-func (s *Server) rejectPipelineStage(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement reject logic — mark run as failed or idle
+func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {
+	pipelineID := chi.URLParam(r, "id")
+	runID := chi.URLParam(r, "runId")
+
+	run, err := s.pipelineSvc.GetRun(r.Context(), runID)
+	if err != nil {
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if run.PipelineID != pipelineID {
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+	if run.Status != "waiting" {
+		http.Error(w, "run is not waiting for approval", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+	run.Status = "failed"
+	run.CompletedAt = &now
+	if result, ok := run.StageResults[run.CurrentStage]; ok {
+		result.Status = "failed"
+		result.Error = "rejected by user"
+		result.CompletedAt = &now
+	}
+	if err := s.pipelineSvc.UpdateRun(r.Context(), run); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "rejected"})
+	json.NewEncoder(w).Encode(run)
 }

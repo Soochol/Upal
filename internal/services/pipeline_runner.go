@@ -53,9 +53,6 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 
 // Resume continues a paused pipeline run from the stage after run.CurrentStage.
 func (r *PipelineRunner) Resume(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun) error {
-	if run.Status != "waiting" {
-		return fmt.Errorf("cannot resume run %q with status %q", run.ID, run.Status)
-	}
 	currentIdx := -1
 	for i, stage := range pipeline.Stages {
 		if stage.ID == run.CurrentStage {
