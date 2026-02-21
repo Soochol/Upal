@@ -35,13 +35,13 @@ type Server struct {
 	providerConfigs      map[string]config.ProviderConfig
 	skills               skills.Provider
 	a2aBaseURL           string
-	retryExecutor        *services.RetryExecutor
+	retryExecutor        ports.RetryExecutor
 	connectionSvc        *services.ConnectionService
 	executionReg         *services.ExecutionRegistry
 	runManager           *services.RunManager
 	runPublisher         *runpub.RunPublisher
 	pipelineSvc          *services.PipelineService
-	pipelineRunner       *services.PipelineRunner
+	pipelineRunner       ports.PipelineRunner
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -174,7 +174,7 @@ func (s *Server) SetConcurrencyLimiter(limiter *services.ConcurrencyLimiter) {
 }
 
 // SetRetryExecutor configures the retry executor.
-func (s *Server) SetRetryExecutor(executor *services.RetryExecutor) {
+func (s *Server) SetRetryExecutor(executor ports.RetryExecutor) {
 	s.retryExecutor = executor
 }
 
@@ -209,7 +209,7 @@ func (s *Server) SetPipelineService(svc *services.PipelineService) {
 }
 
 // SetPipelineRunner configures the pipeline runner for stage execution.
-func (s *Server) SetPipelineRunner(runner *services.PipelineRunner) {
+func (s *Server) SetPipelineRunner(runner ports.PipelineRunner) {
 	s.pipelineRunner = runner
 }
 

@@ -40,7 +40,7 @@ func TestGenerate_Success(t *testing.T) {
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
 	gen := New(llm, "gpt-4o", nil, nil, nil)
-	result, err := gen.Generate(context.Background(), "Create a summarizer workflow", nil)
+	result, err := gen.Generate(context.Background(), "Create a summarizer workflow", nil, nil)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestGenerate_StripMarkdownFences(t *testing.T) {
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
 	gen := New(llm, "gpt-4o", nil, nil, nil)
-	result, err := gen.Generate(context.Background(), "Simple workflow", nil)
+	result, err := gen.Generate(context.Background(), "Simple workflow", nil, nil)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestGenerate_LeadingTemplateText(t *testing.T) {
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
 	gen := New(llm, "gpt-4o", nil, nil, nil)
-	result, err := gen.Generate(context.Background(), "Create a blog writer", nil)
+	result, err := gen.Generate(context.Background(), "Create a blog writer", nil, nil)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestGenerate_InvalidJSON(t *testing.T) {
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
 	gen := New(llm, "gpt-4o", nil, nil, nil)
-	_, err := gen.Generate(context.Background(), "Something", nil)
+	_, err := gen.Generate(context.Background(), "Something", nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON output")
 	}
@@ -167,7 +167,7 @@ func TestGenerate_ValidationError_NoInput(t *testing.T) {
 
 	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
 	gen := New(llm, "gpt-4o", nil, nil, nil)
-	_, err := gen.Generate(context.Background(), "Describe something", nil)
+	_, err := gen.Generate(context.Background(), "Describe something", nil, nil)
 	if err == nil {
 		t.Fatal("expected validation error for missing input node")
 	}
@@ -377,9 +377,9 @@ func makeStage(id, typ string) upal.Stage {
 func TestStripInvalidStageTypes(t *testing.T) {
 	stages := []upal.Stage{
 		makeStage("s1", "workflow"),
-		makeStage("s2", "notification"), // hallucinated
+		makeStage("s2", "hallucinated-type"), // invalid
 		makeStage("s3", "approval"),
-		makeStage("s4", "custom-thing"), // hallucinated
+		makeStage("s4", "custom-thing"), // invalid
 		makeStage("s5", "trigger"),
 	}
 	result := stripInvalidStageTypes(stages)
