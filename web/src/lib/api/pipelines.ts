@@ -44,16 +44,16 @@ export async function fetchPipelineRuns(id: string): Promise<PipelineRun[]> {
   return apiFetch<PipelineRun[]>(`${API_BASE}/pipelines/${encodeURIComponent(id)}/runs`)
 }
 
-export async function approvePipelineStage(pipelineId: string, stageId: string): Promise<void> {
+export async function approvePipelineRun(pipelineId: string, runId: string): Promise<void> {
   return apiFetch<void>(
-    `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/stages/${encodeURIComponent(stageId)}/approve`,
+    `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/runs/${encodeURIComponent(runId)}/approve`,
     { method: 'POST' }
   )
 }
 
-export async function rejectPipelineStage(pipelineId: string, stageId: string): Promise<void> {
+export async function rejectPipelineRun(pipelineId: string, runId: string): Promise<void> {
   return apiFetch<void>(
-    `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/stages/${encodeURIComponent(stageId)}/reject`,
+    `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/runs/${encodeURIComponent(runId)}/reject`,
     { method: 'POST' }
   )
 }

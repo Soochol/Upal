@@ -1,7 +1,7 @@
 // web/src/components/pipelines/PipelineRunHistory.tsx
 import { useState, useEffect } from 'react'
 import { CheckCircle2, XCircle, Loader2, PauseCircle, Clock } from 'lucide-react'
-import { fetchPipelineRuns, approvePipelineStage, rejectPipelineStage } from '@/lib/api'
+import { fetchPipelineRuns, approvePipelineRun, rejectPipelineRun } from '@/lib/api'
 import type { Pipeline, PipelineRun } from '@/lib/api/types'
 
 type Props = {
@@ -43,13 +43,13 @@ export function PipelineRunHistory({ pipeline }: Props) {
 
   useEffect(() => { reload() }, [pipeline.id])
 
-  const handleApprove = async (_run: PipelineRun, stageId: string) => {
-    await approvePipelineStage(pipeline.id, stageId)
+  const handleApprove = async (run: PipelineRun) => {
+    await approvePipelineRun(pipeline.id, run.id)
     reload()
   }
 
-  const handleReject = async (_run: PipelineRun, stageId: string) => {
-    await rejectPipelineStage(pipeline.id, stageId)
+  const handleReject = async (run: PipelineRun) => {
+    await rejectPipelineRun(pipeline.id, run.id)
     reload()
   }
 
@@ -109,13 +109,13 @@ export function PipelineRunHistory({ pipeline }: Props) {
               <div className="flex items-center gap-2 mt-2 pt-2 border-t">
                 <span className="text-xs text-muted-foreground">Awaiting approval:</span>
                 <button
-                  onClick={() => handleApprove(run, run.current_stage!)}
+                  onClick={() => handleApprove(run)}
                   className="px-2 py-0.5 text-xs font-medium rounded bg-success/10 text-success hover:bg-success/20 transition-colors"
                 >
                   Approve
                 </button>
                 <button
-                  onClick={() => handleReject(run, run.current_stage!)}
+                  onClick={() => handleReject(run)}
                   className="px-2 py-0.5 text-xs font-medium rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
                 >
                   Reject
