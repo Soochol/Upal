@@ -6,14 +6,15 @@ import (
 	"fmt"
 
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
 
 // WorkflowStageExecutor runs a workflow by name.
 type WorkflowStageExecutor struct {
-	workflowSvc *WorkflowService
+	workflowSvc ports.WorkflowExecutor
 }
 
-func NewWorkflowStageExecutor(workflowSvc *WorkflowService) *WorkflowStageExecutor {
+func NewWorkflowStageExecutor(workflowSvc ports.WorkflowExecutor) *WorkflowStageExecutor {
 	return &WorkflowStageExecutor{workflowSvc: workflowSvc}
 }
 

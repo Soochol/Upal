@@ -10,14 +10,14 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 	"github.com/go-chi/chi/v5"
-	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
 
 // upalA2AExecutor implements a2asrv.AgentExecutor to expose Upal workflows
 // as A2A-callable agents. It delegates workflow execution to WorkflowService.
 type upalA2AExecutor struct {
-	workflowSvc *services.WorkflowService
+	workflowSvc ports.WorkflowExecutor
 }
 
 func (e *upalA2AExecutor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
@@ -56,7 +56,7 @@ func (e *upalA2AExecutor) Execute(ctx context.Context, reqCtx *a2asrv.RequestCon
 	// 6. Stream events as A2A artifacts.
 	var artifactID a2a.ArtifactID
 	for ev := range events {
-		if ev.Type == "error" {
+		if ev.Type == upal.EventError {
 			return writeFailEvent(ctx, reqCtx, queue, fmt.Errorf("%v", ev.Payload["error"]))
 		}
 

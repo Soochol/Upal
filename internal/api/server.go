@@ -13,6 +13,7 @@ import (
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	runpub "github.com/soochol/upal/internal/services/run"
+	"github.com/soochol/upal/internal/upal/ports"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
@@ -20,7 +21,7 @@ import (
 )
 
 type Server struct {
-	workflowSvc          *services.WorkflowService
+	workflowSvc          ports.WorkflowExecutor
 	runHistorySvc        *services.RunHistoryService
 	schedulerSvc         *services.SchedulerService
 	limiter              *services.ConcurrencyLimiter
@@ -48,7 +49,7 @@ func (s *Server) SetProviderConfigs(configs map[string]config.ProviderConfig) {
 	s.providerConfigs = configs
 }
 
-func NewServer(llms map[string]adkmodel.LLM, workflowSvc *services.WorkflowService, repo repository.WorkflowRepository, toolReg *tools.Registry) *Server {
+func NewServer(llms map[string]adkmodel.LLM, workflowSvc ports.WorkflowExecutor, repo repository.WorkflowRepository, toolReg *tools.Registry) *Server {
 	return &Server{
 		workflowSvc: workflowSvc,
 		repo:        repo,
