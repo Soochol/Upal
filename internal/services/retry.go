@@ -12,7 +12,7 @@ import (
 	"github.com/soochol/upal/internal/upal/ports"
 )
 
-// RetryExecutor wraps WorkflowService.Run with configurable retry and backoff.
+// RetryExecutor wraps ports.WorkflowExecutor.Run with configurable retry and backoff.
 type RetryExecutor struct {
 	workflowExec  ports.WorkflowExecutor
 	runHistorySvc *RunHistoryService
@@ -27,7 +27,7 @@ func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc *RunHis
 }
 
 // ExecuteWithRetry runs a workflow with retry on failure.
-// It returns channels for events and the final result, same as WorkflowService.Run.
+// It returns channels for events and the final result, same as WorkflowExecutor.Run.
 // On retry, previous attempt is marked as failed and a new run record is created.
 func (r *RetryExecutor) ExecuteWithRetry(
 	ctx context.Context,
@@ -56,7 +56,9 @@ func (r *RetryExecutor) ExecuteWithRetry(
 			if err != nil {
 				slog.Warn("retry: failed to create run record", "err", err)
 			} else {
-				r.runHistorySvc.UpdateRunRetryMeta(ctx, record.ID, attempt, retryOf)
+				if err := r.runHistorySvc.UpdateRunRetryMeta(ctx, record.ID, attempt, retryOf); err != nil {
+				slog.Warn("retry: failed to update retry metadata", "err", err)
+			}
 				if attempt == 0 {
 					firstRunID = record.ID
 				}

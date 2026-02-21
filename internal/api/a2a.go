@@ -15,7 +15,7 @@ import (
 )
 
 // upalA2AExecutor implements a2asrv.AgentExecutor to expose Upal workflows
-// as A2A-callable agents. It delegates workflow execution to WorkflowService.
+// as A2A-callable agents. It delegates workflow execution to WorkflowExecutor.
 type upalA2AExecutor struct {
 	workflowSvc ports.WorkflowExecutor
 }
@@ -47,7 +47,7 @@ func (e *upalA2AExecutor) Execute(ctx context.Context, reqCtx *a2asrv.RequestCon
 		return fmt.Errorf("failed to write working: %w", err)
 	}
 
-	// 5. Execute via WorkflowService.
+	// 5. Execute via WorkflowExecutor.
 	events, _, runErr := e.workflowSvc.Run(ctx, wf, inputs)
 	if runErr != nil {
 		return writeFailEvent(ctx, reqCtx, queue, fmt.Errorf("failed to run workflow: %w", runErr))
