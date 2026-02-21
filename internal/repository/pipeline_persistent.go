@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/soochol/upal/internal/upal"
@@ -39,7 +40,10 @@ func NewPersistentPipelineRepository(mem *MemoryPipelineRepository, db PipelineD
 
 func (r *PersistentPipelineRepository) Create(ctx context.Context, p *upal.Pipeline) error {
 	_ = r.mem.Create(ctx, p)
-	return r.db.CreatePipeline(ctx, p)
+	if err := r.db.CreatePipeline(ctx, p); err != nil {
+		return fmt.Errorf("db create pipeline: %w", err)
+	}
+	return nil
 }
 
 func (r *PersistentPipelineRepository) Get(ctx context.Context, id string) (*upal.Pipeline, error) {
@@ -65,12 +69,18 @@ func (r *PersistentPipelineRepository) List(ctx context.Context) ([]*upal.Pipeli
 
 func (r *PersistentPipelineRepository) Update(ctx context.Context, p *upal.Pipeline) error {
 	_ = r.mem.Update(ctx, p)
-	return r.db.UpdatePipeline(ctx, p)
+	if err := r.db.UpdatePipeline(ctx, p); err != nil {
+		return fmt.Errorf("db update pipeline: %w", err)
+	}
+	return nil
 }
 
 func (r *PersistentPipelineRepository) Delete(ctx context.Context, id string) error {
 	_ = r.mem.Delete(ctx, id)
-	return r.db.DeletePipeline(ctx, id)
+	if err := r.db.DeletePipeline(ctx, id); err != nil {
+		return fmt.Errorf("db delete pipeline: %w", err)
+	}
+	return nil
 }
 
 // PersistentPipelineRunRepository wraps MemoryPipelineRunRepository with a PostgreSQL backend.
@@ -85,7 +95,10 @@ func NewPersistentPipelineRunRepository(mem *MemoryPipelineRunRepository, db Pip
 
 func (r *PersistentPipelineRunRepository) Create(ctx context.Context, run *upal.PipelineRun) error {
 	_ = r.mem.Create(ctx, run)
-	return r.db.CreatePipelineRun(ctx, run)
+	if err := r.db.CreatePipelineRun(ctx, run); err != nil {
+		return fmt.Errorf("db create pipeline_run: %w", err)
+	}
+	return nil
 }
 
 func (r *PersistentPipelineRunRepository) Get(ctx context.Context, id string) (*upal.PipelineRun, error) {
@@ -111,5 +124,8 @@ func (r *PersistentPipelineRunRepository) ListByPipeline(ctx context.Context, pi
 
 func (r *PersistentPipelineRunRepository) Update(ctx context.Context, run *upal.PipelineRun) error {
 	_ = r.mem.Update(ctx, run)
-	return r.db.UpdatePipelineRun(ctx, run)
+	if err := r.db.UpdatePipelineRun(ctx, run); err != nil {
+		return fmt.Errorf("db update pipeline_run: %w", err)
+	}
+	return nil
 }
