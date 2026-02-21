@@ -13,7 +13,6 @@ import (
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	runpub "github.com/soochol/upal/internal/services/run"
-	scheduler "github.com/soochol/upal/internal/services/scheduler"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
@@ -24,7 +23,7 @@ import (
 type Server struct {
 	workflowSvc          ports.WorkflowExecutor
 	runHistorySvc        ports.RunHistoryPort
-	schedulerSvc         *scheduler.SchedulerService
+	schedulerSvc         ports.SchedulerPort
 	limiter              *services.ConcurrencyLimiter
 	repo                 repository.WorkflowRepository
 	triggerRepo          repository.TriggerRepository
@@ -165,7 +164,7 @@ func (s *Server) SetRunHistoryService(svc ports.RunHistoryPort) {
 }
 
 // SetSchedulerService configures the scheduler service.
-func (s *Server) SetSchedulerService(svc *scheduler.SchedulerService) {
+func (s *Server) SetSchedulerService(svc ports.SchedulerPort) {
 	s.schedulerSvc = svc
 }
 

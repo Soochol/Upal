@@ -32,3 +32,10 @@ type PipelineRunner interface {
 type PipelineRegistry interface {
 	Get(ctx context.Context, id string) (*upal.Pipeline, error)
 }
+
+// SchedulerPort is the interface for pipeline-schedule synchronization.
+// The api layer depends on this rather than *scheduler.SchedulerService directly.
+type SchedulerPort interface {
+	SyncPipelineSchedules(ctx context.Context, pipeline *upal.Pipeline) error
+	RemovePipelineSchedules(ctx context.Context, pipelineID string) error
+}

@@ -18,6 +18,8 @@ import (
 	"github.com/soochol/upal/internal/upal/ports"
 )
 
+var _ ports.SchedulerPort = (*SchedulerService)(nil)
+
 // SchedulerService manages cron-based workflow scheduling.
 // It wraps robfig/cron and integrates retry, concurrency, and run history.
 type SchedulerService struct {
