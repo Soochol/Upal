@@ -1,10 +1,10 @@
-package services
+package scheduler
 
 // scheduler.go — SchedulerService public facade.
 // Struct definition, constructor, and all public API methods live here.
-// Cron-specific helpers: scheduler_cron.go
-// Execution dispatch:    scheduler_dispatch.go
-// Pipeline sync:         scheduler_sync.go
+// Cron-specific helpers: cron.go
+// Execution dispatch:    dispatch.go
+// Pipeline sync:         sync.go
 
 import (
 	"context"
@@ -24,22 +24,22 @@ type SchedulerService struct {
 	cron           *cron.Cron
 	scheduleRepo   repository.ScheduleRepository
 	workflowExec   ports.WorkflowExecutor
-	retryExecutor  *RetryExecutor
-	limiter        *ConcurrencyLimiter
+	retryExecutor  ports.RetryExecutor
+	limiter        ports.ConcurrencyControl
 	runHistorySvc  ports.RunHistoryPort
 	entryMap       map[string]cron.EntryID // schedule ID → cron entry
 	mu             sync.RWMutex
-	pipelineRunner *PipelineRunner
-	pipelineSvc    *PipelineService
+	pipelineRunner ports.PipelineRunner
+	pipelineSvc    ports.PipelineRegistry
 }
 
 // SetPipelineRunner configures the pipeline runner for scheduled pipeline execution.
-func (s *SchedulerService) SetPipelineRunner(runner *PipelineRunner) {
+func (s *SchedulerService) SetPipelineRunner(runner ports.PipelineRunner) {
 	s.pipelineRunner = runner
 }
 
 // SetPipelineService configures the pipeline service for looking up pipelines.
-func (s *SchedulerService) SetPipelineService(svc *PipelineService) {
+func (s *SchedulerService) SetPipelineService(svc ports.PipelineRegistry) {
 	s.pipelineSvc = svc
 }
 
@@ -47,8 +47,8 @@ func (s *SchedulerService) SetPipelineService(svc *PipelineService) {
 func NewSchedulerService(
 	scheduleRepo repository.ScheduleRepository,
 	workflowExec ports.WorkflowExecutor,
-	retryExecutor *RetryExecutor,
-	limiter *ConcurrencyLimiter,
+	retryExecutor ports.RetryExecutor,
+	limiter ports.ConcurrencyControl,
 	runHistorySvc ports.RunHistoryPort,
 ) *SchedulerService {
 	return &SchedulerService{

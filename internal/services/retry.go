@@ -12,6 +12,8 @@ import (
 	"github.com/soochol/upal/internal/upal/ports"
 )
 
+var _ ports.RetryExecutor = (*RetryExecutor)(nil)
+
 // RetryExecutor wraps ports.WorkflowExecutor.Run with configurable retry and backoff.
 type RetryExecutor struct {
 	workflowExec  ports.WorkflowExecutor

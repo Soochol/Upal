@@ -1,6 +1,6 @@
-package services
+package scheduler
 
-// scheduler_sync.go — PipelineScheduleSync responsibility layer.
+// sync.go — PipelineScheduleSync responsibility layer.
 // Synchronises cron entries with pipeline schedule stages, implemented as
 // methods on SchedulerService (same package, no circular import).
 

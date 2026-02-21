@@ -1,6 +1,6 @@
-package services
+package scheduler
 
-// scheduler_cron.go — CronManager responsibility layer.
+// cron.go — CronManager responsibility layer.
 // Cron expression parsing and cron entry registration/removal,
 // implemented as methods on SchedulerService (same package, no circular import).
 

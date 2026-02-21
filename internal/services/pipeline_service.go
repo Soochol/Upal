@@ -8,7 +8,10 @@ import (
 
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.PipelineRegistry = (*PipelineService)(nil)
 
 type PipelineService struct {
 	repo    repository.PipelineRepository

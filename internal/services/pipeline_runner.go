@@ -8,7 +8,10 @@ import (
 
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.PipelineRunner = (*PipelineRunner)(nil)
 
 // StageExecutor is the interface for executing a pipeline stage.
 // Implement this interface to add new stage types.

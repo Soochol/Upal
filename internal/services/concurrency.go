@@ -6,7 +6,10 @@ import (
 	"sync/atomic"
 
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.ConcurrencyControl = (*ConcurrencyLimiter)(nil)
 
 // ConcurrencyLimiter controls how many workflows can execute simultaneously.
 // It uses channel-based counting semaphores at two levels: global and per-workflow.

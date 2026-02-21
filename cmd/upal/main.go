@@ -23,6 +23,7 @@ import (
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	runpub "github.com/soochol/upal/internal/services/run"
+	scheduler "github.com/soochol/upal/internal/services/scheduler"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
@@ -189,7 +190,7 @@ func serve() {
 
 	// Create retry executor and scheduler service.
 	retryExecutor := services.NewRetryExecutor(workflowSvc, runHistorySvc)
-	schedulerSvc := services.NewSchedulerService(
+	schedulerSvc := scheduler.NewSchedulerService(
 		scheduleRepo, workflowSvc, retryExecutor, limiter, runHistorySvc,
 	)
 
@@ -223,17 +224,7 @@ func serve() {
 	senderReg.Register(&notify.SlackSender{})
 	senderReg.Register(&notify.SMTPSender{})
 
-	// Inject optional deps (notification, connections, sub-workflow) into workflow service.
-	workflowSvc.SetBuildDeps(agents.BuildDeps{
-		LLMs:         llms,
-		ToolReg:      toolReg,
-		SenderReg:    senderReg,
-		ConnResolver: connSvc,
-		WfLookup:     workflowSvc,
-		NodeRegistry: nodeReg,
-	})
-
-	// Execution registry for pause/resume (sensor, approval nodes).
+	// Execution registry for pause/resume (pipeline stage approval).
 	execReg := services.NewExecutionRegistry()
 	srv.SetExecutionRegistry(execReg)
 
@@ -317,6 +308,11 @@ func serve() {
 			for _, wf := range gen.BackfillWorkflowDescriptions(ctx, wfs) {
 				if err := repo.Update(ctx, wf.Name, wf); err != nil {
 					slog.Warn("backfill: workflow update failed", "name", wf.Name, "err", err)
+				}
+			}
+			for _, wf := range gen.BackfillNodeDescriptions(ctx, wfs) {
+				if err := repo.Update(ctx, wf.Name, wf); err != nil {
+					slog.Warn("backfill: node descriptions update failed", "name", wf.Name, "err", err)
 				}
 			}
 			pipes, _ := pipelineSvc.List(ctx)

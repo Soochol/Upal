@@ -1,6 +1,6 @@
-package services
+package scheduler
 
-// scheduler_dispatch.go — ScheduleDispatcher responsibility layer.
+// dispatch.go — ScheduleDispatcher responsibility layer.
 // executeScheduledRun contains the workflow/pipeline branching logic that fires
 // when a cron entry triggers, implemented as a method on SchedulerService.
 
