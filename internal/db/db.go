@@ -127,4 +127,25 @@ CREATE TABLE IF NOT EXISTS triggers (
     enabled        BOOLEAN NOT NULL DEFAULT true,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS pipelines (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    stages      JSONB NOT NULL DEFAULT '[]',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    id            TEXT PRIMARY KEY,
+    pipeline_id   TEXT NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    current_stage TEXT NOT NULL DEFAULT '',
+    stage_results JSONB NOT NULL DEFAULT '{}',
+    started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at  TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_pipeline_id ON pipeline_runs(pipeline_id);
 `
