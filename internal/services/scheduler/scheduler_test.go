@@ -6,9 +6,14 @@ import (
 	"time"
 
 	"github.com/soochol/upal/internal/repository"
-	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
+
+// noopLimiter satisfies ports.ConcurrencyControl for tests that don't need limiting.
+type noopLimiter struct{}
+
+func (noopLimiter) Acquire(_ context.Context, _ string) error { return nil }
+func (noopLimiter) Release(_ string)                          {}
 
 func TestParseCronExpr_5Field(t *testing.T) {
 	sched, err := parseCronExpr("*/5 * * * *", "")
@@ -41,7 +46,7 @@ func TestParseCronExpr_Invalid(t *testing.T) {
 
 func TestSchedulerService_AddSchedule_5Field(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	schedule := &upal.Schedule{
 		WorkflowName: "test-workflow",
@@ -82,7 +87,7 @@ func TestSchedulerService_AddSchedule_5Field(t *testing.T) {
 
 func TestSchedulerService_AddSchedule_6Field(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	schedule := &upal.Schedule{
 		WorkflowName: "test-workflow",
@@ -106,7 +111,7 @@ func TestSchedulerService_AddSchedule_6Field(t *testing.T) {
 
 func TestSchedulerService_PauseResume(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	schedule := &upal.Schedule{
 		WorkflowName: "test-workflow",
@@ -158,7 +163,7 @@ func TestSchedulerService_PauseResume(t *testing.T) {
 
 func TestSchedulerService_RemoveSchedule(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	ctx := context.Background()
 	schedule := &upal.Schedule{
@@ -197,7 +202,7 @@ func TestSchedulerService_RemoveSchedule(t *testing.T) {
 
 func TestSchedulerService_UpdateSchedule(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	ctx := context.Background()
 	schedule := &upal.Schedule{
@@ -246,7 +251,7 @@ func TestSchedulerService_UpdateSchedule(t *testing.T) {
 
 func TestSchedulerService_AddSchedule_Disabled(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	ctx := context.Background()
 	schedule := &upal.Schedule{
@@ -281,7 +286,7 @@ func TestSchedulerService_AddSchedule_Disabled(t *testing.T) {
 
 func TestSchedulerService_AddSchedule_InvalidCron(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	ctx := context.Background()
 	schedule := &upal.Schedule{
@@ -309,7 +314,7 @@ func TestSchedulerService_AddSchedule_InvalidCron(t *testing.T) {
 
 func TestSchedulerService_AddSchedule_DefaultTimezone(t *testing.T) {
 	repo := repository.NewMemoryScheduleRepository()
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 
 	ctx := context.Background()
 	schedule := &upal.Schedule{
@@ -357,7 +362,7 @@ func TestSchedulerService_Start_LoadsExisting(t *testing.T) {
 		t.Fatalf("failed to seed sched3: %v", err)
 	}
 
-	svc := NewSchedulerService(repo, nil, nil, services.NewConcurrencyLimiter(upal.ConcurrencyLimits{}), nil)
+	svc := NewSchedulerService(repo, nil, nil, noopLimiter{}, nil)
 	if err := svc.Start(ctx); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}

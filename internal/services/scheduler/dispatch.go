@@ -91,6 +91,9 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	if ok {
 		slog.Info("scheduler: run completed",
 			"schedule", schedule.ID, "session", res.SessionID)
+	} else {
+		slog.Warn("scheduler: run result channel closed without value — run may have failed",
+			"schedule", schedule.ID)
 	}
 
 	// Update schedule timestamps.

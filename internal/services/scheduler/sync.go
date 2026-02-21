@@ -26,7 +26,10 @@ func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *
 	}
 
 	// Remove orphaned schedules for this pipeline.
-	existing, _ := s.scheduleRepo.ListByPipeline(ctx, pipeline.ID)
+	existing, err := s.scheduleRepo.ListByPipeline(ctx, pipeline.ID)
+	if err != nil {
+		slog.Warn("scheduler: failed to list existing pipeline schedules", "pipeline", pipeline.ID, "err", err)
+	}
 	for _, sched := range existing {
 		if !inUse[sched.ID] {
 			if err := s.RemoveSchedule(ctx, sched.ID); err != nil {
@@ -64,7 +67,10 @@ func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *
 // RemovePipelineSchedules removes all cron jobs associated with a pipeline.
 // Call before deleting a pipeline.
 func (s *SchedulerService) RemovePipelineSchedules(ctx context.Context, pipelineID string) error {
-	schedules, _ := s.scheduleRepo.ListByPipeline(ctx, pipelineID)
+	schedules, err := s.scheduleRepo.ListByPipeline(ctx, pipelineID)
+	if err != nil {
+		slog.Warn("scheduler: failed to list pipeline schedules for removal", "pipeline", pipelineID, "err", err)
+	}
 	for _, sched := range schedules {
 		if err := s.RemoveSchedule(ctx, sched.ID); err != nil {
 			slog.Warn("scheduler: failed to remove pipeline schedule", "id", sched.ID, "err", err)
