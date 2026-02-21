@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useWorkflowStore } from '@/stores/workflowStore'
+import { uploadFile } from '@/lib/api/upload'
 import { UpalNode } from './nodes/UpalNode'
 import { GroupNode } from './nodes/GroupNode'
 import { EmptyState } from './EmptyState'
@@ -64,7 +65,7 @@ function SelectionGrouper() {
 }
 
 export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter }: CanvasProps) {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
   const { screenToFlowPosition } = useReactFlow()
 
@@ -142,19 +143,49 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
   )
 
   const onDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    } else if (e.dataTransfer.types.includes('application/upal-node-type')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+    }
   }, [])
 
   const onDrop = useCallback(
-    (e: DragEvent) => {
+    async (e: DragEvent) => {
       e.preventDefault()
+
+      // File drop: upload each file and create an asset node
+      if (e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files)
+        const bounds = e.currentTarget.getBoundingClientRect()
+        const basePosition = screenToFlowPosition({
+          x: e.clientX - bounds.left,
+          y: e.clientY - bounds.top,
+        })
+        for (let i = 0; i < files.length; i++) {
+          try {
+            const info = await uploadFile(files[i])
+            addNode('asset', { x: basePosition.x + i * 20, y: basePosition.y + i * 20 }, {
+              file_id: info.id,
+              filename: info.filename,
+              content_type: info.content_type,
+            })
+          } catch (err) {
+            console.error('Failed to upload file:', err)
+          }
+        }
+        return
+      }
+
+      // Node-type drop from the palette
       const type = e.dataTransfer.getData('application/upal-node-type')
       if (!type) return
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       onDropNode(type, position)
     },
-    [onDropNode, screenToFlowPosition],
+    [onDropNode, screenToFlowPosition, addNode],
   )
 
   return (

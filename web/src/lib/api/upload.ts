@@ -11,3 +11,8 @@ export async function uploadFile(file: File): Promise<UploadResult> {
   }
   return res.json()
 }
+
+export async function deleteFile(fileId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/files/${fileId}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 404) throw new Error(`deleteFile: ${res.status}`)
+}

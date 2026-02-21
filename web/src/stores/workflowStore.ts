@@ -12,6 +12,7 @@ import {
 import { getLayoutedElements } from '@/lib/layout'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 import { useUIStore } from './uiStore'
+import { deleteFile } from '@/lib/api/upload'
 
 // Re-export types and stores for backward compatibility
 export type { RunEvent, NodeRunStatus } from './executionStore'
@@ -34,7 +35,7 @@ type WorkflowState = {
   onNodesChange: OnNodesChange<Node<NodeData>>
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
-  addNode: (type: NodeData['nodeType'], position: { x: number; y: number }) => void
+  addNode: (type: NodeData['nodeType'], position: { x: number; y: number }, initialConfig?: Record<string, unknown>) => void
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
   updateNodeLabel: (nodeId: string, label: string) => void
   updateNodeDescription: (nodeId: string, description: string) => void
@@ -65,15 +66,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   originalName: '',
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) })
-    // Clear right-panel selection if the selected node was removed
     const removals = changes.filter((c) => c.type === 'remove').map((c) => c.id)
     if (removals.length > 0) {
+      // Delete backing file for any removed asset nodes that have a file_id
+      const currentNodes = get().nodes
+      for (const id of removals) {
+        const node = currentNodes.find((n) => n.id === id)
+        if (node && node.data.nodeType === 'asset') {
+          const fileId = node.data.config.file_id as string | undefined
+          if (fileId) {
+            deleteFile(fileId).catch((err) =>
+              console.error(`Failed to delete file ${fileId}:`, err),
+            )
+          }
+        }
+      }
+      // Clear right-panel selection if the selected node was removed
       const selectedNodeId = useUIStore.getState().selectedNodeId
       if (selectedNodeId && removals.includes(selectedNodeId)) {
         useUIStore.getState().selectNode(null)
       }
     }
+    set({ nodes: applyNodeChanges(changes, get().nodes) })
   },
   onEdgesChange: (changes) => {
     // Auto-remove {{source}} template references from target node prompts on edge removal
@@ -133,7 +147,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       ),
     })
   },
-  addNode: (type, position) => {
+  addNode: (type, position, initialConfig) => {
     const id = getId()
     const ntCfg = NODE_TYPES[type as NodeType]
     const newNode: Node<NodeData> = {
@@ -144,7 +158,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         label: ntCfg?.label || type,
         nodeType: type,
         description: ntCfg?.description || '',
-        config: {},
+        config: initialConfig ?? {},
       },
     }
     set({ nodes: [...get().nodes, newNode] })
