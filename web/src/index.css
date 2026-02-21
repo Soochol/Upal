@@ -3,7 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ═══════════════════════════════════════════════════════
+   Tailwind v4 Theme — maps CSS variables → utility classes
+   Usage: bg-background, text-foreground, text-success, etc.
+   ═══════════════════════════════════════════════════════ */
 @theme inline {
+  /* ── Base UI tokens ── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -24,6 +29,15 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* ── Status semantic tokens ── */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* ── Sidebar tokens ── */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -33,24 +47,41 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-
-  /* Upal node-type semantic colors */
+  /* ── Node-type semantic tokens ── */
   --color-node-input: var(--node-input);
   --color-node-input-foreground: var(--node-input-foreground);
   --color-node-agent: var(--node-agent);
   --color-node-agent-foreground: var(--node-agent-foreground);
   --color-node-output: var(--node-output);
   --color-node-output-foreground: var(--node-output-foreground);
+  --color-node-branch: var(--node-branch);
+  --color-node-branch-foreground: var(--node-branch-foreground);
+  --color-node-iterator: var(--node-iterator);
+  --color-node-iterator-foreground: var(--node-iterator-foreground);
+  --color-node-notification: var(--node-notification);
+  --color-node-notification-foreground: var(--node-notification-foreground);
+  --color-node-sensor: var(--node-sensor);
+  --color-node-sensor-foreground: var(--node-sensor-foreground);
+  --color-node-approval: var(--node-approval);
+  --color-node-approval-foreground: var(--node-approval-foreground);
+  --color-node-subworkflow: var(--node-subworkflow);
+  --color-node-subworkflow-foreground: var(--node-subworkflow-foreground);
+
+  /* ── Radius ── */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ═══════════════════════════════════════════════════════
+   Light Theme (default)
+   ═══════════════════════════════════════════════════════ */
 :root {
+  color-scheme: light;
   --radius: 0.625rem;
 
-  /* Light theme (default) */
+  /* ── Base UI ── */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -71,6 +102,15 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
 
+  /* ── Status ── */
+  --success: oklch(0.6 0.19 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.18 75);
+  --warning-foreground: oklch(0.985 0 0);
+  --info: oklch(0.55 0.2 255);
+  --info-foreground: oklch(0.985 0 0);
+
+  /* ── Sidebar ── */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -80,16 +120,40 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Node-type semantic colors — Light (Google Opal-inspired) */
+  /* ── Node types (Google Opal-inspired) ── */
   --node-input: oklch(0.795 0.184 86.047);
   --node-input-foreground: oklch(0.421 0.095 57.708);
   --node-agent: oklch(0.588 0.158 241.966);
   --node-agent-foreground: oklch(0.985 0 0);
   --node-output: oklch(0.648 0.2 142.495);
   --node-output-foreground: oklch(0.985 0 0);
+  --node-branch: oklch(0.627 0.195 303.9);
+  --node-branch-foreground: oklch(0.985 0 0);
+  --node-iterator: oklch(0.65 0.17 195);
+  --node-iterator-foreground: oklch(0.985 0 0);
+  --node-notification: oklch(0.7 0.18 55);
+  --node-notification-foreground: oklch(0.985 0 0);
+  --node-sensor: oklch(0.6 0.16 200);
+  --node-sensor-foreground: oklch(0.985 0 0);
+  --node-approval: oklch(0.55 0.2 275);
+  --node-approval-foreground: oklch(0.985 0 0);
+  --node-subworkflow: oklch(0.5 0.05 250);
+  --node-subworkflow-foreground: oklch(0.985 0 0);
+
+  /* ── Hero gradient (light) ── */
+  --hero-gradient-1: oklch(0.88 0.06 290 / 55%);
+  --hero-gradient-2: oklch(0.86 0.08 320 / 45%);
+  --hero-card-bg:    oklch(0.95 0.01 280);
 }
 
+/* ═══════════════════════════════════════════════════════
+   Dark Theme
+   ═══════════════════════════════════════════════════════ */
 .dark {
+  color-scheme: dark;
+  scrollbar-color: var(--muted-foreground) transparent;
+
+  /* ── Base UI ── */
   --background: oklch(0.16 0.015 260);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.21 0.015 260);
@@ -110,6 +174,15 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
 
+  /* ── Status (brighter for dark background contrast) ── */
+  --success: oklch(0.7 0.19 150);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.8 0.16 80);
+  --warning-foreground: oklch(0.985 0 0);
+  --info: oklch(0.65 0.18 255);
+  --info-foreground: oklch(0.985 0 0);
+
+  /* ── Sidebar ── */
   --sidebar: oklch(0.19 0.015 260);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -119,21 +192,68 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.439 0 0);
 
-  /* Node-type semantic colors — Dark (unchanged) */
+  /* ── Node types ── */
   --node-input: oklch(0.795 0.184 86.047);
   --node-input-foreground: oklch(0.985 0 0);
   --node-agent: oklch(0.588 0.158 241.966);
   --node-agent-foreground: oklch(0.985 0 0);
   --node-output: oklch(0.648 0.2 142.495);
   --node-output-foreground: oklch(0.985 0 0);
+  --node-branch: oklch(0.627 0.195 303.9);
+  --node-branch-foreground: oklch(0.985 0 0);
+  --node-iterator: oklch(0.65 0.17 195);
+  --node-iterator-foreground: oklch(0.985 0 0);
+  --node-notification: oklch(0.7 0.18 55);
+  --node-notification-foreground: oklch(0.985 0 0);
+  --node-sensor: oklch(0.6 0.16 200);
+  --node-sensor-foreground: oklch(0.985 0 0);
+  --node-approval: oklch(0.55 0.2 275);
+  --node-approval-foreground: oklch(0.985 0 0);
+  --node-subworkflow: oklch(0.5 0.05 250);
+  --node-subworkflow-foreground: oklch(0.985 0 0);
+
+  /* ── Hero gradient (dark) ── */
+  --hero-gradient-1: oklch(0.28 0.09 290 / 70%);
+  --hero-gradient-2: oklch(0.22 0.11 330 / 55%);
+  --hero-card-bg:    oklch(0.13 0.02 275);
 }
 
-/* ReactFlow theme overrides */
+/* ═══════════════════════════════════════════════════════
+   Native Form Controls — dark dropdown/option styling
+   (color-scheme on .dark handles scrollbars, inputs, etc.
+    via inheritance; option needs explicit bg for dropdowns)
+   ═══════════════════════════════════════════════════════ */
+.dark select option {
+  background-color: var(--card);
+  color: var(--card-foreground);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Global Base Styles
+   ═══════════════════════════════════════════════════════ */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ReactFlow Overrides
+   ═══════════════════════════════════════════════════════ */
 .react-flow__node {
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   background: transparent !important;
+  animation: nodeEnter 200ms ease-out;
+}
+
+@keyframes nodeEnter {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .react-flow__edge-path {
@@ -144,9 +264,7 @@
 }
 
 @keyframes dashmove {
-  to {
-    stroke-dashoffset: -10;
-  }
+  to { stroke-dashoffset: -10; }
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
@@ -170,33 +288,33 @@
   border-radius: var(--radius);
 }
 
-html {
-  scroll-behavior: smooth;
+/* ═══════════════════════════════════════════════════════
+   TipTap Prompt Editor
+   ═══════════════════════════════════════════════════════ */
+.prompt-editor-content p {
+  margin: 0;
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
+.prompt-editor-content .is-empty::before {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
 
-/* Node enter animation */
-.react-flow__node {
-  animation: nodeEnter 200ms ease-out;
+.ProseMirror:not(.ProseMirror-focused):not([contenteditable="true"]) .is-empty::before {
+  display: none;
 }
 
-@keyframes nodeEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.mention-pill-wrapper {
+  display: inline;
 }
 
-/* ─── Dashboard / Landing ─── */
-
+/* ═══════════════════════════════════════════════════════
+   Landing Page
+   ═══════════════════════════════════════════════════════ */
 .landing-display {
   font-family: 'Syne', sans-serif;
 }
@@ -205,26 +323,10 @@ body {
   font-family: 'DM Sans', sans-serif;
 }
 
-/* Nav blur */
 .landing-nav {
   backdrop-filter: blur(16px) saturate(180%);
-  background: oklch(0.16 0.015 260 / 80%);
-}
-
-/* ─── Product Landing Hero ─── */
-
-@keyframes heroNodeEnter {
-  from { opacity: 0; transform: translateY(12px) scale(0.92); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes heroGlow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--hero-glow, transparent); }
-  50% { box-shadow: 0 0 24px 4px var(--hero-glow, transparent); }
-}
-
-@keyframes heroEdgeFlow {
-  to { background-position: 20px 0; }
+  background: oklch(0.16 0.015 260 / 80%); /* fallback for older browsers */
+  background: oklch(from var(--background) l c h / 80%);
 }
 
 .hero-node {
@@ -259,10 +361,6 @@ body {
   animation: heroEdgeFlowV 0.5s linear infinite;
 }
 
-@keyframes heroEdgeFlowV {
-  to { background-position: 0 20px; }
-}
-
 .hero-gradient-text {
   background: linear-gradient(135deg, var(--node-input), var(--node-agent), var(--node-output));
   -webkit-background-clip: text;
@@ -270,42 +368,59 @@ body {
   background-clip: text;
 }
 
-/* ── TipTap Prompt Editor ── */
-
-.prompt-editor-content p {
-  margin: 0;
+.hero-card {
+  background:
+    radial-gradient(ellipse 70% 60% at 75% 20%, var(--hero-gradient-1), transparent),
+    radial-gradient(ellipse 50% 50% at 15% 80%, var(--hero-gradient-2), transparent),
+    var(--hero-card-bg);
 }
 
-.prompt-editor-content .is-empty::before {
-  color: var(--muted-foreground);
-  opacity: 0.5;
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
+@keyframes heroNodeEnter {
+  from { opacity: 0; transform: translateY(12px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Hide TipTap placeholder in read-only mode (we show our own empty state) */
-.ProseMirror:not(.ProseMirror-focused):not([contenteditable="true"]) .is-empty::before {
-  display: none;
+@keyframes heroGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--hero-glow, transparent); }
+  50%      { box-shadow: 0 0 24px 4px var(--hero-glow, transparent); }
 }
 
-.mention-pill-wrapper {
-  display: inline;
+@keyframes heroEdgeFlow {
+  to { background-position: 20px 0; }
 }
 
-/* Sequential input step animation */
+@keyframes heroEdgeFlowV {
+  to { background-position: 0 20px; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Animations
+   ═══════════════════════════════════════════════════════ */
 @keyframes stepSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .input-step-enter {
   animation: stepSlideIn 200ms ease-out;
+}
+
+@keyframes borderRotate {
+  to { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.workflow-card-running {
+  --border-angle: 0deg;
+  border-width: 2px !important;
+  border-color: transparent !important;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    conic-gradient(from var(--border-angle), var(--node-agent), var(--node-output), var(--node-input), var(--node-agent)) border-box !important;
+  animation: borderRotate 2.5s linear infinite;
 }

@@ -39,8 +39,8 @@ export function PanelSchedule() {
     if (!workflowName) return
     setLoading(true)
     Promise.all([
-      fetchSchedules().then((all) => all.filter((s) => s.workflow_name === workflowName)),
-      fetchTriggers(workflowName),
+      fetchSchedules().then((all) => (all ?? []).filter((s) => s.workflow_name === workflowName)),
+      fetchTriggers(workflowName).then((t) => t ?? []),
     ])
       .then(([s, t]) => { setSchedules(s); setTriggers(t) })
       .catch(() => { setSchedules([]); setTriggers([]) })
@@ -234,7 +234,7 @@ export function PanelSchedule() {
                       {s.timezone && s.timezone !== 'UTC' && (
                         <span className="text-[10px] text-muted-foreground">{s.timezone}</span>
                       )}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${s.enabled ? 'bg-green-500/15 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${s.enabled ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
                         {s.enabled ? 'active' : 'paused'}
                       </span>
                       <button onClick={() => startEditing(s)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Edit">
@@ -292,7 +292,7 @@ export function PanelSchedule() {
                         className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         title="Copy URL"
                       >
-                        {copiedId === `url-${t.id}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                        {copiedId === `url-${t.id}` ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                       </button>
                     </div>
                     {t.config.secret && (
@@ -306,7 +306,7 @@ export function PanelSchedule() {
                           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           title="Copy secret"
                         >
-                          {copiedId === `secret-${t.id}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === `secret-${t.id}` ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                         </button>
                       </div>
                     )}

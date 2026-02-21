@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { Canvas } from '@/components/editor/Canvas'
 import { RightPanel } from '@/components/panel/RightPanel'
 import { Header } from '@/components/Header'
@@ -9,6 +10,8 @@ import { useExecutionStore } from '@/stores/executionStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useAutoSave } from '@/hooks/useAutoSave'
+import { useReconnectRun } from '@/hooks/useReconnectRun'
+import type { NodeType } from '@/lib/nodeTypes'
 import { serializeWorkflow, deserializeWorkflow } from '@/lib/serializer'
 import { generateWorkflow } from '@/lib/api'
 
@@ -23,19 +26,28 @@ export default function Editor() {
   const selectNode = useUIStore((s) => s.selectNode)
 
   const [isGenerating, setIsGenerating] = useState(false)
+  const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
 
   const { saveStatus, saveNow } = useAutoSave()
+  useReconnectRun()
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
     : null
 
-  const handleAddNode = (type: 'input' | 'agent' | 'output') => {
+  const handleAddNode = (type: NodeType) => {
+    const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
+    // Small random offset so consecutive clicks don't stack exactly
     addNode(type, {
-      x: 250,
-      y: useWorkflowStore.getState().nodes.length * 150 + 50,
+      x: center.x + (Math.random() - 0.5) * 60,
+      y: center.y + (Math.random() - 0.5) * 40,
     })
   }
+
+  const handleExposeViewportCenter = useCallback(
+    (fn: () => { x: number; y: number }) => { getViewportCenterRef.current = fn },
+    [],
+  )
 
   const handleDropNode = (type: string, position: { x: number; y: number }) => {
     addNode(type as 'input' | 'agent' | 'output', position)
@@ -88,12 +100,15 @@ export default function Editor() {
         <NodePalette onAddNode={handleAddNode} />
 
         <main className="flex-1">
-          <Canvas
-            onAddFirstNode={() => handleAddNode('input')}
-            onDropNode={handleDropNode}
-            onPromptSubmit={handlePromptSubmit}
-            isGenerating={isGenerating}
-          />
+          <ReactFlowProvider>
+            <Canvas
+              onAddFirstNode={() => handleAddNode('input')}
+              onDropNode={handleDropNode}
+              onPromptSubmit={handlePromptSubmit}
+              isGenerating={isGenerating}
+              exposeGetViewportCenter={handleExposeViewportCenter}
+            />
+          </ReactFlowProvider>
         </main>
 
         <RightPanel

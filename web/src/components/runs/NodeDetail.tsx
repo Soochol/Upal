@@ -38,7 +38,7 @@ export function NodeDetail({ nodeRun, run }: Props) {
           <span className="text-xs text-muted-foreground font-mono">{formatDuration()}</span>
         </div>
         {nodeRun.retry_count > 0 && (
-          <span className="text-xs text-orange-500">retries: {nodeRun.retry_count}</span>
+          <span className="text-xs text-warning">retries: {nodeRun.retry_count}</span>
         )}
       </div>
 
@@ -82,8 +82,8 @@ export function NodeDetail({ nodeRun, run }: Props) {
         )}
 
         {activeTab === 'error' && nodeRun.error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded p-3">
-            <pre className="text-xs text-red-500 font-mono whitespace-pre-wrap">{nodeRun.error}</pre>
+          <div className="bg-destructive/10 border border-destructive/20 rounded p-3">
+            <pre className="text-xs text-destructive font-mono whitespace-pre-wrap">{nodeRun.error}</pre>
           </div>
         )}
 

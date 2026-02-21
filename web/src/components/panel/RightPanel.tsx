@@ -8,13 +8,11 @@ import {
 } from '@/components/ui/tooltip'
 import { NodeEditor } from '@/components/editor/nodes/NodeEditor'
 import { PanelPreview } from '@/components/panel/PanelPreview'
-import { PanelLogs } from '@/components/panel/PanelLogs'
-import { PanelData } from '@/components/panel/PanelData'
-import { PanelChat } from '@/components/panel/PanelChat'
+import { PanelConsole } from '@/components/panel/PanelConsole'
 import { PanelSchedule } from '@/components/panel/PanelSchedule'
 import { GroupEditor } from '@/components/panel/GroupEditor'
 import { AIChatEditor } from '@/components/panel/AIChatEditor'
-import { Settings2, ScrollText, Database, MessageSquare, Eye, Clock } from 'lucide-react'
+import { Settings2, Terminal, Eye, Clock } from 'lucide-react'
 import type { NodeData } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useResizeDrag } from '@/hooks/useResizeDrag'
@@ -27,9 +25,7 @@ type RightPanelProps = {
 
 const tabs = [
   { value: 'properties', label: 'Properties', icon: Settings2 },
-  { value: 'logs', label: 'Logs', icon: ScrollText },
-  { value: 'data', label: 'Data', icon: Database },
-  { value: 'chat', label: 'Chat', icon: MessageSquare },
+  { value: 'console', label: 'Console', icon: Terminal },
   { value: 'preview', label: 'Preview', icon: Eye },
   { value: 'schedule', label: 'Schedule', icon: Clock },
 ] as const
@@ -168,16 +164,8 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
         </TabsContent>
 
         {/* Other tabs: flex-1 to fill remaining space */}
-        <TabsContent value="logs" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelLogs selectedNodeId={selectedNodeId} />
-        </TabsContent>
-
-        <TabsContent value="data" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelData selectedNodeId={selectedNodeId} />
-        </TabsContent>
-
-        <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelChat selectedNodeId={selectedNodeId} />
+        <TabsContent value="console" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PanelConsole selectedNodeId={selectedNodeId} />
         </TabsContent>
 
         <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">

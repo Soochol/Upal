@@ -82,7 +82,7 @@ export function BottomConsole() {
           {runEvents.length > 0 && (
             <>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
-                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
               </Button>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearRunEvents}>
                 <Trash2 className="h-3 w-3" />

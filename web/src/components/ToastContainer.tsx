@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 const variants: Record<Toast['variant'], { icon: typeof AlertCircle; className: string }> = {
   error: { icon: AlertCircle, className: 'border-destructive/30 bg-destructive/10 text-destructive' },
-  success: { icon: CheckCircle2, className: 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400' },
+  success: { icon: CheckCircle2, className: 'border-success/30 bg-success/10 text-success' },
   info: { icon: Info, className: 'border-border bg-card text-card-foreground' },
 }
 

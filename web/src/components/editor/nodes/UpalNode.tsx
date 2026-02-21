@@ -1,6 +1,6 @@
 import { type ComponentType, useState, useEffect } from 'react'
 import { Handle, Position, useConnection, type NodeProps, type Node } from '@xyflow/react'
-import { Loader2, Check, X } from 'lucide-react'
+import { Loader2, Check, X, Hourglass, SkipForward } from 'lucide-react'
 import { useUIStore } from '@/stores/uiStore'
 import { useExecutionStore } from '@/stores/executionStore'
 import type { NodeRunStatus } from '@/stores/executionStore'
@@ -16,6 +16,8 @@ const statusConfig: Record<
   running: { icon: Loader2, ring: 'ring-2 ring-amber-400' },
   completed: { icon: Check, ring: 'ring-2 ring-green-400' },
   error: { icon: X, ring: 'ring-2 ring-destructive' },
+  waiting: { icon: Hourglass, ring: 'ring-2 ring-amber-400 animate-pulse' },
+  skipped: { icon: SkipForward, ring: 'ring-2 ring-muted-foreground/40 opacity-60' },
 }
 
 export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
@@ -106,13 +108,19 @@ export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
           </span>
         )}
         {StatusIcon && runStatus === 'running' && (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-400" />
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-warning" />
         )}
         {StatusIcon && runStatus === 'completed' && (
-          <Check className="h-4 w-4 shrink-0 text-green-400" />
+          <Check className="h-4 w-4 shrink-0 text-success" />
         )}
         {StatusIcon && runStatus === 'error' && (
           <X className="h-4 w-4 shrink-0 text-destructive" />
+        )}
+        {StatusIcon && runStatus === 'waiting' && (
+          <Hourglass className="h-4 w-4 shrink-0 animate-pulse text-warning" />
+        )}
+        {StatusIcon && runStatus === 'skipped' && (
+          <SkipForward className="h-4 w-4 shrink-0 text-muted-foreground" />
         )}
       </div>
 

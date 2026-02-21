@@ -18,9 +18,12 @@ export type { RunEvent, NodeRunStatus } from './executionStore'
 export { useExecutionStore } from './executionStore'
 export { useUIStore } from './uiStore'
 
+// Node types whose prompt field should receive auto-inserted template references on connect
+const AUTO_PROMPT_TYPES = new Set(['agent', 'output', 'branch'])
+
 export type NodeData = {
   label: string
-  nodeType: 'input' | 'agent' | 'output' | 'group'
+  nodeType: 'input' | 'agent' | 'output' | 'branch' | 'iterator' | 'notification' | 'sensor' | 'approval' | 'subworkflow' | 'group'
   description: string
   config: Record<string, unknown>
 }
@@ -73,10 +76,63 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
   },
   onEdgesChange: (changes) => {
+    // Auto-remove {{source}} template references from target node prompts on edge removal
+    const removals = changes.filter((c) => c.type === 'remove')
+    if (removals.length > 0) {
+      const { edges, nodes } = get()
+      const removedEdges = removals
+        .map((c) => edges.find((e) => e.id === c.id))
+        .filter(Boolean) as Edge[]
+
+      let updatedNodes = nodes
+      for (const edge of removedEdges) {
+        const target = updatedNodes.find((n) => n.id === edge.target)
+        if (!target || !AUTO_PROMPT_TYPES.has(target.data.nodeType)) continue
+        const prompt = (target.data.config.prompt as string) ?? ''
+        if (!prompt) continue
+
+        const ref = `{{${edge.source}}}`
+        if (!prompt.includes(ref)) continue
+
+        // Remove the reference and clean up extra blank lines
+        const newPrompt = prompt
+          .split('\n')
+          .filter((line) => line.trim() !== ref)
+          .join('\n')
+
+        updatedNodes = updatedNodes.map((n) =>
+          n.id === edge.target
+            ? { ...n, data: { ...n.data, config: { ...n.data.config, prompt: newPrompt } } }
+            : n,
+        )
+      }
+      if (updatedNodes !== nodes) {
+        set({ nodes: updatedNodes })
+      }
+    }
     set({ edges: applyEdgeChanges(changes, get().edges) })
   },
   onConnect: (connection) => {
     set({ edges: addEdge({ ...connection, type: 'default' }, get().edges) })
+
+    // Auto-insert {{source}} template reference into target node's prompt
+    if (!connection.source || !connection.target) return
+    const targetNode = get().nodes.find((n) => n.id === connection.target)
+    if (!targetNode || !AUTO_PROMPT_TYPES.has(targetNode.data.nodeType)) return
+    if (targetNode.data.nodeType === 'branch' && targetNode.data.config.mode !== 'llm') return
+
+    const currentPrompt = (targetNode.data.config.prompt as string) ?? ''
+    const ref = `{{${connection.source}}}`
+    if (currentPrompt.includes(ref)) return
+
+    const newPrompt = currentPrompt ? `${currentPrompt}\n${ref}` : ref
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === connection.target
+          ? { ...n, data: { ...n.data, config: { ...n.data.config, prompt: newPrompt } } }
+          : n,
+      ),
+    })
   },
   addNode: (type, position) => {
     const id = getId()

@@ -6,11 +6,9 @@ import { createElement } from 'react'
 import { Bot } from 'lucide-react'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
-const pillColorMap: Record<string, string> = {
-  input: 'bg-node-input/15 text-node-input',
-  agent: 'bg-node-agent/15 text-node-agent',
-  output: 'bg-node-output/15 text-node-output',
-}
+const pillColorMap: Record<string, string> = Object.fromEntries(
+  Object.keys(NODE_TYPES).map((t) => [t, `bg-node-${t}/15 text-node-${t}`]),
+)
 
 // ── Mention pill rendered inside the editor ──
 

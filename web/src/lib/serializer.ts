@@ -28,6 +28,8 @@ type WorkflowEdge = {
   from: string
   to: string
   loop?: { max_iterations: number; exit_when: string }
+  condition?: string
+  trigger_rule?: 'on_success' | 'on_failure' | 'always'
 }
 
 export function serializeWorkflow(
@@ -62,10 +64,19 @@ export function serializeWorkflow(
       }
       return node
     }),
-    edges: edges.map((e) => ({
-      from: e.source,
-      to: e.target,
-    })),
+    edges: edges.map((e) => {
+      const edge: WorkflowEdge = {
+        from: e.source,
+        to: e.target,
+      }
+      if (e.data?.condition) {
+        edge.condition = e.data.condition as string
+      }
+      if (e.data?.trigger_rule && e.data.trigger_rule !== 'on_success') {
+        edge.trigger_rule = e.data.trigger_rule as WorkflowEdge['trigger_rule']
+      }
+      return edge
+    }),
   }
 
   if (groups.length > 0) {
@@ -144,12 +155,21 @@ export function deserializeWorkflow(
 
   const allNodes: Node<NodeData>[] = [...groupNodes, ...regularNodes]
 
-  const edges: Edge[] = wf.edges.map((e, i) => ({
-    id: `edge-${i}`,
-    source: e.from,
-    target: e.to,
-    type: 'default',
-  }))
+  const edges: Edge[] = wf.edges.map((e, i) => {
+    const edge: Edge = {
+      id: `edge-${i}`,
+      source: e.from,
+      target: e.to,
+      type: 'default',
+    }
+    if (e.condition || (e.trigger_rule && e.trigger_rule !== 'on_success')) {
+      edge.data = {
+        ...(e.condition && { condition: e.condition }),
+        ...(e.trigger_rule && { trigger_rule: e.trigger_rule }),
+      }
+    }
+    return edge
+  })
 
   // Only apply auto-layout to non-grouped nodes
   if (groupNodes.length === 0) {

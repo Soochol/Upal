@@ -31,7 +31,7 @@ export function TriggerRow({ trigger, onDelete }: Props) {
               className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
               title="Copy URL"
             >
-              {copiedUrl ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+              {copiedUrl ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
             </button>
           </div>
           {trigger.config.secret && (
@@ -44,7 +44,7 @@ export function TriggerRow({ trigger, onDelete }: Props) {
                 className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 title="Copy Secret"
               >
-                {copiedSecret ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                {copiedSecret ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
               </button>
             </div>
           )}

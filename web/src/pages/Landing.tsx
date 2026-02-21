@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, GitBranch } from 'lucide-react'
-import { listWorkflows, deleteWorkflow, fetchSchedules, type Schedule } from '@/lib/api'
+import { listWorkflows, deleteWorkflow, fetchSchedules, fetchRuns, type Schedule } from '@/lib/api'
 import { deserializeWorkflow, type WorkflowDefinition } from '@/lib/serializer'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -13,6 +13,7 @@ export default function Landing() {
   const navigate = useNavigate()
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -26,6 +27,15 @@ export default function Landing() {
     fetchSchedules()
       .then(setSchedules)
       .catch(() => setSchedules([]))
+    fetchRuns(100, 0)
+      .then(({ runs }) => {
+        const running = new Set<string>()
+        for (const r of runs ?? []) {
+          if (r.status === 'running') running.add(r.workflow_name)
+        }
+        setRunningWorkflows(running)
+      })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openWorkflow = (wf: WorkflowDefinition) => {
@@ -152,6 +162,7 @@ export default function Landing() {
                       onDelete={() => handleDelete(wf.name)}
                       scheduleCount={sched?.count}
                       nextRun={sched?.nextRun}
+                      isRunning={runningWorkflows.has(wf.name)}
                     />
                   )
                 })}

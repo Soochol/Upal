@@ -5,6 +5,9 @@ export const eventColorMap: Record<string, string> = {
   tool_call:      'text-amber-500 dark:text-amber-400',
   tool_result:    'text-muted-foreground italic',
   node_completed: 'text-node-agent',
+  node_skipped:   'text-muted-foreground/60 italic',
+  node_waiting:   'text-amber-500 dark:text-amber-400',
+  node_resumed:   'text-muted-foreground',
   done:           'text-node-output font-semibold',
   error:          'text-destructive',
   info:           'text-muted-foreground',
@@ -47,6 +50,12 @@ export function formatEvent(event: RunEvent): string {
       return event.message
     case 'info':
       return event.message
+    case 'node_skipped':
+      return `[${event.nodeId}] skipped`
+    case 'node_waiting':
+      return `[${event.nodeId}] waiting`
+    case 'node_resumed':
+      return `[${event.nodeId}] resumed`
     case 'log':
       return `[${event.nodeId}] ${event.message}`
   }

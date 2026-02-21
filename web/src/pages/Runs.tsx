@@ -5,12 +5,12 @@ import { Header } from '@/components/Header'
 import { Clock, CheckCircle2, XCircle, Loader2, Timer } from 'lucide-react'
 
 const statusConfig: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  pending:   { icon: Clock,        color: 'text-yellow-500', label: 'Pending' },
-  running:   { icon: Loader2,      color: 'text-blue-500',   label: 'Running' },
-  success:   { icon: CheckCircle2, color: 'text-green-500',  label: 'Success' },
-  failed:    { icon: XCircle,      color: 'text-red-500',    label: 'Failed' },
-  cancelled: { icon: XCircle,      color: 'text-gray-500',   label: 'Cancelled' },
-  retrying:  { icon: Timer,        color: 'text-orange-500', label: 'Retrying' },
+  pending:   { icon: Clock,        color: 'text-warning',          label: 'Pending' },
+  running:   { icon: Loader2,      color: 'text-info',             label: 'Running' },
+  success:   { icon: CheckCircle2, color: 'text-success',          label: 'Success' },
+  failed:    { icon: XCircle,      color: 'text-destructive',      label: 'Failed' },
+  cancelled: { icon: XCircle,      color: 'text-muted-foreground', label: 'Cancelled' },
+  retrying:  { icon: Timer,        color: 'text-warning',          label: 'Retrying' },
 }
 
 export default function Runs() {
@@ -133,7 +133,7 @@ export default function Runs() {
                             <Icon size={16} className={`${cfg.color} ${run.status === 'running' ? 'animate-spin' : ''}`} />
                             <span className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</span>
                             {run.status === 'running' && (
-                              <span className="text-[10px] px-1 py-0.5 rounded-full bg-blue-500/10 text-blue-500 animate-pulse">
+                              <span className="text-[10px] px-1 py-0.5 rounded-full bg-info/10 text-info animate-pulse">
                                 live
                               </span>
                             )}

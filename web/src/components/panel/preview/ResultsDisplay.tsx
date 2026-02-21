@@ -13,12 +13,18 @@ function containsImageDataURI(text: string): boolean {
   return text.split('\n').some((line) => isImageDataURI(line.trim()))
 }
 
-/** Read output_format from the first output node's config. */
+/** Read the first output node's ID (primitive — stable for Zustand). */
+function useOutputNodeId(): string | undefined {
+  return useWorkflowStore((s) =>
+    s.nodes.find((n) => n.data.nodeType === 'output')?.id,
+  )
+}
+
+/** Read the first output node's output_format (primitive — stable for Zustand). */
 function useOutputFormat(): string | undefined {
-  return useWorkflowStore((s) => {
-    const outputNode = s.nodes.find((n) => n.data.nodeType === 'output')
-    return outputNode?.data.config.output_format as string | undefined
-  })
+  return useWorkflowStore((s) =>
+    s.nodes.find((n) => n.data.nodeType === 'output')?.data.config.output_format as string | undefined,
+  )
 }
 
 /** Lazily resolve the ResultView component from the format registry. */
@@ -29,6 +35,43 @@ function useLazyResultView(format: OutputFormatDef) {
   )
 }
 
+/**
+ * Resolve the primary output content from session state.
+ *
+ * The backend provides a dedicated `__output__` map (keyed by output node ID)
+ * so the frontend doesn't have to guess which state entry is the final result.
+ * Falls back to heuristic search for legacy runs that lack `__output__`.
+ */
+function findPrimaryOutput(
+  sessionState: Record<string, unknown>,
+  outputNodeId: string | undefined,
+): [string, string] | undefined {
+  // 1. Dedicated __output__ map from backend (deterministic)
+  const outputMap = sessionState['__output__']
+  if (outputMap && typeof outputMap === 'object' && outputNodeId) {
+    const content = (outputMap as Record<string, unknown>)[outputNodeId]
+    if (typeof content === 'string' && !containsImageDataURI(content)) {
+      return [outputNodeId, content]
+    }
+  }
+
+  // 2. Legacy fallback: find by output node ID in flat state
+  const entries = Object.entries(sessionState).filter(
+    ([k, v]) => k !== '__output__' && v != null && v !== '',
+  )
+  if (outputNodeId) {
+    const match = entries.find(
+      ([k, v]) => k === outputNodeId && typeof v === 'string' && !containsImageDataURI(v as string),
+    )
+    if (match) return match as [string, string]
+  }
+
+  // 3. Last resort: first non-image string entry
+  return entries.find(
+    ([, v]) => typeof v === 'string' && !containsImageDataURI(v as string),
+  ) as [string, string] | undefined
+}
+
 type ResultsDisplayProps = {
   sessionState: Record<string, unknown>
   doneEvent: RunEvent | undefined
@@ -36,10 +79,11 @@ type ResultsDisplayProps = {
 }
 
 export function ResultsDisplay({ sessionState, doneEvent, workflowName }: ResultsDisplayProps) {
+  const outputNodeId = useOutputNodeId()
   const outputFormat = useOutputFormat()
 
   const stateEntries = Object.entries(sessionState).filter(
-    ([, v]) => v != null && v !== '',
+    ([k, v]) => k !== '__output__' && v != null && v !== '',
   )
 
   // Separate image outputs (always rendered with ImagePreview, format-independent)
@@ -47,14 +91,11 @@ export function ResultsDisplay({ sessionState, doneEvent, workflowName }: Result
     ([, v]) => typeof v === 'string' && containsImageDataURI(v as string),
   ) as [string, string][]
 
-  // Find the primary output content (non-image string from output node)
-  const primaryOutput = stateEntries.find(
-    ([, v]) => typeof v === 'string' && !containsImageDataURI(v as string),
-  )
+  const primaryOutput = findPrimaryOutput(sessionState, outputNodeId)
 
   // Resolve format from config or auto-detect from content
   const format = primaryOutput
-    ? resolveFormat(outputFormat, primaryOutput[1] as string)
+    ? resolveFormat(outputFormat, primaryOutput[1])
     : null
 
   return (
@@ -63,7 +104,7 @@ export function ResultsDisplay({ sessionState, doneEvent, workflowName }: Result
       {format && primaryOutput && (
         <FormatResultView
           format={format}
-          content={primaryOutput[1] as string}
+          content={primaryOutput[1]}
           workflowName={workflowName}
         />
       )}

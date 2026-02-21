@@ -9,6 +9,7 @@ type WorkflowCardProps = {
   onDelete?: () => void
   scheduleCount?: number
   nextRun?: string
+  isRunning?: boolean
 }
 
 export function WorkflowCard({
@@ -18,6 +19,7 @@ export function WorkflowCard({
   onDelete,
   scheduleCount,
   nextRun,
+  isRunning,
 }: WorkflowCardProps) {
   // Count nodes by type
   const typeCounts: Record<string, number> = {}
@@ -27,10 +29,10 @@ export function WorkflowCard({
 
   return (
     <div
-      className="group relative text-left w-full rounded-2xl p-5 transition-all duration-200
+      className={`group relative text-left w-full rounded-2xl p-5 transition-all duration-200
         bg-card/60 border border-border hover:border-foreground/20
         hover:bg-card hover:shadow-lg hover:shadow-black/10
-        hover:-translate-y-0.5 cursor-pointer"
+        hover:-translate-y-0.5 cursor-pointer${isRunning ? ' workflow-card-running' : ''}`}
       onClick={onClick}
       role="button"
       tabIndex={0}

@@ -62,6 +62,19 @@ export function PromptEditor({
 
   // Ref to track popup element for cleanup on unmount
   const popupRef = useRef<HTMLDivElement | null>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Click-outside: save and exit editing
+  useEffect(() => {
+    if (!isEditing) return
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current?.contains(e.target as Node)) return
+      if (popupRef.current?.contains(e.target as Node)) return
+      setIsEditing(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [isEditing])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -194,6 +207,7 @@ export function PromptEditor({
 
   return (
     <div
+      ref={wrapperRef}
       className={`group/prompt relative rounded-md px-3 py-2 ${
         isEditing
           ? 'border border-input bg-background ring-offset-background focus-within:ring-1 focus-within:ring-ring'

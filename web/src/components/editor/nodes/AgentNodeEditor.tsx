@@ -4,14 +4,15 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { ChevronRight } from 'lucide-react'
 import { ModelSelector } from '@/components/editor/ModelSelector'
 import { ModelOptions } from '@/components/editor/ModelOptions'
+import { PromptEditor } from '@/components/editor/PromptEditor'
 import { TemplateText } from '@/components/editor/TemplateText'
 import { listTools, type ToolInfo } from '@/lib/api'
 import { useModels } from '@/hooks/useModels'
 import { useUIStore } from '@/stores/uiStore'
 import type { AgentNodeConfig } from '@/lib/nodeConfigs'
-import { fieldBoxExpand, type NodeEditorFieldProps } from './NodeEditor'
+import { fieldBox, type NodeEditorFieldProps } from './NodeEditor'
 
-export function AgentNodeEditor({ config, setConfig }: NodeEditorFieldProps<AgentNodeConfig>) {
+export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldProps<AgentNodeConfig>) {
   const [availableTools, setAvailableTools] = useState<ToolInfo[]>([])
   const [promptsOpen, setPromptsOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -41,7 +42,7 @@ export function AgentNodeEditor({ config, setConfig }: NodeEditorFieldProps<Agen
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-3">
+    <div className="flex flex-col gap-3">
       {/* Model selector — fixed height */}
       <div className="space-y-1 shrink-0">
         <Label className="text-xs">Model</Label>
@@ -101,33 +102,37 @@ export function AgentNodeEditor({ config, setConfig }: NodeEditorFieldProps<Agen
       )}
 
       {/* Prompt — expands to fill remaining space */}
-      <div className="flex-1 flex flex-col min-h-24 gap-1">
+      <div className="flex flex-col gap-1">
         <Label className="text-xs shrink-0">Prompt</Label>
-        <div className={fieldBoxExpand}>
-          <TemplateText text={config.prompt ?? ''} />
-        </div>
+        <PromptEditor
+          value={config.prompt ?? ''}
+          onChange={(v) => setConfig('prompt', v)}
+          nodeId={nodeId}
+          placeholder="Use {{ to reference upstream node results..."
+          className="min-h-40"
+        />
       </div>
 
       {/* Collapsible: system prompt + output format (read-only) */}
       <Collapsible
         open={promptsOpen}
         onOpenChange={setPromptsOpen}
-        className={promptsOpen ? 'flex-1 flex flex-col min-h-0 shrink-0' : 'shrink-0'}
+        className="shrink-0"
       >
         <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
           <ChevronRight className={`h-3 w-3 transition-transform ${promptsOpen ? 'rotate-90' : ''}`} />
           System Prompt / Output
         </CollapsibleTrigger>
-        <CollapsibleContent className="flex-1 flex flex-col gap-3 min-h-0 pt-1">
-          <div className="flex-1 flex flex-col min-h-20 gap-1">
+        <CollapsibleContent className="flex flex-col gap-3 pt-1">
+          <div className="flex flex-col gap-1">
             <Label className="text-xs shrink-0">System Prompt</Label>
-            <div className={fieldBoxExpand}>
+            <div className={fieldBox}>
               <TemplateText text={config.system_prompt ?? ''} />
             </div>
           </div>
-          <div className="flex-1 flex flex-col min-h-20 gap-1">
+          <div className="flex flex-col gap-1">
             <Label className="text-xs shrink-0">Output</Label>
-            <div className={fieldBoxExpand}>
+            <div className={fieldBox}>
               <TemplateText text={config.output ?? ''} />
             </div>
           </div>

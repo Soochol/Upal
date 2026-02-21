@@ -19,7 +19,7 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
   const nodeId = data.node_id as string
   switch (eventType) {
     case 'node_started':
-      return { type: 'node_started', nodeId }
+      return { type: 'node_started', nodeId, startedAt: data.started_at as number | undefined }
     case 'tool_call':
       return { type: 'tool_call', nodeId, calls: data.calls as ToolCall[] }
     case 'tool_result':
@@ -31,6 +31,12 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
         output: data.output as string,
         stateDelta: (data.state_delta ?? {}) as Record<string, unknown>,
       }
+    case 'node_skipped':
+      return { type: 'node_skipped', nodeId }
+    case 'node_waiting':
+      return { type: 'node_waiting', nodeId }
+    case 'node_resumed':
+      return { type: 'node_resumed', nodeId }
     case 'log':
       return { type: 'log', nodeId, message: data.message as string }
     default:
@@ -38,28 +44,52 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
   }
 }
 
-export async function runWorkflow(
+// startRun kicks off a workflow execution in the background and returns the run ID.
+export async function startRun(
   name: string,
   inputs: Record<string, string>,
+  workflow?: WorkflowDefinition,
+): Promise<{ run_id: string }> {
+  const res = await fetch(`${API_BASE}/workflows/${encodeURIComponent(name)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inputs, workflow }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(body || `Run failed: ${res.statusText}`)
+  }
+  return res.json()
+}
+
+// connectToRunEvents subscribes to a run's SSE event stream.
+// Supports reconnection via lastSeq and cancellation via AbortSignal.
+export async function connectToRunEvents(
+  runId: string,
   onEvent: (event: RunEvent) => void,
   onDone: (result: Record<string, unknown>) => void,
   onError: (error: Error) => void,
-  workflow?: WorkflowDefinition,
+  options?: { lastSeq?: number; signal?: AbortSignal },
 ): Promise<void> {
+  const headers: Record<string, string> = {}
+  if (options?.lastSeq !== undefined) {
+    headers['Last-Event-ID'] = String(options.lastSeq)
+  }
+
   let res: Response
   try {
-    res = await fetch(`${API_BASE}/workflows/${encodeURIComponent(name)}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputs, workflow }),
+    res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/events`, {
+      headers,
+      signal: options?.signal,
     })
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return
     onError(err instanceof Error ? err : new Error(String(err)))
     return
   }
 
   if (!res.ok) {
-    onError(new Error(`Run failed: ${res.statusText}`))
+    onError(new Error(`Event stream failed: ${res.statusText}`))
     return
   }
 
@@ -68,6 +98,9 @@ export async function runWorkflow(
     onError(new Error('No response body'))
     return
   }
+
+  // Cancel the reader when abort signal fires.
+  options?.signal?.addEventListener('abort', () => reader.cancel(), { once: true })
 
   const decoder = new TextDecoder()
   let buffer = ''
@@ -85,7 +118,10 @@ export async function runWorkflow(
 
       for (const line of lines) {
         const trimmed = line.replace(/\r$/, '')
-        if (trimmed.startsWith('event: ')) {
+        if (trimmed.startsWith('id: ')) {
+          // SSE id field — tracked automatically by the server seq numbers
+          continue
+        } else if (trimmed.startsWith('event: ')) {
           currentEventType = trimmed.slice(7).trim()
         } else if (trimmed.startsWith('data: ')) {
           const dataStr = trimmed.slice(6)
@@ -108,6 +144,7 @@ export async function runWorkflow(
       }
     }
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return
     onError(err instanceof Error ? err : new Error(String(err)))
   }
 }

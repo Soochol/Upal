@@ -43,7 +43,7 @@ export function ScheduleRow({ schedule, onPause, onResume, onEdit, onDelete }: P
           <span
             className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
               schedule.enabled
-                ? 'bg-green-500/10 text-green-500'
+                ? 'bg-success/10 text-success'
                 : 'bg-muted text-muted-foreground'
             }`}
           >

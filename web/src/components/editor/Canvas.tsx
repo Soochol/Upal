@@ -6,6 +6,7 @@ import {
   MiniMap,
   SelectionMode,
   useOnSelectionChange,
+  useReactFlow,
   type OnSelectionChangeParams,
   type IsValidConnection,
 } from '@xyflow/react'
@@ -26,6 +27,7 @@ type CanvasProps = {
   onDropNode: (type: string, position: { x: number; y: number }) => void
   onPromptSubmit: (description: string) => void
   isGenerating: boolean
+  exposeGetViewportCenter?: (fn: () => { x: number; y: number }) => void
 }
 
 /** Inner component that uses React Flow hooks (must be inside ReactFlow). */
@@ -61,9 +63,23 @@ function SelectionGrouper() {
   return null
 }
 
-export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating }: CanvasProps) {
+export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect } =
     useWorkflowStore()
+  const { screenToFlowPosition } = useReactFlow()
+
+  // Expose viewport center calculator to parent (for click-to-add nodes)
+  useEffect(() => {
+    exposeGetViewportCenter?.(() => {
+      const el = document.querySelector('.react-flow')
+      if (!el) return { x: 250, y: 150 }
+      const rect = el.getBoundingClientRect()
+      return screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      })
+    })
+  }, [exposeGetViewportCenter, screenToFlowPosition])
 
   const isEmpty = nodes.length === 0
 
@@ -135,14 +151,10 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
       e.preventDefault()
       const type = e.dataTransfer.getData('application/upal-node-type')
       if (!type) return
-      const bounds = e.currentTarget.getBoundingClientRect()
-      const position = {
-        x: e.clientX - bounds.left,
-        y: e.clientY - bounds.top,
-      }
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       onDropNode(type, position)
     },
-    [onDropNode],
+    [onDropNode, screenToFlowPosition],
   )
 
   return (

@@ -95,9 +95,9 @@ export default function Schedules() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case 'success': return <span className="text-green-500">&#10003;</span>
-      case 'failed': return <span className="text-red-500">&#10007;</span>
-      case 'running': return <Loader2 className="h-3 w-3 animate-spin text-blue-500 inline" />
+      case 'success': return <span className="text-success">&#10003;</span>
+      case 'failed': return <span className="text-destructive">&#10007;</span>
+      case 'running': return <Loader2 className="h-3 w-3 animate-spin text-info inline" />
       default: return <span className="text-muted-foreground">&#8226;</span>
     }
   }

@@ -13,7 +13,7 @@ export function SchedulerStats({ stats, totalSchedules, failedRuns }: Props) {
       label: 'Active Runs',
       value: stats?.concurrency?.active_runs ?? 0,
       icon: Activity,
-      color: 'text-blue-500',
+      color: 'text-info',
     },
     {
       label: 'Total Schedules',
@@ -25,7 +25,7 @@ export function SchedulerStats({ stats, totalSchedules, failedRuns }: Props) {
       label: 'Recent Failures',
       value: failedRuns,
       icon: AlertTriangle,
-      color: failedRuns > 0 ? 'text-red-500' : 'text-muted-foreground',
+      color: failedRuns > 0 ? 'text-destructive' : 'text-muted-foreground',
     },
   ]
 
