@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
@@ -113,6 +114,75 @@ func toGenaiSchema(schema map[string]any) *genai.Schema {
 		}
 	}
 	return s
+}
+
+// buildPromptParts converts a resolved prompt string into genai Parts.
+// Segments that are bare data URIs (from asset image nodes) become inline
+// image parts; everything else becomes text parts.
+func buildPromptParts(prompt string) []*genai.Part {
+	if !strings.Contains(prompt, "data:image/") {
+		return []*genai.Part{genai.NewPartFromText(prompt)}
+	}
+
+	var parts []*genai.Part
+	remaining := prompt
+	for {
+		idx := strings.Index(remaining, "data:image/")
+		if idx == -1 {
+			if remaining != "" {
+				parts = append(parts, genai.NewPartFromText(remaining))
+			}
+			break
+		}
+		if idx > 0 {
+			parts = append(parts, genai.NewPartFromText(remaining[:idx]))
+		}
+		rest := remaining[idx:]
+		// Data URIs end at whitespace or end-of-string
+		end := strings.IndexAny(rest, " \n\r\t")
+		var uri string
+		if end == -1 {
+			uri = rest
+			remaining = ""
+		} else {
+			uri = rest[:end]
+			remaining = rest[end:]
+		}
+		if p := parseDataURIPart(uri); p != nil {
+			parts = append(parts, p)
+		} else {
+			parts = append(parts, genai.NewPartFromText(uri))
+		}
+	}
+	return parts
+}
+
+// parseDataURIPart parses a data URI string and returns a genai inline image part.
+// Returns nil if the URI is not a valid base64 data URI.
+func parseDataURIPart(uri string) *genai.Part {
+	if !strings.HasPrefix(uri, "data:") {
+		return nil
+	}
+	rest := uri[5:]
+	semi := strings.Index(rest, ";")
+	if semi == -1 {
+		return nil
+	}
+	mimeType := rest[:semi]
+	rest = rest[semi+1:]
+	if !strings.HasPrefix(rest, "base64,") {
+		return nil
+	}
+	data, err := base64.StdEncoding.DecodeString(rest[7:])
+	if err != nil {
+		return nil
+	}
+	return &genai.Part{
+		InlineData: &genai.Blob{
+			MIMEType: mimeType,
+			Data:     data,
+		},
+	}
 }
 
 // aspectRatioToSize converts a ratio string like "16:9" to width/height pixels

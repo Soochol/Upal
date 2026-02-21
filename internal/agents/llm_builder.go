@@ -120,7 +120,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 				resolvedPrompt := resolveTemplateFromState(promptTpl, state)
 
 				contents := []*genai.Content{
-					genai.NewContentFromText(resolvedPrompt, genai.RoleUser),
+					{Role: genai.RoleUser, Parts: buildPromptParts(resolvedPrompt)},
 				}
 
 				genCfg := &genai.GenerateContentConfig{

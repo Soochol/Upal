@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/soochol/upal/internal/upal"
@@ -154,5 +155,55 @@ func (s *testState) All() iter.Seq2[string, any] {
 				return
 			}
 		}
+	}
+}
+
+func TestBuildPromptParts_PlainText(t *testing.T) {
+	parts := buildPromptParts("hello world")
+	if len(parts) != 1 {
+		t.Fatalf("want 1 part, got %d", len(parts))
+	}
+	if parts[0].Text != "hello world" {
+		t.Errorf("want text %q, got %q", "hello world", parts[0].Text)
+	}
+}
+
+func TestBuildPromptParts_WithImage(t *testing.T) {
+	// Minimal base64 encoded 1 byte
+	prompt := "before data:image/png;base64,AA== after"
+	parts := buildPromptParts(prompt)
+	if len(parts) != 3 {
+		t.Fatalf("want 3 parts (text, image, text), got %d", len(parts))
+	}
+	if !strings.Contains(parts[0].Text, "before") {
+		t.Errorf("first part should contain 'before', got %q", parts[0].Text)
+	}
+	if parts[1].InlineData == nil {
+		t.Error("second part should be inline image data")
+	}
+	if parts[1].InlineData.MIMEType != "image/png" {
+		t.Errorf("want mime image/png, got %q", parts[1].InlineData.MIMEType)
+	}
+}
+
+func TestParseDataURIPart_Valid(t *testing.T) {
+	p := parseDataURIPart("data:image/jpeg;base64,/9j/AA==")
+	if p == nil {
+		t.Fatal("expected non-nil part")
+	}
+	if p.InlineData.MIMEType != "image/jpeg" {
+		t.Errorf("want image/jpeg, got %q", p.InlineData.MIMEType)
+	}
+}
+
+func TestParseDataURIPart_Invalid(t *testing.T) {
+	if parseDataURIPart("not-a-data-uri") != nil {
+		t.Error("expected nil for non-data URI")
+	}
+	if parseDataURIPart("data:image/png;notbase64,abc") != nil {
+		t.Error("expected nil for non-base64 encoding")
+	}
+	if parseDataURIPart("data:image/png") != nil {
+		t.Error("expected nil for missing semicolon")
 	}
 }
