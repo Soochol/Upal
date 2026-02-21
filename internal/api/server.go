@@ -112,6 +112,8 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/nodes/configure", s.configureNode)
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
+		r.Get("/files/{id}/serve", s.serveFile)
+		r.Delete("/files/{id}", s.deleteFile)
 		r.Get("/models", s.listModels)
 		r.Get("/tools", s.listAvailableTools)
 		if s.connectionSvc != nil {
