@@ -6,15 +6,20 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 
+	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/api"
 	"github.com/soochol/upal/internal/config"
+	upalcrypto "github.com/soochol/upal/internal/crypto"
 	"github.com/soochol/upal/internal/db"
 	"github.com/soochol/upal/internal/generate"
 	upalmodel "github.com/soochol/upal/internal/model"
+	"github.com/soochol/upal/internal/notify"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/skills"
@@ -101,11 +106,20 @@ func serve() {
 		}
 	}
 
+	dataDir := "data"
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		slog.Error("failed to create data directory", "err", err)
+		os.Exit(1)
+	}
+
 	toolReg := tools.NewRegistry()
 	toolReg.RegisterNative(tools.WebSearch)
 	toolReg.Register(&tools.HTTPRequestTool{})
 	toolReg.Register(&tools.PythonExecTool{})
 	toolReg.Register(&tools.GetWebpageTool{})
+	toolReg.Register(&tools.RSSFeedTool{})
+	toolReg.Register(tools.NewContentStoreTool(filepath.Join(dataDir, "content_store.json")))
+	toolReg.Register(tools.NewPublishTool(filepath.Join(dataDir, "published")))
 	sessionService := session.InMemoryService()
 
 	// Optional: Connect to PostgreSQL if database URL is configured.
@@ -154,7 +168,8 @@ func serve() {
 	}
 
 	// Create WorkflowService for execution orchestration.
-	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg)
+	nodeReg := agents.DefaultRegistry()
+	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg)
 	runHistorySvc := services.NewRunHistoryService(runRepo)
 
 	// Create concurrency limiter from config (with defaults).
@@ -189,6 +204,36 @@ func serve() {
 	srv.SetConcurrencyLimiter(limiter)
 	srv.SetRetryExecutor(retryExecutor)
 	srv.SetTriggerRepository(triggerRepo)
+
+	// Connection management (in-memory store, no-op encryption by default).
+	connRepo := repository.NewMemoryConnectionRepository()
+	connEnc, _ := upalcrypto.NewEncryptor(nil)
+	connSvc := services.NewConnectionService(connRepo, connEnc)
+	srv.SetConnectionService(connSvc)
+
+	// Notification sender registry.
+	senderReg := notify.NewSenderRegistry()
+	senderReg.Register(&notify.TelegramSender{})
+	senderReg.Register(&notify.SlackSender{})
+	senderReg.Register(&notify.SMTPSender{})
+
+	// Inject optional deps (notification, connections, sub-workflow) into workflow service.
+	workflowSvc.SetBuildDeps(agents.BuildDeps{
+		LLMs:         llms,
+		ToolReg:      toolReg,
+		SenderReg:    senderReg,
+		ConnResolver: connSvc,
+		WfLookup:     workflowSvc,
+		NodeRegistry: nodeReg,
+	})
+
+	// Execution registry for pause/resume (sensor, approval nodes).
+	execReg := services.NewExecutionRegistry()
+	srv.SetExecutionRegistry(execReg)
+
+	// Run manager for background execution with event buffering.
+	runManager := services.NewRunManager(15 * time.Minute)
+	srv.SetRunManager(runManager)
 
 	// Configure natural language workflow generator if any provider is available.
 	skillReg := skills.New()
