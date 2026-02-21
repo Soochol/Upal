@@ -2,63 +2,51 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
 // MemoryRepository is a thread-safe in-memory WorkflowRepository.
 type MemoryRepository struct {
-	mu        sync.RWMutex
-	workflows map[string]*upal.WorkflowDefinition
+	store *memstore.Store[*upal.WorkflowDefinition]
 }
 
 // NewMemory creates an empty in-memory repository.
 func NewMemory() *MemoryRepository {
-	return &MemoryRepository{workflows: make(map[string]*upal.WorkflowDefinition)}
+	return &MemoryRepository{
+		store: memstore.New(func(w *upal.WorkflowDefinition) string { return w.Name }),
+	}
 }
 
-func (r *MemoryRepository) Create(_ context.Context, wf *upal.WorkflowDefinition) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.workflows[wf.Name] = wf
-	return nil
+func (r *MemoryRepository) Create(ctx context.Context, wf *upal.WorkflowDefinition) error {
+	return r.store.Set(ctx, wf)
 }
 
-func (r *MemoryRepository) Get(_ context.Context, name string) (*upal.WorkflowDefinition, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	wf, ok := r.workflows[name]
-	if !ok {
+func (r *MemoryRepository) Get(ctx context.Context, name string) (*upal.WorkflowDefinition, error) {
+	wf, err := r.store.Get(ctx, name)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
 	}
-	return wf, nil
+	return wf, err
 }
 
-func (r *MemoryRepository) List(_ context.Context) ([]*upal.WorkflowDefinition, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result := make([]*upal.WorkflowDefinition, 0, len(r.workflows))
-	for _, wf := range r.workflows {
-		result = append(result, wf)
-	}
-	return result, nil
+func (r *MemoryRepository) List(ctx context.Context) ([]*upal.WorkflowDefinition, error) {
+	return r.store.All(ctx)
 }
 
-func (r *MemoryRepository) Update(_ context.Context, name string, wf *upal.WorkflowDefinition) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *MemoryRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
+	// If the name changed, remove the old key first.
 	if name != wf.Name {
-		delete(r.workflows, name)
+		_ = r.store.Delete(ctx, name)
 	}
-	r.workflows[wf.Name] = wf
-	return nil
+	return r.store.Set(ctx, wf)
 }
 
-func (r *MemoryRepository) Delete(_ context.Context, name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.workflows, name)
+func (r *MemoryRepository) Delete(ctx context.Context, name string) error {
+	// Workflow Delete is a no-op on missing keys (original behaviour).
+	_ = r.store.Delete(ctx, name)
 	return nil
 }

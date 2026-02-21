@@ -2,74 +2,51 @@ package repository
 
 import (
 	"context"
-	"sync"
+	"errors"
 
+	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
 // MemoryTriggerRepository stores triggers in memory.
 type MemoryTriggerRepository struct {
-	mu       sync.RWMutex
-	triggers map[string]*upal.Trigger
+	store *memstore.Store[*upal.Trigger]
 }
 
 func NewMemoryTriggerRepository() *MemoryTriggerRepository {
 	return &MemoryTriggerRepository{
-		triggers: make(map[string]*upal.Trigger),
+		store: memstore.New(func(t *upal.Trigger) string { return t.ID }),
 	}
 }
 
-func (r *MemoryTriggerRepository) Create(_ context.Context, trigger *upal.Trigger) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.triggers[trigger.ID] = trigger
-	return nil
+func (r *MemoryTriggerRepository) Create(ctx context.Context, trigger *upal.Trigger) error {
+	return r.store.Set(ctx, trigger)
 }
 
-func (r *MemoryTriggerRepository) Get(_ context.Context, id string) (*upal.Trigger, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	t, ok := r.triggers[id]
-	if !ok {
+func (r *MemoryTriggerRepository) Get(ctx context.Context, id string) (*upal.Trigger, error) {
+	t, err := r.store.Get(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return nil, ErrNotFound
 	}
-	return t, nil
+	return t, err
 }
 
-func (r *MemoryTriggerRepository) Delete(_ context.Context, id string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, ok := r.triggers[id]; !ok {
+func (r *MemoryTriggerRepository) Delete(ctx context.Context, id string) error {
+	err := r.store.Delete(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return ErrNotFound
 	}
-	delete(r.triggers, id)
-	return nil
+	return err
 }
 
-func (r *MemoryTriggerRepository) ListByWorkflow(_ context.Context, workflowName string) ([]*upal.Trigger, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var result []*upal.Trigger
-	for _, t := range r.triggers {
-		if t.WorkflowName == workflowName {
-			result = append(result, t)
-		}
-	}
-	return result, nil
+func (r *MemoryTriggerRepository) ListByWorkflow(ctx context.Context, workflowName string) ([]*upal.Trigger, error) {
+	return r.store.Filter(ctx, func(t *upal.Trigger) bool {
+		return t.WorkflowName == workflowName
+	})
 }
 
-func (r *MemoryTriggerRepository) ListByPipeline(_ context.Context, pipelineID string) ([]*upal.Trigger, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var result []*upal.Trigger
-	for _, t := range r.triggers {
-		if t.PipelineID == pipelineID {
-			result = append(result, t)
-		}
-	}
-	return result, nil
+func (r *MemoryTriggerRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Trigger, error) {
+	return r.store.Filter(ctx, func(t *upal.Trigger) bool {
+		return t.PipelineID == pipelineID
+	})
 }

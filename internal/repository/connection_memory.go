@@ -2,68 +2,54 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
 // MemoryConnectionRepository is a thread-safe in-memory connection store.
 type MemoryConnectionRepository struct {
-	mu    sync.RWMutex
-	conns map[string]*upal.Connection
+	store *memstore.Store[*upal.Connection]
 }
 
 func NewMemoryConnectionRepository() *MemoryConnectionRepository {
-	return &MemoryConnectionRepository{conns: make(map[string]*upal.Connection)}
+	return &MemoryConnectionRepository{
+		store: memstore.New(func(c *upal.Connection) string { return c.ID }),
+	}
 }
 
-func (r *MemoryConnectionRepository) Create(_ context.Context, conn *upal.Connection) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.conns[conn.ID]; exists {
+func (r *MemoryConnectionRepository) Create(ctx context.Context, conn *upal.Connection) error {
+	if r.store.Has(ctx, conn.ID) {
 		return fmt.Errorf("connection %q already exists", conn.ID)
 	}
-	r.conns[conn.ID] = conn
-	return nil
+	return r.store.Set(ctx, conn)
 }
 
-func (r *MemoryConnectionRepository) Get(_ context.Context, id string) (*upal.Connection, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	conn, ok := r.conns[id]
-	if !ok {
+func (r *MemoryConnectionRepository) Get(ctx context.Context, id string) (*upal.Connection, error) {
+	c, err := r.store.Get(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return nil, fmt.Errorf("connection %q not found", id)
 	}
-	return conn, nil
+	return c, err
 }
 
-func (r *MemoryConnectionRepository) List(_ context.Context) ([]*upal.Connection, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	result := make([]*upal.Connection, 0, len(r.conns))
-	for _, c := range r.conns {
-		result = append(result, c)
-	}
-	return result, nil
+func (r *MemoryConnectionRepository) List(ctx context.Context) ([]*upal.Connection, error) {
+	return r.store.All(ctx)
 }
 
-func (r *MemoryConnectionRepository) Update(_ context.Context, conn *upal.Connection) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.conns[conn.ID]; !exists {
+func (r *MemoryConnectionRepository) Update(ctx context.Context, conn *upal.Connection) error {
+	if !r.store.Has(ctx, conn.ID) {
 		return fmt.Errorf("connection %q not found", conn.ID)
 	}
-	r.conns[conn.ID] = conn
-	return nil
+	return r.store.Set(ctx, conn)
 }
 
-func (r *MemoryConnectionRepository) Delete(_ context.Context, id string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.conns[id]; !exists {
+func (r *MemoryConnectionRepository) Delete(ctx context.Context, id string) error {
+	err := r.store.Delete(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return fmt.Errorf("connection %q not found", id)
 	}
-	delete(r.conns, id)
-	return nil
+	return err
 }

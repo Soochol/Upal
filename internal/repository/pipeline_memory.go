@@ -3,117 +3,90 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
 // MemoryPipelineRepository implements PipelineRepository in-memory.
 type MemoryPipelineRepository struct {
-	mu        sync.RWMutex
-	pipelines map[string]*upal.Pipeline
+	store *memstore.Store[*upal.Pipeline]
 }
 
 func NewMemoryPipelineRepository() *MemoryPipelineRepository {
-	return &MemoryPipelineRepository{pipelines: make(map[string]*upal.Pipeline)}
+	return &MemoryPipelineRepository{
+		store: memstore.New(func(p *upal.Pipeline) string { return p.ID }),
+	}
 }
 
-func (r *MemoryPipelineRepository) Create(_ context.Context, p *upal.Pipeline) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.pipelines[p.ID]; exists {
+func (r *MemoryPipelineRepository) Create(ctx context.Context, p *upal.Pipeline) error {
+	if r.store.Has(ctx, p.ID) {
 		return fmt.Errorf("pipeline %q already exists", p.ID)
 	}
-	r.pipelines[p.ID] = p
-	return nil
+	return r.store.Set(ctx, p)
 }
 
-func (r *MemoryPipelineRepository) Get(_ context.Context, id string) (*upal.Pipeline, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	p, ok := r.pipelines[id]
-	if !ok {
+func (r *MemoryPipelineRepository) Get(ctx context.Context, id string) (*upal.Pipeline, error) {
+	p, err := r.store.Get(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return nil, fmt.Errorf("pipeline %q not found", id)
 	}
-	return p, nil
+	return p, err
 }
 
-func (r *MemoryPipelineRepository) List(_ context.Context) ([]*upal.Pipeline, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := make([]*upal.Pipeline, 0, len(r.pipelines))
-	for _, p := range r.pipelines {
-		out = append(out, p)
-	}
-	return out, nil
+func (r *MemoryPipelineRepository) List(ctx context.Context) ([]*upal.Pipeline, error) {
+	return r.store.All(ctx)
 }
 
-func (r *MemoryPipelineRepository) Update(_ context.Context, p *upal.Pipeline) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.pipelines[p.ID]; !exists {
+func (r *MemoryPipelineRepository) Update(ctx context.Context, p *upal.Pipeline) error {
+	if !r.store.Has(ctx, p.ID) {
 		return fmt.Errorf("pipeline %q not found", p.ID)
 	}
-	r.pipelines[p.ID] = p
-	return nil
+	return r.store.Set(ctx, p)
 }
 
-func (r *MemoryPipelineRepository) Delete(_ context.Context, id string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.pipelines[id]; !exists {
+func (r *MemoryPipelineRepository) Delete(ctx context.Context, id string) error {
+	err := r.store.Delete(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return fmt.Errorf("pipeline %q not found", id)
 	}
-	delete(r.pipelines, id)
-	return nil
+	return err
 }
 
 // MemoryPipelineRunRepository implements PipelineRunRepository in-memory.
 type MemoryPipelineRunRepository struct {
-	mu   sync.RWMutex
-	runs map[string]*upal.PipelineRun
+	store *memstore.Store[*upal.PipelineRun]
 }
 
 func NewMemoryPipelineRunRepository() *MemoryPipelineRunRepository {
-	return &MemoryPipelineRunRepository{runs: make(map[string]*upal.PipelineRun)}
+	return &MemoryPipelineRunRepository{
+		store: memstore.New(func(r *upal.PipelineRun) string { return r.ID }),
+	}
 }
 
-func (r *MemoryPipelineRunRepository) Create(_ context.Context, run *upal.PipelineRun) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.runs[run.ID] = run
-	return nil
+func (r *MemoryPipelineRunRepository) Create(ctx context.Context, run *upal.PipelineRun) error {
+	return r.store.Set(ctx, run)
 }
 
-func (r *MemoryPipelineRunRepository) Get(_ context.Context, id string) (*upal.PipelineRun, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	run, ok := r.runs[id]
-	if !ok {
+func (r *MemoryPipelineRunRepository) Get(ctx context.Context, id string) (*upal.PipelineRun, error) {
+	run, err := r.store.Get(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
 		return nil, fmt.Errorf("pipeline run %q not found", id)
 	}
-	return run, nil
+	return run, err
 }
 
-func (r *MemoryPipelineRunRepository) ListByPipeline(_ context.Context, pipelineID string) ([]*upal.PipelineRun, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	var out []*upal.PipelineRun
-	for _, run := range r.runs {
-		if run.PipelineID == pipelineID {
-			out = append(out, run)
-		}
-	}
-	return out, nil
+func (r *MemoryPipelineRunRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.PipelineRun, error) {
+	return r.store.Filter(ctx, func(run *upal.PipelineRun) bool {
+		return run.PipelineID == pipelineID
+	})
 }
 
-func (r *MemoryPipelineRunRepository) Update(_ context.Context, run *upal.PipelineRun) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, exists := r.runs[run.ID]; !exists {
+func (r *MemoryPipelineRunRepository) Update(ctx context.Context, run *upal.PipelineRun) error {
+	if !r.store.Has(ctx, run.ID) {
 		return fmt.Errorf("pipeline run %q not found", run.ID)
 	}
-	r.runs[run.ID] = run
-	return nil
+	return r.store.Set(ctx, run)
 }
