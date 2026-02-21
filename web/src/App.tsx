@@ -4,6 +4,7 @@ import Landing from '@/pages/Landing'
 import Editor from '@/pages/Editor'
 import Runs from '@/pages/Runs'
 import Schedules from '@/pages/Schedules'
+import Pipelines from '@/pages/Pipelines'
 import RunDetail from '@/components/runs/RunDetail'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ToastContainer } from '@/components/ToastContainer'
@@ -19,6 +20,8 @@ export default function App() {
           <Route path="/runs" element={<Runs />} />
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/schedules" element={<Schedules />} />
+          <Route path="/pipelines" element={<Pipelines />} />
+          <Route path="/pipelines/:id" element={<Pipelines />} />
         </Routes>
       </BrowserRouter>
       <ToastContainer />
