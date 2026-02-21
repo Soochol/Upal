@@ -133,6 +133,31 @@ export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
         </div>
       )}
 
+      {/* Asset preview — shown only for asset nodes */}
+      {data.nodeType === 'asset' && (
+        <div className="px-3 py-2 border-t border-border/50 space-y-1">
+          {(data.config.filename as string | undefined) ? (
+            <p className="text-xs font-medium text-card-foreground truncate">
+              {data.config.filename as string}
+            </p>
+          ) : (data.config.file_id as string | undefined) ? (
+            <p className="text-xs text-muted-foreground truncate">
+              {data.config.file_id as string}
+            </p>
+          ) : null}
+          {(data.config.content_type as string | undefined) && (
+            <span className="inline-block text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono leading-none">
+              {data.config.content_type as string}
+            </span>
+          )}
+          {(data.config.preview_text as string | undefined) && (
+            <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 break-words">
+              {(data.config.preview_text as string).slice(0, 80)}
+            </p>
+          )}
+        </div>
+      )}
+
       <Handle
         type="source"
         position={Position.Right}
