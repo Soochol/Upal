@@ -236,8 +236,18 @@ func serve() {
 	srv.SetRunManager(runManager)
 
 	// Pipeline
-	pipelineRepo := repository.NewMemoryPipelineRepository()
-	pipelineRunRepo := repository.NewMemoryPipelineRunRepository()
+	memPipelineRepo := repository.NewMemoryPipelineRepository()
+	var pipelineRepo repository.PipelineRepository = memPipelineRepo
+	if database != nil {
+		pipelineRepo = repository.NewPersistentPipelineRepository(memPipelineRepo, database)
+	}
+
+	memPipelineRunRepo := repository.NewMemoryPipelineRunRepository()
+	var pipelineRunRepo repository.PipelineRunRepository = memPipelineRunRepo
+	if database != nil {
+		pipelineRunRepo = repository.NewPersistentPipelineRunRepository(memPipelineRunRepo, database)
+	}
+
 	pipelineSvc := services.NewPipelineService(pipelineRepo, pipelineRunRepo)
 	pipelineRunner := services.NewPipelineRunner(pipelineRunRepo)
 	pipelineRunner.RegisterExecutor(services.NewWorkflowStageExecutor(workflowSvc))
