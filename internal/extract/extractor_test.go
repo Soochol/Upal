@@ -58,3 +58,35 @@ func TestExtractPDF(t *testing.T) {
 		t.Errorf("expected 'Hello' in PDF text, got: %q", text)
 	}
 }
+
+func TestExtractDOCX(t *testing.T) {
+	f, err := os.Open("testdata/sample.docx")
+	if err != nil {
+		t.Skip("testdata/sample.docx not present:", err)
+	}
+	defer f.Close()
+
+	text, err := extract.Extract("application/vnd.openxmlformats-officedocument.wordprocessingml.document", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "Hello") {
+		t.Errorf("expected 'Hello' in DOCX text, got: %q", text)
+	}
+}
+
+func TestExtractXLSX(t *testing.T) {
+	f, err := os.Open("testdata/sample.xlsx")
+	if err != nil {
+		t.Skip("testdata/sample.xlsx not present:", err)
+	}
+	defer f.Close()
+
+	text, err := extract.Extract("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "Hello") {
+		t.Errorf("expected 'Hello' in XLSX text, got: %q", text)
+	}
+}

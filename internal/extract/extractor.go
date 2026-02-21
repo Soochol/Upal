@@ -27,7 +27,5 @@ func Extract(contentType string, r io.Reader) (string, error) {
 	}
 }
 
-// Stubs — replaced by real implementations in later tasks
-func extractDOCX(r io.Reader) (string, error)               { return "", nil }
-func extractXLSX(r io.Reader) (string, error)               { return "", nil }
+// Stub — replaced by real implementation in a later task
 func extractImage(mime string, r io.Reader) (string, error) { return "", nil }
