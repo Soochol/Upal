@@ -164,6 +164,7 @@ export type Pipeline = {
   name: string
   description?: string
   stages: Stage[]
+  thumbnail_svg?: string
   created_at: string
   updated_at: string
 }

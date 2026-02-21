@@ -180,12 +180,13 @@ func (h *ExecutionHandle) Resume(nodeID string, payload map[string]any) error {
 
 // Pipeline orchestrates a sequence of Stages (workflows, approvals, schedules).
 type Pipeline struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Stages      []Stage   `json:"stages"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description,omitempty"`
+	Stages       []Stage   `json:"stages"`
+	ThumbnailSVG string    `json:"thumbnail_svg,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Stage is a single step in a Pipeline.

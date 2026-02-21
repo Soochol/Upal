@@ -25,14 +25,23 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, stage upal.Stage, p
 		return nil, fmt.Errorf("workflow_name is required for workflow stage")
 	}
 
-	// Build inputs from input mapping + previous stage output
+	// Build inputs from input mapping.
+	// For each mapping entry: if srcExpr matches a key in the previous stage's
+	// output, use that value (dynamic reference). Otherwise treat srcExpr as a
+	// static literal value entered at pipeline design time.
 	inputs := make(map[string]any)
-	if prevResult != nil && stage.Config.InputMapping != nil {
-		for destKey, srcExpr := range stage.Config.InputMapping {
+	for destKey, srcExpr := range stage.Config.InputMapping {
+		if srcExpr == "" {
+			continue
+		}
+		if prevResult != nil {
 			if val, ok := prevResult.Output[srcExpr]; ok {
 				inputs[destKey] = val
+				continue
 			}
 		}
+		// Static value
+		inputs[destKey] = srcExpr
 	}
 
 	// Look up and run the workflow

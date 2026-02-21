@@ -40,6 +40,14 @@ export async function listWorkflows(): Promise<WorkflowDefinition[]> {
   return apiFetch<WorkflowDefinition[]>(`${API_BASE}/workflows`)
 }
 
+export async function generateWorkflowThumbnail(name: string): Promise<string> {
+  const data = await apiFetch<{ thumbnail_svg: string }>(
+    `${API_BASE}/workflows/${encodeURIComponent(name)}/thumbnail`,
+    { method: 'POST' },
+  )
+  return data.thumbnail_svg
+}
+
 export async function generateWorkflow(
   description: string,
   model?: string,

@@ -6,6 +6,7 @@ import type { Pipeline, PipelineRun } from '@/lib/api/types'
 
 type Props = {
   pipeline: Pipeline
+  onSelectRun?: (run: PipelineRun) => void
 }
 
 const statusIcons: Record<string, typeof CheckCircle2> = {
@@ -26,7 +27,7 @@ const statusColors: Record<string, string> = {
   skipped:   'text-muted-foreground/50',
 }
 
-export function PipelineRunHistory({ pipeline }: Props) {
+export function PipelineRunHistory({ pipeline, onSelectRun }: Props) {
   const [runs, setRuns] = useState<PipelineRun[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -71,7 +72,7 @@ export function PipelineRunHistory({ pipeline }: Props) {
       {runs.map((run) => {
         const Icon = statusIcons[run.status] || Clock
         return (
-          <div key={run.id} className="border rounded-lg p-3">
+          <div key={run.id} className="border rounded-lg p-3 cursor-pointer hover:bg-muted/20 transition-colors" onClick={() => onSelectRun?.(run)}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Icon className={`h-3.5 w-3.5 ${statusColors[run.status]} ${run.status === 'running' ? 'animate-spin' : ''}`} />
@@ -125,13 +126,13 @@ export function PipelineRunHistory({ pipeline }: Props) {
               <div className="flex items-center gap-2 mt-2 pt-2 border-t">
                 <span className="text-xs text-muted-foreground">Awaiting approval:</span>
                 <button
-                  onClick={() => handleApprove(run)}
+                  onClick={(e) => { e.stopPropagation(); handleApprove(run) }}
                   className="px-2 py-0.5 text-xs font-medium rounded bg-success/10 text-success hover:bg-success/20 transition-colors"
                 >
                   Approve
                 </button>
                 <button
-                  onClick={() => handleReject(run)}
+                  onClick={(e) => { e.stopPropagation(); handleReject(run) }}
                   className="px-2 py-0.5 text-xs font-medium rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
                 >
                   Reject

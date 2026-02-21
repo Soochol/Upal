@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { NodeRunRecord, RunRecord } from '@/lib/api'
+import { ContentViewer } from '@/components/ui/ContentViewer'
 
 type Props = {
   nodeRun: NodeRunRecord
@@ -60,13 +61,11 @@ export function NodeDetail({ nodeRun, run }: Props) {
       </div>
 
       {/* Content */}
-      <div className="p-4 max-h-[300px] overflow-y-auto">
+      <div className="p-4">
         {activeTab === 'output' && (
           <div className="space-y-3">
             {output != null ? (
-              <pre className="text-xs font-mono text-foreground bg-muted p-3 rounded overflow-auto whitespace-pre-wrap">
-                {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
-              </pre>
+              <ContentViewer value={output} />
             ) : (
               <p className="text-xs text-muted-foreground">No output recorded</p>
             )}

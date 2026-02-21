@@ -1,5 +1,5 @@
 // web/src/pages/Pipelines.tsx
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Plus, GitBranch,
@@ -9,12 +9,14 @@ import { Header } from '@/components/Header'
 import {
   fetchPipelines, fetchPipeline, createPipeline, updatePipeline,
   deletePipeline, startPipeline, generatePipelineBundle, saveWorkflow,
+  approvePipelineRun, rejectPipelineRun, generatePipelineThumbnail,
 } from '@/lib/api'
 import { ApiError } from '@/lib/api/client'
-import type { Pipeline } from '@/lib/api/types'
+import type { Pipeline, PipelineRun } from '@/lib/api/types'
 import { PipelineCard } from '@/components/pipelines/PipelineCard'
 import { PipelineEditor } from '@/components/pipelines/PipelineEditor'
 import { PipelineRunHistory } from '@/components/pipelines/PipelineRunHistory'
+import { PipelineRunDetail } from '@/components/pipelines/PipelineRunDetail'
 import { PromptBar } from '@/components/editor/PromptBar'
 
 // Suppress unused warning — referenced for type completeness
@@ -24,11 +26,13 @@ export default function Pipelines() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Pipeline | null>(null)
+  const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [editorKey, setEditorKey] = useState(0)
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const thumbnailRequested = useRef<Set<string>>(new Set())
 
   const reload = async () => {
     try {
@@ -43,7 +47,35 @@ export default function Pipelines() {
 
   useEffect(() => { reload() }, [])
 
+  // After list loads, generate thumbnails for pipelines that don't have one yet.
   useEffect(() => {
+    if (loading) return
+    const missing = pipelines.filter(
+      (p) => !p.thumbnail_svg && !thumbnailRequested.current.has(p.id),
+    )
+    if (missing.length === 0) return
+
+    let cancelled = false
+    const runNext = async (i: number) => {
+      if (cancelled || i >= missing.length) return
+      const p = missing[i]
+      thumbnailRequested.current.add(p.id)
+      try {
+        const svg = await generatePipelineThumbnail(p.id)
+        if (!cancelled) {
+          setPipelines((prev) =>
+            prev.map((item) => (item.id === p.id ? { ...item, thumbnail_svg: svg } : item)),
+          )
+        }
+      } catch { /* skip — thumbnail is optional */ }
+      runNext(i + 1)
+    }
+    runNext(0)
+    return () => { cancelled = true }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setSelectedRun(null)
     if (id) {
       fetchPipeline(id).then(setSelected).catch(() => navigate('/pipelines'))
     } else {
@@ -143,7 +175,23 @@ export default function Pipelines() {
                 onBack={() => navigate('/pipelines')}
               />
               <div className="mt-6">
-                <PipelineRunHistory pipeline={selected} />
+                {selectedRun ? (
+                  <PipelineRunDetail
+                    pipeline={selected}
+                    run={selectedRun}
+                    onBack={() => setSelectedRun(null)}
+                    onApprove={async () => {
+                      await approvePipelineRun(selected.id, selectedRun.id)
+                      setSelectedRun(null)
+                    }}
+                    onReject={async () => {
+                      await rejectPipelineRun(selected.id, selectedRun.id)
+                      setSelectedRun(null)
+                    }}
+                  />
+                ) : (
+                  <PipelineRunHistory pipeline={selected} onSelectRun={setSelectedRun} />
+                )}
               </div>
             </>
           ) : (

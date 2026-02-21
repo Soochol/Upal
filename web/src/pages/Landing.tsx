@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, GitBranch, Sparkles } from 'lucide-react'
-import { listWorkflows, deleteWorkflow, fetchRuns } from '@/lib/api'
+import { listWorkflows, deleteWorkflow, fetchRuns, generateWorkflowThumbnail } from '@/lib/api'
 import { deserializeWorkflow, type WorkflowDefinition } from '@/lib/serializer'
 import { useWorkflowStore } from '@/stores/workflowStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -17,6 +17,7 @@ export default function Landing() {
   const [search, setSearch] = useState('')
 
   const addToast = useUIStore((s) => s.addToast)
+  const thumbnailRequested = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     listWorkflows()
@@ -33,6 +34,33 @@ export default function Landing() {
       })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After list loads, generate thumbnails for any workflows that don't have one yet.
+  useEffect(() => {
+    if (loading) return
+    const missing = workflows.filter(
+      (wf) => !wf.thumbnail_svg && !thumbnailRequested.current.has(wf.name),
+    )
+    if (missing.length === 0) return
+
+    let cancelled = false
+    const runNext = async (i: number) => {
+      if (cancelled || i >= missing.length) return
+      const wf = missing[i]
+      thumbnailRequested.current.add(wf.name)
+      try {
+        const svg = await generateWorkflowThumbnail(wf.name)
+        if (!cancelled) {
+          setWorkflows((prev) =>
+            prev.map((w) => (w.name === wf.name ? { ...w, thumbnail_svg: svg } : w)),
+          )
+        }
+      } catch { /* skip — thumbnail is optional */ }
+      runNext(i + 1)
+    }
+    runNext(0)
+    return () => { cancelled = true }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openWorkflow = (wf: WorkflowDefinition) => {
     const { nodes, edges } = deserializeWorkflow(wf)

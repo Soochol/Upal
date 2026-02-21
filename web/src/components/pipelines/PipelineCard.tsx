@@ -47,39 +47,48 @@ export function PipelineCard({ pipeline, onClick, onStart, onDelete }: Props) {
       </div>
 
       {/* ── Stage flow canvas ── */}
-      <div className="relative h-[68px] border-b border-border overflow-hidden bg-card">
-        <div className="hero-dot-grid absolute inset-0 opacity-50 pointer-events-none" />
-        <div className="relative flex items-center justify-center h-full px-4 gap-0">
-          {pipeline.stages.length === 0 ? (
-            <span className="text-[11px] text-muted-foreground/30 italic">no stages</span>
-          ) : (
-            pipeline.stages.slice(0, 7).map((stage, i) => {
-              const cfg = stageTypeConfig[stage.type] ?? { icon: GitBranch, color: 'var(--muted-foreground)' }
-              const Icon = cfg.icon
-              return (
-                <div key={stage.id} className="flex items-center gap-0 shrink-0">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: `color-mix(in oklch, ${cfg.color}, transparent 78%)`,
-                      border: `1px solid color-mix(in oklch, ${cfg.color}, transparent 55%)`,
-                    }}
-                  >
-                    <Icon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
-                  </div>
-                  {i < Math.min(pipeline.stages.length, 7) - 1 && (
-                    <div className="w-3 h-px bg-border" />
-                  )}
-                </div>
-              )
-            })
-          )}
-          {pipeline.stages.length > 7 && (
-            <span className="text-[9px] text-muted-foreground/60 ml-2 font-mono tabular-nums">
-              +{pipeline.stages.length - 7}
-            </span>
-          )}
-        </div>
+      <div className="relative h-[68px] border-b border-border overflow-hidden">
+        {pipeline.thumbnail_svg ? (
+          <div
+            className="pipeline-thumbnail w-full h-full"
+            dangerouslySetInnerHTML={{ __html: pipeline.thumbnail_svg }}
+          />
+        ) : (
+          <>
+            <div className="hero-dot-grid absolute inset-0 opacity-50 pointer-events-none bg-card" />
+            <div className="relative flex items-center justify-center h-full px-4 gap-0 bg-card">
+              {pipeline.stages.length === 0 ? (
+                <span className="text-[11px] text-muted-foreground/30 italic">no stages</span>
+              ) : (
+                pipeline.stages.slice(0, 7).map((stage, i) => {
+                  const cfg = stageTypeConfig[stage.type] ?? { icon: GitBranch, color: 'var(--muted-foreground)' }
+                  const Icon = cfg.icon
+                  return (
+                    <div key={stage.id} className="flex items-center gap-0 shrink-0">
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                        style={{
+                          background: `color-mix(in oklch, ${cfg.color}, transparent 78%)`,
+                          border: `1px solid color-mix(in oklch, ${cfg.color}, transparent 55%)`,
+                        }}
+                      >
+                        <Icon className="w-3.5 h-3.5" style={{ color: cfg.color }} />
+                      </div>
+                      {i < Math.min(pipeline.stages.length, 7) - 1 && (
+                        <div className="w-3 h-px bg-border" />
+                      )}
+                    </div>
+                  )
+                })
+              )}
+              {pipeline.stages.length > 7 && (
+                <span className="text-[9px] text-muted-foreground/60 ml-2 font-mono tabular-nums">
+                  +{pipeline.stages.length - 7}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Card body ── */}

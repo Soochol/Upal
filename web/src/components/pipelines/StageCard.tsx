@@ -1,8 +1,10 @@
 // web/src/components/pipelines/StageCard.tsx
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Trash2, GripVertical, ExternalLink, Play, PauseCircle, Clock, Zap, RefreshCw, GitBranch, Copy, Check } from 'lucide-react'
 import type { Stage, Connection } from '@/lib/api/types'
 import { createTrigger, deleteTrigger } from '@/lib/api'
+import { loadWorkflow } from '@/lib/api/workflows'
+import type { WorkflowDefinition } from '@/lib/serializer'
 
 type Props = {
   stage: Stage
@@ -44,6 +46,18 @@ export function StageCard({
   // accidental drags when clicking inputs/selects inside the card.
   const draggableRef = useRef(false)
   const [draggable, setDraggable] = useState(false)
+  const [workflowDef, setWorkflowDef] = useState<WorkflowDefinition | null>(null)
+
+  // Fetch selected workflow to extract input nodes
+  useEffect(() => {
+    const name = stage.config.workflow_name
+    if (!name) { setWorkflowDef(null); return }
+    let cancelled = false
+    loadWorkflow(name).then((wf) => { if (!cancelled) setWorkflowDef(wf) }).catch(() => { if (!cancelled) setWorkflowDef(null) })
+    return () => { cancelled = true }
+  }, [stage.config.workflow_name])
+
+  const inputNodes = workflowDef?.nodes.filter((n) => n.type === 'input') ?? []
 
   const webhookPath = stage.config.trigger_id ? `/api/hooks/${stage.config.trigger_id}` : null
 
@@ -137,29 +151,58 @@ export function StageCard({
         />
 
         {stage.type === 'workflow' && (
-          <div className="flex items-center gap-1.5">
-            <select
-              value={stage.config.workflow_name || ''}
-              onChange={(e) => onChange({ ...stage, config: { ...stage.config, workflow_name: e.target.value } })}
-              className="flex-1 text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none
-                focus:ring-1 focus:ring-ring border border-transparent focus:border-border transition-all"
-            >
-              <option value="">Select workflow…</option>
-              {workflowNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            {stage.config.workflow_name && onOpenWorkflow && (
-              <button
-                onClick={() => onOpenWorkflow(stage.config.workflow_name!)}
-                title="Open in editor"
-                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground
-                  transition-colors shrink-0 cursor-pointer"
+          <>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={stage.config.workflow_name || ''}
+                onChange={(e) => onChange({ ...stage, config: { ...stage.config, workflow_name: e.target.value, input_mapping: {} } })}
+                className="flex-1 text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none
+                  focus:ring-1 focus:ring-ring border border-transparent focus:border-border transition-all"
               >
-                <ExternalLink className="h-3 w-3" />
-              </button>
+                <option value="">Select workflow…</option>
+                {workflowNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              {stage.config.workflow_name && onOpenWorkflow && (
+                <button
+                  onClick={() => onOpenWorkflow(stage.config.workflow_name!)}
+                  title="Open in editor"
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground
+                    transition-colors shrink-0 cursor-pointer"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {inputNodes.length > 0 && (
+              <div className="space-y-1.5 pt-0.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Inputs</p>
+                {inputNodes.map((node) => {
+                  const label = (node.config.label as string) || node.id
+                  const placeholder = (node.config.placeholder as string) || ''
+                  const value = stage.config.input_mapping?.[node.id] ?? ''
+                  return (
+                    <div key={node.id} className="space-y-0.5">
+                      <label className="text-[10px] text-muted-foreground">{label}</label>
+                      <textarea
+                        rows={2}
+                        value={value}
+                        placeholder={placeholder || `Enter ${label}…`}
+                        onChange={(e) => {
+                          const mapping = { ...(stage.config.input_mapping ?? {}), [node.id]: e.target.value }
+                          onChange({ ...stage, config: { ...stage.config, input_mapping: mapping } })
+                        }}
+                        className="w-full text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none resize-none
+                          border border-transparent focus:border-border focus:ring-1 focus:ring-ring transition-all"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {stage.type === 'approval' && (

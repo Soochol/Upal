@@ -103,6 +103,69 @@ func buildThumbnailPrompt(wf *upal.WorkflowDefinition) string {
 	)
 }
 
+// GeneratePipelineThumbnail asks the LLM to create a small SVG banner that
+// visually represents the given pipeline. The returned SVG is sanitized.
+// Errors are non-fatal — callers should treat a failure as "no thumbnail".
+func (g *Generator) GeneratePipelineThumbnail(ctx context.Context, p *upal.Pipeline) (string, error) {
+	userPrompt := buildPipelineThumbnailPrompt(p)
+
+	req := &adkmodel.LLMRequest{
+		Model: g.model,
+		Config: &genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(thumbnailSystemPrompt, genai.RoleUser),
+		},
+		Contents: []*genai.Content{
+			genai.NewContentFromText(userPrompt, genai.RoleUser),
+		},
+	}
+
+	ctx = upalmodel.WithEffort(ctx, "low")
+
+	var resp *adkmodel.LLMResponse
+	for r, err := range g.llm.GenerateContent(ctx, req, false) {
+		if err != nil {
+			return "", fmt.Errorf("generate pipeline thumbnail: %w", err)
+		}
+		resp = r
+	}
+
+	if resp == nil || resp.Content == nil {
+		return "", fmt.Errorf("empty response from LLM")
+	}
+
+	raw := llmutil.ExtractText(resp)
+	svg, err := extractSVG(raw)
+	if err != nil {
+		return "", fmt.Errorf("extract SVG from response: %w", err)
+	}
+	return svg, nil
+}
+
+// buildPipelineThumbnailPrompt creates the user message for pipeline thumbnail generation.
+func buildPipelineThumbnailPrompt(p *upal.Pipeline) string {
+	typeCounts := make(map[string]int)
+	for _, s := range p.Stages {
+		typeCounts[s.Type]++
+	}
+
+	var stageDesc []string
+	for st, count := range typeCounts {
+		stageDesc = append(stageDesc, fmt.Sprintf("%d %s", count, st))
+	}
+
+	desc := ""
+	if p.Description != "" {
+		desc = fmt.Sprintf(" Description: %q.", p.Description)
+	}
+
+	return fmt.Sprintf(
+		"Create a thumbnail for a pipeline named %q.\nStages: %s.%s\nDesign a visual that captures this pipeline's purpose.",
+		p.Name,
+		strings.Join(stageDesc, ", "),
+		desc,
+	)
+}
+
 var (
 	reScript        = regexp.MustCompile(`(?is)<script[^>]*>.*?</script>`)
 	reForeignObject = regexp.MustCompile(`(?is)<foreignObject[^>]*>.*?</foreignObject>`)

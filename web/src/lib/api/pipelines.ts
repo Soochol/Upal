@@ -76,3 +76,11 @@ export async function generatePipelineBundle(
     body: JSON.stringify(body),
   })
 }
+
+export async function generatePipelineThumbnail(id: string): Promise<string> {
+  const data = await apiFetch<{ thumbnail_svg: string }>(
+    `${API_BASE}/pipelines/${encodeURIComponent(id)}/thumbnail`,
+    { method: 'POST' },
+  )
+  return data.thumbnail_svg
+}

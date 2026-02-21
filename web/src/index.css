@@ -451,7 +451,8 @@ body {
 }
 
 /* AI-generated SVG thumbnail fills the card preview area */
-.workflow-thumbnail svg {
+.workflow-thumbnail svg,
+.pipeline-thumbnail svg {
   width: 100%;
   height: 100%;
   display: block;
