@@ -69,6 +69,9 @@ func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 		}
 		result = append(result, &p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pipelines: %w", err)
+	}
 	return result, nil
 }
 
@@ -166,6 +169,9 @@ func (d *DB) ListPipelineRunsByPipeline(ctx context.Context, pipelineID string) 
 			return nil, fmt.Errorf("unmarshal stage_results: %w", err)
 		}
 		result = append(result, &run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pipeline_runs: %w", err)
 	}
 	return result, nil
 }
