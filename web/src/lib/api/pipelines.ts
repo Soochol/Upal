@@ -1,6 +1,7 @@
 // web/src/lib/api/pipelines.ts
 import { apiFetch } from './client'
 import type { Pipeline, PipelineRun } from './types'
+import type { WorkflowDefinition } from '@/lib/serializer'
 
 const API_BASE = '/api'
 
@@ -56,4 +57,17 @@ export async function rejectPipelineRun(pipelineId: string, runId: string): Prom
     `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/runs/${encodeURIComponent(runId)}/reject`,
     { method: 'POST' }
   )
+}
+
+export type PipelineBundle = {
+  pipeline: Omit<Pipeline, 'id' | 'created_at' | 'updated_at'>
+  workflows: WorkflowDefinition[]
+}
+
+export async function generatePipelineBundle(description: string): Promise<PipelineBundle> {
+  return apiFetch<PipelineBundle>(`${API_BASE}/generate-pipeline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description }),
+  })
 }
