@@ -15,6 +15,37 @@ type GenerateRequest struct {
 	ExistingWorkflow *upal.WorkflowDefinition   `json:"existing_workflow,omitempty"`
 }
 
+// GeneratePipelineRequest is the JSON body for pipeline generation from natural language.
+type GeneratePipelineRequest struct {
+	Description string `json:"description"`
+}
+
+func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
+	var req GeneratePipelineRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Description == "" {
+		http.Error(w, "description is required", http.StatusBadRequest)
+		return
+	}
+	if s.generator == nil {
+		http.Error(w, "generator not configured (no providers available)", http.StatusServiceUnavailable)
+		return
+	}
+
+	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(bundle)
+}
+
 func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
 	var req GenerateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

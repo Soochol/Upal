@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 		})
 		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
+		r.Post("/generate-pipeline", s.generatePipeline)
 		r.Post("/nodes/configure", s.configureNode)
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
