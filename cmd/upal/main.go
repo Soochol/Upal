@@ -297,6 +297,7 @@ func serve() {
 		os.Exit(1)
 	}
 	srv.SetStorage(store)
+	nodeReg.Register(agents.NewAssetNodeBuilder(store))
 
 	// Backfill missing descriptions for existing workflows and pipeline stages.
 	// Runs in the background on startup so it doesn't block the server.
