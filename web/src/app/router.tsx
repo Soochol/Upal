@@ -6,8 +6,8 @@ import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
 import ConnectionsPage from '@/pages/connections'
 import { RunDetail } from '@/widgets/run-detail'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { ToastContainer } from '@/components/ToastContainer'
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
+import { ToastContainer } from '@/shared/ui/ToastContainer'
 
 export function AppRouter() {
   return (
