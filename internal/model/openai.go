@@ -374,10 +374,20 @@ func (o *OpenAILLM) convertResponse(resp *openaiChatResponse) (*adkmodel.LLMResp
 		content.Parts = append(content.Parts, genai.NewPartFromText(choice.Message.Content))
 	}
 
-	return &adkmodel.LLMResponse{
+	llmResp := &adkmodel.LLMResponse{
 		Content:      content,
 		TurnComplete: true,
-	}, nil
+	}
+
+	if resp.Usage.TotalTokens > 0 {
+		llmResp.UsageMetadata = &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount:     resp.Usage.PromptTokens,
+			CandidatesTokenCount: resp.Usage.CompletionTokens,
+			TotalTokenCount:      resp.Usage.TotalTokens,
+		}
+	}
+
+	return llmResp, nil
 }
 
 // extractText concatenates all text parts from a Content.
@@ -411,8 +421,15 @@ func openaiRole(role string) string {
 
 // --- OpenAI API types (self-contained, not shared) ---
 
+type openaiUsage struct {
+	PromptTokens     int32 `json:"prompt_tokens"`
+	CompletionTokens int32 `json:"completion_tokens"`
+	TotalTokens      int32 `json:"total_tokens"`
+}
+
 type openaiChatResponse struct {
 	Choices []openaiChoice `json:"choices"`
+	Usage   openaiUsage    `json:"usage"`
 }
 
 type openaiChoice struct {
