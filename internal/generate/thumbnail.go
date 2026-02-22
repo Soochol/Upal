@@ -1,7 +1,6 @@
 package generate
 
 import (
-	_ "embed"
 	"context"
 	"fmt"
 	"regexp"
@@ -14,9 +13,6 @@ import (
 	"google.golang.org/genai"
 )
 
-//go:embed prompts/thumbnail.md
-var thumbnailSystemPrompt string
-
 // GenerateThumbnail asks the LLM to create a small SVG banner that visually
 // represents the given workflow. The returned SVG is sanitized. Errors are
 // non-fatal — callers should treat a failure as "no thumbnail".
@@ -26,7 +22,7 @@ func (g *Generator) GenerateThumbnail(ctx context.Context, wf *upal.WorkflowDefi
 	req := &adkmodel.LLMRequest{
 		Model: g.model,
 		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(thumbnailSystemPrompt, genai.RoleUser),
+			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("thumbnail"), genai.RoleUser),
 		},
 		Contents: []*genai.Content{
 			genai.NewContentFromText(userPrompt, genai.RoleUser),
@@ -101,7 +97,7 @@ func (g *Generator) GeneratePipelineThumbnail(ctx context.Context, p *upal.Pipel
 	req := &adkmodel.LLMRequest{
 		Model: g.model,
 		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(thumbnailSystemPrompt, genai.RoleUser),
+			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("thumbnail"), genai.RoleUser),
 		},
 		Contents: []*genai.Content{
 			genai.NewContentFromText(userPrompt, genai.RoleUser),

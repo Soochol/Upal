@@ -1,32 +1,35 @@
-// Package skills provides a registry of embedded skill files that guide LLM
-// behavior when generating node configurations. Each skill is a Markdown file
-// with YAML frontmatter (name + description) and a body containing instructions.
-//
-// Shared fragments in _frameworks/ can be included via {{include name}} syntax.
+// Package skills provides a registry of embedded skill files and base prompts
+// that guide LLM behavior. Skill files (nodes/*.md and stages/*.md) are loaded
+// on demand via get_skill(); prompt files (prompts/*.md) are always loaded and
+// used as base system prompts. Both support {{include name}} syntax for shared
+// fragments in _frameworks/.
 package skills
 
 import (
 	"embed"
-	"fmt"
 	"io/fs"
 	"regexp"
 	"strings"
 )
 
-//go:embed *.md _frameworks/*.md
+//go:embed nodes/*.md stages/*.md tools/*.md prompts/*.md _frameworks/*.md
 var embedded embed.FS
 
 var includePattern = regexp.MustCompile(`\{\{include\s+([\w-]+)\}\}`)
 
-// Registry holds parsed and resolved skill content indexed by name.
+// Registry holds parsed and resolved skill content and base prompts indexed by name.
 type Registry struct {
-	skills map[string]string
+	skills  map[string]string // top-level *.md — on-demand skill docs
+	prompts map[string]string // prompts/*.md — base system prompts
 }
 
-// New creates a Registry by loading all embedded skill files and resolving
+// New creates a Registry by loading all embedded files and resolving
 // {{include}} references from _frameworks/.
 func New() *Registry {
-	r := &Registry{skills: make(map[string]string)}
+	r := &Registry{
+		skills:  make(map[string]string),
+		prompts: make(map[string]string),
+	}
 
 	// Load framework fragments first (used for include resolution).
 	frameworks := make(map[string]string)
@@ -46,13 +49,32 @@ func New() *Registry {
 		frameworks[name] = body
 	}
 
-	// Load top-level skill files.
-	entries, _ := fs.ReadDir(embedded, ".")
-	for _, e := range entries {
+	// Load skill files from nodes/, stages/, and tools/ subdirectories.
+	for _, dir := range []string{"nodes", "stages", "tools"} {
+		entries, _ := fs.ReadDir(embedded, dir)
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			data, err := fs.ReadFile(embedded, dir+"/"+e.Name())
+			if err != nil {
+				continue
+			}
+			name, body := parseFrontmatter(string(data))
+			if name == "" {
+				name = strings.TrimSuffix(e.Name(), ".md")
+			}
+			r.skills[name] = resolveIncludes(body, frameworks)
+		}
+	}
+
+	// Load prompt files from prompts/ subdirectory.
+	promptEntries, _ := fs.ReadDir(embedded, "prompts")
+	for _, e := range promptEntries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
-		data, err := fs.ReadFile(embedded, e.Name())
+		data, err := fs.ReadFile(embedded, "prompts/"+e.Name())
 		if err != nil {
 			continue
 		}
@@ -60,8 +82,7 @@ func New() *Registry {
 		if name == "" {
 			name = strings.TrimSuffix(e.Name(), ".md")
 		}
-		resolved := resolveIncludes(body, frameworks)
-		r.skills[name] = resolved
+		r.prompts[name] = resolveIncludes(body, frameworks)
 	}
 
 	return r
@@ -73,22 +94,19 @@ func (r *Registry) Get(name string) string {
 	return r.skills[name]
 }
 
-// Names returns all registered skill names.
+// GetPrompt returns the resolved content of a base prompt by name.
+// Returns an empty string if the prompt does not exist.
+func (r *Registry) GetPrompt(name string) string {
+	return r.prompts[name]
+}
+
+// Names returns all registered skill names (on-demand skill docs only, not prompts).
 func (r *Registry) Names() []string {
 	names := make([]string, 0, len(r.skills))
 	for k := range r.skills {
 		names = append(names, k)
 	}
 	return names
-}
-
-// MustGet returns the resolved content of a skill or panics if not found.
-func (r *Registry) MustGet(name string) string {
-	s, ok := r.skills[name]
-	if !ok {
-		panic(fmt.Sprintf("skill %q not found", name))
-	}
-	return s
 }
 
 // parseFrontmatter splits YAML frontmatter from the body.

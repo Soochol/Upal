@@ -18,9 +18,23 @@ type Stage struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
-	Type        string      `json:"type"` // "workflow", "approval", "notification", "schedule", "trigger", "transform"
+	Type        string      `json:"type"` // "workflow", "approval", "notification", "schedule", "trigger", "transform", "collect"
 	Config      StageConfig `json:"config"`
 	DependsOn   []string    `json:"depends_on,omitempty"`
+}
+
+// CollectSource defines a single data source for a collect stage.
+type CollectSource struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`                  // "rss" | "http" | "scrape"
+	URL         string            `json:"url"`
+	Limit       int               `json:"limit,omitempty"`        // RSS: max items (default 20)
+	Method      string            `json:"method,omitempty"`       // HTTP: GET/POST (default GET)
+	Headers     map[string]string `json:"headers,omitempty"`      // HTTP: request headers
+	Body        string            `json:"body,omitempty"`         // HTTP: request body
+	Selector    string            `json:"selector,omitempty"`     // Scrape: CSS selector
+	Attribute   string            `json:"attribute,omitempty"`    // Scrape: attr to extract (default: text)
+	ScrapeLimit int               `json:"scrape_limit,omitempty"` // Scrape: max elements (default 30)
 }
 
 // StageConfig holds type-specific configuration for a Stage.
@@ -47,6 +61,9 @@ type StageConfig struct {
 
 	// Transform stage
 	Expression string `json:"expression,omitempty"`
+
+	// Collect stage
+	Sources []CollectSource `json:"sources,omitempty"`
 }
 
 // PipelineRun tracks a single execution of a Pipeline.

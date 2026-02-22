@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/soochol/upal/internal/generate"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
 )
@@ -42,7 +44,19 @@ func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description, req.ExistingPipeline)
+	// Fetch existing workflows as lightweight summaries (name + description + node labels).
+	var workflowSummaries []generate.WorkflowSummary
+	if wfs, listErr := s.repo.List(r.Context()); listErr == nil {
+		workflowSummaries = generate.BuildWorkflowSummaries(wfs)
+	}
+
+	// Fetch existing pipelines as lightweight summaries (name + description + stage summaries).
+	var pipelineSummaries []generate.PipelineSummary
+	if pipes, listErr := s.pipelineSvc.List(r.Context()); listErr == nil {
+		pipelineSummaries = generate.BuildPipelineSummaries(pipes)
+	}
+
+	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description, req.ExistingPipeline, workflowSummaries, pipelineSummaries)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -80,7 +94,13 @@ func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
 	// field is accepted for API compatibility but not used to switch models
 	// at runtime (the generator always uses its configured LLM).
 
-	wf, err := s.generator.Generate(r.Context(), req.Description, req.ExistingWorkflow)
+	// Fetch existing workflow summaries so the LLM avoids duplication and understands context.
+	var workflowSummaries []generate.WorkflowSummary
+	if wfs, listErr := s.repo.List(r.Context()); listErr == nil {
+		workflowSummaries = generate.BuildWorkflowSummaries(wfs)
+	}
+
+	wf, err := s.generator.Generate(r.Context(), req.Description, req.ExistingWorkflow, workflowSummaries)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -132,6 +152,59 @@ func (s *Server) generateWorkflowThumbnail(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"thumbnail_svg": svg})
+}
+
+// backfillDescriptions generates missing descriptions for all workflows and
+// pipeline stages that currently have an empty description field.
+// POST /api/generate/backfill
+func (s *Server) backfillDescriptions(w http.ResponseWriter, r *http.Request) {
+	if s.generator == nil {
+		http.Error(w, "generator not configured (no providers available)", http.StatusServiceUnavailable)
+		return
+	}
+
+	workflowsUpdated := 0
+	nodesUpdated := 0
+	stagesUpdated := 0
+
+	if wfs, err := s.repo.List(r.Context()); err == nil {
+		// Backfill workflow-level descriptions via LLM.
+		for _, wf := range s.generator.BackfillWorkflowDescriptions(r.Context(), wfs) {
+			if saveErr := s.repo.Update(r.Context(), wf.Name, wf); saveErr != nil {
+				log.Printf("backfill: save workflow %q failed: %v", wf.Name, saveErr)
+				continue
+			}
+			workflowsUpdated++
+		}
+		// Backfill node descriptions (agent=LLM, input/output=rule-based).
+		for _, wf := range s.generator.BackfillNodeDescriptions(r.Context(), wfs) {
+			if saveErr := s.repo.Update(r.Context(), wf.Name, wf); saveErr != nil {
+				log.Printf("backfill: save workflow nodes %q failed: %v", wf.Name, saveErr)
+				continue
+			}
+			nodesUpdated++
+		}
+	}
+
+	// Backfill stage descriptions rule-based (no LLM needed).
+	if pipelines, err := s.pipelineSvc.List(r.Context()); err == nil {
+		for _, p := range pipelines {
+			if generate.BackfillStageDescriptions(p) {
+				if saveErr := s.pipelineSvc.Update(r.Context(), p); saveErr != nil {
+					log.Printf("backfill: save pipeline %q failed: %v", p.ID, saveErr)
+					continue
+				}
+				stagesUpdated++
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{
+		"workflows_updated": workflowsUpdated,
+		"nodes_updated":     nodesUpdated,
+		"stages_updated":    stagesUpdated,
+	})
 }
 
 // generatePipelineThumbnail generates (or re-generates) the thumbnail SVG for

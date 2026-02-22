@@ -11,3 +11,4 @@ web/playwright-report/
 scripts/test_output.png
 models/
 /output/
+uploads/

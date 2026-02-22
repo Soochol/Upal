@@ -32,6 +32,27 @@ func TestGetNodeSkills(t *testing.T) {
 	}
 }
 
+func TestGetToolSkills(t *testing.T) {
+	r := New()
+
+	expectedSkills := []string{
+		"tool-web_search",
+		"tool-get_webpage",
+		"tool-http_request",
+		"tool-fetch_rss",
+		"tool-python_exec",
+		"tool-content_store",
+		"tool-publish",
+	}
+
+	for _, name := range expectedSkills {
+		content := r.Get(name)
+		if content == "" {
+			t.Errorf("tool skill %q not found or empty", name)
+		}
+	}
+}
+
 func TestGetReturnsEmptyForMissing(t *testing.T) {
 	r := New()
 	if got := r.Get("nonexistent-skill"); got != "" {
@@ -39,15 +60,6 @@ func TestGetReturnsEmptyForMissing(t *testing.T) {
 	}
 }
 
-func TestMustGetPanicsForMissing(t *testing.T) {
-	r := New()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("MustGet(nonexistent) did not panic")
-		}
-	}()
-	r.MustGet("nonexistent-skill")
-}
 
 func TestIncludeResolution(t *testing.T) {
 	r := New()

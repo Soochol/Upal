@@ -53,13 +53,6 @@ func NewWorkflowService(
 	}
 }
 
-// SetBuildDeps replaces the BuildDeps used when building DAG agents.
-// Call this after construction to inject optional dependencies like
-// SenderReg and ConnResolver.
-func (s *WorkflowService) SetBuildDeps(deps agents.BuildDeps) {
-	s.buildDeps = deps
-}
-
 // Lookup resolves a workflow by name via the repository.
 func (s *WorkflowService) Lookup(ctx context.Context, name string) (*upal.WorkflowDefinition, error) {
 	return s.repo.Get(ctx, name)

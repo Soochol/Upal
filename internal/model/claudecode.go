@@ -161,9 +161,9 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 	}
 
 	// Set a timeout for the subprocess.
-	// Tools (e.g., WebSearch) need more time for external calls.
+	// Tools (e.g., WebSearch) and high-effort (extended thinking) calls need more time.
 	timeout := 2 * time.Minute
-	if len(cliTools) > 0 {
+	if len(cliTools) > 0 || effortFromContext(ctx) == "high" {
 		timeout = 5 * time.Minute
 	}
 	execCtx, cancel := context.WithTimeout(ctx, timeout)

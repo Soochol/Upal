@@ -255,6 +255,7 @@ func serve() {
 	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(services.NewNotificationStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(&services.TransformStageExecutor{})
+	pipelineRunner.RegisterExecutor(services.NewCollectStageExecutor())
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("schedule"))
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("trigger"))
 	srv.SetPipelineService(pipelineSvc)
@@ -266,9 +267,9 @@ func serve() {
 	skillReg := skills.New()
 	srv.SetSkills(skillReg)
 	if defaultLLM != nil {
-		var toolNames []string
+		var toolInfos []generate.ToolEntry
 		for _, t := range toolReg.AllTools() {
-			toolNames = append(toolNames, t.Name)
+			toolInfos = append(toolInfos, generate.ToolEntry{Name: t.Name, Description: t.Description})
 		}
 		allModels := api.KnownModelsGrouped(cfg.Providers)
 		var modelOpts []generate.ModelOption
@@ -280,7 +281,7 @@ func serve() {
 				Hint:     m.Hint,
 			})
 		}
-		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolNames, modelOpts)
+		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolInfos, modelOpts)
 		srv.SetGenerator(gen, defaultModelName)
 	}
 	srv.SetProviderConfigs(cfg.Providers)
