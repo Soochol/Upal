@@ -121,6 +121,9 @@ func TestAnthropicLLM_GenerateContent(t *testing.T) {
 	if !resp.TurnComplete {
 		t.Error("expected TurnComplete to be true for non-streaming response")
 	}
+	if resp.UsageMetadata != nil {
+		t.Error("expected UsageMetadata to be nil when usage absent from response")
+	}
 }
 
 func TestAnthropicLLM_ToolCalls(t *testing.T) {
