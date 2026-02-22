@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useExecutionStore } from '@/entities/run'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { Badge } from '@/shared/ui/badge'
 import { ChevronUp, ChevronDown, Trash2, Terminal, Copy, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { eventColorMap, formatEvent } from '@/lib/eventFormatting'
-import { useResizeDrag } from '@/hooks/useResizeDrag'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { cn } from '@/shared/lib/utils'
+import { eventColorMap, formatEvent } from '@/shared/lib/eventFormatting'
+import { useResizeDrag } from '@/shared/lib/useResizeDrag'
+import { useCopyToClipboard } from '@/shared/lib/useCopyToClipboard'
 
 const DEFAULT_HEIGHT = 160
 const MIN_HEIGHT = 80

@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { ExternalLink, Upload } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { Label } from '@/shared/ui/label'
+import { Button } from '@/shared/ui/button'
 import { uploadFile } from '@/shared/api'
-import type { AssetNodeConfig } from '@/lib/nodeConfigs'
+import type { AssetNodeConfig } from '@/shared/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
 import { fieldBox } from './NodeEditor'
 

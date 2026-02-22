@@ -1,5 +1,5 @@
 import type { Node } from '@xyflow/react'
-import type { NodeData } from '@/stores/workflowStore'
+import type { NodeData } from '@/entities/workflow'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'

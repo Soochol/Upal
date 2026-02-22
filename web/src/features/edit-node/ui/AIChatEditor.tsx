@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useWorkflowStore } from '@/entities/workflow'
 import type { NodeData } from '@/entities/workflow'
-import { configureNode, listModels, type ModelInfo } from '@/lib/api'
+import { configureNode } from '../api'
+import { listModels } from '@/shared/api'
+import type { ModelInfo } from '@/shared/types'
 import { useUpstreamNodes } from '../model/useUpstreamNodes'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/shared/ui/button'
+import { Textarea } from '@/shared/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -13,14 +15,14 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/shared/ui/select'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from '@/shared/ui/collapsible'
 import { Sparkles, SendHorizontal, Loader2, ChevronDown, Check, AlertCircle, BrainCircuit } from 'lucide-react'
-import { cn, groupModelsByProvider } from '@/lib/utils'
+import { cn, groupModelsByProvider } from '@/shared/lib/utils'
 
 type ChatMessage = {
   role: 'user' | 'assistant'

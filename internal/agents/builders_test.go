@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -209,4 +210,69 @@ func TestParseDataURIPart_Invalid(t *testing.T) {
 	if parseDataURIPart("data:image/png") != nil {
 		t.Error("expected nil for missing semicolon")
 	}
+}
+
+func TestBuildAgent_Tool_UnknownTool(t *testing.T) {
+	reg := tools.NewRegistry()
+	nd := &upal.NodeDefinition{
+		ID:   "tts_node",
+		Type: upal.NodeTypeTool,
+		Config: map[string]any{
+			"tool":  "tts",
+			"input": map[string]any{"text": "hello"},
+		},
+	}
+	_, err := BuildAgent(nd, nil, reg)
+	if err == nil {
+		t.Fatal("expected error for unknown tool")
+	}
+	if !strings.Contains(err.Error(), "unknown tool") {
+		t.Errorf("expected 'unknown tool' in error, got: %v", err)
+	}
+}
+
+func TestBuildAgent_Tool_NoToolReg(t *testing.T) {
+	nd := &upal.NodeDefinition{
+		ID:   "tts_node",
+		Type: upal.NodeTypeTool,
+		Config: map[string]any{
+			"tool":  "tts",
+			"input": map[string]any{"text": "hello"},
+		},
+	}
+	_, err := BuildAgent(nd, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when toolReg is nil")
+	}
+}
+
+func TestBuildAgent_Tool_KnownTool(t *testing.T) {
+	reg := tools.NewRegistry()
+	reg.Register(&mockNamedTool{name: "tts"})
+
+	nd := &upal.NodeDefinition{
+		ID:   "tts_node",
+		Type: upal.NodeTypeTool,
+		Config: map[string]any{
+			"tool":  "tts",
+			"input": map[string]any{"text": "{{upstream}}", "voice": "Rachel"},
+		},
+	}
+	a, err := BuildAgent(nd, nil, reg)
+	if err != nil {
+		t.Fatalf("expected no error for known tool: %v", err)
+	}
+	if a.Name() != "tts_node" {
+		t.Errorf("want name 'tts_node', got %q", a.Name())
+	}
+}
+
+// mockNamedTool is a no-op tool for testing ToolNodeBuilder.
+type mockNamedTool struct{ name string }
+
+func (m *mockNamedTool) Name() string                { return m.name }
+func (m *mockNamedTool) Description() string         { return "mock" }
+func (m *mockNamedTool) InputSchema() map[string]any { return nil }
+func (m *mockNamedTool) Execute(_ context.Context, input any) (any, error) {
+	return map[string]any{"result": "mock-output", "input": input}, nil
 }

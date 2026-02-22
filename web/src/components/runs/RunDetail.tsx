@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { fetchRun, type RunRecord } from '@/lib/api'
-import { usePolling } from '@/hooks/usePolling'
+import { usePolling } from '@/shared/lib/usePolling'
 import { NodeTimeline } from './NodeTimeline'
 import { NodeDetail } from './NodeDetail'
 import { Header } from '@/components/Header'

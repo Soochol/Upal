@@ -5,7 +5,7 @@ import { useUIStore } from '@/entities/ui'
 import { useExecutionStore } from '@/entities/run'
 import type { NodeRunStatus } from '@/entities/run'
 import type { NodeData } from '@/entities/workflow'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import { getAllNodeDefinitions, getNodeDefinition } from '@/entities/node'
 import type { NodeType } from '@/entities/node'
 

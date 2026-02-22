@@ -1,6 +1,6 @@
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import type { InputNodeConfig } from '@/lib/nodeConfigs'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+import type { InputNodeConfig } from '@/shared/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
 
 export function InputNodeEditor({ config, setConfig }: NodeEditorFieldProps<InputNodeConfig>) {

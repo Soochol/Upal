@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { useWorkflowStore } from '@/stores/workflowStore'
-import type { NodeData } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
+import type { NodeData } from '@/entities/workflow'
 import { configureNode, listModels, type ModelInfo } from '@/lib/api'
-import { useUpstreamNodes } from '@/hooks/useUpstreamNodes'
+import { useUpstreamNodes } from '@/features/edit-node'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {

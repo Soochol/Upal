@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { NodeResizer, type NodeProps, type Node } from '@xyflow/react'
-import { useUIStore } from '@/stores/uiStore'
-import type { NodeData } from '@/stores/workflowStore'
+import { useUIStore } from '@/entities/ui'
+import type { NodeData } from '@/entities/workflow'
 import { cn } from '@/lib/utils'
 
 const colorStyles: Record<string, { border: string; bg: string }> = {

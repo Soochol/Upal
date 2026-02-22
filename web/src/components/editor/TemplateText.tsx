@@ -1,4 +1,4 @@
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 
 const pillColors: Record<string, string> = Object.fromEntries(

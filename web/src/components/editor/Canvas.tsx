@@ -11,7 +11,7 @@ import {
   type IsValidConnection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 import { uploadFile } from '@/lib/api/upload'
 import { UpalNode } from './nodes/UpalNode'
 import { GroupNode } from './nodes/GroupNode'

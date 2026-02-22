@@ -1,5 +1,5 @@
-import { useWorkflowStore } from '@/stores/workflowStore'
-import type { NodeData } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
+import type { NodeData } from '@/entities/workflow'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'

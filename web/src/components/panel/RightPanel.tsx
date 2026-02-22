@@ -12,9 +12,9 @@ import { PanelConsole } from '@/components/panel/PanelConsole'
 import { GroupEditor } from '@/components/panel/GroupEditor'
 import { AIChatEditor } from '@/components/panel/AIChatEditor'
 import { Settings2, Terminal, Eye } from 'lucide-react'
-import type { NodeData } from '@/stores/workflowStore'
-import { useUIStore } from '@/stores/uiStore'
-import { useResizeDrag } from '@/hooks/useResizeDrag'
+import type { NodeData } from '@/entities/workflow'
+import { useUIStore } from '@/entities/ui'
+import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {

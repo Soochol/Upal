@@ -1,5 +1,6 @@
 export { useWorkflowStore } from './model/store'
 export { serializeWorkflow, deserializeWorkflow } from './lib/serializer'
+export type { WorkflowDefinition } from './lib/serializer'
 export { getLayoutedElements } from './lib/layout'
 export * from './api/index'
-export type { NodeData, WorkflowDefinition } from './types'
+export type { NodeData } from './types'

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useMemo } from 'react'
 import type { RunEvent } from '@/lib/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 import { resolveFormat, type OutputFormatDef } from '@/lib/outputFormats'
 import { ImagePreview } from './ImagePreview'
 

@@ -5,7 +5,7 @@ import { Plus, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { StageCard } from './StageCard'
 import { listWorkflows, loadWorkflow, listConnections } from '@/lib/api'
 import { deserializeWorkflow } from '@/lib/serializer'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 import type { Pipeline, Stage, StageConfig, Connection } from '@/lib/api/types'
 
 type Props = {
@@ -15,11 +15,13 @@ type Props = {
 }
 
 const newStageDefaults: Record<string, Partial<Stage>> = {
-  workflow:  { type: 'workflow',  config: {} },
-  approval:  { type: 'approval',  config: { timeout: 3600 } },
-  schedule:  { type: 'schedule',  config: {} },
-  trigger:   { type: 'trigger',   config: {} },
-  transform: { type: 'transform', config: {} },
+  workflow:     { type: 'workflow',     config: {} },
+  approval:     { type: 'approval',     config: { timeout: 3600 } },
+  notification: { type: 'notification', config: {} },
+  schedule:     { type: 'schedule',     config: {} },
+  trigger:      { type: 'trigger',      config: {} },
+  transform:    { type: 'transform',    config: {} },
+  collect:      { type: 'collect',      config: { sources: [] } },
 }
 
 export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
@@ -173,6 +175,7 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
               pipelineId={pipeline.id}
               workflowNames={workflowNames}
               connections={connections}
+              prevStage={i > 0 ? draft.stages[i - 1] : undefined}
               onChange={(s) => updateStage(i, s)}
               onDelete={() => deleteStage(i)}
               onOpenWorkflow={handleOpenWorkflow}

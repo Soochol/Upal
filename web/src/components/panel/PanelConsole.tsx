@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { useExecutionStore } from '@/stores/executionStore'
+import { useExecutionStore } from '@/entities/run'
 import { Button } from '@/components/ui/button'
 import { Trash2, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { eventColorMap, formatEvent } from '@/lib/eventFormatting'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { useCopyToClipboard } from '@/shared/lib/useCopyToClipboard'
 import type { RunEvent } from '@/lib/api'
 
 type PanelConsoleProps = {

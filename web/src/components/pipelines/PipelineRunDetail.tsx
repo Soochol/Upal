@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import {
   ArrowLeft, CheckCircle2, XCircle, Loader2, PauseCircle,
-  Clock, Play, Zap, RefreshCw, GitBranch,
+  Clock, Play, Zap, RefreshCw, GitBranch, Bell, Download,
 } from 'lucide-react'
 import type { Pipeline, PipelineRun, StageResult } from '@/lib/api/types'
 import { ContentViewer } from '@/components/ui/ContentViewer'
@@ -28,11 +28,13 @@ const statusColors: Record<string, string> = {
 }
 
 const stageTypeConfig: Record<string, { label: string; icon: typeof GitBranch; color: string }> = {
-  workflow:  { label: 'Workflow',  icon: Play,        color: 'var(--info)' },
-  approval:  { label: 'Approval',  icon: PauseCircle, color: 'var(--warning)' },
-  schedule:  { label: 'Schedule',  icon: Clock,       color: 'var(--success)' },
-  trigger:   { label: 'Trigger',   icon: Zap,         color: 'var(--node-agent)' },
-  transform: { label: 'Transform', icon: RefreshCw,   color: 'var(--muted-foreground)' },
+  workflow:     { label: 'Workflow',     icon: Play,        color: 'var(--info)' },
+  approval:     { label: 'Approval',     icon: PauseCircle, color: 'var(--warning)' },
+  notification: { label: 'Notification', icon: Bell,        color: 'var(--node-agent)' },
+  schedule:     { label: 'Schedule',     icon: Clock,       color: 'var(--success)' },
+  trigger:      { label: 'Trigger',      icon: Zap,         color: 'var(--node-agent)' },
+  transform:    { label: 'Transform',    icon: RefreshCw,   color: 'var(--muted-foreground)' },
+  collect:      { label: 'Collect',      icon: Download,    color: 'var(--info)' },
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

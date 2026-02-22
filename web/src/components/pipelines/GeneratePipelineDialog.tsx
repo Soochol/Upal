@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, X } from 'lucide-react'
 import { generatePipelineBundle, createPipeline } from '@/lib/api'
-import { saveWorkflow } from '@/lib/api'
-import { ApiError } from '@/lib/api/client'
 import type { Pipeline } from '@/lib/api/types'
 
 type Props = {
@@ -24,16 +22,6 @@ export function GeneratePipelineDialog({ open, onClose, onCreated }: Props) {
     setError(null)
     try {
       const bundle = await generatePipelineBundle(description.trim())
-
-      await Promise.all(
-        bundle.workflows.map((wf) =>
-          saveWorkflow(wf).catch((e) => {
-            if (e instanceof ApiError && e.status === 409) return
-            throw e
-          }),
-        ),
-      )
-
       const pipeline = await createPipeline(bundle.pipeline)
       onCreated(pipeline)
       onClose()

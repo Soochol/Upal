@@ -173,9 +173,19 @@ export type Pipeline = {
 export type Stage = {
   id: string
   name: string
-  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform'
+  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform' | 'collect'
   config: StageConfig
   depends_on?: string[]
+}
+
+export type CollectSource = {
+  id: string
+  type: 'rss' | 'http' | 'scrape'
+  url: string
+  limit?: number
+  method?: string
+  headers?: Record<string, string>
+  body?: string
 }
 
 export type StageConfig = {
@@ -190,6 +200,7 @@ export type StageConfig = {
   schedule_id?: string
   trigger_id?: string
   expression?: string
+  sources?: CollectSource[]
 }
 
 export type PipelineRun = {

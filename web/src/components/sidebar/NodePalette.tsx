@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 import { uploadFile } from '@/lib/api/upload'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 
 const paletteItems = Object.values(NODE_TYPES)
 

@@ -1,4 +1,4 @@
-import { useUIStore, type Toast } from '@/stores/uiStore'
+import { useUIStore, type Toast } from '@/entities/ui'
 import { X, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { listModels, type ModelInfo } from '@/lib/api'
+import { listModels } from './models'
+import type { ModelInfo } from '../types'
 
 let cachedModels: ModelInfo[] | null = null
 

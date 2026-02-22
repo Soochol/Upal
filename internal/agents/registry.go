@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/soochol/upal/internal/notify"
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/agent"
@@ -13,7 +12,7 @@ import (
 )
 
 // NodeBuilder constructs an ADK agent from a node definition.
-// Each node type (input, output, agent, branch, etc.) implements this interface.
+// Each node type (input, output, agent) implements this interface.
 type NodeBuilder interface {
 	NodeType() upal.NodeType
 	Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.Agent, error)
@@ -24,20 +23,11 @@ type ConnectionResolver interface {
 	Resolve(ctx context.Context, id string) (*upal.Connection, error)
 }
 
-// WorkflowLookup resolves a workflow definition by name.
-type WorkflowLookup interface {
-	Lookup(ctx context.Context, name string) (*upal.WorkflowDefinition, error)
-}
-
 // BuildDeps bundles dependencies available to all node builders.
 // Fields may be nil — each builder checks for what it needs.
 type BuildDeps struct {
-	LLMs         map[string]adkmodel.LLM
-	ToolReg      *tools.Registry
-	SenderReg    *notify.SenderRegistry
-	ConnResolver ConnectionResolver
-	WfLookup     WorkflowLookup
-	NodeRegistry *NodeRegistry // needed by subworkflow to build child DAGs
+	LLMs    map[string]adkmodel.LLM
+	ToolReg *tools.Registry
 }
 
 // NodeRegistry maps node types to their builders.
@@ -77,11 +67,6 @@ func DefaultRegistry() *NodeRegistry {
 	r.Register(&InputNodeBuilder{})
 	r.Register(&OutputNodeBuilder{})
 	r.Register(&LLMNodeBuilder{})
-	r.Register(&BranchNodeBuilder{})
-	r.Register(&IteratorNodeBuilder{})
-	r.Register(&NotificationNodeBuilder{})
-	r.Register(&SensorNodeBuilder{})
-	r.Register(&ApprovalNodeBuilder{})
-	r.Register(&SubWorkflowNodeBuilder{})
+	r.Register(&ToolNodeBuilder{})
 	return r
 }

@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Plus, Trash2, Link2, X } from 'lucide-react'
 import { Header } from '@/components/Header'
-import { listConnections, createConnection, deleteConnection } from '@/lib/api'
-import type { Connection, ConnectionCreate, ConnectionType } from '@/lib/api'
+import { listConnections, createConnection, deleteConnection } from '@/shared/api'
+import type { Connection, ConnectionCreate, ConnectionType } from '@/shared/types'
 
 const typeLabels: Record<ConnectionType, string> = {
   telegram: 'Telegram',

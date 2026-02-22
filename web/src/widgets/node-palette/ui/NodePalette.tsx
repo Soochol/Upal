@@ -1,16 +1,16 @@
 import { useRef } from 'react'
 import { Upload } from 'lucide-react'
-import { Separator } from '@/components/ui/separator'
+import { Separator } from '@/shared/ui/separator'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+} from '@/shared/ui/tooltip'
+import { cn } from '@/shared/lib/utils'
 import { getAllNodeDefinitions } from '@/entities/node'
 import type { NodeType } from '@/entities/node'
-import { uploadFile } from '@/lib/api/upload'
+import { uploadFile } from '@/shared/api'
 import { useWorkflowStore } from '@/entities/workflow'
 
 interface NodePaletteProps {

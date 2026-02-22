@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useWorkflowStore } from '@/entities/workflow'
-import { uploadFile } from '@/lib/api/upload'
+import { uploadFile } from '@/shared/api'
 import { UpalNode } from './UpalNode'
 import { GroupNode } from './GroupNode'
 import { EmptyState } from '@/components/editor/EmptyState'

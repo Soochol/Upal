@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
-import type { NodeData } from '@/stores/workflowStore'
+import type { NodeData } from '@/entities/workflow'
 
 /** Return input nodes in DAG topological order (Kahn's algorithm). */
 export function getInputNodesInOrder(

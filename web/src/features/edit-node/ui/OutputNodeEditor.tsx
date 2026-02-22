@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { Label } from '@/shared/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui/collapsible'
 import { ChevronRight } from 'lucide-react'
 import { PromptEditor } from '@/components/editor/PromptEditor'
 import { ModelSelector } from '@/components/editor/ModelSelector'
-import { OUTPUT_FORMATS, type OutputFormatId } from '@/lib/outputFormats'
-import type { OutputNodeConfig } from '@/lib/nodeConfigs'
+import { OUTPUT_FORMATS, type OutputFormatId } from '@/shared/lib/outputFormats'
+import type { OutputNodeConfig } from '@/shared/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
 
 export function OutputNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldProps<OutputNodeConfig>) {

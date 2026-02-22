@@ -1,5 +1,10 @@
 import type { JSONContent } from '@tiptap/core'
-import type { MentionItem } from '@/components/editor/MentionList'
+
+export type MentionItem = {
+  id: string
+  label: string
+  nodeType: string
+}
 
 // ── Serialization: TipTap JSON → {{id}} string ──
 

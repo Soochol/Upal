@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchRuns, type RunRecord } from '@/lib/api'
+import { fetchRuns } from '@/entities/run'
+import type { RunRecord } from '@/shared/types'
 import { Header } from '@/components/Header'
 import { Clock, CheckCircle2, XCircle, Loader2, Timer } from 'lucide-react'
 

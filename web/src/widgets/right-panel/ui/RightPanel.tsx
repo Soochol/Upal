@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/shared/ui/tooltip'
 import { NodeEditor } from '@/features/edit-node'
 import { PanelPreview } from '@/components/panel/PanelPreview'
 import { PanelConsole } from '@/components/panel/PanelConsole'
@@ -14,7 +14,7 @@ import { AIChatEditor } from '@/features/edit-node'
 import { Settings2, Terminal, Eye } from 'lucide-react'
 import type { NodeData } from '@/entities/workflow'
 import { useUIStore } from '@/entities/ui'
-import { useResizeDrag } from '@/hooks/useResizeDrag'
+import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {

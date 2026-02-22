@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { SaveStatus } from "@/hooks/useAutoSave";
+import type { SaveStatus } from "@/features/manage-canvas";
 
 type HeaderProps = {
   workflowName?: string;

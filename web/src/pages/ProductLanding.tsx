@@ -1,6 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { Plus, Sparkles, Network, Layers, Zap } from 'lucide-react'
-import { useWorkflowStore } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { HeroFlow } from './product-landing/HeroFlow'
 

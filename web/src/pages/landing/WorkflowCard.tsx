@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react'
-import type { WorkflowDefinition } from '@/lib/serializer'
+import type { WorkflowDefinition } from '@/entities/workflow'
 import { WorkflowMiniGraph } from '@/components/WorkflowMiniGraph'
 
 type WorkflowCardProps = {

@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
-import type { NodeData } from '../stores/workflowStore'
+import type { NodeData } from '@/entities/workflow'
 import { getLayoutedElements } from '@/lib/layout'
 import { NODE_TYPES, type NodeType } from '@/lib/nodeTypes'
 

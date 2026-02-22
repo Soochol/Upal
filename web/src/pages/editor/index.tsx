@@ -7,12 +7,10 @@ import { Console } from '@/widgets/bottom-console'
 import { WorkflowHeader } from '@/widgets/workflow-header'
 import { useReconnectRun } from '@/features/execute-workflow'
 import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
-import { useWorkflowStore } from '@/stores/workflowStore'
-import { useExecutionStore } from '@/stores/executionStore'
-import { useUIStore } from '@/stores/uiStore'
-import type { NodeType } from '@/lib/nodeTypes'
-import { serializeWorkflow, deserializeWorkflow } from '@/lib/serializer'
-import { generateWorkflow } from '@/lib/api'
+import { useWorkflowStore, serializeWorkflow, deserializeWorkflow, generateWorkflow } from '@/entities/workflow'
+import { useExecutionStore } from '@/entities/run'
+import { useUIStore } from '@/entities/ui'
+import type { NodeType } from '@/entities/node'
 
 export default function EditorPage() {
   const addNode = useWorkflowStore((s) => s.addNode)

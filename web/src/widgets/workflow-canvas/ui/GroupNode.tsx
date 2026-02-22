@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { NodeResizer, type NodeProps, type Node } from '@xyflow/react'
 import { useUIStore } from '@/entities/ui'
 import type { NodeData } from '@/entities/workflow'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 
 const colorStyles: Record<string, { border: string; bg: string }> = {
   purple: { border: 'border-purple-400/50', bg: 'bg-purple-400/5' },

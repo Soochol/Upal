@@ -8,11 +8,12 @@ import {
 import { Header } from '@/components/Header'
 import {
   fetchPipelines, fetchPipeline, createPipeline, updatePipeline,
-  deletePipeline, startPipeline, generatePipelineBundle, saveWorkflow,
+  deletePipeline, startPipeline, generatePipelineBundle,
   approvePipelineRun, rejectPipelineRun, generatePipelineThumbnail,
-} from '@/lib/api'
-import { ApiError } from '@/lib/api/client'
-import type { Pipeline, PipelineRun } from '@/lib/api/types'
+} from '@/entities/pipeline'
+import { saveWorkflow } from '@/entities/workflow'
+import { ApiError } from '@/shared/api'
+import type { Pipeline, PipelineRun } from '@/shared/types'
 import { PipelineCard } from '@/components/pipelines/PipelineCard'
 import { PipelineEditor } from '@/components/pipelines/PipelineEditor'
 import { PipelineRunHistory } from '@/components/pipelines/PipelineRunHistory'

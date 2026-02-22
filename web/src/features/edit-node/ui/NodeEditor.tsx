@@ -1,9 +1,9 @@
 import { getNodeDefinition } from '@/entities/node'
 import { useWorkflowStore } from '@/entities/workflow'
 import type { NodeData } from '@/entities/workflow'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/shared/ui/button'
 import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/lib/utils'
 import type { NodeType } from '@/entities/node'
 
 /** Shared read-only field style used by Agent and Output node editors. */

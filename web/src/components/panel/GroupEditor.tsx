@@ -1,5 +1,5 @@
-import { useWorkflowStore } from '@/stores/workflowStore'
-import type { NodeData } from '@/stores/workflowStore'
+import { useWorkflowStore } from '@/entities/workflow'
+import type { NodeData } from '@/entities/workflow'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
