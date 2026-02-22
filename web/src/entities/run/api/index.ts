@@ -1,5 +1,5 @@
 import { API_BASE, apiFetch } from '@/shared/api/client'
-import type { RunRecord, RunListResponse, RunEvent, ToolCall } from '@/shared/types'
+import type { RunRecord, RunListResponse, RunEvent, ToolCall, TokenUsage } from '@/shared/types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
 export async function fetchRuns(limit = 20, offset = 0, status = ''): Promise<RunListResponse> {
@@ -32,6 +32,9 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
         nodeId,
         output: data.output as string,
         stateDelta: (data.state_delta ?? {}) as Record<string, unknown>,
+        tokens: data.tokens as TokenUsage | undefined,
+        finishReason: data.finish_reason as string | undefined,
+        completedAt: data.completed_at as number | undefined,
       }
     case 'node_skipped':
       return { type: 'node_skipped', nodeId }
