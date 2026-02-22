@@ -1,20 +1,62 @@
-import { ExternalLink } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ExternalLink, Upload } from 'lucide-react'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { uploadFile } from '@/lib/api/upload'
 import type { AssetNodeConfig } from '@/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
 import { fieldBox } from './NodeEditor'
 
-export function AssetNodeEditor({ config }: NodeEditorFieldProps<AssetNodeConfig>) {
+export function AssetNodeEditor({ config, setConfig }: NodeEditorFieldProps<AssetNodeConfig>) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const result = await uploadFile(file)
+      setConfig('file_id', result.id)
+      setConfig('filename', result.filename)
+      setConfig('content_type', result.content_type)
+      setConfig('preview_text', result.preview_text ?? '')
+    } catch (err) {
+      console.error('AssetNodeEditor: upload failed', err)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="space-y-3">
+      {/* Upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 text-xs"
+        disabled={uploading}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Upload size={13} />
+        {uploading ? 'Uploading…' : config.file_id ? 'Replace File' : 'Load File'}
+      </Button>
+
       {/* Filename + open button */}
-      <div className="space-y-1">
-        <Label className="text-xs">File</Label>
-        <div className="flex items-center gap-2">
-          <p className="text-xs text-foreground font-medium truncate flex-1">
-            {config.filename ?? 'No file'}
-          </p>
-          {config.file_id && (
+      {config.file_id && (
+        <div className="space-y-1">
+          <Label className="text-xs">File</Label>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-foreground font-medium truncate flex-1">
+              {config.filename ?? config.file_id}
+            </p>
             <a
               href={`/api/files/${config.file_id}/serve`}
               target="_blank"
@@ -24,9 +66,9 @@ export function AssetNodeEditor({ config }: NodeEditorFieldProps<AssetNodeConfig
             >
               <ExternalLink size={13} />
             </a>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content type */}
       {config.content_type && (
@@ -39,20 +81,14 @@ export function AssetNodeEditor({ config }: NodeEditorFieldProps<AssetNodeConfig
       )}
 
       {/* Preview text */}
-      <div className="space-y-1">
-        <Label className="text-xs">Preview</Label>
-        {config.preview_text ? (
+      {config.preview_text && (
+        <div className="space-y-1">
+          <Label className="text-xs">Preview</Label>
           <pre className={fieldBox + ' font-mono text-[10px] text-muted-foreground'}>
             {config.preview_text}
           </pre>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">No preview available.</p>
-        )}
-      </div>
-
-      <p className="text-[10px] text-muted-foreground">
-        Asset nodes are read-only. Upload a new file to replace.
-      </p>
+        </div>
+      )}
     </div>
   )
 }
