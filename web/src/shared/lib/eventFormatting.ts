@@ -45,7 +45,7 @@ export function formatEvent(event: RunEvent): string {
       return `[${event.nodeId}] ${output}${suffix}`
     }
     case 'done':
-      return `status=${event.status}`
+      return event.error ? `status=${event.status}: ${event.error}` : `status=${event.status}`
     case 'error':
       return event.message
     case 'info':
@@ -89,7 +89,7 @@ export function formatEventVerbose(event: RunEvent): string {
       return `[${event.nodeId}] ${event.output}${suffix}`
     }
     case 'done':
-      return `status=${event.status}`
+      return event.error ? `status=${event.status}: ${event.error}` : `status=${event.status}`
     case 'error':
       return event.message
     case 'info':

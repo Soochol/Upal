@@ -32,7 +32,7 @@ export default function Landing() {
         }
         setRunningWorkflows(running)
       })
-      .catch(() => {})
+      .catch(() => { })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // After list loads, generate thumbnails for any workflows that don't have one yet.
@@ -76,7 +76,7 @@ export default function Landing() {
     try {
       await deleteWorkflow(name)
     } catch {
-      listWorkflows().then(setWorkflows).catch(() => {})
+      listWorkflows().then(setWorkflows).catch(() => { })
     }
   }
 
@@ -128,9 +128,9 @@ export default function Landing() {
                 placeholder="Search…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-44 pl-8 pr-4 py-1.5 rounded-xl bg-card border border-border text-sm
+                className="w-44 pl-8 pr-4 py-1.5 rounded-xl bg-background/50 backdrop-blur-md border border-border/60 text-sm shadow-sm
                   text-foreground placeholder:text-muted-foreground/50
-                  focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring transition-all"
+                  focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-border transition-all duration-200"
               />
             </div>
           </div>
@@ -140,8 +140,8 @@ export default function Landing() {
             /* Skeleton */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-2xl bg-card border border-border animate-pulse overflow-hidden">
-                  <div className="h-[68px] bg-muted/20 border-b border-border" />
+                <div key={i} className="rounded-2xl glass-panel border-border/60 animate-pulse overflow-hidden">
+                  <div className="h-[68px] bg-muted/20 border-b border-border/40" />
                   <div className="p-4 space-y-2.5">
                     <div className="h-3.5 w-28 bg-muted/40 rounded" />
                     <div className="flex gap-1.5">

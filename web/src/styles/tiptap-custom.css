@@ -1,0 +1,40 @@
+.prompt-editor-content p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.prompt-editor-content .is-empty::before {
+    color: var(--muted-foreground);
+    opacity: 0.6;
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    font-style: italic;
+    transition: opacity 0.2s ease;
+}
+
+.ProseMirror:not(.ProseMirror-focused):not([contenteditable="true"]) .is-empty::before {
+    display: none;
+}
+
+.mention-pill-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    font-size: 0.875em;
+    line-height: 1.5;
+    box-shadow: 0 2px 4px -1px color-mix(in srgb, var(--primary) 30%, transparent);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    user-select: none;
+}
+
+.mention-pill-wrapper:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--primary) 40%, transparent);
+}

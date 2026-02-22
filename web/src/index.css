@@ -147,7 +147,7 @@
   /* ── Hero gradient (light) ── */
   --hero-gradient-1: oklch(0.88 0.06 290 / 55%);
   --hero-gradient-2: oklch(0.86 0.08 320 / 45%);
-  --hero-card-bg:    oklch(0.95 0.01 280);
+  --hero-card-bg: oklch(0.95 0.01 280);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -221,13 +221,35 @@
   /* ── Hero gradient (dark) ── */
   --hero-gradient-1: oklch(0.28 0.09 290 / 70%);
   --hero-gradient-2: oklch(0.22 0.11 330 / 55%);
-  --hero-card-bg:    oklch(0.13 0.02 275);
+  --hero-card-bg: oklch(0.13 0.02 275);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Glassmorphism & Depth (Elevation) Utilities
+   ═══════════════════════════════════════════════════════ */
+@theme inline {
+  --shadow-base: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-popover: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-tooltip: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 20px -5px var(--ring);
+}
+
+@utility glass-panel {
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+@utility glass-dropdown {
+  background: color-mix(in srgb, var(--popover) 85%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  box-shadow: var(--shadow-popover);
 }
 
 /* ═══════════════════════════════════════════════════════
    Native Form Controls — dark dropdown/option styling
-   (color-scheme on .dark handles scrollbars, inputs, etc.
-    via inheritance; option needs explicit bg for dropdowns)
    ═══════════════════════════════════════════════════════ */
 .dark select option {
   background-color: var(--card);
@@ -239,237 +261,38 @@
    ═══════════════════════════════════════════════════════ */
 html {
   scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Base Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Syne', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+
+/* Tabular numbers for data displays */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.9em;
 }
 
 /* ═══════════════════════════════════════════════════════
-   ReactFlow Overrides
+   Module Imports
    ═══════════════════════════════════════════════════════ */
-.react-flow__node {
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  background: transparent !important;
-  animation: nodeEnter 200ms ease-out;
-}
-
-@keyframes nodeEnter {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.react-flow__edge-path {
-  stroke: var(--border);
-  stroke-width: 2;
-  stroke-dasharray: 6 4;
-  animation: dashmove 0.5s linear infinite;
-}
-
-@keyframes dashmove {
-  to { stroke-dashoffset: -10; }
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--ring);
-  stroke-width: 2.5;
-}
-
-.react-flow__controls button {
-  background-color: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-}
-
-.react-flow__controls button:hover {
-  background-color: var(--accent);
-}
-
-.react-flow__minimap {
-  background-color: var(--card) !important;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-/* ═══════════════════════════════════════════════════════
-   TipTap Prompt Editor
-   ═══════════════════════════════════════════════════════ */
-.prompt-editor-content p {
-  margin: 0;
-}
-
-.prompt-editor-content .is-empty::before {
-  color: var(--muted-foreground);
-  opacity: 0.5;
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
-
-.ProseMirror:not(.ProseMirror-focused):not([contenteditable="true"]) .is-empty::before {
-  display: none;
-}
-
-.mention-pill-wrapper {
-  display: inline;
-}
-
-/* ═══════════════════════════════════════════════════════
-   Landing Page
-   ═══════════════════════════════════════════════════════ */
-.landing-display {
-  font-family: 'Syne', sans-serif;
-}
-
-.landing-body {
-  font-family: 'DM Sans', sans-serif;
-}
-
-.landing-nav {
-  backdrop-filter: blur(16px) saturate(180%);
-  background: oklch(0.16 0.015 260 / 80%); /* fallback for older browsers */
-  background: oklch(from var(--background) l c h / 80%);
-}
-
-.hero-node {
-  animation: heroNodeEnter 0.6s ease-out both;
-}
-
-.hero-glow {
-  animation: heroGlow 3s ease-in-out infinite;
-}
-
-.hero-edge {
-  background: repeating-linear-gradient(
-    90deg,
-    var(--border) 0,
-    var(--border) 6px,
-    transparent 6px,
-    transparent 10px
-  );
-  background-size: 20px 2px;
-  animation: heroEdgeFlow 0.5s linear infinite;
-}
-
-.hero-edge-v {
-  background: repeating-linear-gradient(
-    180deg,
-    var(--border) 0,
-    var(--border) 6px,
-    transparent 6px,
-    transparent 10px
-  );
-  background-size: 2px 20px;
-  animation: heroEdgeFlowV 0.5s linear infinite;
-}
-
-.hero-gradient-text {
-  background: linear-gradient(135deg, var(--node-input), var(--node-agent), var(--node-output));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-card {
-  background:
-    radial-gradient(ellipse 70% 60% at 75% 20%, var(--hero-gradient-1), transparent),
-    radial-gradient(ellipse 50% 50% at 15% 80%, var(--hero-gradient-2), transparent),
-    var(--hero-card-bg);
-}
-
-@keyframes heroNodeEnter {
-  from { opacity: 0; transform: translateY(12px) scale(0.92); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes heroGlow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--hero-glow, transparent); }
-  50%      { box-shadow: 0 0 24px 4px var(--hero-glow, transparent); }
-}
-
-@keyframes heroEdgeFlow {
-  to { background-position: 20px 0; }
-}
-
-@keyframes heroEdgeFlowV {
-  to { background-position: 0 20px; }
-}
-
-/* ── Hero dot-grid overlay ── */
-.hero-dot-grid {
-  background-image: radial-gradient(circle, var(--border) 1.2px, transparent 1.2px);
-  background-size: 24px 24px;
-}
-
-/* ── Feature card ── */
-.landing-feature-card {
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-.landing-feature-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 40px oklch(0 0 0 / 6%);
-}
-
-/* ── How-it-works step number ── */
-.landing-step-number {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: 3.5rem;
-  line-height: 1;
-  -webkit-text-stroke: 2px currentColor;
-  color: transparent;
-  opacity: 0.15;
-}
-
-/* ── Running pulse dot ── */
-@keyframes runPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(0.8); }
-}
-.run-pulse {
-  animation: runPulse 1.4s ease-in-out infinite;
-}
-
-/* ═══════════════════════════════════════════════════════
-   Animations
-   ═══════════════════════════════════════════════════════ */
-@keyframes stepSlideIn {
-  from { opacity: 0; transform: translateX(16px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.input-step-enter {
-  animation: stepSlideIn 200ms ease-out;
-}
-
-@keyframes borderRotate {
-  to { --border-angle: 360deg; }
-}
-
-@property --border-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-/* AI-generated SVG thumbnail fills the card preview area */
-.workflow-thumbnail svg,
-.pipeline-thumbnail svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.workflow-card-running {
-  --border-angle: 0deg;
-  border-width: 2px !important;
-  border-color: transparent !important;
-  background:
-    linear-gradient(var(--card), var(--card)) padding-box,
-    conic-gradient(from var(--border-angle), var(--node-agent), var(--node-output), var(--node-input), var(--node-agent)) border-box !important;
-  animation: borderRotate 2.5s linear infinite;
-}
+@import "./styles/react-flow-custom.css";
+@import "./styles/tiptap-custom.css";
+@import "./styles/landing-custom.css";

@@ -1,6 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, Sparkles, Network, Layers, Zap } from 'lucide-react'
-import { useWorkflowStore } from '@/entities/workflow'
+import { Sparkles, Network, Layers, Zap } from 'lucide-react'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { HeroFlow } from './product-landing/HeroFlow'
 
@@ -49,41 +48,6 @@ const FEATURES = [
 export default function ProductLanding() {
   const navigate = useNavigate()
 
-  const openNew = () => {
-    useWorkflowStore.setState({ nodes: [], edges: [] })
-    const name = `Untitled-${Date.now().toString(36).slice(-4)}`
-    useWorkflowStore.getState().setWorkflowName(name)
-    useWorkflowStore.getState().setOriginalName('')
-    navigate('/editor')
-  }
-
-  const CTAButtons = ({ inverted = false }: { inverted?: boolean }) => (
-    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-      <button
-        onClick={openNew}
-        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium landing-body hover:opacity-90 transition-opacity cursor-pointer ${
-          inverted
-            ? 'bg-background text-foreground'
-            : 'bg-foreground text-background'
-        }`}
-      >
-        <Plus className="w-4 h-4" />
-        Create Workflow
-      </button>
-      <button
-        onClick={() => navigate('/editor?generate=true')}
-        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium landing-body transition-all cursor-pointer ${
-          inverted
-            ? 'border border-background/30 text-background hover:bg-background/10'
-            : 'border border-border text-foreground hover:bg-card/60'
-        }`}
-      >
-        <Sparkles className="w-4 h-4" />
-        Generate with AI
-      </button>
-    </div>
-  )
-
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col landing-body">
 
@@ -102,6 +66,18 @@ export default function ProductLanding() {
               className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
             >
               Workflows
+            </Link>
+            <Link
+              to="/pipelines"
+              className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
+            >
+              Pipelines
+            </Link>
+            <Link
+              to="/connections"
+              className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
+            >
+              Connections
             </Link>
             <ThemeToggle />
           </div>
@@ -130,8 +106,14 @@ export default function ProductLanding() {
               Ship multi-step AI pipelines without code.
             </p>
 
-            <div className="mt-10">
-              <CTAButtons />
+            <div className="mt-10 flex justify-center">
+              <button
+                onClick={() => navigate('/editor?generate=true')}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium landing-body transition-all cursor-pointer bg-foreground text-background hover:bg-foreground/90"
+              >
+                <Sparkles className="w-4 h-4" />
+                Generate with AI
+              </button>
             </div>
           </div>
 
@@ -191,10 +173,9 @@ export default function ProductLanding() {
           <h2 className="landing-display text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">
             Start building in seconds.
           </h2>
-          <p className="landing-body text-sm opacity-60 mb-10 max-w-sm mx-auto">
+          <p className="landing-body text-sm opacity-60 mb-0 max-w-sm mx-auto">
             No sign-up required. Open the editor and create your first workflow immediately.
           </p>
-          <CTAButtons inverted />
         </div>
       </section>
 

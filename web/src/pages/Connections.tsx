@@ -1,9 +1,10 @@
 // web/src/pages/Connections.tsx
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Trash2, Link2, X } from 'lucide-react'
 import { Header } from '@/shared/ui/Header'
 import { listConnections, createConnection, deleteConnection } from '@/shared/api'
-import type { Connection, ConnectionCreate, ConnectionType } from '@/shared/types'
+import type { ConnectionCreate, ConnectionType } from '@/shared/types'
 
 const typeLabels: Record<ConnectionType, string> = {
   telegram: 'Telegram',
@@ -14,54 +15,52 @@ const typeLabels: Record<ConnectionType, string> = {
 
 const typeBadgeClass: Record<ConnectionType, string> = {
   telegram: 'bg-info/10 text-info',
-  slack:    'bg-success/10 text-success',
-  http:     'bg-warning/10 text-warning',
-  smtp:     'bg-muted text-muted-foreground',
+  slack: 'bg-success/10 text-success',
+  http: 'bg-warning/10 text-warning',
+  smtp: 'bg-muted text-muted-foreground',
 }
 
 const emptyForm = (): ConnectionCreate => ({ name: '', type: 'telegram' })
 
 export default function Connections() {
-  const [connections, setConnections] = useState<Connection[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<ConnectionCreate>(emptyForm())
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const reload = async () => {
-    try {
-      const list = await listConnections()
-      setConnections(list ?? [])
-    } catch {
-      setConnections([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: connections = [], isLoading: loading } = useQuery({
+    queryKey: ['connections'],
+    queryFn: listConnections,
+  })
 
-  useEffect(() => { reload() }, [])
+  const deleteMutation = useMutation({
+    mutationFn: deleteConnection,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] })
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: createConnection,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['connections'] })
+      setOpen(false)
+      setForm(emptyForm())
+    },
+    onError: (e) => {
+      setError(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    },
+  })
 
   const handleDelete = async (id: string) => {
     if (!confirm('이 Connection을 삭제할까요?')) return
-    await deleteConnection(id)
-    reload()
+    deleteMutation.mutate(id)
   }
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setError('이름을 입력하세요.'); return }
-    setSaving(true)
     setError('')
-    try {
-      await createConnection(form)
-      setOpen(false)
-      setForm(emptyForm())
-      reload()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '저장에 실패했습니다.')
-    } finally {
-      setSaving(false)
-    }
+    createMutation.mutate(form)
   }
 
   const set = (key: keyof ConnectionCreate, value: string | number) =>
@@ -315,10 +314,10 @@ export default function Connections() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={saving}
+                disabled={createMutation.isPending}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {createMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 저장
               </button>
             </div>

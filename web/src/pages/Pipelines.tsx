@@ -1,4 +1,5 @@
 // web/src/pages/Pipelines.tsx
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -21,29 +22,19 @@ import { PromptBar } from '@/widgets/workflow-canvas/ui/PromptBar'
 void ({ CheckCircle2, AlertCircle, PauseCircle, Clock } as Record<string, unknown>)
 
 export default function Pipelines() {
-  const [pipelines, setPipelines] = useState<Pipeline[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<Pipeline | null>(null)
   const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [editorKey, setEditorKey] = useState(0)
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const thumbnailRequested = useRef<Set<string>>(new Set())
 
-  const reload = async () => {
-    try {
-      const data = await fetchPipelines()
-      setPipelines(data)
-    } catch {
-      // silent
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { reload() }, [])
+  const { data: pipelines = [], isLoading: loading } = useQuery({
+    queryKey: ['pipelines'],
+    queryFn: fetchPipelines,
+  })
 
   // After list loads, generate thumbnails for pipelines that don't have one yet.
   useEffect(() => {
@@ -60,9 +51,9 @@ export default function Pipelines() {
       thumbnailRequested.current.add(p.id)
       try {
         const svg = await generatePipelineThumbnail(p.id)
-        if (!cancelled) {
-          setPipelines((prev) =>
-            prev.map((item) => (item.id === p.id ? { ...item, thumbnail_svg: svg } : item)),
+        if (!cancelled && svg) {
+          queryClient.setQueryData<Pipeline[]>(['pipelines'], (old) =>
+            old?.map(item => item.id === p.id ? { ...item, thumbnail_svg: svg } : item)
           )
         }
       } catch { /* skip — thumbnail is optional */ }
@@ -70,7 +61,7 @@ export default function Pipelines() {
     }
     runNext(0)
     return () => { cancelled = true }
-  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, pipelines, queryClient])
 
   useEffect(() => {
     setSelectedRun(null)
@@ -79,21 +70,40 @@ export default function Pipelines() {
     } else {
       setSelected(null)
     }
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, navigate])
 
-  const handleCreate = async () => {
-    try {
-      const p = await createPipeline({ name: 'New Pipeline', stages: [] })
+  const createMutation = useMutation({
+    mutationFn: createPipeline,
+    onSuccess: (p) => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       navigate(`/pipelines/${p.id}`)
-    } catch {
-      // silent
     }
-  }
+  })
 
-  const handleGenerate = useCallback(async (description: string) => {
-    setIsGenerating(true)
-    setGenerateError(null)
-    try {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Pipeline }) => updatePipeline(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+      fetchPipeline(variables.id).then(setSelected)
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deletePipeline,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+    }
+  })
+
+  const startMutation = useMutation({
+    mutationFn: startPipeline,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+    }
+  })
+
+  const generateMutation = useMutation({
+    mutationFn: async (description: string) => {
       const existingPipeline = selected
         ? { name: selected.name, description: selected.description, stages: selected.stages }
         : undefined
@@ -106,47 +116,42 @@ export default function Pipelines() {
           }),
         ),
       )
+      return bundle
+    },
+    onSuccess: async (bundle) => {
       if (selected) {
-        // Edit mode: update existing pipeline and remount editor
         await updatePipeline(selected.id, bundle.pipeline)
         const fresh = await fetchPipeline(selected.id)
         setSelected(fresh)
         setEditorKey((k) => k + 1)
+        queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       } else {
-        // Create mode: create new pipeline and navigate to it
         const pipeline = await createPipeline(bundle.pipeline)
+        queryClient.invalidateQueries({ queryKey: ['pipelines'] })
         navigate(`/pipelines/${pipeline.id}`)
       }
-    } catch (e) {
+    },
+    onError: (e) => {
       setGenerateError(e instanceof Error ? e.message : 'Generation failed')
-    } finally {
-      setIsGenerating(false)
     }
-  }, [isGenerating, selected, navigate])
+  })
 
-  const handleDelete = async (pid: string) => {
+  const handleCreate = () => createMutation.mutate({ name: 'New Pipeline', stages: [] })
+
+  const handleGenerate = useCallback((description: string) => {
+    setGenerateError(null)
+    generateMutation.mutate(description)
+  }, [generateMutation])
+
+  const handleDelete = (pid: string) => {
     if (!confirm('Delete this pipeline?')) return
-    try {
-      await deletePipeline(pid)
-      reload()
-    } catch {
-      // silent
-    }
+    deleteMutation.mutate(pid)
   }
 
-  const handleStart = async (pid: string) => {
-    try {
-      await startPipeline(pid)
-      reload()
-    } catch {
-      // silent
-    }
-  }
+  const handleStart = (pid: string) => startMutation.mutate(pid)
 
   const handleSave = async (p: Pipeline) => {
-    await updatePipeline(p.id, p)
-    setSelected(p)
-    reload()
+    await updateMutation.mutateAsync({ id: p.id, data: p })
   }
 
   return (
@@ -155,7 +160,7 @@ export default function Pipelines() {
       {/* ─── Floating prompt bar ─── */}
       <PromptBar
         onSubmit={handleGenerate}
-        isGenerating={isGenerating}
+        isGenerating={generateMutation.isPending}
         placeholder={selected ? 'Edit these stages...' : 'Describe your pipeline...'}
         positioning="fixed"
         error={generateError}

@@ -1,5 +1,3 @@
-import { useRef } from 'react'
-import { Upload } from 'lucide-react'
 import { Separator } from '@/shared/ui/separator'
 import {
   Tooltip,
@@ -10,37 +8,13 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { getAllNodeDefinitions } from '@/entities/node'
 import type { NodeType } from '@/entities/node'
-import { uploadFile } from '@/shared/api'
-import { useWorkflowStore } from '@/entities/workflow'
 
 interface NodePaletteProps {
   onAddNode: (type: NodeType) => void
 }
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const addNode = useWorkflowStore((s) => s.addNode)
-
   const paletteItems = getAllNodeDefinitions()
-
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    files.forEach((file, i) => {
-      uploadFile(file)
-        .then((result) => {
-          addNode('asset', { x: 100 + i * 20, y: 100 + i * 20 }, {
-            file_id: result.id,
-            filename: result.filename,
-            content_type: result.content_type,
-            preview_text: result.preview_text ?? '',
-          })
-        })
-        .catch((err) => {
-          console.error('Asset upload failed:', err)
-        })
-    })
-    e.target.value = ''
-  }
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -60,38 +34,18 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
                   }}
                   onClick={() => onAddNode(item.type)}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors cursor-grab active:cursor-grabbing',
+                    'flex items-center gap-3 rounded-lg border border-border/50 px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5',
                     item.paletteBg
                   )}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
+                  <item.icon className="h-4 w-4 shrink-0 drop-shadow-sm" />
+                  <span className="tracking-tight">{item.label}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{item.description}</TooltipContent>
             </Tooltip>
           ))}
         </div>
-        <Separator className="my-4" />
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileUpload}
-        />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors bg-node-asset/15 text-node-asset border-node-asset/30 hover:bg-node-asset/25"
-            >
-              <Upload className="h-4 w-4 shrink-0" />
-              <span>Upload File</span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Upload a file and create an asset node</TooltipContent>
-        </Tooltip>
         <Separator className="my-4" />
         <p className="text-xs text-muted-foreground">
           Click to add a step, then connect nodes on the canvas.

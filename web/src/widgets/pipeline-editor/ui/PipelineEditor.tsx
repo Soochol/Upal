@@ -1,11 +1,12 @@
 // web/src/widgets/pipeline-editor/ui/PipelineEditor.tsx
 import { useState, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { StageCard } from './StageCard'
 import { listWorkflows, loadWorkflow, deserializeWorkflow, useWorkflowStore } from '@/entities/workflow'
 import { listConnections } from '@/shared/api'
-import type { Pipeline, Stage, StageConfig, Connection } from '@/shared/types'
+import type { Pipeline, Stage, StageConfig } from '@/shared/types'
 
 type Props = {
   pipeline: Pipeline
@@ -14,19 +15,17 @@ type Props = {
 }
 
 const newStageDefaults: Record<string, Partial<Stage>> = {
-  workflow:     { type: 'workflow',     config: {} },
-  approval:     { type: 'approval',     config: { timeout: 3600 } },
+  workflow: { type: 'workflow', config: {} },
+  approval: { type: 'approval', config: { timeout: 3600 } },
   notification: { type: 'notification', config: {} },
-  schedule:     { type: 'schedule',     config: {} },
-  trigger:      { type: 'trigger',      config: {} },
-  transform:    { type: 'transform',    config: {} },
-  collect:      { type: 'collect',      config: { sources: [] } },
+  schedule: { type: 'schedule', config: {} },
+  trigger: { type: 'trigger', config: {} },
+  transform: { type: 'transform', config: {} },
+  collect: { type: 'collect', config: { sources: [] } },
 }
 
 export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   const [draft, setDraft] = useState<Pipeline>({ ...pipeline })
-  const [workflowNames, setWorkflowNames] = useState<string[]>([])
-  const [connections, setConnections] = useState<Connection[]>([])
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -40,14 +39,16 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   draftRef.current = draft
   onSaveRef.current = onSave
 
-  useEffect(() => {
-    listWorkflows()
-      .then((wfs) => setWorkflowNames(wfs.map((w) => w.name)))
-      .catch(() => {})
-    listConnections()
-      .then((cs) => setConnections(cs ?? []))
-      .catch(() => {})
-  }, [])
+  const { data: workflows = [] } = useQuery({
+    queryKey: ['workflows'],
+    queryFn: listWorkflows,
+  })
+  const workflowNames = workflows.map((w) => w.name)
+
+  const { data: connections = [] } = useQuery({
+    queryKey: ['connections'],
+    queryFn: listConnections,
+  })
 
   // Auto-save on change (debounced)
   useEffect(() => {
@@ -123,9 +124,9 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   const addStage = (type: string) => {
     const defaults = newStageDefaults[type] || { type, config: {} }
     const stage: Stage = {
-      id:     `stage-${draft.stages.length + 1}`,
-      name:   '',
-      type:   type as Stage['type'],
+      id: `stage-${draft.stages.length + 1}`,
+      name: '',
+      type: type as Stage['type'],
       config: (defaults.config ?? {}) as StageConfig,
     }
     setDraft({ ...draft, stages: [...draft.stages, stage] })
@@ -148,7 +149,7 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
         </div>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {saveStatus === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
-          {saveStatus === 'saved'  && <><Check className="h-3 w-3 text-success" />Saved</>}
+          {saveStatus === 'saved' && <><Check className="h-3 w-3 text-success" />Saved</>}
         </span>
       </div>
 

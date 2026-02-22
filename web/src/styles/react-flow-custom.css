@@ -1,0 +1,63 @@
+.react-flow__node {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  animation: nodeEnter 300ms ease-out;
+}
+
+@keyframes nodeEnter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.react-flow__edge-path {
+  stroke: var(--border);
+  stroke-width: 2;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--ring);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 4px var(--ring));
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 6 6;
+  animation: dashmove 0.8s linear infinite;
+  /* Glowing effect for animated edges */
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ring) 50%, transparent));
+}
+
+@keyframes dashmove {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.react-flow__controls button {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.react-flow__controls button:hover {
+  background-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.react-flow__minimap {
+  background-color: color-mix(in srgb, var(--card) 80%, transparent) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px -8px color-mix(in srgb, var(--foreground) 15%, transparent);
+}

@@ -22,14 +22,14 @@ export default function Editor() {
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
   const addRunEvent = useExecutionStore((s) => s.addRunEvent)
 
-  const selectedNodeId = useUIStore((s) => s.selectedNodeId)
-  const selectNode = useUIStore((s) => s.selectNode)
-
   const [isGenerating, setIsGenerating] = useState(false)
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
 
   const { saveStatus, saveNow } = useAutoSave()
   useReconnectRun()
+
+  const selectedNodeId = useUIStore((s) => s.selectedNodeId)
+  const selectNode = useUIStore((s) => s.selectNode)
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
