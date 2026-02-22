@@ -16,6 +16,7 @@ type ModelCategory string
 const (
 	ModelCategoryText  ModelCategory = "text"
 	ModelCategoryImage ModelCategory = "image"
+	ModelCategoryTTS   ModelCategory = "tts"
 )
 
 // OptionSchema describes a single configurable option for a model category.
@@ -63,6 +64,7 @@ var modelCategoryByType = map[string]ModelCategory{
 	"claude-code":  ModelCategoryText,
 	"gemini-image": ModelCategoryImage,
 	"zimage":       ModelCategoryImage,
+	"openai-tts":   ModelCategoryTTS,
 }
 
 func ptr(f float64) *float64 { return &f }
@@ -73,6 +75,16 @@ var categoryOptions = map[ModelCategory][]OptionSchema{
 		{Key: "temperature", Label: "Temperature", Type: "slider", Min: ptr(0), Max: ptr(2), Step: ptr(0.1)},
 		{Key: "max_tokens", Label: "Max Tokens", Type: "number", Min: ptr(1), Max: ptr(128000), Step: ptr(1)},
 		{Key: "top_p", Label: "Top P", Type: "slider", Min: ptr(0), Max: ptr(1), Step: ptr(0.05)},
+	},
+	ModelCategoryTTS: {
+		{Key: "voice", Label: "Voice", Type: "select", Default: "alloy", Choices: []OptionChoice{
+			{Label: "Alloy", Value: "alloy"},
+			{Label: "Echo", Value: "echo"},
+			{Label: "Fable", Value: "fable"},
+			{Label: "Onyx", Value: "onyx"},
+			{Label: "Nova", Value: "nova"},
+			{Label: "Shimmer", Value: "shimmer"},
+		}},
 	},
 	ModelCategoryImage: {
 		{Key: "aspect_ratio", Label: "Aspect Ratio", Type: "select", Default: "1:1", Choices: []OptionChoice{
@@ -141,6 +153,10 @@ var knownModels = map[string][]modelEntry{
 	},
 	"zimage": {
 		{"z-image", ModelTierMid, "local image generation"},
+	},
+	"openai-tts": {
+		{"tts-1", ModelTierLow, "fast speech synthesis, standard quality"},
+		{"tts-1-hd", ModelTierMid, "high-definition speech synthesis"},
 	},
 }
 
