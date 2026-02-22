@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useExecutionStore } from '@/entities/run'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
@@ -207,21 +207,26 @@ export function Console() {
       })
   }, [runEvents, logLevel, nodeFilter, searchQuery])
 
-  const handleToggleRow = (i: number) => {
+  const handleToggleRow = useCallback((i: number) => {
     setExpandedRows((prev) => {
       const next = new Set(prev)
       next.has(i) ? next.delete(i) : next.add(i)
       return next
     })
-  }
+  }, [])
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     const verbose = logLevel === 'verbose'
     const text = filtered
       .map(({ event }) => `[${event.type}] ${verbose ? formatEventVerbose(event) : formatEvent(event)}`)
       .join('\n')
     copyToClipboard(text)
-  }
+  }, [filtered, logLevel, copyToClipboard])
+
+  // Clear node filter when events are cleared so it doesn't silently hide new events
+  useEffect(() => {
+    if (runEvents.length === 0) setNodeFilter('')
+  }, [runEvents.length])
 
   useEffect(() => {
     if (isRunning) setIsExpanded(true)
