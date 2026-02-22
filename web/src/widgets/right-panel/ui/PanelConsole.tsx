@@ -1,5 +1,5 @@
 // web/src/widgets/right-panel/ui/PanelConsole.tsx
-import { useMemo, useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { useWorkflowStore } from '@/entities/workflow'
 import type { NodeData } from '@/entities/workflow'
@@ -79,6 +79,7 @@ function StatusIcon({ status }: { status: NodeRunStatus }) {
 
 function NodeStepCard({ node, inDegree, status, output, isRunning, onPlay }: NodeStepCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const autoExpandedRef = useRef<string | null>(null)
 
   const nodeType = node.data.nodeType as 'input' | 'agent' | 'output' | 'asset'
   let def
@@ -86,8 +87,20 @@ function NodeStepCard({ node, inDegree, status, output, isRunning, onPlay }: Nod
   const Icon = def.icon
   const cssVar = def.cssVar
 
+  // Auto-expand only once per unique completion (output value + completed status)
   useEffect(() => {
-    if (status === 'completed' && output) setExpanded(true)
+    if (status === 'completed' && output) {
+      const key = output  // unique per completion result
+      if (autoExpandedRef.current !== key) {
+        autoExpandedRef.current = key
+        setExpanded(true)
+      }
+    }
+    // Reset when node goes back to idle (new run cleared state)
+    if (status === 'idle') {
+      autoExpandedRef.current = null
+      setExpanded(false)
+    }
   }, [status, output])
 
   const canPlay = inDegree === 0 && !isRunning
@@ -180,6 +193,14 @@ export function PanelConsole() {
 
   const sortedNodes = useMemo(() => sortAllNodesTopologically(nodes, edges), [nodes, edges])
 
+  const renderableNodes = useMemo(
+    () => sortedNodes.filter(({ node }) => {
+      try { getNodeDefinition(node.data.nodeType as 'input' | 'agent' | 'output' | 'asset'); return true }
+      catch { return false }
+    }),
+    [sortedNodes],
+  )
+
   const nodeOutputs = useMemo(() => {
     const map: Record<string, string> = {}
     for (const event of runEvents) {
@@ -199,9 +220,8 @@ export function PanelConsole() {
         inputs[n.id] = (n.data.config.value as string) ?? ''
       }
     }
-    clearNodeStatuses()
     executeRun(inputs)
-  }, [nodes, isRunning, executeRun, clearNodeStatuses])
+  }, [nodes, isRunning, executeRun])
 
   const handleClear = useCallback(() => {
     clearRunEvents()
@@ -220,12 +240,12 @@ export function PanelConsole() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {sortedNodes.length === 0 ? (
+        {renderableNodes.length === 0 ? (
           <p className="text-xs text-muted-foreground px-1 py-2">
             Add nodes to the canvas to see them here.
           </p>
         ) : (
-          sortedNodes.map(({ node, inDegree }) => (
+          renderableNodes.map(({ node, inDegree }) => (
             <NodeStepCard
               key={node.id}
               node={node}
