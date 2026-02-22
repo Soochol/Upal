@@ -50,11 +50,7 @@ func (g *GeminiLLM) ensureClient(ctx context.Context) error {
 // NativeTool implements NativeToolProvider.
 // Returns the genai.Tool spec for well-known Upal native tools.
 func (g *GeminiLLM) NativeTool(name string) (*genai.Tool, bool) {
-	switch name {
-	case "web_search":
-		return &genai.Tool{GoogleSearch: &genai.GoogleSearch{}}, true
-	}
-	return nil, false
+	return LookupNativeTool(name)
 }
 
 func (g *GeminiLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {

@@ -60,11 +60,7 @@ func NewAnthropicLLM(apiKey string, opts ...AnthropicOption) *AnthropicLLM {
 // Name returns "anthropic".
 // NativeTool implements NativeToolProvider.
 func (a *AnthropicLLM) NativeTool(name string) (*genai.Tool, bool) {
-	switch name {
-	case "web_search":
-		return &genai.Tool{GoogleSearch: &genai.GoogleSearch{}}, true
-	}
-	return nil, false
+	return LookupNativeTool(name)
 }
 
 func (a *AnthropicLLM) Name() string {

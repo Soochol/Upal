@@ -67,11 +67,7 @@ func NewOpenAILLM(apiKey string, opts ...OpenAIOption) *OpenAILLM {
 // Name returns the configured name of this LLM (default "openai").
 // NativeTool implements NativeToolProvider.
 func (o *OpenAILLM) NativeTool(name string) (*genai.Tool, bool) {
-	switch name {
-	case "web_search":
-		return &genai.Tool{GoogleSearch: &genai.GoogleSearch{}}, true
-	}
-	return nil, false
+	return LookupNativeTool(name)
 }
 
 func (o *OpenAILLM) Name() string {
@@ -472,8 +468,10 @@ type openaiFunction struct {
 
 func init() {
 	RegisterProvider("openai", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
-		return NewOpenAILLM(cfg.APIKey,
-			WithOpenAIBaseURL(cfg.URL),
-			WithOpenAIName(name))
+		opts := []OpenAIOption{WithOpenAIName(name)}
+		if cfg.URL != "" {
+			opts = append(opts, WithOpenAIBaseURL(cfg.URL))
+		}
+		return NewOpenAILLM(cfg.APIKey, opts...)
 	})
 }
