@@ -20,6 +20,8 @@ type ExecutionState = {
 
   nodeStartTimes: Record<string, number>
   nodeDurations: Record<string, number>
+  runStartTime: number | null
+  setRunStartTime: (t: number | null) => void
 }
 
 export const useExecutionStore = create<ExecutionState>((set, get) => ({
@@ -29,6 +31,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   nodeStatuses: {},
   nodeStartTimes: {},
   nodeDurations: {},
+  runStartTime: null,
 
   setIsRunning: (running) => set({ isRunning: running }),
 
@@ -36,7 +39,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     set({ runEvents: [...get().runEvents, event] })
   },
   clearRunEvents: () => {
-    set({ runEvents: [], sessionState: {} })
+    set({ runEvents: [], sessionState: {}, runStartTime: null })
   },
 
   setSessionState: (state) => {
@@ -66,4 +69,6 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   clearNodeStatuses: () => {
     set({ nodeStatuses: {}, nodeStartTimes: {}, nodeDurations: {} })
   },
+
+  setRunStartTime: (t) => set({ runStartTime: t }),
 }))
