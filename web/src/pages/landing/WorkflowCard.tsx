@@ -1,6 +1,5 @@
 import { Trash2 } from 'lucide-react'
 import type { WorkflowDefinition } from '@/lib/serializer'
-import { NODE_TYPES } from '@/lib/nodeTypes'
 import { WorkflowMiniGraph } from '@/components/WorkflowMiniGraph'
 
 type WorkflowCardProps = {
@@ -18,16 +17,11 @@ export function WorkflowCard({
   onDelete,
   isRunning,
 }: WorkflowCardProps) {
-  const typeCounts: Record<string, number> = {}
-  for (const n of workflow.nodes) {
-    typeCounts[n.type] = (typeCounts[n.type] || 0) + 1
-  }
-
   return (
     <div
       className={`group relative text-left w-full rounded-2xl overflow-hidden transition-all duration-200
         bg-card border border-border hover:border-foreground/20
-        hover:shadow-lg hover:shadow-black/8 hover:-translate-y-0.5 cursor-pointer
+        hover:shadow-lg hover:shadow-black/8 hover:-translate-y-0.5 cursor-pointer min-h-[164px]
         ${isRunning ? 'workflow-card-running' : ''}`}
       onClick={onClick}
       role="button"
@@ -75,30 +69,11 @@ export function WorkflowCard({
             {description}
           </p>
         )}
-
-        {/* Node type badges */}
-        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-          {Object.entries(typeCounts).map(([type, count]) => {
-            const cssVar = NODE_TYPES[type as keyof typeof NODE_TYPES]?.cssVar || 'var(--muted-foreground)'
-            return (
-              <span
-                key={type}
-                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full landing-body font-medium"
-                style={{
-                  background: `color-mix(in oklch, ${cssVar}, transparent 88%)`,
-                  color: cssVar,
-                }}
-              >
-                <span className="w-1 h-1 rounded-full shrink-0" style={{ background: cssVar }} />
-                {count} {type}
-              </span>
-            )
-          })}
-          <span className="text-[10px] text-muted-foreground/40 ml-auto landing-body tabular-nums">
-            {workflow.edges.length}e
+        <div className="flex items-center gap-2 mt-2.5">
+          <span className="text-[10px] text-muted-foreground/50 landing-body tabular-nums">
+            {workflow.nodes.length} node{workflow.nodes.length !== 1 ? 's' : ''}
           </span>
         </div>
-
       </div>
     </div>
   )
