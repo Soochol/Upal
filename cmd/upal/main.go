@@ -60,6 +60,8 @@ func serve() {
 			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
 				upalmodel.WithOpenAIBaseURL(geminiURL),
 				upalmodel.WithOpenAIName(name))
+		case "openai-tts":
+			llms[name] = upalmodel.NewOpenAITTSModel(pc.APIKey, pc.URL)
 		case "claude-code":
 			llms[name] = upalmodel.NewClaudeCodeLLM()
 		case "gemini-image":
