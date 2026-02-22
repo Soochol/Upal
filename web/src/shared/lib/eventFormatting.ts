@@ -60,3 +60,47 @@ export function formatEvent(event: RunEvent): string {
       return `[${event.nodeId}] ${event.message}`
   }
 }
+
+/** Returns "+1.2s" offset from run start, or '' if timestamps are unavailable. */
+export function formatRelativeTime(eventMs: number | undefined, runStartMs: number | null): string {
+  if (!runStartMs || !eventMs) return ''
+  const delta = (eventMs - runStartMs) / 1000
+  if (delta < 0) return ''
+  return `+${delta.toFixed(1)}s`
+}
+
+/** Same as formatEvent but without any character truncation.
+ *  Use for "verbose" log level where the user wants to see the full content. */
+export function formatEventVerbose(event: RunEvent): string {
+  switch (event.type) {
+    case 'node_started':
+      return `[${event.nodeId}] started`
+    case 'tool_call':
+      return event.calls
+        .map((c) => `[${event.nodeId}] ${c.name}(${JSON.stringify(c.args ?? {})})`)
+        .join('\n')
+    case 'tool_result':
+      return event.results
+        .map((r) => `[${event.nodeId}] ${r.name} \u2192 ${JSON.stringify(r.response ?? {})}`)
+        .join('\n')
+    case 'node_completed': {
+      const deltaKeys = Object.keys(event.stateDelta ?? {})
+      const suffix = deltaKeys.length > 0 ? ` state: {${deltaKeys.join(', ')}}` : ''
+      return `[${event.nodeId}] ${event.output}${suffix}`
+    }
+    case 'done':
+      return `status=${event.status}`
+    case 'error':
+      return event.message
+    case 'info':
+      return event.message
+    case 'node_skipped':
+      return `[${event.nodeId}] skipped`
+    case 'node_waiting':
+      return `[${event.nodeId}] waiting`
+    case 'node_resumed':
+      return `[${event.nodeId}] resumed`
+    case 'log':
+      return `[${event.nodeId}] ${event.message}`
+  }
+}
