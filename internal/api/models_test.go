@@ -8,20 +8,22 @@ import (
 
 func TestIsOllama(t *testing.T) {
 	cases := []struct {
+		name string
 		pc   config.ProviderConfig
 		want bool
 	}{
-		{config.ProviderConfig{Type: "ollama", URL: "http://localhost:11434/v1"}, true},
-		{config.ProviderConfig{Type: "ollama"}, true},  // explicit type, no URL needed
-		{config.ProviderConfig{Type: "openai", URL: "http://localhost:11434/v1"}, true},
-		{config.ProviderConfig{Type: "openai", URL: "http://localhost:8080/v1"}, false},
-		{config.ProviderConfig{Type: "anthropic", URL: "http://localhost:11434/v1"}, false},
-		{config.ProviderConfig{Type: "openai"}, false},
+		{"explicit ollama type", config.ProviderConfig{Type: "ollama", URL: "http://localhost:11434/v1"}, true},
+		{"openai type with port 11434", config.ProviderConfig{Type: "openai", URL: "http://localhost:11434/v1"}, true},
+		{"openai type with other port", config.ProviderConfig{Type: "openai", URL: "http://localhost:8080/v1"}, false},
+		{"anthropic type with 11434 in URL", config.ProviderConfig{Type: "anthropic", URL: "http://localhost:11434/v1"}, false},
+		{"ollama type without URL", config.ProviderConfig{Type: "ollama"}, true},
 	}
 	for _, c := range cases {
-		got := isOllama(c.pc)
-		if got != c.want {
-			t.Errorf("isOllama(%+v) = %v, want %v", c.pc, got, c.want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			got := isOllama(c.pc)
+			if got != c.want {
+				t.Errorf("isOllama(%+v) = %v, want %v", c.pc, got, c.want)
+			}
+		})
 	}
 }
