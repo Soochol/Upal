@@ -26,8 +26,9 @@ type ConnectionResolver interface {
 // BuildDeps bundles dependencies available to all node builders.
 // Fields may be nil — each builder checks for what it needs.
 type BuildDeps struct {
-	LLMs    map[string]adkmodel.LLM
-	ToolReg *tools.Registry
+	LLMs      map[string]adkmodel.LLM
+	ToolReg   *tools.Registry
+	OutputDir string // directory for saving media outputs (audio, video)
 }
 
 // NodeRegistry maps node types to their builders.

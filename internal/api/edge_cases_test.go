@@ -23,7 +23,7 @@ import (
 func newEdgeCaseServer() (*Server, repository.TriggerRepository) {
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry(), "")
 	trigRepo := repository.NewMemoryTriggerRepository()
 	srv := NewServer(nil, wfSvc, wfRepo, nil)
 	srv.SetTriggerRepository(trigRepo)

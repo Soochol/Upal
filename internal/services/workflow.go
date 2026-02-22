@@ -42,6 +42,7 @@ func NewWorkflowService(
 	sessionService session.Service,
 	toolReg *tools.Registry,
 	nodeRegistry *agents.NodeRegistry,
+	outputDir string,
 ) *WorkflowService {
 	return &WorkflowService{
 		repo:           repo,
@@ -49,7 +50,7 @@ func NewWorkflowService(
 		sessionService: sessionService,
 		toolReg:        toolReg,
 		nodeRegistry:   nodeRegistry,
-		buildDeps:      agents.BuildDeps{LLMs: llms, ToolReg: toolReg},
+		buildDeps:      agents.BuildDeps{LLMs: llms, ToolReg: toolReg, OutputDir: outputDir},
 	}
 }
 

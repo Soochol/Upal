@@ -114,6 +114,12 @@ func serve() {
 		os.Exit(1)
 	}
 
+	outputDir := "outputs"
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		slog.Error("failed to create outputs directory", "err", err)
+		os.Exit(1)
+	}
+
 	toolReg := tools.NewRegistry()
 	toolReg.RegisterNative(tools.WebSearch)
 	toolReg.Register(&tools.HTTPRequestTool{})
@@ -171,7 +177,7 @@ func serve() {
 
 	// Create WorkflowService for execution orchestration.
 	nodeReg := agents.DefaultRegistry()
-	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg)
+	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg, outputDir)
 	runHistorySvc := services.NewRunHistoryService(runRepo)
 	runHistorySvc.CleanupOrphanedRuns(context.Background())
 

@@ -21,7 +21,7 @@ import (
 func newTestServer() *Server {
 	sessionSvc := session.InMemoryService()
 	repo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil, agents.DefaultRegistry())
+	wfSvc := services.NewWorkflowService(repo, nil, sessionSvc, nil, agents.DefaultRegistry(), "")
 	srv := NewServer(nil, wfSvc, repo, nil)
 
 	runRepo := repository.NewMemoryRunRepository()

@@ -24,7 +24,7 @@ import (
 func newTestServerWithWebhook() (*Server, repository.TriggerRepository) {
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry(), "")
 	trigRepo := repository.NewMemoryTriggerRepository()
 	srv := NewServer(nil, wfSvc, wfRepo, nil)
 	srv.SetTriggerRepository(trigRepo)
@@ -298,7 +298,7 @@ func TestHandleWebhook_NoTriggerRepo(t *testing.T) {
 	// Create a server without setting the trigger repository.
 	sessionSvc := session.InMemoryService()
 	wfRepo := repository.NewMemory()
-	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry())
+	wfSvc := services.NewWorkflowService(wfRepo, nil, sessionSvc, nil, agents.DefaultRegistry(), "")
 	srv := NewServer(nil, wfSvc, wfRepo, nil)
 	// Deliberately do NOT call srv.SetTriggerRepository().
 
