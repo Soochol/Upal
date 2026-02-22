@@ -7,6 +7,7 @@ const (
 	NodeTypeAgent  NodeType = "agent"
 	NodeTypeOutput NodeType = "output"
 	NodeTypeAsset  NodeType = "asset"
+	NodeTypeTool   NodeType = "tool"
 )
 
 type WorkflowDefinition struct {
