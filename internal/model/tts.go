@@ -12,6 +12,8 @@ import (
 
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
+
+	"github.com/soochol/upal/internal/config"
 )
 
 const defaultOpenAITTSBaseURL = "https://api.openai.com/v1"
@@ -41,6 +43,12 @@ func NewOpenAITTSModel(apiKey, baseURL string) *OpenAITTSModel {
 }
 
 func (t *OpenAITTSModel) Name() string { return "openai-tts" }
+
+func init() {
+	RegisterProvider("openai-tts", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewOpenAITTSModel(cfg.APIKey, cfg.URL)
+	})
+}
 
 func (t *OpenAITTSModel) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {
 	return func(yield func(*adkmodel.LLMResponse, error) bool) {

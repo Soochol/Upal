@@ -13,6 +13,8 @@ import (
 	"google.golang.org/genai"
 
 	adkmodel "google.golang.org/adk/model"
+
+	"github.com/soochol/upal/internal/config"
 )
 
 // Compile-time interface compliance check.
@@ -221,6 +223,12 @@ func mapToolsToCLI(req *adkmodel.LLMRequest) []string {
 		}
 	}
 	return names
+}
+
+func init() {
+	RegisterProvider("claude-code", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewClaudeCodeLLM()
+	})
 }
 
 // filterEnv returns a copy of env with any variables matching the given key removed.

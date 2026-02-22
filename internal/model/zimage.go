@@ -13,6 +13,8 @@ import (
 	"google.golang.org/genai"
 
 	adkmodel "google.golang.org/adk/model"
+
+	"github.com/soochol/upal/internal/config"
 )
 
 // imageParamsKey is the context key for ImageParams.
@@ -61,6 +63,12 @@ func NewZImageLLM(serverURL string, opts ...ZImageOption) *ZImageLLM {
 }
 
 func (z *ZImageLLM) Name() string { return z.name }
+
+func init() {
+	RegisterProvider("zimage", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewZImageLLM(cfg.URL)
+	})
+}
 
 func (z *ZImageLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {
 	return func(yield func(*adkmodel.LLMResponse, error) bool) {

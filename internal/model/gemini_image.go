@@ -10,6 +10,8 @@ import (
 	"google.golang.org/genai"
 
 	adkmodel "google.golang.org/adk/model"
+
+	"github.com/soochol/upal/internal/config"
 )
 
 var _ adkmodel.LLM = (*GeminiImageLLM)(nil)
@@ -101,6 +103,12 @@ func (g *GeminiImageLLM) convertResponse(resp *genai.GenerateContentResponse) (*
 		TurnComplete: true,
 		FinishReason: candidate.FinishReason,
 	}, nil
+}
+
+func init() {
+	RegisterProvider("gemini-image", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewGeminiImageLLM(cfg.APIKey)
+	})
 }
 
 // isImageCapableModel returns true for Gemini models that support image output.

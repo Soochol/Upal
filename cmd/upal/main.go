@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -52,27 +51,12 @@ func serve() {
 	providerTypes := make(map[string]string) // name → type
 
 	for name, pc := range cfg.Providers {
-		switch pc.Type {
-		case "anthropic":
-			llms[name] = upalmodel.NewAnthropicLLM(pc.APIKey)
-		case "gemini":
-			geminiURL := strings.TrimRight(pc.URL, "/") + "/v1beta/openai"
-			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
-				upalmodel.WithOpenAIBaseURL(geminiURL),
-				upalmodel.WithOpenAIName(name))
-		case "openai-tts":
-			llms[name] = upalmodel.NewOpenAITTSModel(pc.APIKey, pc.URL)
-		case "claude-code":
-			llms[name] = upalmodel.NewClaudeCodeLLM()
-		case "gemini-image":
-			llms[name] = upalmodel.NewGeminiImageLLM(pc.APIKey)
-		case "zimage":
-			llms[name] = upalmodel.NewZImageLLM(pc.URL)
-		default:
-			llms[name] = upalmodel.NewOpenAILLM(pc.APIKey,
-				upalmodel.WithOpenAIBaseURL(pc.URL),
-				upalmodel.WithOpenAIName(name))
+		llm, ok := upalmodel.BuildLLM(name, pc)
+		if !ok {
+			slog.Warn("unknown provider type, skipping", "name", name, "type", pc.Type)
+			continue
 		}
+		llms[name] = llm
 		providerTypes[name] = pc.Type
 	}
 

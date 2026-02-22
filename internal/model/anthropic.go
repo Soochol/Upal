@@ -13,10 +13,12 @@ import (
 	"google.golang.org/genai"
 
 	adkmodel "google.golang.org/adk/model"
+
+	"github.com/soochol/upal/internal/config"
 )
 
-// Compile-time interface compliance check.
 var _ adkmodel.LLM = (*AnthropicLLM)(nil)
+var _ NativeToolProvider = (*AnthropicLLM)(nil)
 
 const (
 	defaultAnthropicBaseURL = "https://api.anthropic.com"
@@ -56,6 +58,15 @@ func NewAnthropicLLM(apiKey string, opts ...AnthropicOption) *AnthropicLLM {
 }
 
 // Name returns "anthropic".
+// NativeTool implements NativeToolProvider.
+func (a *AnthropicLLM) NativeTool(name string) (*genai.Tool, bool) {
+	switch name {
+	case "web_search":
+		return &genai.Tool{GoogleSearch: &genai.GoogleSearch{}}, true
+	}
+	return nil, false
+}
+
 func (a *AnthropicLLM) Name() string {
 	return "anthropic"
 }
@@ -358,4 +369,10 @@ func anthropicBetaFeatures(req *adkmodel.LLMRequest) string {
 		}
 	}
 	return ""
+}
+
+func init() {
+	RegisterProvider("anthropic", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewAnthropicLLM(cfg.APIKey)
+	})
 }
