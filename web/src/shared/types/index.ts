@@ -143,7 +143,21 @@ export type ToolResult = { name: string; response?: Record<string, unknown> }
 export type NodeStartedEvent   = { type: 'node_started';   nodeId: string; startedAt?: number }
 export type ToolCallEvent      = { type: 'tool_call';      nodeId: string; calls: ToolCall[] }
 export type ToolResultEvent    = { type: 'tool_result';    nodeId: string; results: ToolResult[] }
-export type NodeCompletedEvent = { type: 'node_completed'; nodeId: string; output: string; stateDelta: Record<string, unknown> }
+export type TokenUsage = {
+  input: number
+  output: number
+  total: number
+}
+
+export type NodeCompletedEvent = {
+  type: 'node_completed'
+  nodeId: string
+  output: string
+  stateDelta: Record<string, unknown>
+  tokens?: TokenUsage
+  finishReason?: string
+  completedAt?: number
+}
 export type NodeSkippedEvent  = { type: 'node_skipped';  nodeId: string }
 export type NodeWaitingEvent  = { type: 'node_waiting';  nodeId: string }
 export type NodeResumedEvent  = { type: 'node_resumed';  nodeId: string }
