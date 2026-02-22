@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import type { AssetNodeConfig } from '@/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
@@ -6,12 +7,25 @@ import { fieldBox } from './NodeEditor'
 export function AssetNodeEditor({ config }: NodeEditorFieldProps<AssetNodeConfig>) {
   return (
     <div className="space-y-3">
-      {/* Filename */}
+      {/* Filename + open button */}
       <div className="space-y-1">
         <Label className="text-xs">File</Label>
-        <p className="text-xs text-foreground font-medium truncate">
-          {config.filename ?? 'No file'}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-foreground font-medium truncate flex-1">
+            {config.filename ?? 'No file'}
+          </p>
+          {config.file_id && (
+            <a
+              href={`/api/files/${config.file_id}/serve`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Open file"
+            >
+              <ExternalLink size={13} />
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Content type */}
