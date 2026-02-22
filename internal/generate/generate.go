@@ -311,10 +311,17 @@ func (g *Generator) buildModelPrompt() string {
 		}
 	}
 
+	if tts := groups["tts"]; len(tts) > 0 {
+		b.WriteString("\nTTS (text-to-speech) models — use ONLY when the task requires converting text to spoken audio:\n")
+		for _, m := range tts {
+			fmt.Fprintf(&b, "- %q — %s\n", m.ID, m.Hint)
+		}
+	}
+
 	b.WriteString(`
 MODEL SELECTION RULES:
 1. ONLY use models from the lists above.
-2. Choose the model category that matches the node's PURPOSE: text models for reasoning/text tasks, image models for image generation tasks.
+2. Choose the model category that matches the node's PURPOSE: text models for reasoning/text tasks, image models for image generation tasks, tts models for speech synthesis tasks.
 3. Within text models, match tier to complexity: "high" for complex reasoning, "mid" for general tasks, "low" for simple/fast tasks.
 4. Use the default model when no specific model is needed.`)
 
