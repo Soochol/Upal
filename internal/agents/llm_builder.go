@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"strings"
 
 	"github.com/soochol/upal/internal/llmutil"
@@ -29,6 +30,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 	systemPrompt, _ := nd.Config["system_prompt"].(string)
 	promptTpl, _ := nd.Config["prompt"].(string)
 	outputFmt, _ := nd.Config["output"].(string)
+	outputExtract := parseOutputExtract(nd.Config)
 
 	var temperature *float32
 	if v, ok := nd.Config["temperature"].(float64); ok {
@@ -59,6 +61,12 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 
 	if outputFmt != "" {
 		systemPrompt += "\n\n" + outputFmt
+	}
+	if outputExtract != nil {
+		if outputFmt != "" {
+			slog.Warn("node has both 'output' and 'output_extract' set; output_extract instruction will dominate", "node", nodeID)
+		}
+		systemPrompt += outputExtract.systemPromptAppend()
 	}
 
 	llm, modelName := resolveLLM(modelID, deps.LLMs)
@@ -193,7 +201,8 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 					}
 
 					if len(toolCalls) == 0 {
-						result := strings.TrimSpace(llmutil.ExtractContentSavingAudio(resp, outputDir))
+						rawResult := strings.TrimSpace(llmutil.ExtractContentSavingAudio(resp, outputDir))
+						result := applyOutputExtract(outputExtract, rawResult)
 						_ = state.Set(nodeID, result)
 
 						event := session.NewEvent(ctx.InvocationID())
