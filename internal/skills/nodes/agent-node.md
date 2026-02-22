@@ -36,8 +36,22 @@ Enable tools by adding their names to the `tools` array. The agent calls tools a
 | Calculations, data processing, format conversion | `python_exec` |
 | Track seen items or state across pipeline runs | `content_store` |
 | Save output to a file or POST to an endpoint | `publish` |
+| Merge video and audio files or concatenate clips | `video_merge` |
+| Render a Remotion React composition to MP4 | `remotion_render` |
 
-For full parameter schemas, return shapes, prompt patterns, and pitfalls, refer to the individual tool skill files (`tool-web_search`, `tool-get_webpage`, `tool-http_request`, `tool-fetch_rss`, `tool-python_exec`, `tool-content_store`, `tool-publish`).
+For full parameter schemas, return shapes, prompt patterns, and pitfalls, refer to the individual tool skill files (`tool-web_search`, `tool-get_webpage`, `tool-http_request`, `tool-fetch_rss`, `tool-python_exec`, `tool-content_store`, `tool-publish`, `tool-video_merge`, `tool-remotion_render`).
+
+### TTS model nodes
+
+When the task requires speech synthesis, use a TTS model instead of a text model:
+
+| Field | Value |
+|-------|-------|
+| `model` | `"openai/tts-1-hd"` or `"openai/tts-1"` |
+| `system_prompt` | Speaking instructions: tone, pace, emotion per section |
+| `prompt` | Text to speak — always reference upstream script via `{{script_node}}` |
+
+TTS nodes do NOT support `tools`. The output is stored as a file path string in session state.
 
 ---
 
