@@ -40,6 +40,7 @@ export function useExecuteRun() {
   const clearRunEvents = useExecutionStore((s) => s.clearRunEvents)
   const clearNodeStatuses = useExecutionStore((s) => s.clearNodeStatuses)
   const setSessionState = useExecutionStore((s) => s.setSessionState)
+  const setRunStartTime = useExecutionStore((s) => s.setRunStartTime)
   const abortRef = useRef<AbortController | null>(null)
 
   const executeRun = useCallback(async (inputs: Record<string, string>) => {
@@ -50,6 +51,7 @@ export function useExecuteRun() {
     const workflow = serializeWorkflow(name, nodes, edges)
     clearRunEvents()
     clearNodeStatuses()
+    setRunStartTime(Date.now())
     setIsRunning(true)
     addRunEvent({ type: 'info', message: `Running workflow "${name}"...` })
     try {
@@ -88,7 +90,7 @@ export function useExecuteRun() {
       clearActiveRun()
       setIsRunning(false)
     }
-  }, [workflowName, clearRunEvents, clearNodeStatuses, setIsRunning, addRunEvent, setSessionState])
+  }, [workflowName, clearRunEvents, clearNodeStatuses, setIsRunning, addRunEvent, setSessionState, setRunStartTime])
 
   return { executeRun, isRunning }
 }
