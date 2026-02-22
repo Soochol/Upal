@@ -160,6 +160,19 @@ export type RunEvent =
 
 // --- Pipeline ---
 
+export type CollectSource = {
+  id: string
+  type: 'rss' | 'http' | 'scrape'
+  url: string
+  limit?: number         // RSS: max items (default 20)
+  method?: string        // HTTP: GET/POST
+  headers?: Record<string, string>
+  body?: string
+  selector?: string      // Scrape: CSS selector
+  attribute?: string     // Scrape: attr to extract (default: text content)
+  scrape_limit?: number  // Scrape: max elements (default 30)
+}
+
 export type Pipeline = {
   id: string
   name: string
@@ -173,7 +186,7 @@ export type Pipeline = {
 export type Stage = {
   id: string
   name: string
-  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform'
+  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform' | 'collect'
   config: StageConfig
   depends_on?: string[]
 }
@@ -190,6 +203,7 @@ export type StageConfig = {
   schedule_id?: string
   trigger_id?: string
   expression?: string
+  sources?: CollectSource[]
 }
 
 export type PipelineRun = {
