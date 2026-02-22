@@ -26,18 +26,17 @@ type SourceFetcher interface {
 // without LLM involvement. The collected text is passed to subsequent stages via
 // the stage output "text" field.
 type CollectStageExecutor struct {
-	httpClient *http.Client
-	fetchers   map[string]SourceFetcher
+	fetchers map[string]SourceFetcher
 }
 
 func NewCollectStageExecutor() *CollectStageExecutor {
 	e := &CollectStageExecutor{
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		fetchers:   make(map[string]SourceFetcher),
+		fetchers: make(map[string]SourceFetcher),
 	}
-	e.RegisterFetcher(&rssFetcher{client: e.httpClient})
-	e.RegisterFetcher(&httpFetcher{client: e.httpClient})
-	e.RegisterFetcher(&scrapeFetcher{client: e.httpClient})
+	client := &http.Client{Timeout: 30 * time.Second}
+	e.RegisterFetcher(&rssFetcher{client: client})
+	e.RegisterFetcher(&httpFetcher{client: client})
+	e.RegisterFetcher(&scrapeFetcher{client: client})
 	return e
 }
 
