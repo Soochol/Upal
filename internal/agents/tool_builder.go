@@ -50,7 +50,11 @@ func (b *ToolNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.
 				// Resolve {{node_id}} templates in string values of the input map.
 				resolved := resolveInputFromState(inputCfg, state)
 
-				t, _ := deps.ToolReg.Get(toolName)
+				t, found := deps.ToolReg.Get(toolName)
+				if !found {
+					yield(nil, fmt.Errorf("tool node %q: tool %q no longer registered", nodeID, toolName))
+					return
+				}
 				result, err := t.Execute(ctx, resolved)
 				if err != nil {
 					yield(nil, fmt.Errorf("tool node %q: tool %q failed: %w", nodeID, toolName, err))

@@ -61,7 +61,7 @@ func (r *NodeRegistry) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.Age
 }
 
 // DefaultRegistry returns a NodeRegistry pre-loaded with the built-in
-// node types (input, output, agent). Useful for tests and backward compat.
+// node types (input, output, agent, tool). Useful for tests and backward compat.
 func DefaultRegistry() *NodeRegistry {
 	r := NewNodeRegistry()
 	r.Register(&InputNodeBuilder{})

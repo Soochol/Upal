@@ -276,3 +276,81 @@ func (m *mockNamedTool) InputSchema() map[string]any { return nil }
 func (m *mockNamedTool) Execute(_ context.Context, input any) (any, error) {
 	return map[string]any{"result": "mock-output", "input": input}, nil
 }
+
+func TestResolveInputFromState(t *testing.T) {
+	state := &testState{
+		data: map[string]any{
+			"upstream": "hello world",
+		},
+	}
+
+	tests := []struct {
+		name    string
+		input   map[string]any
+		wantKey string
+		wantVal any
+	}{
+		{
+			name:    "nil input returns nil",
+			input:   nil,
+			wantKey: "",
+			wantVal: nil,
+		},
+		{
+			name:    "string value with template resolved",
+			input:   map[string]any{"text": "{{upstream}}"},
+			wantKey: "text",
+			wantVal: "hello world",
+		},
+		{
+			name:    "string value without template unchanged",
+			input:   map[string]any{"voice": "Rachel"},
+			wantKey: "voice",
+			wantVal: "Rachel",
+		},
+		{
+			name:    "non-string value passed through",
+			input:   map[string]any{"count": 42},
+			wantKey: "count",
+			wantVal: 42,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveInputFromState(tt.input, state)
+			if tt.input == nil {
+				if result != nil {
+					t.Errorf("expected nil result for nil input, got %v", result)
+				}
+				return
+			}
+			got, ok := result[tt.wantKey]
+			if !ok {
+				t.Fatalf("key %q not found in result", tt.wantKey)
+			}
+			if got != tt.wantVal {
+				t.Errorf("key %q: got %v (%T), want %v (%T)", tt.wantKey, got, got, tt.wantVal, tt.wantVal)
+			}
+		})
+	}
+}
+
+func TestBuildAgent_Tool_MissingToolConfig(t *testing.T) {
+	reg := tools.NewRegistry()
+	nd := &upal.NodeDefinition{
+		ID:   "tts_node",
+		Type: upal.NodeTypeTool,
+		Config: map[string]any{
+			// "tool" key intentionally omitted
+			"input": map[string]any{"text": "hello"},
+		},
+	}
+	_, err := BuildAgent(nd, nil, reg)
+	if err == nil {
+		t.Fatal("expected error when tool config field is missing")
+	}
+	if !strings.Contains(err.Error(), "missing required config field") {
+		t.Errorf("expected 'missing required config field' in error, got: %v", err)
+	}
+}
