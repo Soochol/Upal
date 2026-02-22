@@ -5,7 +5,6 @@ import (
 
 	"github.com/soochol/upal/internal/config"
 	"github.com/soochol/upal/internal/model"
-	_ "github.com/soochol/upal/internal/model" // ensure init() runs
 )
 
 func TestBuildLLM_KnownType(t *testing.T) {

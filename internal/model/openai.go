@@ -477,3 +477,14 @@ type openaiFunction struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
+
+func init() {
+	RegisterProvider("openai", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewOpenAILLM(cfg.APIKey,
+			WithOpenAIBaseURL(cfg.URL),
+			WithOpenAIName(name))
+	})
+	RegisterProvider("openai-tts", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewOpenAITTSModel(cfg.APIKey, cfg.URL)
+	})
+}

@@ -176,3 +176,9 @@ func (z *ZImageLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) (*ad
 		TurnComplete: true,
 	}, nil
 }
+
+func init() {
+	RegisterProvider("zimage", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
+		return NewZImageLLM(cfg.URL)
+	})
+}

@@ -76,11 +76,11 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 				continue
 			}
 			if deps.ToolReg != nil && deps.ToolReg.IsNative(name) {
-				switch name {
-				case tools.WebSearch.Name():
-					nativeTools = append(nativeTools, &genai.Tool{
-						GoogleSearch: &genai.GoogleSearch{},
-					})
+				if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
+					if spec, supported := provider.NativeTool(name); supported {
+						nativeTools = append(nativeTools, spec)
+					}
+					// Model doesn't support this native tool — skip silently.
 				}
 				continue
 			}
