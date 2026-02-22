@@ -9,6 +9,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 func TestLookup_Found(t *testing.T) {
@@ -92,6 +93,46 @@ func TestValidate_Valid(t *testing.T) {
 	err := svc.Validate(wf)
 	if err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
+func TestClassifyEvent_PrefersStateDelta(t *testing.T) {
+	ev := session.NewEvent("inv-1")
+	ev.Author = "node-1"
+	ev.LLMResponse = adkmodel.LLMResponse{
+		Content: &genai.Content{
+			Parts: []*genai.Part{{Text: "full LLM response"}},
+		},
+	}
+	ev.Actions.StateDelta["node-1"] = "extracted artifact"
+
+	we := classifyEvent(ev)
+	if we.Type != "node_completed" {
+		t.Fatalf("expected node_completed, got %s", we.Type)
+	}
+	output, _ := we.Payload["output"].(string)
+	if output != "extracted artifact" {
+		t.Fatalf("expected stateDelta artifact %q, got %q", "extracted artifact", output)
+	}
+}
+
+func TestClassifyEvent_FallsBackToExtractContent(t *testing.T) {
+	ev := session.NewEvent("inv-1")
+	ev.Author = "node-1"
+	ev.LLMResponse = adkmodel.LLMResponse{
+		Content: &genai.Content{
+			Parts: []*genai.Part{{Text: "full response"}},
+		},
+	}
+	// No stateDelta for "node-1"
+
+	we := classifyEvent(ev)
+	if we.Type != "node_completed" {
+		t.Fatalf("expected node_completed, got %s", we.Type)
+	}
+	output, _ := we.Payload["output"].(string)
+	if output != "full response" {
+		t.Fatalf("expected LLMResponse text %q, got %q", "full response", output)
 	}
 }
 

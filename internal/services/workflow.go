@@ -228,6 +228,29 @@ func classifyEvent(event *session.Event) upal.WorkflowEvent {
 	}
 
 	if content == nil || len(content.Parts) == 0 {
+		// A final streaming flush event carries FinishReason but no content parts.
+		// Classifying it as NodeStarted would reset the node status from 'completed'
+		// back to 'running'. Treat it as NodeCompleted instead.
+		if fr := event.LLMResponse.FinishReason; fr != "" && fr != genai.FinishReasonUnspecified {
+			flushOutput := ""
+			if a, ok := event.Actions.StateDelta[nodeID]; ok && a != nil {
+				flushOutput = fmt.Sprintf("%v", a)
+			}
+			flushPayload := map[string]any{
+				"node_id":      nodeID,
+				"output":       flushOutput,
+				"state_delta":  event.Actions.StateDelta,
+				"finish_reason": string(fr),
+			}
+			if u := event.LLMResponse.UsageMetadata; u != nil {
+				flushPayload["tokens"] = map[string]any{
+					"input":  u.PromptTokenCount,
+					"output": u.CandidatesTokenCount,
+					"total":  u.TotalTokenCount,
+				}
+			}
+			return upal.WorkflowEvent{Type: upal.EventNodeCompleted, NodeID: nodeID, Payload: flushPayload}
+		}
 		return upal.WorkflowEvent{Type: upal.EventNodeStarted, NodeID: nodeID, Payload: map[string]any{"node_id": nodeID}}
 	}
 
@@ -253,9 +276,13 @@ func classifyEvent(event *session.Event) upal.WorkflowEvent {
 		}
 	}
 
+	outputStr := llmutil.ExtractContent(&event.LLMResponse)
+	if a, ok := event.Actions.StateDelta[nodeID]; ok && a != nil {
+		outputStr = fmt.Sprintf("%v", a)
+	}
 	payload := map[string]any{
 		"node_id":     nodeID,
-		"output":      llmutil.ExtractContent(&event.LLMResponse),
+		"output":      outputStr,
 		"state_delta": event.Actions.StateDelta,
 	}
 
