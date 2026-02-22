@@ -136,6 +136,25 @@ func TestClassifyEvent_FallsBackToExtractContent(t *testing.T) {
 	}
 }
 
+func TestClassifyEvent_FlushEvent_UsesStateDelta(t *testing.T) {
+	ev := session.NewEvent("inv-1")
+	ev.Author = "node-1"
+	ev.LLMResponse = adkmodel.LLMResponse{
+		Content:      nil,
+		FinishReason: genai.FinishReasonStop,
+	}
+	ev.Actions.StateDelta["node-1"] = "artifact"
+
+	we := classifyEvent(ev)
+	if we.Type != "node_completed" {
+		t.Fatalf("flush event should be node_completed, got %s", we.Type)
+	}
+	output, _ := we.Payload["output"].(string)
+	if output != "artifact" {
+		t.Fatalf("expected artifact in flush payload, got %q", output)
+	}
+}
+
 func TestRun_InputOutput(t *testing.T) {
 	repo := repository.NewMemory()
 	svc := NewWorkflowService(repo, nil, session.InMemoryService(), nil, agents.DefaultRegistry(), "")

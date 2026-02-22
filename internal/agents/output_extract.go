@@ -78,50 +78,26 @@ func applyOutputExtract(cfg *outputExtractConfig, raw string) string {
 }
 
 // extractJSONKey finds the first JSON object in s and returns the string value for key.
-// Uses bracket counting to correctly handle JSON followed by trailing text.
+// Uses json.Decoder so string values containing braces are handled correctly.
 func extractJSONKey(s, key string) (string, error) {
 	start := strings.Index(s, "{")
 	if start < 0 {
 		return "", fmt.Errorf("no JSON object found")
 	}
-	end := findMatchingBrace(s, start)
-	if end < 0 {
-		return "", fmt.Errorf("no matching closing brace found")
-	}
-	candidate := s[start : end+1]
-
+	dec := json.NewDecoder(strings.NewReader(s[start:]))
 	var obj map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(candidate), &obj); err != nil {
+	if err := dec.Decode(&obj); err != nil {
 		return "", fmt.Errorf("JSON parse failed: %w", err)
 	}
 	rawVal, ok := obj[key]
 	if !ok {
 		return "", fmt.Errorf("key %q not found in JSON", key)
 	}
-
 	var str string
 	if err := json.Unmarshal(rawVal, &str); err == nil {
 		return str, nil
 	}
 	return strings.TrimSpace(string(rawVal)), nil
-}
-
-// findMatchingBrace returns the index of the closing brace that matches the
-// opening brace at position start in s. Returns -1 if not found.
-func findMatchingBrace(s string, start int) int {
-	depth := 0
-	for i := start; i < len(s); i++ {
-		switch s[i] {
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				return i
-			}
-		}
-	}
-	return -1
 }
 
 // extractTagged extracts the content inside <tag>...</tag> (including newlines).

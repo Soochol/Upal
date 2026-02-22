@@ -156,6 +156,16 @@ func TestParseOutputExtract_EmptyTag(t *testing.T) {
 	}
 }
 
+func TestApplyOutputExtract_JSON_BraceInStringValue(t *testing.T) {
+	cfg := &outputExtractConfig{mode: "json", key: "result"}
+	// Value contains an unbalanced open brace — must not break extraction
+	raw := `{"result": "if (x > 0) {return x"}`
+	got := applyOutputExtract(cfg, raw)
+	if got != "if (x > 0) {return x" {
+		t.Fatalf("want %q, got %q", "if (x > 0) {return x", got)
+	}
+}
+
 func TestApplyOutputExtract_JSON_TrailingBrace(t *testing.T) {
 	cfg := &outputExtractConfig{mode: "json", key: "result"}
 	raw := `{"result": "hello"} and some text with a brace}`
