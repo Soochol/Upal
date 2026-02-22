@@ -123,10 +123,8 @@ type modelEntry struct {
 // knownModels maps provider type to a curated list of popular models with metadata.
 var knownModels = map[string][]modelEntry{
 	"gemini": {
-		{"gemini-2.5-pro", ModelTierHigh, "high capability, complex reasoning and analysis"},
-		{"gemini-2.5-flash", ModelTierMid, "balanced speed/quality, general-purpose tasks"},
-		{"gemini-2.0-flash", ModelTierLow, "fast and cheap, simple straightforward tasks"},
-		{"gemini-2.0-flash-lite", ModelTierLow, "fastest and cheapest, trivial tasks only"},
+		{"gemini-3.1-pro", ModelTierHigh, "high capability, complex reasoning and analysis"},
+		{"gemini-3-preview", ModelTierMid, "preview model, general-purpose tasks"},
 	},
 	"anthropic": {
 		{"claude-opus-4-20250514", ModelTierHigh, "highest capability, complex multi-step reasoning"},
@@ -229,8 +227,13 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 }
 
 // isOllama detects if a provider config points to a local Ollama instance.
+// It returns true if the type is explicitly "ollama", or if the type is "openai"
+// and the URL contains the default Ollama port (11434) for backward compatibility.
 func isOllama(pc config.ProviderConfig) bool {
-	return strings.Contains(pc.URL, "11434")
+	if pc.Type == "ollama" {
+		return true
+	}
+	return pc.Type == "openai" && strings.Contains(pc.URL, "11434")
 }
 
 // discoverOllamaModels queries the Ollama API to list locally installed models.
