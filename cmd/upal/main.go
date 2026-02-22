@@ -130,6 +130,8 @@ func serve() {
 	toolReg.Register(&tools.RSSFeedTool{})
 	toolReg.Register(tools.NewContentStoreTool(filepath.Join(dataDir, "content_store.json")))
 	toolReg.Register(tools.NewPublishTool(filepath.Join(dataDir, "published")))
+	toolReg.Register(&tools.VideoMergeTool{OutputDir: outputDir})
+	toolReg.Register(&tools.RemotionRenderTool{OutputDir: outputDir})
 	sessionService := session.InMemoryService()
 
 	// Optional: Connect to PostgreSQL if database URL is configured.
