@@ -15,17 +15,36 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// SourceFetcher fetches content for a single CollectSource.
+// Register new implementations via CollectStageExecutor.RegisterFetcher.
+type SourceFetcher interface {
+	Type() string
+	Fetch(ctx context.Context, src upal.CollectSource) (string, any, error)
+}
+
 // CollectStageExecutor fetches data from external sources (RSS, HTTP, web scrape)
 // without LLM involvement. The collected text is passed to subsequent stages via
 // the stage output "text" field.
 type CollectStageExecutor struct {
 	httpClient *http.Client
+	fetchers   map[string]SourceFetcher
 }
 
 func NewCollectStageExecutor() *CollectStageExecutor {
-	return &CollectStageExecutor{
+	e := &CollectStageExecutor{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
+		fetchers:   make(map[string]SourceFetcher),
 	}
+	e.RegisterFetcher(&rssFetcher{client: e.httpClient})
+	e.RegisterFetcher(&httpFetcher{client: e.httpClient})
+	e.RegisterFetcher(&scrapeFetcher{client: e.httpClient})
+	return e
+}
+
+// RegisterFetcher registers a SourceFetcher implementation by its type string.
+// Calling this with an already-registered type replaces the existing fetcher.
+func (e *CollectStageExecutor) RegisterFetcher(f SourceFetcher) {
+	e.fetchers[f.Type()] = f
 }
 
 func (e *CollectStageExecutor) Type() string { return "collect" }
@@ -100,22 +119,22 @@ func (e *CollectStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ 
 }
 
 // fetchSource dispatches to the appropriate handler based on source type.
-func (e *CollectStageExecutor) fetchSource(ctx context.Context, src upal.CollectSource) (text string, data any, err error) {
-	switch src.Type {
-	case "rss":
-		return e.fetchRSS(ctx, src)
-	case "http":
-		return e.fetchHTTP(ctx, src)
-	case "scrape":
-		return e.fetchScrape(ctx, src)
-	default:
+func (e *CollectStageExecutor) fetchSource(ctx context.Context, src upal.CollectSource) (string, any, error) {
+	f, ok := e.fetchers[src.Type]
+	if !ok {
 		return "", nil, fmt.Errorf("unknown source type %q", src.Type)
 	}
+	return f.Fetch(ctx, src)
 }
 
-func (e *CollectStageExecutor) fetchRSS(ctx context.Context, src upal.CollectSource) (string, any, error) {
+// rssFetcher fetches and parses RSS/Atom feeds.
+type rssFetcher struct{ client *http.Client }
+
+func (f *rssFetcher) Type() string { return "rss" }
+
+func (f *rssFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string, any, error) {
 	fp := gofeed.NewParser()
-	fp.Client = e.httpClient
+	fp.Client = f.client
 
 	feed, err := fp.ParseURLWithContext(src.URL, ctx)
 	if err != nil {
@@ -161,7 +180,12 @@ func (e *CollectStageExecutor) fetchRSS(ctx context.Context, src upal.CollectSou
 	return sb.String(), items, nil
 }
 
-func (e *CollectStageExecutor) fetchHTTP(ctx context.Context, src upal.CollectSource) (string, any, error) {
+// httpFetcher performs HTTP requests and returns the response body.
+type httpFetcher struct{ client *http.Client }
+
+func (f *httpFetcher) Type() string { return "http" }
+
+func (f *httpFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string, any, error) {
 	method := src.Method
 	if method == "" {
 		method = "GET"
@@ -180,7 +204,7 @@ func (e *CollectStageExecutor) fetchHTTP(ctx context.Context, src upal.CollectSo
 		req.Header.Set(k, v)
 	}
 
-	resp, err := e.httpClient.Do(req)
+	resp, err := f.client.Do(req)
 	if err != nil {
 		return "", nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
@@ -208,14 +232,19 @@ func (e *CollectStageExecutor) fetchHTTP(ctx context.Context, src upal.CollectSo
 	return text, data, nil
 }
 
-func (e *CollectStageExecutor) fetchScrape(ctx context.Context, src upal.CollectSource) (string, any, error) {
+// scrapeFetcher scrapes HTML pages using CSS selectors.
+type scrapeFetcher struct{ client *http.Client }
+
+func (f *scrapeFetcher) Type() string { return "scrape" }
+
+func (f *scrapeFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string, any, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", src.URL, nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("request build failed: %w", err)
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; UpalBot/1.0)")
 
-	resp, err := e.httpClient.Do(req)
+	resp, err := f.client.Do(req)
 	if err != nil {
 		return "", nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
