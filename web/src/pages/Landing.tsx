@@ -5,7 +5,7 @@ import { listWorkflows, deleteWorkflow, generateWorkflowThumbnail, deserializeWo
 import type { WorkflowDefinition } from '@/entities/workflow'
 import { fetchRuns } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
-import { Header } from '@/components/Header'
+import { Header } from '@/shared/ui/Header'
 import { WorkflowCard } from './landing/WorkflowCard'
 
 /* ── Main Dashboard ── */

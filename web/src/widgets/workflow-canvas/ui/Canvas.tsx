@@ -15,8 +15,8 @@ import { useWorkflowStore } from '@/entities/workflow'
 import { uploadFile } from '@/shared/api'
 import { UpalNode } from './UpalNode'
 import { GroupNode } from './GroupNode'
-import { EmptyState } from '@/components/editor/EmptyState'
-import { CanvasPromptBar } from '@/components/editor/CanvasPromptBar'
+import { EmptyState } from './EmptyState'
+import { CanvasPromptBar } from './CanvasPromptBar'
 
 const nodeTypes = {
   upalNode: UpalNode,

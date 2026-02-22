@@ -1,0 +1,46 @@
+import { useEffect, useState } from 'react'
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from '@/shared/ui/select'
+import { listModels } from '@/shared/api'
+import type { ModelInfo } from '@/shared/types'
+import { groupModelsByProvider } from '@/shared/lib/utils'
+
+type ModelSelectorProps = {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  models?: ModelInfo[]
+}
+
+export function ModelSelector({ value, onChange, placeholder = 'Select a model...', models: externalModels }: ModelSelectorProps) {
+  const [fetchedModels, setFetchedModels] = useState<ModelInfo[]>([])
+  useEffect(() => {
+    if (externalModels) return
+    listModels().then(setFetchedModels).catch(() => setFetchedModels([]))
+  }, [externalModels])
+  const models = externalModels ?? fetchedModels
+  const modelsByProvider = groupModelsByProvider(models)
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-7 text-xs w-full" size="sm">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
+          <SelectGroup key={provider}>
+            <SelectLabel>{provider}</SelectLabel>
+            {providerModels.map((m) => (
+              <SelectItem key={m.id} value={m.id} className="text-xs">{m.name}</SelectItem>
+            ))}
+          </SelectGroup>
+        ))}
+        {models.length === 0 && (
+          <div className="px-2 py-4 text-xs text-muted-foreground text-center">
+            No models available.<br />Configure providers in config.yaml
+          </div>
+        )}
+      </SelectContent>
+    </Select>
+  )
+}

@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { Canvas } from '@/components/editor/Canvas'
-import { RightPanel } from '@/components/panel/RightPanel'
-import { Header } from '@/components/Header'
-import { NodePalette } from '@/components/sidebar/NodePalette'
-import { BottomConsole } from '@/components/console/BottomConsole'
+import { Canvas } from '@/widgets/workflow-canvas'
+import { RightPanel } from '@/widgets/right-panel'
+import { Header } from '@/shared/ui/Header'
+import { NodePalette } from '@/widgets/node-palette'
+import { Console } from '@/widgets/bottom-console'
 import { useWorkflowStore } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
@@ -117,7 +117,7 @@ export default function Editor() {
         />
       </div>
 
-      <BottomConsole />
+      <Console />
     </div>
   )
 }

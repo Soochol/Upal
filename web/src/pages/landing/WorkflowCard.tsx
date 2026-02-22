@@ -1,6 +1,6 @@
 import { Trash2 } from 'lucide-react'
 import type { WorkflowDefinition } from '@/entities/workflow'
-import { WorkflowMiniGraph } from '@/components/WorkflowMiniGraph'
+import { WorkflowMiniGraph } from '@/shared/ui/WorkflowMiniGraph'
 
 type WorkflowCardProps = {
   workflow: WorkflowDefinition

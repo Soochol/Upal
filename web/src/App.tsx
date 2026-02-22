@@ -5,9 +5,9 @@ import Editor from '@/pages/Editor'
 import Runs from '@/pages/Runs'
 import Pipelines from '@/pages/Pipelines'
 import Connections from '@/pages/Connections'
-import RunDetail from '@/components/runs/RunDetail'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { ToastContainer } from '@/components/ToastContainer'
+import { RunDetail } from '@/widgets/run-detail'
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
+import { ToastContainer } from '@/shared/ui/ToastContainer'
 
 export default function App() {
   return (

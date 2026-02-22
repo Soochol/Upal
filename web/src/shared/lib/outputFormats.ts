@@ -77,7 +77,7 @@ export const OUTPUT_FORMATS: Record<OutputFormatId, OutputFormatDef> = {
       const t = s.trimStart().toLowerCase()
       return t.startsWith('<!doctype') || t.startsWith('<html')
     },
-    ResultView: () => import('@/components/panel/preview/HtmlResultView'),
+    ResultView: () => import('@/widgets/right-panel/ui/preview/HtmlResultView'),
   },
   md: {
     id: 'md',
@@ -92,7 +92,7 @@ export const OUTPUT_FORMATS: Record<OutputFormatId, OutputFormatDef> = {
       },
     ],
     detect: () => false, // MD cannot be auto-detected; requires explicit config
-    ResultView: () => import('@/components/panel/preview/MarkdownResultView'),
+    ResultView: () => import('@/widgets/right-panel/ui/preview/MarkdownResultView'),
   },
 }
 

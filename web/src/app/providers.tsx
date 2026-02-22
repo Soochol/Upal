@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ThemeProvider } from '@/components/ThemeProvider'
+import { ThemeProvider } from '@/shared/ui/ThemeProvider'
 import { registerAllEditors } from '@/features/edit-node'
 
 // Register node editors at module load time (one-time setup)

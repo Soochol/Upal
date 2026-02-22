@@ -186,6 +186,9 @@ export type CollectSource = {
   method?: string
   headers?: Record<string, string>
   body?: string
+  selector?: string
+  attribute?: string
+  scrape_limit?: number
 }
 
 export type StageConfig = {

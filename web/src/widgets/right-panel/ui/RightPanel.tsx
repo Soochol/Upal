@@ -7,9 +7,9 @@ import {
   TooltipTrigger,
 } from '@/shared/ui/tooltip'
 import { NodeEditor } from '@/features/edit-node'
-import { PanelPreview } from '@/components/panel/PanelPreview'
-import { PanelConsole } from '@/components/panel/PanelConsole'
-import { GroupEditor } from '@/components/panel/GroupEditor'
+import { PanelPreview } from './PanelPreview'
+import { PanelConsole } from './PanelConsole'
+import { GroupEditor } from './GroupEditor'
 import { AIChatEditor } from '@/features/edit-node'
 import { Settings2, Terminal, Eye } from 'lucide-react'
 import type { NodeData } from '@/entities/workflow'

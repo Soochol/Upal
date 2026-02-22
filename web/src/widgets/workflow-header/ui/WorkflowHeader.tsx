@@ -1,4 +1,4 @@
-import { Header } from '@/components/Header'
+import { Header } from '@/shared/ui/Header'
 import type { SaveStatus } from '@/features/manage-canvas'
 
 type WorkflowHeaderProps = {

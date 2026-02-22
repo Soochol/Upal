@@ -3,9 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { fetchRun } from '@/entities/run'
 import type { RunRecord } from '@/shared/types'
 import { usePolling } from '@/shared/lib/usePolling'
-import { NodeTimeline } from '@/components/runs/NodeTimeline'
-import { NodeDetail } from '@/components/runs/NodeDetail'
-import { Header } from '@/components/Header'
+import { NodeTimeline } from './NodeTimeline'
+import { NodeDetail } from './NodeDetail'
+import { Header } from '@/shared/ui/Header'
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, Loader2, Timer,
   ExternalLink, RotateCcw,

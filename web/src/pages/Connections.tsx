@@ -1,7 +1,7 @@
 // web/src/pages/Connections.tsx
 import { useEffect, useState } from 'react'
 import { Loader2, Plus, Trash2, Link2, X } from 'lucide-react'
-import { Header } from '@/components/Header'
+import { Header } from '@/shared/ui/Header'
 import { listConnections, createConnection, deleteConnection } from '@/shared/api'
 import type { Connection, ConnectionCreate, ConnectionType } from '@/shared/types'
 

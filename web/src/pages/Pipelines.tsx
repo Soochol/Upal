@@ -5,7 +5,7 @@ import {
   Plus, GitBranch,
   CheckCircle2, AlertCircle, PauseCircle, Clock,
 } from 'lucide-react'
-import { Header } from '@/components/Header'
+import { Header } from '@/shared/ui/Header'
 import {
   fetchPipelines, fetchPipeline, createPipeline, updatePipeline,
   deletePipeline, startPipeline, generatePipelineBundle,
@@ -14,11 +14,8 @@ import {
 import { saveWorkflow } from '@/entities/workflow'
 import { ApiError } from '@/shared/api'
 import type { Pipeline, PipelineRun } from '@/shared/types'
-import { PipelineCard } from '@/components/pipelines/PipelineCard'
-import { PipelineEditor } from '@/components/pipelines/PipelineEditor'
-import { PipelineRunHistory } from '@/components/pipelines/PipelineRunHistory'
-import { PipelineRunDetail } from '@/components/pipelines/PipelineRunDetail'
-import { PromptBar } from '@/components/editor/PromptBar'
+import { PipelineCard, PipelineEditor, PipelineRunHistory, PipelineRunDetail } from '@/widgets/pipeline-editor'
+import { PromptBar } from '@/widgets/workflow-canvas/ui/PromptBar'
 
 // Suppress unused warning — referenced for type completeness
 void ({ CheckCircle2, AlertCircle, PauseCircle, Clock } as Record<string, unknown>)
