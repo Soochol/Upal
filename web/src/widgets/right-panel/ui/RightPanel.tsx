@@ -78,7 +78,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
     return unsub
   }, [])
 
-  const selectedNodeId = selectedNode?.id ?? null
   const showAIChat = selectedNode && selectedNode.type !== 'groupNode'
 
   // ── Collapsed: vertical icon strip (like VS Code activity bar) ──
@@ -163,7 +162,7 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
         {/* Other tabs: flex-1 to fill remaining space */}
         <TabsContent value="console" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelConsole selectedNodeId={selectedNodeId} />
+          <PanelConsole />
         </TabsContent>
 
         <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
