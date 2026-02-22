@@ -315,14 +315,28 @@ func (a *AnthropicLLM) convertResponse(apiResp *anthropicAPIResponse) *adkmodel.
 		llmResp.FinishReason = genai.FinishReasonStop
 	}
 
+	if apiResp.Usage.InputTokens > 0 || apiResp.Usage.OutputTokens > 0 {
+		llmResp.UsageMetadata = &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount:     apiResp.Usage.InputTokens,
+			CandidatesTokenCount: apiResp.Usage.OutputTokens,
+			TotalTokenCount:      apiResp.Usage.InputTokens + apiResp.Usage.OutputTokens,
+		}
+	}
+
 	return llmResp
 }
 
 // Anthropic API response types
 
+type anthropicUsage struct {
+	InputTokens  int32 `json:"input_tokens"`
+	OutputTokens int32 `json:"output_tokens"`
+}
+
 type anthropicAPIResponse struct {
 	Content    []anthropicContentBlock `json:"content"`
 	StopReason string                 `json:"stop_reason"`
+	Usage      anthropicUsage         `json:"usage"`
 }
 
 type anthropicContentBlock struct {

@@ -524,6 +524,53 @@ func TestAnthropicLLM_APIError(t *testing.T) {
 	}
 }
 
+func TestAnthropicLLM_TokenUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"content":     []map[string]any{{"type": "text", "text": "Hello!"}},
+			"stop_reason": "end_turn",
+			"usage": map[string]any{
+				"input_tokens":  42,
+				"output_tokens": 17,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := NewAnthropicLLM("test-key", WithAnthropicBaseURL(server.URL))
+	req := &adkmodel.LLMRequest{
+		Model:    "claude-sonnet-4-20250514",
+		Contents: []*genai.Content{{Role: "user", Parts: []*genai.Part{genai.NewPartFromText("hi")}}},
+	}
+
+	var got []*adkmodel.LLMResponse
+	for resp, err := range llm.GenerateContent(context.Background(), req, false) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got = append(got, resp)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("got %d responses, want 1", len(got))
+	}
+	u := got[0].UsageMetadata
+	if u == nil {
+		t.Fatal("UsageMetadata is nil, expected token counts")
+	}
+	if u.PromptTokenCount != 42 {
+		t.Errorf("PromptTokenCount = %d, want 42", u.PromptTokenCount)
+	}
+	if u.CandidatesTokenCount != 17 {
+		t.Errorf("CandidatesTokenCount = %d, want 17", u.CandidatesTokenCount)
+	}
+	if u.TotalTokenCount != 59 {
+		t.Errorf("TotalTokenCount = %d, want 59", u.TotalTokenCount)
+	}
+}
+
 func TestAnthropicLLM_MaxTokensFromConfig(t *testing.T) {
 	var receivedReq map[string]any
 
