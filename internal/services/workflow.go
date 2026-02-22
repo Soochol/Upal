@@ -253,14 +253,28 @@ func classifyEvent(event *session.Event) upal.WorkflowEvent {
 		}
 	}
 
+	payload := map[string]any{
+		"node_id":     nodeID,
+		"output":      llmutil.ExtractContent(&event.LLMResponse),
+		"state_delta": event.Actions.StateDelta,
+	}
+
+	if u := event.LLMResponse.UsageMetadata; u != nil {
+		payload["tokens"] = map[string]any{
+			"input":  u.PromptTokenCount,
+			"output": u.CandidatesTokenCount,
+			"total":  u.TotalTokenCount,
+		}
+	}
+
+	if fr := event.LLMResponse.FinishReason; fr != "" && fr != genai.FinishReasonUnspecified {
+		payload["finish_reason"] = string(fr)
+	}
+
 	return upal.WorkflowEvent{
-		Type:   upal.EventNodeCompleted,
-		NodeID: nodeID,
-		Payload: map[string]any{
-			"node_id":     nodeID,
-			"output":      llmutil.ExtractContent(&event.LLMResponse),
-			"state_delta": event.Actions.StateDelta,
-		},
+		Type:    upal.EventNodeCompleted,
+		NodeID:  nodeID,
+		Payload: payload,
 	}
 }
 
