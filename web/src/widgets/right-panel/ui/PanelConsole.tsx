@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useExecutionStore } from '@/entities/run'
 import { Button } from '@/shared/ui/button'
 import { Trash2, Copy, Check, ChevronDown } from 'lucide-react'
@@ -29,9 +29,18 @@ export function PanelConsole({ selectedNodeId }: PanelConsoleProps) {
   const { copied, copyToClipboard } = useCopyToClipboard()
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
 
-  const filtered = selectedNodeId
-    ? runEvents.map((e, i) => ({ event: e, index: i })).filter(({ event: e }) => eventBelongsToNode(e, selectedNodeId))
-    : runEvents.map((e, i) => ({ event: e, index: i }))
+  const filtered = useMemo(
+    () =>
+      selectedNodeId
+        ? runEvents.map((e, i) => ({ event: e, index: i })).filter(({ event: e }) => eventBelongsToNode(e, selectedNodeId))
+        : runEvents.map((e, i) => ({ event: e, index: i })),
+    [runEvents, selectedNodeId],
+  )
+
+  // Clear expanded state when events are cleared so stale indices don't reopen rows on next run
+  useEffect(() => {
+    if (runEvents.length === 0) setExpandedRows(new Set())
+  }, [runEvents.length])
 
   const handleToggle = useCallback((i: number) => {
     setExpandedRows((prev) => {
