@@ -23,6 +23,7 @@ func (b *LLMNodeBuilder) NodeType() upal.NodeType { return upal.NodeTypeAgent }
 
 func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.Agent, error) {
 	nodeID := nd.ID
+	outputDir := deps.OutputDir
 
 	modelID, _ := nd.Config["model"].(string)
 	systemPrompt, _ := nd.Config["system_prompt"].(string)
@@ -183,7 +184,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 					}
 
 					if len(toolCalls) == 0 {
-						result := strings.TrimSpace(llmutil.ExtractContent(resp))
+						result := strings.TrimSpace(llmutil.ExtractContentSavingAudio(resp, outputDir))
 						_ = state.Set(nodeID, result)
 
 						event := session.NewEvent(ctx.InvocationID())
