@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Label } from '@/shared/ui/label'
+import { Input } from '@/shared/ui/input'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui/collapsible'
 import { ChevronRight } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -16,10 +17,12 @@ export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldPr
   const [availableTools, setAvailableTools] = useState<ToolInfo[]>([])
   const [promptsOpen, setPromptsOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
+  const [extractOpen, setExtractOpen] = useState(false)
   const selectedTools = config.tools ?? []
   const addToast = useUIStore((s) => s.addToast)
   const models = useModels()
   const selectedModel = models.find((m) => m.id === config.model)
+  const toolsSupported = selectedModel?.supportsTools !== false
 
   useEffect(() => {
     listTools().then(setAvailableTools).catch((e) => addToast(`Failed to load tools: ${e.message}`))
@@ -29,10 +32,17 @@ export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldPr
   // Once the user toggles any tool, config.tools becomes an array and this
   // effect becomes a no-op, preserving the user's explicit choices.
   useEffect(() => {
-    if (config.tools === undefined && availableTools.length > 0) {
+    if (config.tools === undefined && availableTools.length > 0 && toolsSupported) {
       setConfig('tools', availableTools.map((t) => t.name))
     }
-  }, [availableTools, config.tools, setConfig])
+  }, [availableTools, config.tools, toolsSupported, setConfig])
+
+  // Clear tools when switching to a model that doesn't support function calling.
+  useEffect(() => {
+    if (!toolsSupported && config.tools && config.tools.length > 0) {
+      setConfig('tools', [])
+    }
+  }, [toolsSupported, config.tools, setConfig])
 
   const toggleTool = (name: string) => {
     const next = selectedTools.includes(name)
@@ -74,8 +84,8 @@ export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldPr
         </Collapsible>
       )}
 
-      {/* Tools toggles — fixed height */}
-      {availableTools.length > 0 && (
+      {/* Tools toggles — hidden when selected model doesn't support function calling */}
+      {toolsSupported && availableTools.length > 0 && (
         <div className="space-y-1.5 shrink-0">
           <Label className="text-xs">Tools</Label>
           <div className="flex flex-wrap gap-1.5">
@@ -99,6 +109,11 @@ export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldPr
             })}
           </div>
         </div>
+      )}
+      {!toolsSupported && selectedModel && (
+        <p className="text-[11px] text-muted-foreground shrink-0">
+          Tools are not supported by {selectedModel.name} (image generation model).
+        </p>
       )}
 
       {/* Prompt — expands to fill remaining space */}
@@ -136,6 +151,75 @@ export function AgentNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldPr
               <TemplateText text={config.output ?? ''} />
             </div>
           </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Output Extraction — collapsible, closed by default */}
+      <Collapsible
+        open={extractOpen}
+        onOpenChange={setExtractOpen}
+        className="shrink-0"
+      >
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
+          <ChevronRight className={`h-3 w-3 transition-transform ${extractOpen ? 'rotate-90' : ''}`} />
+          Output Extraction
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex flex-col gap-3 pt-1">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Mode</Label>
+            <select
+              value={config.output_extract?.mode ?? ''}
+              onChange={(e) => {
+                const m = e.target.value
+                if (!m) {
+                  setConfig('output_extract', undefined)
+                } else {
+                  setConfig('output_extract', { ...config.output_extract, mode: m as 'json' | 'tagged' })
+                }
+              }}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+            >
+              <option value="">None (full response)</option>
+              <option value="json">JSON key</option>
+              <option value="tagged">XML tag</option>
+            </select>
+          </div>
+
+          {config.output_extract?.mode === 'json' && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">JSON Key</Label>
+              <Input
+                value={config.output_extract?.key ?? ''}
+                onChange={(e) =>
+                  setConfig('output_extract', { mode: 'json', key: e.target.value })
+                }
+                placeholder="result"
+                className="h-8 text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                LLM responds with{' '}
+                <code className="font-mono">{`{"${config.output_extract?.key || 'result'}": ...}`}</code>
+              </p>
+            </div>
+          )}
+
+          {config.output_extract?.mode === 'tagged' && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Tag Name</Label>
+              <Input
+                value={config.output_extract?.tag ?? ''}
+                onChange={(e) =>
+                  setConfig('output_extract', { mode: 'tagged', tag: e.target.value })
+                }
+                placeholder="artifact"
+                className="h-8 text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                LLM wraps output in{' '}
+                <code className="font-mono">{`<${config.output_extract?.tag || 'artifact'}>...</${config.output_extract?.tag || 'artifact'}>`}</code>
+              </p>
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
     </div>

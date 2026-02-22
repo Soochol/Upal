@@ -1,6 +1,14 @@
 export type InputNodeConfig = {
-  placeholder?: string
+  prompt?: string
   value?: string
+}
+
+export type OutputExtractMode = 'json' | 'tagged'
+
+export type OutputExtract = {
+  mode: OutputExtractMode
+  key?: string   // json mode: JSON key name
+  tag?: string   // tagged mode: XML tag name
 }
 
 export type AgentNodeConfig = {
@@ -18,6 +26,7 @@ export type AgentNodeConfig = {
   aspect_ratio?: string
   steps?: number
   quality?: string
+  output_extract?: OutputExtract
 }
 
 export type OutputNodeConfig = {
