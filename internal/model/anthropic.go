@@ -57,12 +57,12 @@ func NewAnthropicLLM(apiKey string, opts ...AnthropicOption) *AnthropicLLM {
 	return a
 }
 
-// Name returns "anthropic".
 // NativeTool implements NativeToolProvider.
 func (a *AnthropicLLM) NativeTool(name string) (*genai.Tool, bool) {
 	return LookupNativeTool(name)
 }
 
+// Name returns "anthropic".
 func (a *AnthropicLLM) Name() string {
 	return "anthropic"
 }

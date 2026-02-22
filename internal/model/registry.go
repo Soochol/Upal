@@ -8,6 +8,8 @@ import (
 // LLMFactory creates an adkmodel.LLM for a given provider name and config.
 type LLMFactory func(providerName string, cfg config.ProviderConfig) adkmodel.LLM
 
+// factories is written only during init() calls (before main starts) and
+// is read-only thereafter. No mutex is required.
 var factories = map[string]LLMFactory{}
 
 // RegisterProvider registers a factory for the given provider type string.
