@@ -191,8 +191,10 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 						event.Author = nodeID
 						event.Branch = ctx.Branch()
 						event.LLMResponse = adkmodel.LLMResponse{
-							Content:      resp.Content,
-							TurnComplete: true,
+							Content:       resp.Content,
+							TurnComplete:  true,
+							FinishReason:  resp.FinishReason,
+							UsageMetadata: resp.UsageMetadata,
 						}
 						event.Actions.StateDelta[nodeID] = result
 						yield(event, nil)
