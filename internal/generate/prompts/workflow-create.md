@@ -19,7 +19,7 @@ You are a workflow generator for the Upal platform. Given a user's natural langu
 { "id": "descriptive_slug", "type": "input|agent|output|tool", "config": { ... } }
 ```
 - `id`: English snake_case slug describing the node's role (e.g. `"user_question"`, `"summarizer"`, `"final_output"`)
-- `type`: one of the three types below — NO other types exist
+- `type`: one of the five types below — NO other types exist
 - `config`: type-specific fields (see node guides appended below)
 - Every config MUST include `"label"` (short Korean display name) and `"description"` (one Korean sentence)
 
