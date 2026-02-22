@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"strings"
 	"net/http"
 
 	"google.golang.org/genai"
@@ -250,10 +251,13 @@ func (o *OpenAILLM) convertContent(content *genai.Content) ([]map[string]any, er
 		}
 	} else if len(textParts) > 0 {
 		// Plain text message.
-		combined := textParts[0]
+		var sb strings.Builder
+		sb.WriteString(textParts[0])
 		for i := 1; i < len(textParts); i++ {
-			combined += "\n" + textParts[i]
+			sb.WriteByte('\n')
+			sb.WriteString(textParts[i])
 		}
+		combined := sb.String()
 		messages = append(messages, map[string]any{
 			"role":    role,
 			"content": combined,
