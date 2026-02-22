@@ -123,8 +123,8 @@ type modelEntry struct {
 // knownModels maps provider type to a curated list of popular models with metadata.
 var knownModels = map[string][]modelEntry{
 	"gemini": {
-		{"gemini-3.1-pro", ModelTierHigh, "high capability, complex reasoning and analysis"},
-		{"gemini-3-preview", ModelTierMid, "preview model, general-purpose tasks"},
+		{"gemini-3.1-pro-preview", ModelTierHigh, "latest high capability, complex reasoning and analysis"},
+		{"gemini-3-flash-preview", ModelTierMid, "latest balanced speed and quality, general-purpose tasks"},
 	},
 	"anthropic": {
 		{"claude-opus-4-20250514", ModelTierHigh, "highest capability, complex multi-step reasoning"},

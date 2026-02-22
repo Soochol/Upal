@@ -45,5 +45,10 @@ providers:
   zimage:
     type: zimage
     url: "http://localhost:8090"
+  #
+  # OpenAI TTS (text-to-speech)
+  # openai-tts:
+  #   type: openai-tts
+  #   api_key: "" # Set OPENAI_TTS_API_KEY in .env
 
 mcp_servers: {}

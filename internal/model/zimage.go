@@ -64,12 +64,6 @@ func NewZImageLLM(serverURL string, opts ...ZImageOption) *ZImageLLM {
 
 func (z *ZImageLLM) Name() string { return z.name }
 
-func init() {
-	RegisterProvider("zimage", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
-		return NewZImageLLM(cfg.URL)
-	})
-}
-
 func (z *ZImageLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {
 	return func(yield func(*adkmodel.LLMResponse, error) bool) {
 		resp, err := z.generate(ctx, req)
