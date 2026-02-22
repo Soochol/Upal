@@ -63,6 +63,10 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 			ev.Payload["started_at"] = time.Now().UnixMilli()
 		}
 
+		if ev.Type == upal.EventNodeCompleted {
+			ev.Payload["completed_at"] = time.Now().UnixMilli()
+		}
+
 		p.runManager.Append(runID, services.EventRecord{
 			Type:    ev.Type,
 			NodeID:  ev.NodeID,
