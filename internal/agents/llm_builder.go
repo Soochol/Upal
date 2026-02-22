@@ -75,21 +75,30 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 			if !ok {
 				continue
 			}
+			// Check if it's a global native tool (e.g., web_search).
+			if spec, isGlobalNative := upalmodel.LookupNativeTool(name); isGlobalNative {
+				if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
+					if modelSpec, supported := provider.NativeTool(name); supported {
+						nativeTools = append(nativeTools, modelSpec)
+					}
+					// Model doesn't support this native tool — skip silently.
+				} else {
+					// Fall back to global spec if model doesn't implement NativeToolProvider.
+					nativeTools = append(nativeTools, spec)
+				}
+				continue
+			}
+			// Check if it's a registry native tool.
 			if deps.ToolReg != nil && deps.ToolReg.IsNative(name) {
 				if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
-					if spec, supported := provider.NativeTool(name); supported {
-						nativeTools = append(nativeTools, spec)
+					if modelSpec, supported := provider.NativeTool(name); supported {
+						nativeTools = append(nativeTools, modelSpec)
 					}
 					// Model doesn't support this native tool — skip silently.
 				}
 				continue
 			}
-			if name == tools.WebSearch.Name() {
-				nativeTools = append(nativeTools, &genai.Tool{
-					GoogleSearch: &genai.GoogleSearch{},
-				})
-				continue
-			}
+			// Treat as a custom tool.
 			if deps.ToolReg == nil {
 				return nil, fmt.Errorf("node %q references tool %q but no tool registry is configured", nd.ID, name)
 			}
