@@ -1,5 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { Pipeline, PipelineRun } from '@/shared/types'
+import type { Pipeline, PipelineRun, PipelineSource, PipelineContext } from '@/shared/types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
 const API_BASE = '/api'
@@ -56,6 +56,38 @@ export async function rejectPipelineRun(pipelineId: string, runId: string): Prom
     `${API_BASE}/pipelines/${encodeURIComponent(pipelineId)}/runs/${encodeURIComponent(runId)}/reject`,
     { method: 'POST' }
   )
+}
+
+// Content pipeline: manual collect trigger
+export async function collectPipeline(id: string): Promise<{ session_id: string }> {
+  return apiFetch<{ session_id: string }>(
+    `${API_BASE}/pipelines/${encodeURIComponent(id)}/collect`,
+    { method: 'POST' },
+  )
+}
+
+// Content pipeline: update sources
+export async function updatePipelineSources(
+  id: string,
+  sources: PipelineSource[],
+): Promise<Pipeline> {
+  return apiFetch<Pipeline>(`${API_BASE}/pipelines/${encodeURIComponent(id)}/sources`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sources }),
+  })
+}
+
+// Content pipeline: update editorial brief
+export async function updatePipelineContext(
+  id: string,
+  context: PipelineContext,
+): Promise<Pipeline> {
+  return apiFetch<Pipeline>(`${API_BASE}/pipelines/${encodeURIComponent(id)}/context`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(context),
+  })
 }
 
 export type PipelineBundle = {
