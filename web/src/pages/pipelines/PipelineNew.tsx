@@ -63,7 +63,7 @@ export default function PipelineNewPage() {
 
   // Step 2 state (editorial brief — deferred to inline form)
   const [context, setContext] = useState<PipelineContext>({
-    topic: '', target_audience: '', tone: '',
+    purpose: '', target_audience: '', tone_style: '',
     focus_keywords: [], exclude_keywords: [], language: '한국어',
   })
 

@@ -16,6 +16,13 @@ const (
 	RunStatusRetrying  RunStatus = "retrying"
 )
 
+// TokenUsage tracks LLM token consumption.
+type TokenUsage struct {
+	PromptTokens     int32 `json:"prompt_tokens"`
+	CompletionTokens int32 `json:"completion_tokens"`
+	TotalTokens      int32 `json:"total_tokens"`
+}
+
 // RunRecord captures a single workflow execution with full provenance.
 type RunRecord struct {
 	ID           string         `json:"id"`
@@ -33,16 +40,18 @@ type RunRecord struct {
 	StartedAt    *time.Time     `json:"started_at,omitempty"`
 	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
 	NodeRuns     []NodeRunRecord `json:"node_runs,omitempty"`
+	Usage        *TokenUsage    `json:"usage,omitempty"`
 }
 
 // NodeRunRecord tracks execution of a single node within a run.
 type NodeRunRecord struct {
-	NodeID      string     `json:"node_id"`
-	Status      string     `json:"status"` // "running" | "completed" | "error"
-	StartedAt   time.Time  `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	Error       *string    `json:"error,omitempty"`
-	RetryCount  int        `json:"retry_count"`
+	NodeID      string      `json:"node_id"`
+	Status      string      `json:"status"` // "running" | "completed" | "error"
+	StartedAt   time.Time   `json:"started_at"`
+	CompletedAt *time.Time  `json:"completed_at,omitempty"`
+	Error       *string     `json:"error,omitempty"`
+	RetryCount  int         `json:"retry_count"`
+	Usage       *TokenUsage `json:"usage,omitempty"`
 }
 
 // --- Retry Policy ---

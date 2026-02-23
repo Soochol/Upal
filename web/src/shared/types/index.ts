@@ -209,9 +209,9 @@ export type PipelineSource = {
 }
 
 export type PipelineContext = {
-  topic: string
+  purpose: string
   target_audience: string
-  tone: string
+  tone_style: string
   focus_keywords: string[]
   exclude_keywords: string[]
   language: string

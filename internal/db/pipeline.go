@@ -24,9 +24,9 @@ func (d *DB) CreatePipeline(ctx context.Context, p *upal.Pipeline) error {
 		return fmt.Errorf("marshal sources: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO pipelines (id, name, description, stages, context, sources, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		p.ID, p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.CreatedAt, p.UpdatedAt,
+		`INSERT INTO pipelines (id, name, description, stages, context, sources, schedule, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		p.ID, p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.Schedule, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert pipeline: %w", err)
@@ -39,9 +39,9 @@ func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
 	var p upal.Pipeline
 	var stagesJSON, ctxJSON, sourcesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, name, description, stages, context, sources, created_at, updated_at
+		`SELECT id, name, description, stages, context, sources, schedule, created_at, updated_at
 		 FROM pipelines WHERE id = $1`, id,
-	).Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.Schedule, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("pipeline %q not found", id)
 	}
@@ -63,7 +63,7 @@ func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
 // ListPipelines returns all pipelines ordered by updated_at descending.
 func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, name, description, stages, context, sources, created_at, updated_at
+		`SELECT id, name, description, stages, context, sources, schedule, created_at, updated_at
 		 FROM pipelines ORDER BY updated_at DESC`,
 	)
 	if err != nil {
@@ -75,7 +75,7 @@ func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 	for rows.Next() {
 		var p upal.Pipeline
 		var stagesJSON, ctxJSON, sourcesJSON []byte
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.Schedule, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan pipeline: %w", err)
 		}
 		if err := json.Unmarshal(stagesJSON, &p.Stages); err != nil {
@@ -110,9 +110,9 @@ func (d *DB) UpdatePipeline(ctx context.Context, p *upal.Pipeline) error {
 		return fmt.Errorf("marshal sources: %w", err)
 	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE pipelines SET name = $1, description = $2, stages = $3, context = $4, sources = $5, updated_at = $6
-		 WHERE id = $7`,
-		p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.UpdatedAt, p.ID,
+		`UPDATE pipelines SET name = $1, description = $2, stages = $3, context = $4, sources = $5, schedule = $6, updated_at = $7
+		 WHERE id = $8`,
+		p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.Schedule, p.UpdatedAt, p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update pipeline: %w", err)

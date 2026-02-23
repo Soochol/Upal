@@ -46,6 +46,18 @@ func (r *MemoryContentSessionRepository) ListByPipeline(ctx context.Context, pip
 	})
 }
 
+func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.Status == status
+	})
+}
+
+func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.PipelineID == pipelineID && s.Status == status
+	})
+}
+
 func (r *MemoryContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {
 	if !r.store.Has(ctx, s.ID) {
 		return fmt.Errorf("content session %q not found", s.ID)

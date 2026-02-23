@@ -7,9 +7,9 @@ import type { PipelineContext } from '@/shared/types'
 const LANGUAGE_OPTIONS = ['한국어', '영어', '일본어', '중국어']
 
 const DEFAULT_CONTEXT: PipelineContext = {
-  topic: '',
+  purpose: '',
   target_audience: '',
-  tone: '',
+  tone_style: '',
   focus_keywords: [],
   exclude_keywords: [],
   language: '한국어',
@@ -50,7 +50,7 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
           rows={3}
           placeholder="이 파이프라인이 다루는 주제와 목적을 설명해 주세요..."
           className="resize-none text-sm"
-          {...field('topic')}
+          {...field('purpose')}
         />
       </div>
 
@@ -72,7 +72,7 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
           placeholder="예: 기술적이지만 접근 쉬운 한국어"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none
             focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-          {...field('tone')}
+          {...field('tone_style')}
         />
       </div>
 

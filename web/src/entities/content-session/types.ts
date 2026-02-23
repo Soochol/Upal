@@ -47,13 +47,13 @@ export type WorkflowResult = {
 export type ContentSession = {
   id: string
   pipeline_id: string
-  pipeline_name: string
-  session_number: number
+  pipeline_name?: string
+  session_number?: number
   trigger_type: 'schedule' | 'manual' | 'surge'
   status: ContentSessionStatus
-  sources: SourceFetch[]
+  sources?: SourceFetch[]
   analysis?: LLMAnalysis
-  workflow_results: WorkflowResult[]
+  workflow_results?: WorkflowResult[]
   created_at: string
-  updated_at: string
+  updated_at?: string
 }

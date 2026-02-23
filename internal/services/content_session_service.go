@@ -65,6 +65,14 @@ func (s *ContentSessionService) ListSessionsByPipeline(ctx context.Context, pipe
 	return s.sessions.ListByPipeline(ctx, pipelineID)
 }
 
+func (s *ContentSessionService) ListSessionsByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	return s.sessions.ListByStatus(ctx, status)
+}
+
+func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
+}
+
 func (s *ContentSessionService) UpdateSessionStatus(ctx context.Context, id string, status upal.ContentSessionStatus) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {

@@ -100,6 +100,52 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 	return nil
 }
 
+func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
+	rows, err := d.Pool.QueryContext(ctx,
+		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at
+		 FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
+		status,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list content_sessions by status: %w", err)
+	}
+	defer rows.Close()
+	var result []*upal.ContentSession
+	for rows.Next() {
+		var s upal.ContentSession
+		var st string
+		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt); err != nil {
+			return nil, fmt.Errorf("scan content_session: %w", err)
+		}
+		s.Status = upal.ContentSessionStatus(st)
+		result = append(result, &s)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {
+	rows, err := d.Pool.QueryContext(ctx,
+		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at
+		 FROM content_sessions WHERE pipeline_id = $1 AND status = $2 ORDER BY created_at DESC`,
+		pipelineID, status,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list content_sessions by pipeline+status: %w", err)
+	}
+	defer rows.Close()
+	var result []*upal.ContentSession
+	for rows.Next() {
+		var s upal.ContentSession
+		var st string
+		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt); err != nil {
+			return nil, fmt.Errorf("scan content_session: %w", err)
+		}
+		s.Status = upal.ContentSessionStatus(st)
+		result = append(result, &s)
+	}
+	return result, rows.Err()
+}
+
 // --- SourceFetch ---
 
 func (d *DB) CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error {

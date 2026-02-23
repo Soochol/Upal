@@ -20,20 +20,20 @@ export async function fetchContentSession(id: string): Promise<ContentSession> {
 
 export async function approveSession(
   id: string,
-  selectedAngles: string[],
+  _selectedAngles: string[],
 ): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/approve`, {
-    method: 'POST',
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ selected_angles: selectedAngles }),
+    body: JSON.stringify({ action: 'approve' }),
   })
 }
 
-export async function rejectSession(id: string, reason?: string): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/reject`, {
-    method: 'POST',
+export async function rejectSession(id: string, _reason?: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ action: 'reject' }),
   })
 }
 

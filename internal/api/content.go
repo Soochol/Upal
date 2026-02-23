@@ -14,28 +14,24 @@ import (
 func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pipelineID := r.URL.Query().Get("pipeline_id")
+	statusStr := r.URL.Query().Get("status")
 	var (
 		sessions []*upal.ContentSession
 		err      error
 	)
-	if pipelineID != "" {
+	switch {
+	case pipelineID != "" && statusStr != "":
+		sessions, err = s.contentSvc.ListSessionsByPipelineAndStatus(ctx, pipelineID, upal.ContentSessionStatus(statusStr))
+	case pipelineID != "":
 		sessions, err = s.contentSvc.ListSessionsByPipeline(ctx, pipelineID)
-	} else {
+	case statusStr != "":
+		sessions, err = s.contentSvc.ListSessionsByStatus(ctx, upal.ContentSessionStatus(statusStr))
+	default:
 		sessions, err = s.contentSvc.ListSessions(ctx)
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	// Optional client-side filter by status
-	if status := r.URL.Query().Get("status"); status != "" {
-		filtered := sessions[:0]
-		for _, sess := range sessions {
-			if string(sess.Status) == status {
-				filtered = append(filtered, sess)
-			}
-		}
-		sessions = filtered
 	}
 	if sessions == nil {
 		sessions = []*upal.ContentSession{}
@@ -236,5 +232,5 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(sess)
+	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
 }

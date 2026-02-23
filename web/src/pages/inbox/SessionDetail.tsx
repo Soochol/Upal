@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, CheckCircle, XCircle, CheckSquare, Square, Loader2 } from 'lucide-react'
 import { Header } from '@/shared/ui/Header'
 import { BreadcrumbNav } from '@/shared/ui/BreadcrumbNav'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
 import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
-import { fetchContentSession, approveSession, rejectSession } from '@/entities/content-session/api'
+import { fetchContentSession } from '@/entities/content-session/api'
+import { useContentSessionStore } from '@/entities/content-session/store'
 import type { ContentSession, ContentAngle } from '@/entities/content-session'
 
 // ─── Source panel ─────────────────────────────────────────────────────────────
 
 function SourcePanel({ session }: { session: ContentSession }) {
   const isCollecting = session.status === 'collecting'
+  const sources = session.sources ?? []
 
   return (
     <div className="space-y-6">
@@ -23,7 +25,7 @@ function SourcePanel({ session }: { session: ContentSession }) {
           소스 수집 중...
         </div>
       )}
-      {session.sources.map((src) => (
+      {sources.map((src) => (
         <div key={src.id}>
           <div className="flex items-center gap-2 mb-2">
             <SourceTypeBadge type={src.source_type} />
@@ -58,7 +60,7 @@ function SourcePanel({ session }: { session: ContentSession }) {
           </div>
         </div>
       ))}
-      {session.sources.length === 0 && !isCollecting && (
+      {sources.length === 0 && !isCollecting && (
         <p className="text-sm text-muted-foreground">수집된 소스가 없습니다.</p>
       )}
     </div>
@@ -135,7 +137,8 @@ function AnalysisPanel({
 // ─── Results panel ────────────────────────────────────────────────────────────
 
 function ResultsPanel({ session }: { session: ContentSession }) {
-  if (session.workflow_results.length === 0) {
+  const results = session.workflow_results ?? []
+  if (results.length === 0) {
     return <p className="text-sm text-muted-foreground">워크플로우 실행 결과가 없습니다.</p>
   }
 
@@ -154,7 +157,7 @@ function ResultsPanel({ session }: { session: ContentSession }) {
 
   return (
     <div className="space-y-3">
-      {session.workflow_results.map((result) => (
+      {results.map((result) => (
         <div
           key={result.run_id}
           className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between"
@@ -249,25 +252,37 @@ export default function SessionDetailPage() {
   })
 
   const [angles, setAngles] = useState<ContentAngle[]>([])
+  const { approveSession, rejectSession } = useContentSessionStore()
+  const [isApproving, setIsApproving] = useState(false)
+  const [isRejecting, setIsRejecting] = useState(false)
 
-  // Sync angles only on initial load (empty state) or when navigating to a different session
+  // Reset angles when navigating to a different session
   useEffect(() => {
-    if (session?.analysis?.angles && angles.length === 0) {
+    if (session?.analysis?.angles) {
       setAngles(session.analysis.angles)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id])
 
-  const approveMutation = useMutation({
-    mutationFn: () =>
-      approveSession(sessionId!, angles.filter((a) => a.selected).map((a) => a.id)),
-    onSuccess: () => navigate('/inbox'),
-  })
+  const handleApprove = async () => {
+    setIsApproving(true)
+    try {
+      await approveSession(sessionId!, angles.filter((a) => a.selected).map((a) => a.id))
+      navigate('/inbox')
+    } finally {
+      setIsApproving(false)
+    }
+  }
 
-  const rejectMutation = useMutation({
-    mutationFn: (reason: string) => rejectSession(sessionId!, reason || undefined),
-    onSuccess: () => navigate('/inbox'),
-  })
+  const handleReject = async (reason: string) => {
+    setIsRejecting(true)
+    try {
+      await rejectSession(sessionId!, reason || undefined)
+      navigate('/inbox')
+    } finally {
+      setIsRejecting(false)
+    }
+  }
 
   const toggleAngle = (id: string) => {
     setAngles((prev) => prev.map((a) => (a.id === id ? { ...a, selected: !a.selected } : a)))
@@ -321,15 +336,17 @@ export default function SessionDetailPage() {
             className="mb-5"
             items={[
               { label: 'Content Inbox', to: '/inbox' },
-              { label: session.pipeline_name, to: '/inbox' },
-              { label: `Session ${session.session_number}` },
+              ...(session.pipeline_name ? [{ label: session.pipeline_name, to: `/pipelines/${session.pipeline_id}` }] : []),
+              { label: session.session_number != null ? `Session ${session.session_number}` : session.id },
             ]}
           />
 
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <h1 className="text-xl font-bold">Session {session.session_number}</h1>
+                <h1 className="text-xl font-bold">
+                  {session.session_number != null ? `Session ${session.session_number}` : session.id}
+                </h1>
                 <StatusBadge status={session.status} />
               </div>
               <p className="text-sm text-muted-foreground">
@@ -381,7 +398,7 @@ export default function SessionDetailPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowRejectDialog(true)}
-                disabled={rejectMutation.isPending}
+                disabled={isRejecting}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
                   bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer
                   disabled:opacity-50 disabled:cursor-not-allowed"
@@ -390,13 +407,13 @@ export default function SessionDetailPage() {
                 거절
               </button>
               <button
-                onClick={() => approveMutation.mutate()}
-                disabled={selectedCount === 0 || approveMutation.isPending}
+                onClick={() => void handleApprove()}
+                disabled={selectedCount === 0 || isApproving}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
                   bg-success/15 text-success hover:bg-success/25 transition-colors cursor-pointer
                   disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {approveMutation.isPending
+                {isApproving
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <CheckCircle className="h-4 w-4" />
                 }
@@ -409,9 +426,9 @@ export default function SessionDetailPage() {
 
       {showRejectDialog && (
         <RejectDialog
-          onConfirm={(reason) => rejectMutation.mutate(reason)}
+          onConfirm={(reason) => void handleReject(reason)}
           onCancel={() => setShowRejectDialog(false)}
-          isLoading={rejectMutation.isPending}
+          isLoading={isRejecting}
         />
       )}
     </div>

@@ -66,28 +66,22 @@ export async function collectPipeline(id: string): Promise<{ session_id: string 
   )
 }
 
-// Content pipeline: update sources
+// Content pipeline: update sources (merges into full pipeline PUT)
 export async function updatePipelineSources(
   id: string,
   sources: PipelineSource[],
 ): Promise<Pipeline> {
-  return apiFetch<Pipeline>(`${API_BASE}/pipelines/${encodeURIComponent(id)}/sources`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sources }),
-  })
+  const pipeline = await fetchPipeline(id)
+  return updatePipeline(id, { ...pipeline, sources })
 }
 
-// Content pipeline: update editorial brief
+// Content pipeline: update editorial brief (merges into full pipeline PUT)
 export async function updatePipelineContext(
   id: string,
   context: PipelineContext,
 ): Promise<Pipeline> {
-  return apiFetch<Pipeline>(`${API_BASE}/pipelines/${encodeURIComponent(id)}/context`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(context),
-  })
+  const pipeline = await fetchPipeline(id)
+  return updatePipeline(id, { ...pipeline, context })
 }
 
 export type PipelineBundle = {

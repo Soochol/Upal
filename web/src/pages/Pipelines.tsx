@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, GitBranch, Play, Clock, Loader2 } from 'lucide-react'
 import { Header } from '@/shared/ui/Header'
-import { fetchPipelines, deletePipeline, collectPipeline } from '@/entities/pipeline'
+import { fetchPipelines, deletePipeline, collectPipeline, startPipeline } from '@/entities/pipeline'
 import { PipelineCard } from '@/widgets/pipeline-editor'
 import type { Pipeline } from '@/shared/types'
 
@@ -108,6 +108,11 @@ export default function PipelinesPage() {
   const collectMutation = useMutation({
     mutationFn: (id: string) => collectPipeline(id),
     onSuccess: ({ session_id }) => navigate(`/inbox/${session_id}`),
+  })
+
+  const startMutation = useMutation({
+    mutationFn: (id: string) => startPipeline(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipelines'] }),
   })
 
   const handleDelete = (pid: string) => {
@@ -216,7 +221,7 @@ export default function PipelinesPage() {
                     <PipelineCard
                       pipeline={p}
                       onClick={() => navigate(`/pipelines/${p.id}`)}
-                      onStart={() => {}}
+                      onStart={() => startMutation.mutate(p.id)}
                       onDelete={() => handleDelete(p.id)}
                     />
                   )}

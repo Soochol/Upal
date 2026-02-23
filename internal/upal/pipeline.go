@@ -8,9 +8,13 @@ type Pipeline struct {
 	Name         string           `json:"name"`
 	Description  string           `json:"description,omitempty"`
 	Stages       []Stage          `json:"stages"`
-	Context      PipelineContext  `json:"context"`
+	Context      *PipelineContext `json:"context,omitempty"`
 	Sources      []PipelineSource `json:"sources,omitempty"`
 	ThumbnailSVG string           `json:"thumbnail_svg,omitempty"`
+	// Content pipeline fields
+	Schedule             string     `json:"schedule,omitempty"`               // cron expression for content collection
+	LastCollectedAt      *time.Time `json:"last_collected_at,omitempty"`      // set after each successful collect
+	PendingSessionCount  int        `json:"pending_session_count,omitempty"`  // count of pending_review sessions
 	CreatedAt    time.Time        `json:"created_at"`
 	UpdatedAt    time.Time        `json:"updated_at"`
 }
@@ -80,13 +84,23 @@ type PipelineContext struct {
 }
 
 // PipelineSource defines a single data source attached to a Pipeline.
+// Fields are stored as JSONB so the struct is intentionally loose to accommodate both
+// the internal tool-centric format (ToolName + Config) and the frontend flat format.
 type PipelineSource struct {
 	ID         string         `json:"id"`
-	PipelineID string         `json:"pipeline_id"`
-	ToolName   string         `json:"tool_name"`   // "hn_fetch" | "reddit_fetch" | "rss_feed" | ...
-	SourceType string         `json:"source_type"` // "static" | "signal"
-	Config     map[string]any `json:"config,omitempty"` // tool-specific params
-	Enabled    bool           `json:"enabled"`
+	PipelineID string         `json:"pipeline_id,omitempty"`
+	ToolName   string         `json:"tool_name,omitempty"`   // "hn_fetch" | "reddit_fetch" | "rss_feed" | ...
+	SourceType string         `json:"source_type"`           // "static" | "signal"
+	Config     map[string]any `json:"config,omitempty"`      // tool-specific params
+	Enabled    bool           `json:"enabled,omitempty"`
+	// Frontend-compatible flat fields (stored as-is from the UI)
+	Type      string   `json:"type,omitempty"`      // "rss" | "hn" | "reddit" | "google_trends" | "twitter" | "http"
+	Label     string   `json:"label,omitempty"`     // display name
+	URL       string   `json:"url,omitempty"`       // rss, http
+	Subreddit string   `json:"subreddit,omitempty"` // reddit
+	MinScore  int      `json:"min_score,omitempty"` // reddit, hn
+	Keywords  []string `json:"keywords,omitempty"`  // google_trends, twitter
+	Limit     int      `json:"limit,omitempty"`
 }
 
 // PipelineRun tracks a single execution of a Pipeline.

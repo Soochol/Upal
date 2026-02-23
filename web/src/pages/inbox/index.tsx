@@ -55,9 +55,10 @@ function SurgeBanner({
 
 // ─── Source summary chips ─────────────────────────────────────────────────────
 
-function SourceSummary({ sources }: { sources: ContentSession['sources'] }) {
-  const statics = sources.filter((s) => s.source_type === 'static')
-  const signals = sources.filter((s) => s.source_type === 'signal')
+function SourceSummary({ sources }: { sources?: ContentSession['sources'] }) {
+  const list = sources ?? []
+  const statics = list.filter((s) => s.source_type === 'static')
+  const signals = list.filter((s) => s.source_type === 'signal')
   if (statics.length === 0 && signals.length === 0) return null
 
   return (

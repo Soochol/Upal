@@ -15,6 +15,8 @@ type ContentDB interface {
 	GetContentSession(ctx context.Context, id string) (*upal.ContentSession, error)
 	ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error)
 	ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
+	ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error)
+	ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error)
 	UpdateContentSession(ctx context.Context, s *upal.ContentSession) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
@@ -77,6 +79,24 @@ func (r *PersistentContentSessionRepository) ListByPipeline(ctx context.Context,
 	}
 	slog.Warn("db list content_sessions by pipeline failed, falling back to in-memory", "err", err)
 	return r.mem.ListByPipeline(ctx, pipelineID)
+}
+
+func (r *PersistentContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListContentSessionsByStatus(ctx, string(status))
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list content_sessions by status failed, falling back to in-memory", "err", err)
+	return r.mem.ListByStatus(ctx, status)
+}
+
+func (r *PersistentContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListContentSessionsByPipelineAndStatus(ctx, pipelineID, string(status))
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list content_sessions by pipeline+status failed, falling back to in-memory", "err", err)
+	return r.mem.ListByPipelineAndStatus(ctx, pipelineID, status)
 }
 
 func (r *PersistentContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {

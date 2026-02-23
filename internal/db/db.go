@@ -97,10 +97,12 @@ CREATE TABLE IF NOT EXISTS runs (
     retry_of       TEXT,
     retry_count    INTEGER NOT NULL DEFAULT 0,
     node_runs      JSONB NOT NULL DEFAULT '[]',
+    token_usage    JSONB DEFAULT '{}',
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at     TIMESTAMPTZ,
     completed_at   TIMESTAMPTZ
 );
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS token_usage JSONB DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS idx_runs_workflow ON runs(workflow_name);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at);
@@ -167,6 +169,7 @@ CREATE TABLE IF NOT EXISTS connections (
 
 ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS context JSONB NOT NULL DEFAULT '{}';
 ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS schedule TEXT NOT NULL DEFAULT '';
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS session_id TEXT;
 
 CREATE TABLE IF NOT EXISTS content_sessions (

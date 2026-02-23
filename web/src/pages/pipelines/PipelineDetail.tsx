@@ -14,41 +14,9 @@ import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialB
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import {
   fetchPipeline, updatePipeline, collectPipeline,
-  updatePipelineSources, updatePipelineContext,
 } from '@/entities/pipeline'
+import { fetchContentSessions } from '@/entities/content-session/api'
 import type { Pipeline, PipelineSource, PipelineContext } from '@/shared/types'
-import type { ContentSession } from '@/entities/content-session'
-
-// ─── Mock session history ────────────────────────────────────────────────────
-
-const MOCK_SESSIONS: ContentSession[] = [
-  {
-    id: 'sess-1',
-    pipeline_id: '',
-    pipeline_name: '',
-    session_number: 12,
-    trigger_type: 'schedule',
-    status: 'pending_review',
-    sources: [],
-    analysis: { summary: 'GPT-5 출시로 AI 경쟁 재편', insights: [], angles: [], score: 94, total_collected: 31, total_selected: 7 },
-    workflow_results: [],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'sess-2',
-    pipeline_id: '',
-    pipeline_name: '',
-    session_number: 11,
-    trigger_type: 'schedule',
-    status: 'published',
-    sources: [],
-    analysis: { summary: 'Claude 3.7 코드 생성 능력 집중 분석', insights: [], angles: [], score: 79, total_collected: 22, total_selected: 6 },
-    workflow_results: [],
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 10).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-]
 
 // ─── Sub-panels ──────────────────────────────────────────────────────────────
 
@@ -59,8 +27,19 @@ function SessionHistoryTab({
   pipelineId: string
   onViewSession: (sessionId: string) => void
 }) {
-  // Phase 3 will load real sessions; using mock for now
-  const sessions = MOCK_SESSIONS.map((s) => ({ ...s, pipeline_id: pipelineId }))
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['content-sessions', { pipelineId }],
+    queryFn: () => fetchContentSessions({ pipelineId }),
+    enabled: !!pipelineId,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   if (sessions.length === 0) {
     return (
@@ -243,31 +222,17 @@ export default function PipelineDetailPage() {
     },
   })
 
-  const updateSourcesMutation = useMutation({
-    mutationFn: () => updatePipelineSources(id!, localSources),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
-    },
-  })
-
   const updateContextMutation = useMutation({
-    mutationFn: (ctx: PipelineContext) => updatePipelineContext(id!, ctx),
+    mutationFn: (ctx: PipelineContext) => updatePipeline(id!, { ...pipeline!, context: ctx }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
     },
   })
 
   const handleSaveSourcesAndSchedule = async () => {
-    try {
-      await updateSourcesMutation.mutateAsync()
-      if (pipeline) {
-        await updatePipeline(id!, { ...pipeline, schedule: localSchedule })
-        queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
-      }
-    } catch (e) {
-      // Propagate so SourceConfigTab's finally block resets its saving state
-      throw e
-    }
+    if (!pipeline) return
+    await updatePipeline(id!, { ...pipeline, sources: localSources, schedule: localSchedule })
+    queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
   }
 
   if (isLoading || !pipeline) {
