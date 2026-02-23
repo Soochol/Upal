@@ -127,7 +127,7 @@ export default function SessionDetailPage() {
     ? `Session #${session.session_number}`
     : `Session ${session.id.slice(0, 8)}`
 
-  const itemCount = session.sources?.reduce((s, src) => s + src.count, 0) ?? 0
+  const itemCount = session.sources?.reduce((sum, src) => sum + src.count, 0) ?? 0
 
   return (
     <MainLayout

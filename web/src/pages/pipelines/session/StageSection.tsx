@@ -21,7 +21,7 @@ export function StageSection({ id, number, title, state, summary, statusText, ch
     if (state === 'active') setExpanded(true)
   }, [state])
 
-  const isVisible = state !== 'locked' ? expanded || state === 'active' : false
+  const isVisible = state !== 'locked' && expanded
 
   return (
     <section id={id} ref={ref} className="mb-6">

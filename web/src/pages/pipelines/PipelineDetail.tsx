@@ -541,13 +541,13 @@ export default function PipelineDetailPage() {
     { value: 'rejected', label: 'Rejected' },
   ]
 
-  const filterCounts: Record<SessionFilter, number> = {
-    all: sessions.length,
-    pending_review: sessions.filter(s => s.status === 'pending_review').length,
-    producing: sessions.filter(s => s.status === 'producing').length,
-    published: sessions.filter(s => s.status === 'published').length,
-    rejected: sessions.filter(s => s.status === 'rejected').length,
-  }
+  const filterCounts = useMemo(() => {
+    const counts: Record<SessionFilter, number> = { all: sessions.length, pending_review: 0, producing: 0, published: 0, rejected: 0 }
+    for (const s of sessions) {
+      if (s.status in counts) counts[s.status as SessionFilter]++
+    }
+    return counts
+  }, [sessions])
 
   const filteredSessions = sessions
     .filter(s => activeFilter === 'all' || s.status === activeFilter)

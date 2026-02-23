@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Search, Plus, Loader2 } from 'lucide-react'
+import { apiFetch } from '@/shared/api/client'
 import type { PipelineWorkflow } from '@/shared/types'
 
-// Minimal workflow list item from GET /api/workflows
 type WorkflowListItem = {
   name: string
   description?: string
@@ -20,11 +20,7 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
 
   const { data: workflows = [], isLoading } = useQuery<WorkflowListItem[]>({
     queryKey: ['workflows'],
-    queryFn: async () => {
-      const res = await fetch('/api/workflows')
-      if (!res.ok) throw new Error('Failed to fetch workflows')
-      return res.json()
-    },
+    queryFn: () => apiFetch<WorkflowListItem[]>('/api/workflows'),
   })
 
   const existingNames = new Set(existingWorkflows.map(w => w.workflow_name))

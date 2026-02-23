@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, CheckSquare, Square } from 'lucide-react'
 import { updateSessionAnalysis } from '@/entities/content-session/api'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
 import type { ContentSession, ContentAngle } from '@/entities/content-session'
@@ -326,16 +326,9 @@ export function AnalyzeStage({
                     ${!isPendingReview ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <div className="mt-0.5 shrink-0">
-                    {checked ? (
-                      <svg className="h-4 w-4 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <path d="m9 12 2 2 4-4" />
-                      </svg>
-                    ) : (
-                      <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                      </svg>
-                    )}
+                    {checked
+                      ? <CheckSquare className="h-4 w-4 text-success" />
+                      : <Square className="h-4 w-4 text-muted-foreground" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{angle.title}</div>
