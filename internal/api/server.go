@@ -42,6 +42,7 @@ type Server struct {
 	runPublisher         *runpub.RunPublisher
 	pipelineSvc          *services.PipelineService
 	pipelineRunner       ports.PipelineRunner
+	contentSvc           *services.ContentSessionService
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -103,7 +104,26 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/{id}/runs/{runId}/reject", s.rejectPipelineRun)
 			r.Get("/{id}/triggers", s.listPipelineTriggers)
 			r.Post("/{id}/thumbnail", s.generatePipelineThumbnail)
+			r.Post("/{id}/collect", s.collectPipeline)
 		})
+		if s.contentSvc != nil {
+			r.Route("/content-sessions", func(r chi.Router) {
+				r.Get("/", s.listContentSessions)
+				r.Get("/{id}", s.getContentSession)
+				r.Patch("/{id}", s.patchContentSession)
+				r.Post("/{id}/produce", s.produceContentSession)
+				r.Get("/{id}/sources", s.listSessionSources)
+				r.Get("/{id}/analysis", s.getSessionAnalysis)
+			})
+			r.Route("/published", func(r chi.Router) {
+				r.Get("/", s.listPublished)
+			})
+			r.Route("/surges", func(r chi.Router) {
+				r.Get("/", s.listSurges)
+				r.Post("/{id}/dismiss", s.dismissSurge)
+				r.Post("/{id}/create-session", s.createSessionFromSurge)
+			})
+		}
 		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
 		r.Post("/generate-pipeline", s.generatePipeline)
@@ -211,6 +231,11 @@ func (s *Server) SetPipelineService(svc *services.PipelineService) {
 // SetPipelineRunner configures the pipeline runner for stage execution.
 func (s *Server) SetPipelineRunner(runner ports.PipelineRunner) {
 	s.pipelineRunner = runner
+}
+
+// SetContentSessionService configures the content session management service.
+func (s *Server) SetContentSessionService(svc *services.ContentSessionService) {
+	s.contentSvc = svc
 }
 
 // SetA2ABaseURL enables A2A protocol endpoints on the server.

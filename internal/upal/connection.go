@@ -8,6 +8,14 @@ const (
 	ConnTypeSlack    ConnectionType = "slack"
 	ConnTypeHTTP     ConnectionType = "http"
 	ConnTypeSMTP     ConnectionType = "smtp"
+
+	// Content media pipeline connections
+	ConnTypeReddit   ConnectionType = "reddit"
+	ConnTypeYouTube  ConnectionType = "youtube"
+	ConnTypeDiscord  ConnectionType = "discord"
+	ConnTypeSubstack ConnectionType = "substack"
+	ConnTypeNewsAPI  ConnectionType = "newsapi"
+	ConnTypeSerpAPI  ConnectionType = "serpapi"
 )
 
 // Connection stores credentials and configuration for an external service.
