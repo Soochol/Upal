@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/upal"
@@ -252,7 +253,11 @@ func (g *Generator) GeneratePipelineBundle(ctx context.Context, description stri
 
 // generatePipelineCreate creates a brand-new pipeline bundle from a description.
 func (g *Generator) generatePipelineCreate(ctx context.Context, description string, availableWorkflows []WorkflowSummary, existingPipelines []PipelineSummary) (*PipelineBundle, error) {
-	sysPrompt := g.buildPipelineSysPrompt(g.skills.GetPrompt("pipeline-create"), availableWorkflows, existingPipelines)
+	var basePrompt string
+	if g.skills != nil {
+		basePrompt = g.skills.GetPrompt("pipeline-create")
+	}
+	sysPrompt := g.buildPipelineSysPrompt(basePrompt, availableWorkflows, existingPipelines)
 
 	ctx = upalmodel.WithEffort(ctx, "high")
 
@@ -270,9 +275,21 @@ func (g *Generator) generatePipelineCreate(ctx context.Context, description stri
 		bundle.Pipeline.Name = "generated-pipeline"
 	}
 
-	// Keep only workflow stages that reference a known available workflow.
-	// Workflow stages referencing unknown names are stripped (LLM hallucination guard).
-	bundle.Pipeline.Stages = filterWorkflowStages(bundle.Pipeline.Stages, workflowNameSet(availableWorkflows))
+	// Build the combined valid name set: existing workflows + new specs from this generation.
+	existingNames := workflowNameSet(availableWorkflows)
+	specNames := make(map[string]bool, len(bundle.WorkflowSpecs))
+	for _, spec := range bundle.WorkflowSpecs {
+		specNames[spec.Name] = true
+	}
+	validNames := make(map[string]bool, len(existingNames)+len(specNames))
+	for k := range existingNames {
+		validNames[k] = true
+	}
+	for k := range specNames {
+		validNames[k] = true
+	}
+
+	bundle.Pipeline.Stages = filterWorkflowStages(bundle.Pipeline.Stages, validNames)
 
 	originalStageCount := len(bundle.Pipeline.Stages)
 	bundle.Pipeline.Stages = stripInvalidStageTypes(bundle.Pipeline.Stages)
@@ -286,8 +303,43 @@ func (g *Generator) generatePipelineCreate(ctx context.Context, description stri
 		}
 	}
 
-	// Workflows are managed separately — never carry them over from LLM output.
-	bundle.Workflows = nil
+	// Phase 2: generate workflows for specs that don't already exist.
+	newSpecs := make([]WorkflowSpec, 0, len(bundle.WorkflowSpecs))
+	for _, spec := range bundle.WorkflowSpecs {
+		if !existingNames[spec.Name] && spec.Name != "" && spec.Description != "" {
+			newSpecs = append(newSpecs, spec)
+		}
+	}
+
+	if len(newSpecs) > 0 {
+		type result struct {
+			wf  *upal.WorkflowDefinition
+			err error
+		}
+		results := make([]result, len(newSpecs))
+		var wg sync.WaitGroup
+
+		for i, spec := range newSpecs {
+			wg.Add(1)
+			go func(i int, spec WorkflowSpec) {
+				defer wg.Done()
+				wf, err := g.Generate(ctx, spec.Description, nil, availableWorkflows)
+				results[i] = result{wf: wf, err: err}
+			}(i, spec)
+		}
+		wg.Wait()
+
+		for i, res := range results {
+			if res.err != nil {
+				// Non-fatal: skip failed workflow; pipeline stage will reference a missing workflow.
+				continue
+			}
+			// Enforce the name from Phase 1 spec — Generate() may have chosen a different name.
+			res.wf.Name = newSpecs[i].Name
+			bundle.Workflows = append(bundle.Workflows, *res.wf)
+		}
+	}
+
 	return &bundle, nil
 }
 

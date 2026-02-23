@@ -533,6 +533,83 @@ func TestApplyDelta_ReorderAndUpdate(t *testing.T) {
 	}
 }
 
+func TestGeneratePipelineCreate_Phase2GeneratesWorkflows(t *testing.T) {
+	// Phase 1: LLM returns a bundle with one workflow spec for "article-summarizer"
+	phase1Bundle := map[string]any{
+		"pipeline": map[string]any{
+			"name":        "news-pipeline",
+			"description": "뉴스 파이프라인",
+			"stages": []map[string]any{
+				{
+					"id":          "stage-1",
+					"name":        "요약",
+					"description": "기사를 요약합니다",
+					"type":        "workflow",
+					"config":      map[string]any{"workflow_name": "article-summarizer"},
+				},
+			},
+		},
+		"workflow_specs": []map[string]any{
+			{"name": "article-summarizer", "description": "Summarize a news article"},
+		},
+	}
+
+	// Phase 2: LLM returns a workflow JSON for the spec
+	phase2Workflow := upal.WorkflowDefinition{
+		Name: "llm-chosen-name", // will be overridden to "article-summarizer"
+		Nodes: []upal.NodeDefinition{
+			{ID: "input", Type: upal.NodeTypeInput, Config: map[string]any{}},
+			{ID: "agent", Type: upal.NodeTypeAgent, Config: map[string]any{"model": "openai/gpt-4o", "prompt": "Summarize {{input}}"}},
+			{ID: "output", Type: upal.NodeTypeOutput, Config: map[string]any{}},
+		},
+		Edges: []upal.EdgeDefinition{
+			{From: "input", To: "agent"},
+			{From: "agent", To: "output"},
+		},
+	}
+
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		var respContent string
+		if callCount == 1 {
+			// Phase 1: return pipeline bundle JSON
+			b, _ := json.Marshal(phase1Bundle)
+			respContent = string(b)
+		} else {
+			// Phase 2: return workflow JSON
+			b, _ := json.Marshal(phase2Workflow)
+			respContent = string(b)
+		}
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{"role": "assistant", "content": respContent}, "finish_reason": "stop"},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	llm := upalmodel.NewOpenAILLM("test-key", upalmodel.WithOpenAIBaseURL(server.URL))
+	gen := New(llm, "gpt-4o", nil, nil, nil)
+
+	bundle, err := gen.GeneratePipelineBundle(context.Background(), "news pipeline", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("GeneratePipelineBundle: %v", err)
+	}
+
+	if len(bundle.Workflows) != 1 {
+		t.Fatalf("expected 1 generated workflow, got %d", len(bundle.Workflows))
+	}
+	// Name must be enforced from the spec, not from what the LLM returned
+	if bundle.Workflows[0].Name != "article-summarizer" {
+		t.Errorf("workflow name: got %q, want %q", bundle.Workflows[0].Name, "article-summarizer")
+	}
+	if callCount < 2 {
+		t.Errorf("expected at least 2 LLM calls (phase1 + phase2), got %d", callCount)
+	}
+}
+
 func TestBuildPipelineSysPromptInjectsModelsAndTools(t *testing.T) {
 	g := &Generator{
 		models: []ModelOption{
