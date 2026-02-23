@@ -25,6 +25,7 @@ type ContentDB interface {
 	ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
 	ListPublishedContentByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error)
 	CreateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
+	GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, error)
 	ListSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
 	ListActiveSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
 	UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
@@ -223,7 +224,12 @@ func (r *PersistentSurgeEventRepository) Get(ctx context.Context, id string) (*u
 	if se, err := r.mem.Get(ctx, id); err == nil {
 		return se, nil
 	}
-	return nil, fmt.Errorf("surge event %q not found", id)
+	se, err := r.db.GetSurgeEvent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.mem.Create(ctx, se)
+	return se, nil
 }
 
 func (r *PersistentSurgeEventRepository) Update(ctx context.Context, se *upal.SurgeEvent) error {

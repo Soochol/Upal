@@ -311,6 +311,25 @@ func (d *DB) UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error {
 	return nil
 }
 
+func (d *DB) GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, error) {
+	var se upal.SurgeEvent
+	var sourcesJSON []byte
+	err := d.Pool.QueryRowContext(ctx,
+		`SELECT id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at
+		 FROM surge_events WHERE id = $1`, id,
+	).Scan(&se.ID, &se.Keyword, &se.PipelineID, &se.Multiplier, &sourcesJSON, &se.Dismissed, &se.SessionID, &se.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("surge event %q not found", id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get surge_event: %w", err)
+	}
+	if err := json.Unmarshal(sourcesJSON, &se.Sources); err != nil {
+		return nil, fmt.Errorf("unmarshal sources: %w", err)
+	}
+	return &se, nil
+}
+
 func scanSurgeEvents(rows *sql.Rows) ([]*upal.SurgeEvent, error) {
 	var result []*upal.SurgeEvent
 	for rows.Next() {
