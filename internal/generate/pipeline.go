@@ -430,11 +430,13 @@ func (g *Generator) buildPipelineSysPrompt(base string, availableWorkflows []Wor
 
 	// Inject available tools — used when writing workflow_specs descriptions.
 	if len(g.toolInfos) > 0 {
-		sysPrompt += "\n\nAvailable tools (reference by name in workflow_specs descriptions):\n"
+		var tb strings.Builder
+		tb.WriteString("\n\nAvailable tools (reference by name in workflow_specs descriptions):\n")
 		for _, t := range g.toolInfos {
-			sysPrompt += fmt.Sprintf("- %q — %s\n", t.Name, t.Description)
+			fmt.Fprintf(&tb, "- %q — %s\n", t.Name, t.Description)
 		}
-		sysPrompt += "ONLY reference tools from this list in workflow_specs descriptions.\n"
+		tb.WriteString("ONLY reference tools from this list in workflow_specs descriptions.\n")
+		sysPrompt += tb.String()
 	}
 
 	// Final reinforcement — must be last so it benefits from recency bias.
