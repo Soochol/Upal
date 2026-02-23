@@ -371,6 +371,20 @@ func (g *Generator) buildPipelineSysPrompt(base string, availableWorkflows []Wor
 		sysPrompt += formatPipelineList(existingPipelines)
 	}
 
+	// Inject available models — used when writing workflow_specs descriptions.
+	if len(g.models) > 0 {
+		sysPrompt += g.buildModelPrompt()
+	}
+
+	// Inject available tools — used when writing workflow_specs descriptions.
+	if len(g.toolInfos) > 0 {
+		sysPrompt += "\n\nAvailable tools (reference by name in workflow_specs descriptions):\n"
+		for _, t := range g.toolInfos {
+			sysPrompt += fmt.Sprintf("- %q — %s\n", t.Name, t.Description)
+		}
+		sysPrompt += "ONLY reference tools from this list in workflow_specs descriptions.\n"
+	}
+
 	// Final reinforcement — must be last so it benefits from recency bias.
 	sysPrompt += "\n\nIMPORTANT: Your entire response must be ONLY the raw JSON object. No markdown fences, no explanation, no commentary before or after the JSON."
 	return sysPrompt

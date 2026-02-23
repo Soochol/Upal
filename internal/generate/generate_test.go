@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	upalmodel "github.com/soochol/upal/internal/model"
@@ -529,5 +530,25 @@ func TestApplyDelta_ReorderAndUpdate(t *testing.T) {
 	}
 	if result.Stages[1].ID != "stage-1" {
 		t.Errorf("expected stage-1 second, got %+v", result.Stages[1])
+	}
+}
+
+func TestBuildPipelineSysPromptInjectsModelsAndTools(t *testing.T) {
+	g := &Generator{
+		models: []ModelOption{
+			{ID: "anthropic/claude-sonnet-4-6", Category: "text", Tier: "mid", Hint: "general purpose"},
+		},
+		toolInfos: []ToolEntry{
+			{Name: "web_search", Description: "Search the web"},
+		},
+		defaultModelID: "anthropic/claude-sonnet-4-6",
+	}
+	prompt := g.buildPipelineSysPrompt("BASE", nil, nil)
+
+	if !strings.Contains(prompt, "claude-sonnet-4-6") {
+		t.Error("expected model ID in pipeline system prompt")
+	}
+	if !strings.Contains(prompt, "web_search") {
+		t.Error("expected tool name in pipeline system prompt")
 	}
 }
