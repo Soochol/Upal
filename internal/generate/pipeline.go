@@ -10,10 +10,18 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PipelineBundle is what the LLM returns — a pipeline + all its workflow definitions.
+// PipelineBundle is what the LLM returns — a pipeline + workflow specs to generate.
 type PipelineBundle struct {
-	Pipeline  upal.Pipeline             `json:"pipeline"`
-	Workflows []upal.WorkflowDefinition `json:"workflows"`
+	Pipeline      upal.Pipeline             `json:"pipeline"`
+	WorkflowSpecs []WorkflowSpec            `json:"workflow_specs"`
+	Workflows     []upal.WorkflowDefinition `json:"-"` // populated by Phase 2, not from LLM JSON
+}
+
+// WorkflowSpec describes a workflow the pipeline LLM wants created.
+// Phase 2 calls Generate(Description) and enforces Name on the result.
+type WorkflowSpec struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 // StageSummary is a lightweight view of a pipeline stage for prompt injection.
