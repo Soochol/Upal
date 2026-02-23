@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Play, Loader2, Trash2, Plus, ExternalLink,
-  Clock, Database, RefreshCw, Check, X, CheckCircle2, XCircle, ChevronDown,
+  ArrowLeft, Play, Loader2, Trash2, Plus, Clock, Database, RefreshCw,
+  Check, X, Search, CheckCircle2, XCircle, ChevronDown,
 } from 'lucide-react'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
@@ -11,276 +11,48 @@ import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
 import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialBriefForm'
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { MainLayout } from '@/app/layout'
-import {
-  fetchPipeline, updatePipeline, collectPipeline,
-} from '@/entities/pipeline'
+import { fetchPipeline, updatePipeline, collectPipeline } from '@/entities/pipeline'
 import { fetchContentSessions } from '@/entities/content-session/api'
-import type { PipelineSource, PipelineContext } from '@/shared/types'
 import { useContentSessionStore } from '@/entities/content-session/store'
+import { SessionDetailModal } from './SessionDetailModal'
+import type { PipelineSource, PipelineContext } from '@/shared/types'
 import type { ContentSession } from '@/entities/content-session/types'
-import type { WorkflowResult } from '@/entities/content-session/types'
 
-// ─── Sub-panels ──────────────────────────────────────────────────────────────
+// ─── Schedule presets ─────────────────────────────────────────────────────────
 
-const STATUS_BAR_COLOR: Record<string, string> = {
-  pending_review: 'bg-warning',
-  approved: 'bg-success',
-  producing: 'bg-info',
-  published: 'bg-success/50',
-  rejected: 'bg-destructive/50',
-  collecting: 'bg-primary',
-}
+const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
+  { label: 'Every hour', cron: '0 * * * *' },
+  { label: 'Every 6 hours', cron: '0 */6 * * *' },
+  { label: 'Every 12 hours', cron: '0 */12 * * *' },
+  { label: 'Daily at 09:00', cron: '0 9 * * *' },
+  { label: 'Weekdays at 09:00', cron: '0 9 * * 1-5' },
+  { label: 'Weekly (Mon 09:00)', cron: '0 9 * * 1' },
+  { label: 'Monthly (1st 09:00)', cron: '0 9 1 * *' },
+]
 
-function WorkflowResultBadge({ result }: { result: WorkflowResult }) {
-  const icon = result.status === 'running'
-    ? <Loader2 className="h-3 w-3 animate-spin text-info" />
-    : result.status === 'success'
-    ? <CheckCircle2 className="h-3 w-3 text-success" />
-    : result.status === 'failed'
-    ? <XCircle className="h-3 w-3 text-destructive" />
-    : <Clock className="h-3 w-3 text-muted-foreground" />
+// ─── Right panel: Pipeline Settings ──────────────────────────────────────────
 
-  return (
-    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-      {icon}
-      <span>{result.workflow_name}</span>
-    </span>
-  )
-}
-
-function SessionCard({
-  session,
-  onView,
-  approvingId,
-  rejectingId,
-  onApprove,
-  onReject,
-}: {
-  session: ContentSession
-  onView: (id: string) => void
-  approvingId: string | null
-  rejectingId: string | null
-  onApprove: (id: string) => void
-  onReject: (id: string) => void
-}) {
-  const isApproving = approvingId === session.id
-  const isRejecting = rejectingId === session.id
-
-  const createdAt = new Date(session.created_at).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-
-  const sourceCount = session.sources?.reduce((sum, s) => sum + s.count, 0) ?? 0
-
-  return (
-    <div className={`relative rounded-xl border border-border bg-card pl-5 pr-4 py-4 overflow-hidden
-      ${session.status === 'rejected' ? 'opacity-60' : ''}`}
-    >
-      {/* Left status bar */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${STATUS_BAR_COLOR[session.status] ?? 'bg-muted'}`} />
-
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold">Session {session.session_number}</span>
-          <StatusBadge status={session.status} />
-          {session.analysis && <ScoreIndicator score={session.analysis.score} />}
-        </div>
-        <button
-          onClick={() => onView(session.id)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          View
-        </button>
-      </div>
-
-      {/* Meta row */}
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3 flex-wrap">
-        <span>{createdAt}</span>
-        {sourceCount > 0 && <><span>·</span><span>{sourceCount} articles</span></>}
-        <span>·</span>
-        <span>{session.trigger_type}</span>
-      </div>
-
-      {/* AI summary */}
-      {session.analysis?.summary && (
-        <>
-          <p className="text-sm text-muted-foreground line-clamp-2 italic mb-3">
-            "{session.analysis.summary}"
-          </p>
-          <div className="border-t border-border mb-3" />
-        </>
-      )}
-
-      {/* collecting state */}
-      {session.status === 'collecting' && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Collecting from sources…
-        </div>
-      )}
-
-      {/* pending_review: workflow chips + approve/reject */}
-      {session.status === 'pending_review' && (
-        <div className="space-y-3">
-          {(session.analysis?.angles ?? []).length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground">Workflows:</span>
-              {session.analysis!.angles.map((angle) => (
-                <span
-                  key={angle.id}
-                  className="px-2 py-0.5 rounded-md text-xs bg-muted border border-border text-foreground"
-                >
-                  {angle.format}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onApprove(session.id)}
-              disabled={isApproving || isRejecting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                bg-success text-primary-foreground hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-            >
-              {isApproving
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <Check className="h-3 w-3" />}
-              Approve &amp; Run All
-            </button>
-            <button
-              onClick={() => onReject(session.id)}
-              disabled={isApproving || isRejecting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                text-destructive border border-destructive/30 hover:bg-destructive/10
-                disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-            >
-              {isRejecting
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <X className="h-3 w-3" />}
-              Reject
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* producing / published: workflow results */}
-      {(session.status === 'producing' || session.status === 'published') &&
-        (session.workflow_results ?? []).length > 0 && (
-          <div className="flex items-center gap-4 flex-wrap">
-            {session.workflow_results!.map((wr) => (
-              <WorkflowResultBadge key={wr.run_id} result={wr} />
-            ))}
-          </div>
-        )}
-    </div>
-  )
-}
-
-type SessionFilter = 'all' | 'pending_review' | 'producing' | 'published' | 'rejected'
-
-function SessionFilterTabs({
-  sessions,
-  activeFilter,
-  onFilterChange,
-}: {
-  sessions: ContentSession[]
-  activeFilter: SessionFilter
-  onFilterChange: (f: SessionFilter) => void
-}) {
-  const counts: Record<SessionFilter, number> = {
-    all: sessions.length,
-    pending_review: sessions.filter((s) => s.status === 'pending_review').length,
-    producing: sessions.filter((s) => s.status === 'producing').length,
-    published: sessions.filter((s) => s.status === 'published').length,
-    rejected: sessions.filter((s) => s.status === 'rejected').length,
-  }
-
-  const tabs: { value: SessionFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'pending_review', label: 'Pending' },
-    { value: 'producing', label: 'Producing' },
-    { value: 'published', label: 'Published' },
-    { value: 'rejected', label: 'Rejected' },
-  ]
-
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {tabs.map((tab) => {
-        const count = counts[tab.value]
-        const isActive = activeFilter === tab.value
-        const showBadge = count > 0
-        const isPending = tab.value === 'pending_review'
-
-        return (
-          <button
-            key={tab.value}
-            onClick={() => onFilterChange(tab.value)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
-              ${isActive
-                ? 'bg-foreground text-background'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-          >
-            {tab.label}
-            {showBadge && (
-              <span className={`text-[10px] font-semibold rounded-full min-w-[16px] px-1 py-0 text-center
-                ${isActive
-                  ? 'bg-background/20 text-background'
-                  : isPending
-                  ? 'bg-warning text-primary-foreground'
-                  : 'bg-muted-foreground/20 text-muted-foreground'
-                }`}>
-                {count}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function PipelineSettingsAccordion({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <section className="glass-panel border border-white/5 rounded-2xl overflow-hidden shadow-sm">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold
-          hover:bg-muted/30 transition-colors cursor-pointer"
-      >
-        <span>Pipeline Settings</span>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200
-          ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && (
-        <div className="px-5 pb-5 space-y-8 border-t border-border pt-5">
-          {children}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function SourceConfigTab({
+function PipelineSettingsPanel({
   sources,
   schedule,
+  context,
   onSourcesChange,
   onScheduleChange,
   onSave,
+  onContextSave,
 }: {
   sources: PipelineSource[]
   schedule: string
-  onSourcesChange: (sources: PipelineSource[]) => void
+  context: PipelineContext | undefined
+  onSourcesChange: (s: PipelineSource[]) => void
   onScheduleChange: (cron: string) => void
   onSave: () => Promise<void>
+  onContextSave: (ctx: PipelineContext) => Promise<void>
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(true)
+  const [briefOpen, setBriefOpen] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -288,82 +60,114 @@ function SourceConfigTab({
   }
 
   return (
-    <div className="space-y-5">
-      {/* Source list */}
-      <div className="flex items-center justify-end">
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1 text-xs text-muted-foreground
-            hover:text-foreground transition-colors cursor-pointer"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add source
-        </button>
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="px-4 py-3 border-b border-border">
+        <h2 className="text-sm font-semibold">Pipeline Settings</h2>
       </div>
 
-      {sources.length === 0 ? (
-        <div className="py-6 text-center rounded-xl border border-dashed border-border">
-          <p className="text-sm text-muted-foreground mb-3">No sources configured.</p>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        {/* Sources & Schedule */}
+        <section>
           <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-              bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
+            onClick={() => setSourcesOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-2 cursor-pointer"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Add source
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Sources &amp; Schedule
+            </span>
+            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${sourcesOpen ? 'rotate-180' : ''}`} />
           </button>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          {sources.map((src, i) => (
-            <div
-              key={src.id}
-              className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0"
-            >
-              <SourceTypeBadge type={src.source_type} />
-              <span className="text-sm font-medium flex-1">{src.label}</span>
-              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                {src.url ?? src.subreddit ?? (src.keywords?.join(', ') ?? '')}
-              </span>
+
+          {sourcesOpen && (
+            <div className="space-y-4">
+              {sources.length === 0 ? (
+                <div className="py-4 text-center rounded-xl border border-dashed border-border">
+                  <p className="text-xs text-muted-foreground mb-2">No sources configured.</p>
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Add source
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {sources.map((src, i) => (
+                    <div key={src.id} className="flex items-center gap-2 px-3 py-2.5 border-b border-border last:border-b-0">
+                      <SourceTypeBadge type={src.source_type} />
+                      <span className="text-xs font-medium flex-1 truncate">{src.label}</span>
+                      <button
+                        onClick={() => onSourcesChange(sources.filter((_, j) => j !== i))}
+                        className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {sources.length > 0 && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" /> Add source
+                </button>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  <Clock className="inline h-3 w-3 mr-1" />
+                  Schedule
+                </label>
+                <select
+                  value={SCHEDULE_PRESETS.some((p) => p.cron === schedule) ? schedule : '__custom__'}
+                  onChange={(e) => onScheduleChange(e.target.value === '__custom__' ? '' : e.target.value)}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                >
+                  <option value="" disabled>Select schedule…</option>
+                  {SCHEDULE_PRESETS.map((p) => <option key={p.cron} value={p.cron}>{p.label}</option>)}
+                  <option value="__custom__">Custom cron…</option>
+                </select>
+                <input
+                  type="text"
+                  value={schedule}
+                  onChange={(e) => onScheduleChange(e.target.value)}
+                  placeholder="0 */6 * * *"
+                  readOnly={SCHEDULE_PRESETS.some((p) => p.cron === schedule)}
+                  className={`w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground mt-2 ${SCHEDULE_PRESETS.some((p) => p.cron === schedule) ? 'text-muted-foreground' : ''}`}
+                />
+              </div>
+
               <button
-                onClick={() => onSourcesChange(sources.filter((_, j) => j !== i))}
-                className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                {saving ? <><Loader2 className="h-3 w-3 animate-spin" />Saving…</> : 'Save'}
               </button>
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </section>
 
-      {/* Schedule */}
-      <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          <Clock className="inline h-3.5 w-3.5 mr-1" />
-          Collection schedule (cron)
-        </label>
-        <input
-          type="text"
-          value={schedule}
-          onChange={(e) => onScheduleChange(e.target.value)}
-          placeholder="0 */6 * * *  (every 6 hours)"
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm
-            font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground placeholder:font-sans"
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Cron expression. e.g. <code className="font-mono">0 */6 * * *</code> = every 6 hours
-        </p>
+        {/* Editorial Brief */}
+        <section>
+          <button
+            onClick={() => setBriefOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-2 cursor-pointer"
+          >
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Editorial Brief
+            </span>
+            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${briefOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {briefOpen && (
+            <EditorialBriefForm initialContext={context} onSave={onContextSave} />
+          )}
+        </section>
       </div>
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-          bg-foreground text-background hover:opacity-90 transition-opacity
-          disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-      >
-        {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</> : 'Save'}
-      </button>
 
       {showAddModal && (
         <AddSourceModal
@@ -375,10 +179,160 @@ function SourceConfigTab({
   )
 }
 
+// ─── Session table ────────────────────────────────────────────────────────────
+
+type SessionFilter = 'all' | 'pending_review' | 'producing' | 'published' | 'rejected'
+
+const STATUS_BAR_COLOR: Record<string, string> = {
+  pending_review: 'bg-warning',
+  approved: 'bg-success',
+  producing: 'bg-info',
+  published: 'bg-success/50',
+  rejected: 'bg-destructive/50',
+  collecting: 'bg-primary',
+}
+
+function SessionTable({
+  sessions,
+  search,
+  filter,
+  approvingId,
+  rejectingId,
+  onRowClick,
+  onApprove,
+  onReject,
+}: {
+  sessions: ContentSession[]
+  search: string
+  filter: SessionFilter
+  approvingId: string | null
+  rejectingId: string | null
+  onRowClick: (session: ContentSession) => void
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+}) {
+  const filtered = sessions
+    .filter((s) => filter === 'all' || s.status === filter)
+    .filter((s) => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return (
+        `session ${s.session_number}`.includes(q) ||
+        s.analysis?.summary?.toLowerCase().includes(q) ||
+        s.status.includes(q)
+      )
+    })
+
+  if (filtered.length === 0) {
+    return (
+      <div className="text-center py-12 text-sm text-muted-foreground">
+        {search ? `No sessions matching "${search}"` : 'No sessions with this status.'}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      {/* Table header */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-2 bg-muted/30 border-b border-border text-xs font-medium text-muted-foreground pl-5">
+        <span>Session</span>
+        <span>Status</span>
+        <span>Score</span>
+        <span>Created</span>
+        <span></span>
+      </div>
+
+      {filtered.map((session) => {
+        const createdAt = new Date(session.created_at).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        })
+        const isApproving = approvingId === session.id
+        const isRejecting = rejectingId === session.id
+
+        return (
+          <div
+            key={session.id}
+            className={`relative grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-3.5 border-b border-border last:border-b-0 items-center
+              hover:bg-muted/20 transition-colors cursor-pointer group pl-5
+              ${session.status === 'rejected' ? 'opacity-60' : ''}`}
+            onClick={() => onRowClick(session)}
+          >
+            {/* Left status bar */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 ${STATUS_BAR_COLOR[session.status] ?? 'bg-muted'}`} />
+
+            {/* Session name + summary */}
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-primary group-hover:underline">
+                Session {session.session_number}
+              </div>
+              {session.analysis?.summary && (
+                <div className="text-xs text-muted-foreground truncate mt-0.5 max-w-xs">
+                  {session.analysis.summary}
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <StatusBadge status={session.status} />
+            </div>
+
+            {/* Score */}
+            <div>
+              {session.analysis
+                ? <ScoreIndicator score={session.analysis.score} />
+                : <span className="text-xs text-muted-foreground">—</span>}
+            </div>
+
+            {/* Created */}
+            <div className="text-xs text-muted-foreground whitespace-nowrap">{createdAt}</div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {session.status === 'pending_review' ? (
+                <>
+                  <button
+                    onClick={() => onApprove(session.id)}
+                    disabled={isApproving || isRejecting}
+                    title="Approve & Run All"
+                    className="p-1.5 rounded-lg text-success hover:bg-success/15 transition-colors disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => onReject(session.id)}
+                    disabled={isApproving || isRejecting}
+                    title="Reject"
+                    className="p-1.5 rounded-lg text-destructive hover:bg-destructive/15 transition-colors disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isRejecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                  </button>
+                </>
+              ) : (session.status === 'producing' || session.status === 'published') ? (
+                <div className="flex items-center gap-2">
+                  {(session.workflow_results ?? []).map((wr) => (
+                    <span key={wr.run_id} className="text-xs text-muted-foreground">
+                      {wr.status === 'success'
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-success inline" />
+                        : wr.status === 'failed'
+                        ? <XCircle className="h-3.5 w-3.5 text-destructive inline" />
+                        : <Loader2 className="h-3.5 w-3.5 text-info animate-spin inline" />}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PipelineDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id, sessionId } = useParams<{ id: string; sessionId?: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -391,7 +345,6 @@ export default function PipelineDetailPage() {
   const [localSources, setLocalSources] = useState<PipelineSource[]>([])
   const [localSchedule, setLocalSchedule] = useState('')
 
-  // Sync local state when a different pipeline loads
   useEffect(() => {
     if (pipeline) {
       setLocalSources(pipeline.sources ?? [])
@@ -402,15 +355,13 @@ export default function PipelineDetailPage() {
   const collectMutation = useMutation({
     mutationFn: () => collectPipeline(id!),
     onSuccess: ({ session_id }) => {
-      navigate(`/inbox/${session_id}`)
+      navigate(`/pipelines/${id}/sessions/${session_id}`)
     },
   })
 
   const updateContextMutation = useMutation({
     mutationFn: (ctx: PipelineContext) => updatePipeline(id!, { ...pipeline!, context: ctx }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline', id] }),
   })
 
   const handleSaveSourcesAndSchedule = async () => {
@@ -422,6 +373,7 @@ export default function PipelineDetailPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<SessionFilter>('all')
+  const [search, setSearch] = useState('')
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
     queryKey: ['content-sessions', { pipelineId: id }],
@@ -449,9 +401,27 @@ export default function PipelineDetailPage() {
     }
   }
 
-  const filteredSessions = activeFilter === 'all'
-    ? sessions
-    : sessions.filter((s) => s.status === activeFilter)
+  const lastCollectedLabel = pipeline?.last_collected_at
+    ? new Date(pipeline.last_collected_at).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+    : 'Never'
+
+  const filterTabs: { value: SessionFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'pending_review', label: 'Pending' },
+    { value: 'producing', label: 'Producing' },
+    { value: 'published', label: 'Published' },
+    { value: 'rejected', label: 'Rejected' },
+  ]
+
+  const filterCounts: Record<SessionFilter, number> = {
+    all: sessions.length,
+    pending_review: sessions.filter(s => s.status === 'pending_review').length,
+    producing: sessions.filter(s => s.status === 'producing').length,
+    published: sessions.filter(s => s.status === 'published').length,
+    rejected: sessions.filter(s => s.status === 'rejected').length,
+  }
 
   if (isLoading || !pipeline) {
     return (
@@ -463,33 +433,80 @@ export default function PipelineDetailPage() {
     )
   }
 
-  const lastCollectedLabel = pipeline.last_collected_at
-    ? new Date(pipeline.last_collected_at).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    })
-    : 'Never'
-
   return (
     <MainLayout
       headerContent={
-        <div className="flex items-center gap-3 w-full justify-between">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <button
-              onClick={() => navigate('/pipelines')}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <span className="text-xs text-muted-foreground shrink-0">Pipelines /</span>
-            <span className="font-semibold truncate">{pipeline.name}</span>
+        <div className="flex items-center gap-2 overflow-hidden">
+          <button
+            onClick={() => navigate('/pipelines')}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs text-muted-foreground shrink-0">Pipelines /</span>
+          <span className="font-semibold truncate">{pipeline.name}</span>
+        </div>
+      }
+      rightPanel={
+        <PipelineSettingsPanel
+          sources={localSources}
+          schedule={localSchedule}
+          context={pipeline.context}
+          onSourcesChange={setLocalSources}
+          onScheduleChange={setLocalSchedule}
+          onSave={handleSaveSourcesAndSchedule}
+          onContextSave={async (ctx) => { await updateContextMutation.mutateAsync(ctx) }}
+        />
+      }
+    >
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+
+          {/* Pipeline meta */}
+          <div>
+            {pipeline.description && (
+              <p className="text-sm text-muted-foreground mb-2">{pipeline.description}</p>
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/50 text-xs text-muted-foreground">
+                <Database className="h-3 w-3" />
+                {(pipeline.sources ?? []).length} sources
+              </span>
+              {pipeline.schedule && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/50 text-xs text-muted-foreground font-mono">
+                  <Clock className="h-3 w-3 shrink-0 font-sans" />
+                  {pipeline.schedule}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/50 text-xs text-muted-foreground">
+                <RefreshCw className="h-3 w-3" />
+                {lastCollectedLabel}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+
+          {/* Sessions section header */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <h2 className="text-sm font-semibold shrink-0">
+                Sessions {sessions.length > 0 && `(${sessions.length})`}
+              </h2>
+              {/* Search */}
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search sessions..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-input bg-background text-xs outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
             <button
               onClick={() => collectMutation.mutate()}
               disabled={collectMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium
-                bg-primary text-primary-foreground hover:opacity-90 transition-opacity
-                disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed shrink-0"
             >
               {collectMutation.isPending
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Collecting…</>
@@ -497,118 +514,74 @@ export default function PipelineDetailPage() {
               }
             </button>
           </div>
-        </div>
-      }
-    >
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-          {/* Meta info */}
-          <div>
-            {pipeline.description && (
-              <p className="text-sm text-muted-foreground mb-3 ml-1">{pipeline.description}</p>
-            )}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
-                bg-muted/40 border border-border/50 text-xs text-muted-foreground">
-                <Database className="h-3 w-3" />
-                {(pipeline.sources ?? []).length} sources
-              </span>
-              {pipeline.schedule && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
-                  bg-muted/40 border border-border/50 text-xs text-muted-foreground font-mono">
-                  <Clock className="h-3 w-3 shrink-0 font-sans" />
-                  {pipeline.schedule}
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
-                bg-muted/40 border border-border/50 text-xs text-muted-foreground">
-                <RefreshCw className="h-3 w-3" />
-                {lastCollectedLabel}
-              </span>
-            </div>
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {filterTabs.map((tab) => {
+              const count = filterCounts[tab.value]
+              const isActive = activeFilter === tab.value
+              const isPending = tab.value === 'pending_review'
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setActiveFilter(tab.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
+                    ${isActive ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                >
+                  {tab.label}
+                  {count > 0 && (
+                    <span className={`text-[10px] font-semibold rounded-full min-w-[16px] px-1 py-0 text-center
+                      ${isActive ? 'bg-background/20 text-background' : isPending ? 'bg-warning text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'}`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
-          {/* Sessions — primary content */}
-          <section className="glass-panel border border-white/5 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <h2 className="text-sm font-semibold text-foreground/90">
-                Sessions {sessions.length > 0 && `(${sessions.length})`}
-              </h2>
-              <SessionFilterTabs
-                sessions={sessions}
-                activeFilter={activeFilter}
-                onFilterChange={setActiveFilter}
-              />
+          {/* Table */}
+          {sessionsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-
-            {sessionsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="text-center py-10">
-                <p className="text-sm text-muted-foreground mb-4">No sessions yet.</p>
-                <button
-                  onClick={() => collectMutation.mutate()}
-                  disabled={collectMutation.isPending}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-                    bg-primary text-primary-foreground hover:opacity-90 transition-opacity
-                    disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {collectMutation.isPending
-                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Collecting…</>
-                    : <><Play className="h-3.5 w-3.5" />Collect Now</>}
-                </button>
-              </div>
-            ) : filteredSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                No sessions with this status.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {filteredSessions.map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    onView={(sid) => navigate(`/inbox/${sid}`)}
-                    approvingId={approvingId}
-                    rejectingId={rejectingId}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Pipeline Settings — accordion */}
-          <PipelineSettingsAccordion>
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                Data Sources &amp; Schedule
-              </h3>
-              <SourceConfigTab
-                sources={localSources}
-                schedule={localSchedule}
-                onSourcesChange={setLocalSources}
-                onScheduleChange={setLocalSchedule}
-                onSave={handleSaveSourcesAndSchedule}
-              />
+          ) : sessions.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground mb-4">No sessions yet.</p>
+              <button
+                onClick={() => collectMutation.mutate()}
+                disabled={collectMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+              >
+                {collectMutation.isPending
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Collecting…</>
+                  : <><Play className="h-3.5 w-3.5" />Collect Now</>}
+              </button>
             </div>
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                Editorial Brief &amp; Context
-              </h3>
-              <EditorialBriefForm
-                initialContext={pipeline.context}
-                onSave={async (ctx) => { await updateContextMutation.mutateAsync(ctx) }}
-              />
-            </div>
-          </PipelineSettingsAccordion>
+          ) : (
+            <SessionTable
+              sessions={sessions}
+              search={search}
+              filter={activeFilter}
+              approvingId={approvingId}
+              rejectingId={rejectingId}
+              onRowClick={(s) => navigate(`/pipelines/${id}/sessions/${s.id}`)}
+              onApprove={handleApprove}
+              onReject={handleReject}
+            />
+          )}
 
         </div>
       </div>
+
+      {/* Session Detail Modal */}
+      {sessionId && (
+        <SessionDetailModal
+          sessionId={sessionId}
+          pipelineId={id!}
+          onClose={() => navigate(`/pipelines/${id}`)}
+        />
+      )}
     </MainLayout>
   )
 }
