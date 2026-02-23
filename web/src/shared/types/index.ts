@@ -141,9 +141,9 @@ export type SchedulerStats = {
 export type ToolCall = { name: string; args?: Record<string, unknown> }
 export type ToolResult = { name: string; response?: Record<string, unknown> }
 
-export type NodeStartedEvent   = { type: 'node_started';   nodeId: string; startedAt?: number }
-export type ToolCallEvent      = { type: 'tool_call';      nodeId: string; calls: ToolCall[] }
-export type ToolResultEvent    = { type: 'tool_result';    nodeId: string; results: ToolResult[] }
+export type NodeStartedEvent = { type: 'node_started'; nodeId: string; startedAt?: number }
+export type ToolCallEvent = { type: 'tool_call'; nodeId: string; calls: ToolCall[] }
+export type ToolResultEvent = { type: 'tool_result'; nodeId: string; results: ToolResult[] }
 export type TokenUsage = {
   input: number
   output: number
@@ -159,13 +159,13 @@ export type NodeCompletedEvent = {
   finishReason?: string
   completedAt?: number
 }
-export type NodeSkippedEvent  = { type: 'node_skipped';  nodeId: string }
-export type NodeWaitingEvent  = { type: 'node_waiting';  nodeId: string }
-export type NodeResumedEvent  = { type: 'node_resumed';  nodeId: string }
-export type WorkflowDoneEvent  = { type: 'done';           status: string; sessionId: string; state: Record<string, unknown>; error?: string }
-export type WorkflowErrorEvent = { type: 'error';          message: string }
-export type InfoEvent          = { type: 'info';           message: string }
-export type LogEvent           = { type: 'log';            nodeId: string; message: string }
+export type NodeSkippedEvent = { type: 'node_skipped'; nodeId: string }
+export type NodeWaitingEvent = { type: 'node_waiting'; nodeId: string }
+export type NodeResumedEvent = { type: 'node_resumed'; nodeId: string }
+export type WorkflowDoneEvent = { type: 'done'; status: string; sessionId: string; state: Record<string, unknown>; error?: string }
+export type WorkflowErrorEvent = { type: 'error'; message: string }
+export type InfoEvent = { type: 'info'; message: string }
+export type LogEvent = { type: 'log'; nodeId: string; message: string }
 
 export type RunEvent =
   | NodeStartedEvent | ToolCallEvent | ToolResultEvent
@@ -217,6 +217,12 @@ export type PipelineContext = {
   language: string
 }
 
+export type PipelineWorkflow = {
+  workflow_name: string
+  label?: string
+  auto_select?: boolean
+}
+
 export type Pipeline = {
   id: string
   name: string
@@ -225,6 +231,7 @@ export type Pipeline = {
   thumbnail_svg?: string
   // Content pipeline extensions
   sources?: PipelineSource[]
+  workflows?: PipelineWorkflow[]
   context?: PipelineContext
   schedule?: string          // cron expression
   last_collected_at?: string
@@ -287,6 +294,30 @@ export type StageResult = {
   started_at: string
   completed_at?: string
 }
+
+// --- Multi-Workflow Session (Phase 6 Architecture) ---
+
+export type SessionStage = 'collect' | 'analyze' | 'workflow' | 'publish'
+export type SessionStatus = 'pending' | 'running' | 'pending_approval' | 'completed' | 'failed' | 'cancelled'
+
+export type PipelineSession = {
+  id: string
+  pipeline_id: string
+  status: SessionStatus
+  current_stage: SessionStage
+
+  // Data Context throughout the session stages
+  source_data?: Record<string, unknown>[]         // Stage 1: Collect
+  analyzed_data?: Record<string, unknown>         // Stage 2: Analyze
+  injected_context?: Record<string, unknown>      // User-overriden context/secrets
+  workflow_runs?: Record<string, string>          // Stage 3: map of ContentType -> RunRecord ID
+  publish_results?: Record<string, unknown>       // Stage 4: Execution/Post URLs
+
+  error?: string
+  created_at: string
+  updated_at: string
+}
+
 
 export type ConnectionType = 'telegram' | 'slack' | 'http' | 'smtp'
 

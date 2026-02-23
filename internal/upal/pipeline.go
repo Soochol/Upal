@@ -9,8 +9,9 @@ type Pipeline struct {
 	Description  string           `json:"description,omitempty"`
 	Stages       []Stage          `json:"stages"`
 	Context      *PipelineContext `json:"context,omitempty"`
-	Sources      []PipelineSource `json:"sources,omitempty"`
-	ThumbnailSVG string           `json:"thumbnail_svg,omitempty"`
+	Sources      []PipelineSource   `json:"sources,omitempty"`
+	Workflows    []PipelineWorkflow `json:"workflows,omitempty"`
+	ThumbnailSVG string             `json:"thumbnail_svg,omitempty"`
 	// Content pipeline fields
 	Schedule             string     `json:"schedule,omitempty"`               // cron expression for content collection
 	LastCollectedAt      *time.Time `json:"last_collected_at,omitempty"`      // set after each successful collect
@@ -101,6 +102,13 @@ type PipelineSource struct {
 	MinScore  int      `json:"min_score,omitempty"` // reddit, hn
 	Keywords  []string `json:"keywords,omitempty"`  // google_trends, twitter
 	Limit     int      `json:"limit,omitempty"`
+}
+
+// PipelineWorkflow links an existing workflow to a pipeline for content production.
+type PipelineWorkflow struct {
+	WorkflowName string `json:"workflow_name"`
+	Label        string `json:"label,omitempty"`
+	AutoSelect   bool   `json:"auto_select,omitempty"`
 }
 
 // PipelineRun tracks a single execution of a Pipeline.
