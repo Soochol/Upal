@@ -13,3 +13,4 @@ scripts/test_output.png
 models/
 /output/
 uploads/
+.worktrees/
