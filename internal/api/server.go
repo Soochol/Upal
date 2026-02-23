@@ -116,6 +116,7 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/{id}/produce", s.produceContentSession)
 				r.Get("/{id}/sources", s.listSessionSources)
 				r.Get("/{id}/analysis", s.getSessionAnalysis)
+				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
 			})
 			r.Route("/published", func(r chi.Router) {
 				r.Get("/", s.listPublished)

@@ -136,6 +136,30 @@ func (s *Server) listSessionSources(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(fetches)
 }
 
+// PATCH /api/content-sessions/{id}/analysis
+func (s *Server) patchSessionAnalysis(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Summary  string   `json:"summary"`
+		Insights []string `json:"insights"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	analysis, _ := s.contentSvc.GetAnalysis(r.Context(), id)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(analysis)
+}
+
 // GET /api/content-sessions/{id}/analysis
 func (s *Server) getSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

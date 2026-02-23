@@ -132,6 +132,20 @@ func (s *ContentSessionService) GetAnalysis(ctx context.Context, sessionID strin
 	return s.analyses.GetBySession(ctx, sessionID)
 }
 
+// UpdateAnalysis updates the summary and insights of an existing analysis.
+func (s *ContentSessionService) UpdateAnalysis(ctx context.Context, sessionID string, summary string, insights []string) error {
+	analysis, err := s.analyses.GetBySession(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if analysis == nil {
+		return fmt.Errorf("no analysis found for session %s", sessionID)
+	}
+	analysis.Summary = summary
+	analysis.Insights = insights
+	return s.analyses.Update(ctx, analysis)
+}
+
 // --- PublishedContent ---
 
 func (s *ContentSessionService) RecordPublished(ctx context.Context, pc *upal.PublishedContent) error {

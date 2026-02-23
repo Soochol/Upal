@@ -22,6 +22,7 @@ type ContentDB interface {
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
 	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
 	GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
+	UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
 	CreatePublishedContent(ctx context.Context, pc *upal.PublishedContent) error
 	ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent, error)
 	ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
@@ -157,6 +158,14 @@ func (r *PersistentLLMAnalysisRepository) GetBySession(ctx context.Context, sess
 		return a, nil
 	}
 	return r.db.GetLLMAnalysisBySession(ctx, sessionID)
+}
+
+func (r *PersistentLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAnalysis) error {
+	_ = r.mem.Update(ctx, a)
+	if err := r.db.UpdateLLMAnalysis(ctx, a); err != nil {
+		return fmt.Errorf("db update llm_analysis: %w", err)
+	}
+	return nil
 }
 
 // PersistentPublishedContentRepository wraps MemoryPublishedContentRepository with DB backend.

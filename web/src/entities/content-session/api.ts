@@ -1,5 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { ContentSession } from './types'
+import type { ContentSession, LLMAnalysis } from './types'
 
 const BASE = '/api/content-sessions'
 
@@ -34,6 +34,17 @@ export async function rejectSession(id: string, _reason?: string): Promise<Conte
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'reject' }),
+  })
+}
+
+export async function updateSessionAnalysis(
+  id: string,
+  data: { summary: string; insights: string[] },
+): Promise<LLMAnalysis> {
+  return apiFetch<LLMAnalysis>(`${BASE}/${encodeURIComponent(id)}/analysis`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   })
 }
 

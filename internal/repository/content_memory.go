@@ -123,6 +123,13 @@ func (r *MemoryLLMAnalysisRepository) GetBySession(ctx context.Context, sessionI
 	return latest, nil
 }
 
+func (r *MemoryLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAnalysis) error {
+	if !r.store.Has(ctx, a.ID) {
+		return fmt.Errorf("llm analysis %q not found", a.ID)
+	}
+	return r.store.Set(ctx, a)
+}
+
 // --- PublishedContent ---
 
 type MemoryPublishedContentRepository struct {

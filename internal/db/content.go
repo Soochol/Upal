@@ -212,6 +212,29 @@ func (d *DB) CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 	return nil
 }
 
+func (d *DB) UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
+	insightsJSON, err := json.Marshal(a.Insights)
+	if err != nil {
+		return fmt.Errorf("marshal insights: %w", err)
+	}
+	anglesJSON, err := json.Marshal(a.SuggestedAngles)
+	if err != nil {
+		return fmt.Errorf("marshal suggested_angles: %w", err)
+	}
+	res, err := d.Pool.ExecContext(ctx,
+		`UPDATE llm_analyses SET summary = $1, insights = $2, suggested_angles = $3, overall_score = $4 WHERE id = $5`,
+		a.Summary, insightsJSON, anglesJSON, a.OverallScore, a.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update llm_analysis: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("llm analysis %q not found", a.ID)
+	}
+	return nil
+}
+
 func (d *DB) GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error) {
 	var a upal.LLMAnalysis
 	var insightsJSON, anglesJSON []byte

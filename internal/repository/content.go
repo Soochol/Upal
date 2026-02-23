@@ -27,6 +27,7 @@ type SourceFetchRepository interface {
 type LLMAnalysisRepository interface {
 	Create(ctx context.Context, a *upal.LLMAnalysis) error
 	GetBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
+	Update(ctx context.Context, a *upal.LLMAnalysis) error
 }
 
 // PublishedContentRepository manages PublishedContent persistence.
