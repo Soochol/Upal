@@ -173,7 +173,49 @@ export type RunEvent =
   | WorkflowDoneEvent | WorkflowErrorEvent
   | InfoEvent | LogEvent
 
+// --- Content Session ---
+
+export type ContentSessionStatus =
+  | 'collecting'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'producing'
+  | 'published'
+
+export type SourceType = 'static' | 'signal'
+
 // --- Pipeline ---
+
+export type PipelineSourceType =
+  | 'rss'
+  | 'hn'
+  | 'reddit'
+  | 'google_trends'
+  | 'twitter'
+  | 'http'
+
+export type PipelineSource = {
+  id: string
+  type: PipelineSourceType
+  source_type: 'static' | 'signal'
+  label: string
+  // type-specific config
+  url?: string             // rss, http
+  subreddit?: string       // reddit
+  min_score?: number       // reddit, hn
+  keywords?: string[]      // google_trends, twitter
+  limit?: number
+}
+
+export type PipelineContext = {
+  topic: string
+  target_audience: string
+  tone: string
+  focus_keywords: string[]
+  exclude_keywords: string[]
+  language: string
+}
 
 export type Pipeline = {
   id: string
@@ -181,6 +223,12 @@ export type Pipeline = {
   description?: string
   stages: Stage[]
   thumbnail_svg?: string
+  // Content pipeline extensions
+  sources?: PipelineSource[]
+  context?: PipelineContext
+  schedule?: string          // cron expression
+  last_collected_at?: string
+  pending_session_count?: number
   created_at: string
   updated_at: string
 }
