@@ -160,11 +160,12 @@ type PipelineStageDelta struct {
 // PipelineEditDelta is the LLM response format in edit mode.
 // It describes only what should change; unchanged stages are preserved by applyDelta.
 type PipelineEditDelta struct {
-	Name         string                    `json:"name,omitempty"`
-	Description  string                    `json:"description,omitempty"`
-	StageChanges []PipelineStageDelta      `json:"stage_changes"`
-	StageOrder   []string                  `json:"stage_order,omitempty"` // full ordered list of stage IDs after all changes
-	Workflows    []upal.WorkflowDefinition `json:"workflows"`
+	Name          string                    `json:"name,omitempty"`
+	Description   string                    `json:"description,omitempty"`
+	StageChanges  []PipelineStageDelta      `json:"stage_changes"`
+	StageOrder    []string                  `json:"stage_order,omitempty"` // full ordered list of stage IDs after all changes
+	WorkflowSpecs []WorkflowSpec            `json:"workflow_specs,omitempty"` // new workflows needed by added stages
+	Workflows     []upal.WorkflowDefinition `json:"workflows"`                // ignored — managed via WorkflowSpecs
 }
 
 // applyDelta merges a PipelineEditDelta into an existing Pipeline.
@@ -368,6 +369,10 @@ func (g *Generator) generatePipelineEdit(ctx context.Context, description string
 
 	// Validate stage changes: strip invalid types and workflow stages with unknown names.
 	validWF := workflowNameSet(availableWorkflows)
+	// Also allow workflow names defined in the delta's workflow_specs.
+	for _, spec := range delta.WorkflowSpecs {
+		validWF[spec.Name] = true
+	}
 	for i := range delta.StageChanges {
 		s := delta.StageChanges[i].Stage
 		if s == nil {
@@ -403,6 +408,43 @@ func (g *Generator) generatePipelineEdit(ctx context.Context, description string
 					break
 				}
 			}
+		}
+	}
+
+	// Phase 2: generate workflows for specs that don't already exist.
+	if len(delta.WorkflowSpecs) > 0 {
+		existingNames := workflowNameSet(availableWorkflows)
+		type result struct {
+			wf  *upal.WorkflowDefinition
+			err error
+		}
+		newSpecs := make([]WorkflowSpec, 0, len(delta.WorkflowSpecs))
+		for _, spec := range delta.WorkflowSpecs {
+			if !existingNames[spec.Name] && spec.Name != "" && spec.Description != "" {
+				newSpecs = append(newSpecs, spec)
+			}
+		}
+		if len(newSpecs) > 0 {
+			results := make([]result, len(newSpecs))
+			var wg sync.WaitGroup
+			for i, spec := range newSpecs {
+				wg.Add(1)
+				go func(i int, spec WorkflowSpec) {
+					defer wg.Done()
+					wf, err := g.Generate(ctx, spec.Description, nil, availableWorkflows)
+					results[i] = result{wf: wf, err: err}
+				}(i, spec)
+			}
+			wg.Wait()
+			var generatedWorkflows []upal.WorkflowDefinition
+			for i, res := range results {
+				if res.err != nil {
+					continue
+				}
+				res.wf.Name = newSpecs[i].Name
+				generatedWorkflows = append(generatedWorkflows, *res.wf)
+			}
+			return &PipelineBundle{Pipeline: *merged, Workflows: generatedWorkflows}, nil
 		}
 	}
 
