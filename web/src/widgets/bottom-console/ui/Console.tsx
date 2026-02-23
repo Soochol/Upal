@@ -255,7 +255,7 @@ export function Console() {
   }, [filtered, groupByNode])
 
   return (
-    <footer className="border-t border-border bg-background">
+    <footer className="border-t border-white/10 bg-background/80 backdrop-blur-xl relative z-40 shadow-[0_-8px_32px_rgba(0,0,0,0.25)]">
       {isExpanded && (
         <div
           onMouseDown={handleMouseDown}
@@ -349,7 +349,7 @@ export function Console() {
         <div
           ref={scrollRef}
           style={{ height }}
-          className="overflow-y-auto px-2 pb-3 font-mono text-xs border-t border-border"
+          className="overflow-y-auto px-2 pb-3 font-mono text-xs border-t border-white/5 bg-black/10 dark:bg-black/40"
         >
           {filtered.length === 0 ? (
             <p className="text-muted-foreground px-2 pt-2">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type DragEvent } from 'react'
+import type { NodeType } from '@/entities/node'
 import {
   ReactFlow,
   Background,
@@ -17,6 +18,7 @@ import { UpalNode } from './UpalNode'
 import { GroupNode } from './GroupNode'
 import { EmptyState } from './EmptyState'
 import { CanvasPromptBar } from './CanvasPromptBar'
+import { NodePalette } from '@/widgets/node-palette'
 
 const nodeTypes = {
   upalNode: UpalNode,
@@ -29,6 +31,8 @@ type CanvasProps = {
   onPromptSubmit: (description: string) => void
   isGenerating: boolean
   exposeGetViewportCenter?: (fn: () => { x: number; y: number }) => void
+  onAddNode: (type: NodeType) => void
+  readOnly?: boolean
 }
 
 /** Inner component that uses React Flow hooks (must be inside ReactFlow). */
@@ -64,7 +68,7 @@ function SelectionGrouper() {
   return null
 }
 
-export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter }: CanvasProps) {
+export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
   const { screenToFlowPosition } = useReactFlow()
@@ -186,30 +190,34 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
   )
 
   return (
-    <div className="h-full w-full relative bg-background" onDrop={onDrop} onDragOver={onDragOver}>
-      {isEmpty && (
+    <div className="h-full w-full relative bg-background" onDrop={readOnly ? undefined : onDrop} onDragOver={readOnly ? undefined : onDragOver}>
+      {!readOnly && <NodePalette onAddNode={onAddNode} />}
+      {isEmpty && !readOnly && (
         <EmptyState onAddNode={onAddFirstNode} />
       )}
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onConnectEnd={onConnectEnd}
+        onEdgesChange={readOnly ? undefined : onEdgesChange}
+        onConnect={readOnly ? undefined : onConnect}
+        onConnectEnd={readOnly ? undefined : onConnectEnd}
         isValidConnection={isValidConnection}
         connectionRadius={80}
         nodeTypes={nodeTypes}
         fitView
         className="bg-background"
-        multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
-        selectionOnDrag
+        multiSelectionKeyCode={readOnly ? null : ['Shift', 'Control', 'Meta']}
+        selectionOnDrag={!readOnly}
         selectionMode={SelectionMode.Partial}
         panOnDrag={[1, 2]}
-        deleteKeyCode={['Delete', 'Backspace']}
+        deleteKeyCode={readOnly ? null : ['Delete', 'Backspace']}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
+        elementsSelectable
         proOptions={{ hideAttribution: true }}
       >
-        <SelectionGrouper />
+        {!readOnly && <SelectionGrouper />}
         <Background color="var(--border)" gap={20} size={1} />
         <Controls className="!bg-card !border-border !shadow-sm" />
         {!isEmpty && (
@@ -220,11 +228,13 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
           />
         )}
       </ReactFlow>
-      <CanvasPromptBar
-        onSubmit={onPromptSubmit}
-        isGenerating={isGenerating}
-        hasNodes={!isEmpty}
-      />
+      {!readOnly && (
+        <CanvasPromptBar
+          onSubmit={onPromptSubmit}
+          isGenerating={isGenerating}
+          hasNodes={!isEmpty}
+        />
+      )}
     </div>
   )
 }

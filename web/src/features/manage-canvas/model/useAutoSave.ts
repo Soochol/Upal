@@ -11,6 +11,7 @@ export type SaveStatus = 'idle' | 'waiting' | 'saving' | 'saved' | 'error'
  * Reads directly from Zustand stores — safe to call outside React components.
  */
 async function flushSave(): Promise<void> {
+  if (useWorkflowStore.getState().isTemplate) return
   const { nodes, edges, workflowName, originalName, setWorkflowName, setOriginalName } =
     useWorkflowStore.getState()
 

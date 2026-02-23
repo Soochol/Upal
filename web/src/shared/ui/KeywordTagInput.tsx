@@ -47,7 +47,7 @@ export function KeywordTagInput({
       )}
       onClick={() => inputRef.current?.focus()}
     >
-      {keywords.map((kw) => (
+      {(keywords ?? []).map((kw) => (
         <span
           key={kw}
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full

@@ -83,7 +83,7 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
   // ── Collapsed: vertical icon strip (like VS Code activity bar) ──
   if (!expanded) {
     return (
-      <aside className="border-l border-border bg-background flex flex-col items-center pt-1.5 w-10 shrink-0">
+      <aside className="border-l border-white/10 bg-background/60 backdrop-blur-2xl flex flex-col items-center pt-2 w-12 shrink-0 shadow-[-4px_0_24px_rgba(0,0,0,0.2)] z-30">
         <TooltipProvider>
           {tabs.map((tab) => {
             const Icon = tab.icon
@@ -111,7 +111,10 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
   // ── Expanded: full panel ──
   return (
-    <aside className="border-l border-border bg-background flex flex-col relative" style={{ width, maxWidth: '45%' }}>
+    <aside
+      className="border-l border-white/10 bg-background/60 backdrop-blur-2xl flex flex-col relative shadow-[-8px_0_32px_rgba(0,0,0,0.25)] z-30"
+      style={{ width, maxWidth: '45%' }}
+    >
       {/* Resize handle */}
       <div
         onMouseDown={handleMouseDown}
@@ -119,26 +122,21 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
       />
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
         <div className="flex items-center justify-between border-b border-border px-1">
-          <TooltipProvider>
-            <TabsList className="h-10 bg-transparent p-0 gap-0">
-              {tabs.map((tab) => {
-                const Icon = tab.icon
-                return (
-                  <Tooltip key={tab.value}>
-                    <TooltipTrigger asChild>
-                      <TabsTrigger
-                        value={tab.value}
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-2 py-2"
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                      </TabsTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">{tab.label}</TooltipContent>
-                  </Tooltip>
-                )
-              })}
-            </TabsList>
-          </TooltipProvider>
+          <TabsList className="h-10 bg-transparent p-0 gap-0">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 flex items-center gap-1.5 text-xs font-medium"
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  {tab.label}
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
           {/* Close button is inside NodeEditor header for properties tab */}
         </div>
 
@@ -171,7 +169,7 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
         {/* AI Assistant — pinned to bottom of panel */}
         {showAIChat && (
-          <div className="mt-auto shrink-0 border-t border-border bg-background">
+          <div className="mt-auto shrink-0 border-t border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-md">
             <AIChatEditor nodeId={selectedNode.id} data={selectedNode.data as NodeData} />
           </div>
         )}

@@ -1,22 +1,22 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { Header } from '@/shared/ui/Header'
+import { ArrowLeft, ArrowRight, Check, Trash2, Plus } from 'lucide-react'
+import { MainLayout } from '@/app/layout'
+import { Separator } from '@/shared/ui/separator'
 import { Textarea } from '@/shared/ui/textarea'
 import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialBriefForm'
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
 import { createPipeline } from '@/entities/pipeline'
 import type { PipelineSource, PipelineContext } from '@/shared/types'
-import { Trash2, Plus } from 'lucide-react'
 
 type Step = 1 | 2 | 3
 
 const STEP_LABELS: Record<Step, string> = {
-  1: '기본 정보',
+  1: 'Basic Info',
   2: 'Editorial Brief',
-  3: '소스 설정',
+  3: 'Sources',
 }
 
 // ─── Step indicators ──────────────────────────────────────────────────────────
@@ -29,13 +29,12 @@ function StepIndicator({ current }: { current: Step }) {
         <div key={step} className="flex items-center gap-2">
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold
-              transition-colors ${
-              step < current
+              transition-colors ${step < current
                 ? 'bg-success text-success-foreground'
                 : step === current
                   ? 'bg-foreground text-background'
                   : 'bg-muted text-muted-foreground'
-            }`}
+              }`}
           >
             {step < current ? <Check className="h-3.5 w-3.5" /> : step}
           </div>
@@ -64,12 +63,13 @@ export default function PipelineNewPage() {
   // Step 2 state (editorial brief — deferred to inline form)
   const [context, setContext] = useState<PipelineContext>({
     purpose: '', target_audience: '', tone_style: '',
-    focus_keywords: [], exclude_keywords: [], language: '한국어',
+    focus_keywords: [], exclude_keywords: [], language: 'Korean',
   })
 
   // Step 3 state
   const [sources, setSources] = useState<PipelineSource[]>([])
   const [schedule, setSchedule] = useState('0 */6 * * *')
+  const [customCron, setCustomCron] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
 
   const createMutation = useMutation({
@@ -89,47 +89,49 @@ export default function PipelineNewPage() {
   const canAdvanceStep1 = name.trim().length > 0
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <Header />
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-
-          {/* Breadcrumb / back */}
+    <MainLayout
+      headerContent={
+        <div className="flex items-center gap-3">
           <button
             onClick={() => (step === 1 ? navigate('/pipelines') : setStep((s) => (s - 1) as Step))}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground
-              transition-colors mb-6 cursor-pointer"
+            className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {step === 1 ? 'Pipelines' : STEP_LABELS[(step - 1) as Step]}
+            <ArrowLeft className="h-4 w-4" />
           </button>
-
-          <h1 className="text-2xl font-bold tracking-tight mb-6">새 파이프라인</h1>
+          <span className="font-semibold">New Pipeline</span>
+          <Separator orientation="vertical" className="h-4" />
+          <span className="text-sm text-muted-foreground">{STEP_LABELS[step]}</span>
+        </div>
+      }
+    >
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+          <h1 className="text-2xl font-bold tracking-tight mb-6">New Pipeline</h1>
 
           <StepIndicator current={step} />
 
-          {/* ── Step 1: 기본 정보 ── */}
+          {/* ── Step 1: Basic Info ── */}
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">파이프라인 이름 *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Pipeline name *</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="예: IT AI Pipeline"
+                  placeholder="e.g. AI News Daily"
                   autoFocus
                   className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none
                     focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">설명 (선택)</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description (optional)</label>
                 <Textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="이 파이프라인의 목적을 간단히 설명해 주세요..."
+                  placeholder="Briefly describe the purpose of this pipeline…"
                   className="resize-none text-sm"
                 />
               </div>
@@ -141,7 +143,7 @@ export default function PipelineNewPage() {
                     bg-foreground text-background hover:opacity-90 transition-opacity
                     disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  다음
+                  Next
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -152,10 +154,14 @@ export default function PipelineNewPage() {
           {step === 2 && (
             <div>
               <p className="text-sm text-muted-foreground mb-5">
-                LLM이 뉴스를 선별하고 콘텐츠를 작성할 때 참고하는 가이드라인입니다.
+                Guidelines the LLM uses when filtering news and writing content.
               </p>
               <EditorialBriefForm
                 initialContext={context}
+                submitLabel="Next"
+                onBack={() => setStep(1)}
+                onSkip={() => setStep(3)}
+                skipLabel="Skip"
                 onSave={async (ctx) => {
                   setContext(ctx)
                   setStep(3)
@@ -164,25 +170,23 @@ export default function PipelineNewPage() {
             </div>
           )}
 
-          {/* ── Step 3: 소스 설정 ── */}
+          {/* ── Step 3: Sources ── */}
           {step === 3 && (
             <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">수집 소스</h3>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground
-                    hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  소스 추가
-                </button>
-              </div>
+              <h3 className="text-sm font-medium">Collection sources</h3>
 
               {sources.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center rounded-xl border border-dashed border-border">
-                  소스를 추가하거나, 나중에 파이프라인 설정에서 추가할 수 있습니다.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="w-full flex flex-col items-center gap-2 py-8 rounded-xl border border-dashed
+                    border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground
+                    transition-colors cursor-pointer group"
+                >
+                  <Plus className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm">Add a source</span>
+                  <span className="text-xs opacity-70">or add one later in the pipeline settings</span>
+                </button>
               ) : (
                 <div className="rounded-xl border border-border overflow-hidden">
                   {sources.map((src, i) => (
@@ -200,22 +204,74 @@ export default function PipelineNewPage() {
                       </button>
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5
+                      text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50
+                      transition-colors cursor-pointer border-t border-border"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add source
+                  </button>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">수집 스케줄 (cron)</label>
-                <input
-                  type="text"
-                  value={schedule}
-                  onChange={(e) => setSchedule(e.target.value)}
-                  placeholder="0 */6 * * *"
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm
-                    font-mono outline-none focus:ring-1 focus:ring-ring"
-                />
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Collection schedule</label>
+                {!customCron ? (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={schedule}
+                      onChange={(e) => setSchedule(e.target.value)}
+                      className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm
+                        outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="0 * * * *">Every hour</option>
+                      <option value="0 */3 * * *">Every 3 hours</option>
+                      <option value="0 */6 * * *">Every 6 hours</option>
+                      <option value="0 */12 * * *">Every 12 hours</option>
+                      <option value="0 6 * * *">Daily at 6 AM</option>
+                      <option value="0 8 * * 1">Every Monday at 8 AM</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setCustomCron(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
+                    >
+                      Custom
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={schedule}
+                      onChange={(e) => setSchedule(e.target.value)}
+                      placeholder="0 */6 * * *"
+                      className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm
+                        font-mono outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCustomCron(false)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap cursor-pointer"
+                    >
+                      Presets
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground
+                    hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Back
+                </button>
                 <button
                   onClick={() => createMutation.mutate()}
                   disabled={createMutation.isPending}
@@ -223,13 +279,13 @@ export default function PipelineNewPage() {
                     bg-foreground text-background hover:opacity-90 transition-opacity
                     disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {createMutation.isPending ? '생성 중…' : '파이프라인 생성'}
+                  {createMutation.isPending ? 'Creating…' : 'Create Pipeline'}
                 </button>
               </div>
 
               {createMutation.isError && (
                 <p className="text-sm text-destructive">
-                  생성 실패: {createMutation.error instanceof Error ? createMutation.error.message : '알 수 없는 오류'}
+                  Failed to create: {createMutation.error instanceof Error ? createMutation.error.message : 'Unknown error'}
                 </p>
               )}
             </div>
@@ -243,7 +299,7 @@ export default function PipelineNewPage() {
           )}
 
         </div>
-      </main>
-    </div>
+      </div>
+    </MainLayout>
   )
 }

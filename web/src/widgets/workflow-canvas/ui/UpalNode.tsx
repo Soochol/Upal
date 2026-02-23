@@ -76,104 +76,104 @@ export function UpalNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
   return (
     <div
       className={cn(
-        'rounded-xl glass-panel w-[280px] cursor-pointer transition-all duration-300',
-        selected ? `border-2 ${ntCfg?.borderSelected} shadow-md` : `border ${ntCfg?.border}`,
-        isSelected && `ring-2 ring-ring/80 ${ntCfg?.glow} shadow-glow`,
+        'group relative rounded-[20px] transition-all duration-300 w-[300px]',
+        'bg-card/70 backdrop-blur-xl border border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]',
+        'hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] hover:border-white/10',
+        selected && 'ring-2 ring-primary/80 border-primary/50 shadow-[0_0_30px_var(--primary)/20]',
+        isSelected && 'ring-2 ring-primary border-primary shadow-[0_0_40px_var(--primary)/30]',
         status.ring,
-        isTarget && `ring-2 ring-ring/50 ${ntCfg?.glow}`,
-        isSource && 'opacity-60 scale-[0.98]',
-        'hover:-translate-y-0.5 hover:shadow-lg'
+        isTarget && 'ring-2 ring-primary/50 scale-105',
+        isSource && 'opacity-50 scale-[0.97]'
       )}
       onClick={handleClick}
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-3.5 !h-3.5 !bg-background !border-2 !border-primary !-left-2 transition-transform duration-200 hover:scale-125"
+        className="!w-4 !h-4 !bg-background !border-2 !border-muted-foreground !-left-2 transition-transform duration-200 hover:scale-125 hover:!border-primary"
       />
 
       {/* Header bar — accent-colored with icon + label */}
       <div
         className={cn(
-          'flex items-center gap-2.5 px-3 py-2.5 backdrop-blur-md bg-opacity-80 rounded-t-xl',
+          'flex items-center gap-3 px-4 py-3 rounded-t-[20px] relative overflow-hidden',
           ntCfg?.headerBg,
-          !data.description && 'rounded-b-xl border-b-0',
-          'border-b border-border/40' // Add subtle border separation
+          !data.description && 'rounded-b-[20px]'
         )}
       >
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/5 dark:to-white/5 pointer-events-none" />
+
         <div
           className={cn(
-            'h-7 w-7 rounded-md flex items-center justify-center shrink-0 shadow-sm border border-black/5 dark:border-white/5',
+            'size-8 rounded-[10px] flex items-center justify-center shrink-0 shadow-sm border border-black/10 dark:border-white/10 relative z-10',
             ntCfg?.accent,
           )}
         >
-          {Icon && <Icon className="h-4 w-4 drop-shadow-sm" />}
+          {Icon && <Icon className="size-4.5 drop-shadow-sm" />}
         </div>
 
-        <p className="text-sm font-semibold text-foreground truncate flex-1 min-w-0 tracking-tight">
-          {data.label}
-        </p>
+        <div className="flex-1 min-w-0 relative z-10">
+          <p className="text-[15px] font-bold text-foreground truncate tracking-tight">
+            {data.label}
+          </p>
+        </div>
 
-        {displayTime != null && (
-          <span className="text-[10px] font-mono text-muted-foreground shrink-0 tabular-nums bg-background/50 px-1.5 py-0.5 rounded-md">
-            {displayTime.toFixed(2)}s
-          </span>
-        )}
-        {StatusIcon && runStatus === 'running' && (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-warning drop-shadow-sm" />
-        )}
-        {StatusIcon && runStatus === 'completed' && (
-          <Check className="h-4 w-4 shrink-0 text-success drop-shadow-sm" />
-        )}
-        {StatusIcon && runStatus === 'error' && (
-          <X className="h-4 w-4 shrink-0 text-destructive drop-shadow-sm" />
-        )}
-        {StatusIcon && runStatus === 'waiting' && (
-          <Hourglass className="h-4 w-4 shrink-0 animate-pulse text-warning drop-shadow-sm" />
-        )}
-        {StatusIcon && runStatus === 'skipped' && (
-          <SkipForward className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        <div className="flex items-center gap-2 shrink-0 relative z-10">
+          {displayTime != null && (
+            <span className="text-[11px] font-mono text-muted-foreground bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-md">
+              {displayTime.toFixed(2)}s
+            </span>
+          )}
+          {StatusIcon && runStatus === 'running' && (
+            <Loader2 className="size-4 animate-spin text-warning drop-shadow-sm" />
+          )}
+          {StatusIcon && runStatus === 'completed' && (
+            <Check className="size-4 text-success drop-shadow-sm" />
+          )}
+          {StatusIcon && runStatus === 'error' && (
+            <X className="size-4 text-destructive drop-shadow-sm" />
+          )}
+          {StatusIcon && runStatus === 'waiting' && (
+            <Hourglass className="size-4 animate-pulse text-warning drop-shadow-sm" />
+          )}
+          {StatusIcon && runStatus === 'skipped' && (
+            <SkipForward className="size-4 text-muted-foreground" />
+          )}
+        </div>
       </div>
 
-      {/* Description body — flows downward */}
+      {/* Description body */}
       {data.description && (
-        <div className="px-3 py-3 bg-card/40">
-          <p className="text-xs text-muted-foreground/90 leading-relaxed line-clamp-4 font-medium">
+        <div className="px-4 py-3.5 bg-black/5 dark:bg-white/[0.02] border-t border-white/5 rounded-b-[20px]">
+          <p className="text-[13px] text-muted-foreground/90 leading-relaxed max-h-[80px] overflow-hidden font-medium">
             {data.description}
           </p>
         </div>
       )}
 
-      {/* Asset preview — shown only for asset nodes */}
+      {/* Asset preview */}
       {data.nodeType === 'asset' && (
-        <div className="px-3 py-2 border-t border-border/50 space-y-1">
+        <div className="px-4 py-3 bg-black/10 dark:bg-black/20 border-t border-white/5 rounded-b-[20px] space-y-1.5">
           {(data.config.filename as string | undefined) ? (
-            <p className="text-xs font-medium text-card-foreground truncate">
-              {data.config.filename as string}
-            </p>
+            <div className="flex items-center gap-2">
+              <div className="size-2 rounded-full bg-primary animate-pulse" />
+              <p className="text-[13px] font-semibold text-foreground truncate">
+                {data.config.filename as string}
+              </p>
+            </div>
           ) : (data.config.file_id as string | undefined) ? (
             <p className="text-xs text-muted-foreground truncate">
               {data.config.file_id as string}
             </p>
           ) : null}
-          {(data.config.content_type as string | undefined) && (
-            <span className="inline-block text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono leading-none">
-              {data.config.content_type as string}
-            </span>
-          )}
-          {(data.config.preview_text as string | undefined) && (
-            <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 break-words">
-              {data.config.preview_text as string}
-            </p>
-          )}
         </div>
       )}
 
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-3 !h-3 !bg-border !border-2 !border-background !-right-1.5"
+        className="!w-4 !h-4 !bg-border !border-2 !border-background !-right-2 transition-transform duration-200 hover:scale-125 hover:!border-primary hover:!bg-background"
       />
     </div>
   )

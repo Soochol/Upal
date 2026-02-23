@@ -1,16 +1,15 @@
-import { useEffect } from "react";
 import { Loader2, Check, AlertCircle, Clock } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Input } from "@/shared/ui/input";
 import { Separator } from "@/shared/ui/separator";
 import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import type { SaveStatus } from "@/features/manage-canvas";
-import { useContentSessionStore } from "@/entities/content-session";
 
 type HeaderProps = {
   workflowName?: string;
   onWorkflowNameChange?: (name: string) => void;
   saveStatus?: SaveStatus;
+  actions?: React.ReactNode;
 };
 
 type NavLink = { to: string; label: string; badge?: number };
@@ -19,25 +18,15 @@ export function Header({
   workflowName,
   onWorkflowNameChange,
   saveStatus,
+  actions,
 }: HeaderProps) {
   const { pathname } = useLocation();
-  const pendingCount = useContentSessionStore((s) => s.pendingCount);
-  const syncPendingCount = useContentSessionStore((s) => s.syncPendingCount);
-
-  // Keep badge fresh across all pages, independent of inbox filter state
-  useEffect(() => {
-    void syncPendingCount()
-    const id = setInterval(() => void syncPendingCount(), 60_000)
-    return () => clearInterval(id)
-  }, [syncPendingCount])
 
   const navLinks: NavLink[] = [
     { to: "/workflows", label: "Workflows" },
     { to: "/editor", label: "Editor" },
     { to: "/runs", label: "Runs" },
     { to: "/pipelines", label: "Pipelines" },
-    { to: "/inbox", label: "Inbox", badge: pendingCount || undefined },
-    { to: "/published", label: "Published" },
     { to: "/connections", label: "Connections" },
   ];
 
@@ -57,11 +46,10 @@ export function Header({
               <Link
                 key={to}
                 to={to}
-                className={`relative px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  isActive
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                }`}
+                className={`relative px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${isActive
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  }`}
               >
                 {label}
                 {badge != null && badge > 0 && (
@@ -88,6 +76,12 @@ export function Header({
         )}
       </div>
       <div className="flex items-center gap-3">
+        {actions && (
+          <>
+            {actions}
+            <Separator orientation="vertical" className="h-6 mx-1" />
+          </>
+        )}
         {saveStatus === 'waiting' && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <Clock className="h-3 w-3" />

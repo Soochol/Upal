@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Canvas } from '@/widgets/workflow-canvas'
 import { RightPanel } from '@/widgets/right-panel'
-import { Header } from '@/shared/ui/Header'
-import { NodePalette } from '@/widgets/node-palette'
+import { WorkflowHeader } from '@/widgets/workflow-header'
+import { MainLayout } from '@/app/layout'
 import { Console } from '@/widgets/bottom-console'
 import { useWorkflowStore } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
@@ -11,7 +11,6 @@ import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts } from '@/features/manage-canvas'
 import { useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
-import type { NodeType } from '@/entities/node'
 import { serializeWorkflow, deserializeWorkflow } from '@/entities/workflow'
 import { generateWorkflow } from '@/entities/workflow'
 
@@ -20,7 +19,12 @@ export default function Editor() {
   const nodes = useWorkflowStore((s) => s.nodes)
   const workflowName = useWorkflowStore((s) => s.workflowName)
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
+  const edges = useWorkflowStore((s) => s.edges)
+  const isTemplate = useWorkflowStore((s) => s.isTemplate)
+  const setIsTemplate = useWorkflowStore((s) => s.setIsTemplate)
   const addRunEvent = useExecutionStore((s) => s.addRunEvent)
+  const setIsRunning = useExecutionStore((s) => s.setIsRunning)
+  const startLocalRun = useExecutionStore((s) => s.startRun)
 
   const [isGenerating, setIsGenerating] = useState(false)
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
@@ -35,7 +39,7 @@ export default function Editor() {
     ? nodes.find((n) => n.id === selectedNodeId)
     : null
 
-  const handleAddNode = (type: NodeType) => {
+  const handleAddNode = (type: Parameters<typeof addNode>[0]) => {
     const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
     // Small random offset so consecutive clicks don't stack exactly
     addNode(type, {
@@ -84,21 +88,55 @@ export default function Editor() {
     }
   }
 
+  const handleRun = async () => {
+    if (nodes.length === 0) {
+      addRunEvent({ type: 'error', message: 'Canvas is empty. Add nodes before running.' })
+      return
+    }
+
+    // In the future this might open a modal to prompt for starting inputs
+    const inputs: Record<string, string> = { "prompt": "Hello world from manual run!" }
+
+    setIsRunning(true)
+    try {
+      const wf = serializeWorkflow(workflowName || 'manual-run', nodes, edges)
+      await startLocalRun(workflowName || 'manual-run', inputs, wf)
+    } catch (err) {
+      addRunEvent({
+        type: 'error',
+        message: `Run failed to start: ${err instanceof Error ? err.message : String(err)}`,
+      })
+      setIsRunning(false)
+    }
+  }
+
+  const handleRemix = () => {
+    const name = `Untitled-${Date.now().toString(36).slice(-4)}`
+    setIsTemplate(false)
+    setWorkflowName(name)
+    useWorkflowStore.getState().setOriginalName('')
+  }
+
   useKeyboardShortcuts({
     onSave: saveNow,
   })
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <Header
-        workflowName={workflowName}
-        onWorkflowNameChange={setWorkflowName}
-        saveStatus={saveStatus}
-      />
-
-      <div className="flex flex-1 overflow-hidden">
-        <NodePalette onAddNode={handleAddNode} />
-
+    <MainLayout
+      headerContent={
+        <WorkflowHeader
+          workflowName={workflowName}
+          onWorkflowNameChange={isTemplate ? undefined : setWorkflowName}
+          saveStatus={isTemplate ? undefined : saveStatus}
+          onRun={handleRun}
+          isTemplate={isTemplate}
+          templateName={workflowName}
+          onRemix={handleRemix}
+        />
+      }
+      bottomConsole={<Console />}
+    >
+      <div className="flex flex-1 overflow-hidden w-full relative">
         <main className="flex-1">
           <ReactFlowProvider>
             <Canvas
@@ -107,17 +145,16 @@ export default function Editor() {
               onPromptSubmit={handlePromptSubmit}
               isGenerating={isGenerating}
               exposeGetViewportCenter={handleExposeViewportCenter}
+              onAddNode={handleAddNode}
+              readOnly={isTemplate}
             />
           </ReactFlowProvider>
         </main>
-
         <RightPanel
           selectedNode={selectedNode ?? null}
           onCloseNode={() => selectNode(null)}
         />
       </div>
-
-      <Console />
-    </div>
+    </MainLayout>
   )
 }

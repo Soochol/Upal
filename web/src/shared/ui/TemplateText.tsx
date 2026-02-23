@@ -16,9 +16,23 @@ export function TemplateText({ text }: { text: string }) {
   return (
     <>
       {parts.map((part, i) => {
-        const match = part.match(/^\{\{(\w+)\}\}$/)
+        const match = part.match(/^\{\{([\w.]+)\}\}$/)
         if (match) {
           const nodeId = match[1]
+
+          // Context Variable Styling
+          if (nodeId.startsWith('context.') || nodeId.startsWith('source.')) {
+            return (
+              <span
+                key={i}
+                className="inline-flex items-center px-1 py-0.5 mx-0.5 rounded font-medium bg-muted/60 text-muted-foreground border border-border"
+              >
+                {nodeId}
+              </span>
+            )
+          }
+
+          // Node Variable Styling
           const node = nodes.find((n) => n.id === nodeId)
           const label = node?.data.label ?? nodeId
           const nodeType = (node?.data.nodeType ?? 'agent') as string

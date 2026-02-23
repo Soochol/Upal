@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, GitBranch, Sparkles } from 'lucide-react'
+import { Plus, Search, GitBranch, Sparkles, Activity, CheckCircle2, PlayCircle, Clock } from 'lucide-react'
 import { listWorkflows, deleteWorkflow, deserializeWorkflow, useWorkflowStore } from '@/entities/workflow'
 import type { WorkflowDefinition } from '@/entities/workflow'
 import { fetchRuns, useExecutionStore } from '@/entities/run'
+import { useContentSessionStore } from '@/entities/content-session'
 import { useUIStore } from '@/entities/ui'
-import { Header } from '@/shared/ui/Header'
+
+import { templates } from '@/shared/lib/templates'
+import { WorkflowMiniGraph } from '@/shared/ui/WorkflowMiniGraph'
 import { WorkflowCard } from './landing/WorkflowCard'
+import { MainLayout } from '@/app/layout'
 
 /* ── Main Dashboard ── */
 export default function Landing() {
@@ -32,11 +36,14 @@ export default function Landing() {
         setRunningWorkflows(running)
       })
       .catch(() => { })
+
+    useContentSessionStore.getState().setFilters({ status: 'pending_review' })
+    useContentSessionStore.getState().fetchSessions()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openWorkflow = (wf: WorkflowDefinition) => {
     const { nodes, edges } = deserializeWorkflow(wf)
-    useWorkflowStore.setState({ nodes, edges })
+    useWorkflowStore.setState({ nodes, edges, isTemplate: false })
     useWorkflowStore.getState().setWorkflowName(wf.name)
     useWorkflowStore.getState().setOriginalName(wf.name)
     useExecutionStore.getState().clearNodeStatuses()
@@ -55,9 +62,19 @@ export default function Landing() {
   }
 
   const openNew = () => {
-    useWorkflowStore.setState({ nodes: [], edges: [] })
+    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: false })
     const name = `Untitled-${Date.now().toString(36).slice(-4)}`
     useWorkflowStore.getState().setWorkflowName(name)
+    useWorkflowStore.getState().setOriginalName('')
+    useExecutionStore.getState().clearNodeStatuses()
+    useExecutionStore.getState().clearRunEvents()
+    navigate('/editor')
+  }
+
+  const openTemplate = (tpl: (typeof templates)[number]) => {
+    const { nodes, edges } = deserializeWorkflow(tpl.workflow)
+    useWorkflowStore.setState({ nodes, edges, isTemplate: true })
+    useWorkflowStore.getState().setWorkflowName(tpl.workflow.name)
     useWorkflowStore.getState().setOriginalName('')
     useExecutionStore.getState().clearNodeStatuses()
     useExecutionStore.getState().clearRunEvents()
@@ -69,9 +86,7 @@ export default function Landing() {
   )
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
-      <Header />
-
+    <MainLayout headerContent={<span className="font-semibold">Workflows</span>}>
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
@@ -111,7 +126,125 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* ─── Grid ─── */}
+          {/* ─── Triage Inbox (Action Required) ─── */}
+          {useContentSessionStore(s => s.sessions).length > 0 && (
+            <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="size-2 rounded-full bg-warning animate-pulse" />
+                <h2 className="text-lg font-semibold tracking-tight text-warning">Action Required</h2>
+                <span className="px-2 py-0.5 rounded-full bg-warning/10 text-warning text-xs font-bold tabular-nums ml-1">
+                  {useContentSessionStore(s => s.sessions).length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {useContentSessionStore(s => s.sessions).slice(0, 4).map((session) => (
+                  <div key={session.id} className="glass-panel border border-warning/20 bg-warning/5 rounded-2xl p-4 flex gap-4 hover:border-warning/40 hover:bg-warning/10 transition-all cursor-pointer">
+                    <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-warning" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm text-foreground truncate">
+                        {session.pipeline_name || 'AI Summary Pipeline'}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                        Session #{session.id.split('-')[0]} • {session.sources?.length || 0} sources collected
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center">
+                      <button onClick={() => navigate(`/sessions/${session.id}`)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-warning text-warning-foreground hover:bg-warning/90 transition-colors">
+                        Review
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ─── Dashboard Stats ─── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {[
+              { label: 'Total Workflows', value: workflows.length.toString(), icon: GitBranch, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+              { label: 'Active Runs', value: runningWorkflows.size.toString(), icon: Activity, color: 'text-amber-400', bg: 'bg-amber-400/10', pulse: runningWorkflows.size > 0 },
+              { label: 'Success Rate', value: '98.2%', icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10' },
+              { label: 'Total Executions', value: '1,204', icon: PlayCircle, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+            ].map((stat, i) => {
+              const Icon = stat.icon
+              return (
+                <div key={i} className="glass-panel p-5 rounded-2xl border border-white/5 flex items-center gap-4 hover:-translate-y-0.5 transition-transform duration-300">
+                  <div className={`size-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg}`}>
+                    <Icon className={`size-5 ${stat.color} ${stat.pulse ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                    <p className="text-2xl font-bold tracking-tight text-foreground">{loading ? '-' : stat.value}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ─── Quick Start Templates ─── */}
+          <div className="mb-10">
+            <h2 className="text-lg font-semibold mb-4 tracking-tight">Quick Start Templates</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {templates.map((tpl) => {
+                const Icon = tpl.icon
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => openTemplate(tpl)}
+                    className="group text-left rounded-2xl overflow-hidden glass-panel border border-white/5
+                      hover:border-white/10 hover:bg-white/5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
+                      hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                  >
+                    {/* Mini graph preview */}
+                    <div className="relative h-[68px] border-b border-white/5 overflow-hidden">
+                      <WorkflowMiniGraph
+                        nodes={tpl.workflow.nodes}
+                        edges={tpl.workflow.edges}
+                        uid={tpl.id}
+                      />
+                    </div>
+
+                    {/* Card body */}
+                    <div className="px-4 pt-3 pb-3.5">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className={`size-6 rounded-md flex items-center justify-center ${tpl.color}`}>
+                          <Icon className="size-3.5" />
+                        </div>
+                        <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                          {tpl.title}
+                        </h3>
+                      </div>
+                      <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-1 mb-2">
+                        {tpl.description}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+                          {tpl.workflow.nodes.length} nodes
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          tpl.difficulty === 'Beginner'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-warning/10 text-warning'
+                        }`}>
+                          {tpl.difficulty}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ─── Recent Workflows Grid ─── */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold tracking-tight">Recent Workflows</h2>
+          </div>
+
           {loading ? (
             /* Skeleton */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -134,16 +267,16 @@ export default function Landing() {
               {/* Create new card */}
               <button
                 onClick={openNew}
-                className="group rounded-2xl border-2 border-dashed border-border
-                  hover:border-foreground/25 hover:bg-card/60 transition-all duration-200
+                className="group rounded-2xl border-2 border-dashed border-white/10
+                  hover:border-primary/50 hover:bg-primary/5 transition-all duration-300
                   flex flex-col items-center justify-center min-h-[164px] cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center mb-2.5
-                  group-hover:bg-muted/50 group-hover:scale-110 transition-all duration-200">
-                  <Plus className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-3
+                  group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
+                  <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                  New workflow
+                <span className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">
+                  Blank Workflow
                 </span>
               </button>
 
@@ -202,6 +335,6 @@ export default function Landing() {
 
         </div>
       </main>
-    </div>
+    </MainLayout>
   )
 }

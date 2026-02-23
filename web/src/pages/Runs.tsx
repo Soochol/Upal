@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchRuns } from '@/entities/run'
 import type { RunRecord } from '@/shared/types'
-import { Header } from '@/shared/ui/Header'
+import { MainLayout } from '@/app/layout'
 import { Clock, CheckCircle2, XCircle, Loader2, Timer } from 'lucide-react'
 
 const statusConfig: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  pending:   { icon: Clock,        color: 'text-warning',          label: 'Pending' },
-  running:   { icon: Loader2,      color: 'text-info',             label: 'Running' },
-  success:   { icon: CheckCircle2, color: 'text-success',          label: 'Success' },
-  failed:    { icon: XCircle,      color: 'text-destructive',      label: 'Failed' },
-  cancelled: { icon: XCircle,      color: 'text-muted-foreground', label: 'Cancelled' },
-  retrying:  { icon: Timer,        color: 'text-warning',          label: 'Retrying' },
+  pending: { icon: Clock, color: 'text-warning', label: 'Pending' },
+  running: { icon: Loader2, color: 'text-info', label: 'Running' },
+  success: { icon: CheckCircle2, color: 'text-success', label: 'Success' },
+  failed: { icon: XCircle, color: 'text-destructive', label: 'Failed' },
+  cancelled: { icon: XCircle, color: 'text-muted-foreground', label: 'Cancelled' },
+  retrying: { icon: Timer, color: 'text-warning', label: 'Retrying' },
 }
 
 export default function Runs() {
@@ -72,14 +72,19 @@ export default function Runs() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <Header />
-
+    <MainLayout headerContent={<span className="font-semibold">Run History</span>}>
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold">Run History</h1>
-            <span className="text-sm text-muted-foreground">{total} total runs</span>
+          <div className="flex items-start justify-between mb-8 gap-4">
+            <div>
+              <h1 className="landing-display text-2xl font-bold tracking-tight">Run History</h1>
+              {!loading && (
+                <span className="text-sm text-muted-foreground mt-1.5 block">
+                  <span className="text-foreground font-semibold tabular-nums">{total}</span>
+                  {' '}total runs
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Filters */}
@@ -88,11 +93,10 @@ export default function Runs() {
               <button
                 key={f}
                 onClick={() => { setFilter(f); setOffset(0) }}
-                className={`px-3 py-1 rounded-full text-sm capitalize ${
-                  filter === f
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium capitalize transition-all duration-200 ${filter === f
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'bg-white/5 border border-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                  }`}
               >
                 {f}
               </button>
@@ -109,10 +113,10 @@ export default function Runs() {
               No runs found
             </div>
           ) : (
-            <div className="border border-border rounded-lg overflow-hidden">
+            <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.15)]">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-muted/50 text-left text-sm text-muted-foreground">
+                  <tr className="border-b border-white/5 bg-black/20 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Workflow</th>
                     <th className="px-4 py-3 font-medium">Trigger</th>
@@ -127,7 +131,7 @@ export default function Runs() {
                     return (
                       <tr
                         key={run.id}
-                        className="border-t border-border hover:bg-muted/30 cursor-pointer transition-colors"
+                        className="border-t border-white/5 bg-black/10 hover:bg-white/5 cursor-pointer transition-colors"
                         onClick={() => navigate(`/runs/${run.id}`)}
                       >
                         <td className="px-4 py-3">
@@ -177,6 +181,6 @@ export default function Runs() {
           )}
         </div>
       </div>
-    </div>
+    </MainLayout>
   )
 }

@@ -28,8 +28,10 @@ type NodeEditorProps = {
 export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps) {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
+  const isTemplate = useWorkflowStore((s) => s.isTemplate)
 
-  const setConfig = (key: string, value: unknown) => updateNodeConfig(nodeId, { [key]: value })
+  const noop = () => {}
+  const setConfig = isTemplate ? noop as (key: string, value: unknown) => void : (key: string, value: unknown) => updateNodeConfig(nodeId, { [key]: value })
 
   // Registry lookup — no switch statement needed
   const def = getNodeDefinition(data.nodeType as NodeType)
@@ -46,7 +48,8 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
       <input
         className="flex-1 min-w-0 text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-ring rounded px-1"
         value={data.label}
-        onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
+        onChange={(e) => !isTemplate && updateNodeLabel(nodeId, e.target.value)}
+        readOnly={isTemplate}
       />
       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onClose}>
         <X className="h-3.5 w-3.5" />
@@ -58,7 +61,7 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
     return (
       <div className="flex flex-col flex-1 min-h-0">
         {header}
-        <div className="p-2 flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
+        <div className={cn("p-2 flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto", isTemplate && "pointer-events-none opacity-70")}>
           {EditorComponent && <EditorComponent nodeId={nodeId} config={data.config} setConfig={setConfig} />}
         </div>
       </div>
@@ -76,7 +79,7 @@ export function NodeEditor({ nodeId, data, onClose, embedded }: NodeEditorProps)
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <div className="p-2 space-y-3">
+      <div className={cn("p-2 space-y-3", isTemplate && "pointer-events-none opacity-70")}>
         {EditorComponent && <EditorComponent nodeId={nodeId} config={data.config} setConfig={setConfig} />}
       </div>
     </aside>

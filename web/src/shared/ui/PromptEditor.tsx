@@ -99,8 +99,20 @@ export function PromptEditor({
         suggestion: {
           items: ({ query }: { query: string }) => {
             const nodes = upstreamRef.current
-            if (!query) return nodes
-            return nodes.filter(
+
+            // Define static context variables available in all pipelines
+            const contextVariables: MentionItem[] = [
+              { id: 'context.brief', label: 'Editorial Brief', nodeType: 'context' },
+              { id: 'context.schedule', label: 'Schedule Info', nodeType: 'context' },
+              { id: 'source.title', label: 'Source Title', nodeType: 'context' },
+              { id: 'source.content', label: 'Source Content', nodeType: 'context' },
+              { id: 'source.url', label: 'Source URL', nodeType: 'context' }
+            ]
+
+            const allSuggestions = [...contextVariables, ...nodes]
+
+            if (!query) return allSuggestions
+            return allSuggestions.filter(
               (n) =>
                 n.label.toLowerCase().includes(query.toLowerCase()) ||
                 n.id.toLowerCase().includes(query.toLowerCase()),
@@ -208,11 +220,10 @@ export function PromptEditor({
   return (
     <div
       ref={wrapperRef}
-      className={`group/prompt relative rounded-md px-3 py-2 ${
-        isEditing
+      className={`group/prompt relative rounded-md px-3 py-2 ${isEditing
           ? 'border border-input bg-background ring-offset-background focus-within:ring-1 focus-within:ring-ring'
           : 'border border-transparent bg-muted/50'
-      } ${className ?? ''}`}
+        } ${className ?? ''}`}
     >
       <EditorContent editor={editor} />
       {!hasContent && !isEditing && (
@@ -223,11 +234,10 @@ export function PromptEditor({
       <button
         type="button"
         onClick={() => setIsEditing(!isEditing)}
-        className={`absolute top-1.5 right-1.5 p-1 rounded-md transition-colors ${
-          isEditing
+        className={`absolute top-1.5 right-1.5 p-1 rounded-md transition-colors ${isEditing
             ? 'text-primary bg-primary/10 hover:bg-primary/20'
             : 'text-muted-foreground opacity-0 group-hover/prompt:opacity-100 hover:text-foreground hover:bg-muted'
-        }`}
+          }`}
         title={isEditing ? 'Done editing' : 'Edit prompt'}
       >
         {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}

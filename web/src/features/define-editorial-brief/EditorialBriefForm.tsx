@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { Textarea } from '@/shared/ui/textarea'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineContext } from '@/shared/types'
 
-const LANGUAGE_OPTIONS = ['한국어', '영어', '일본어', '중국어']
+const LANGUAGE_OPTIONS = ['Korean', 'English', 'Japanese', 'Chinese']
 
 const DEFAULT_CONTEXT: PipelineContext = {
   purpose: '',
@@ -12,17 +12,44 @@ const DEFAULT_CONTEXT: PipelineContext = {
   tone_style: '',
   focus_keywords: [],
   exclude_keywords: [],
-  language: '한국어',
+  language: 'Korean',
 }
 
 type Props = {
   initialContext?: PipelineContext
   onSave: (context: PipelineContext) => Promise<void>
+  onBack?: () => void
+  submitLabel?: string
+  skipLabel?: string
+  onSkip?: () => void
+  autoSave?: boolean
 }
 
-export function EditorialBriefForm({ initialContext, onSave }: Props) {
+export function EditorialBriefForm({ initialContext, onSave, onBack, submitLabel = 'Save', skipLabel, onSkip, autoSave }: Props) {
   const [draft, setDraft] = useState<PipelineContext>(initialContext ?? DEFAULT_CONTEXT)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const isFirstRender = useRef(true)
+
+  // Auto-save with debounce when autoSave=true
+  useEffect(() => {
+    if (!autoSave) return
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving')
+      try {
+        await onSave(draft)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      } catch {
+        setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [draft]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setSaveStatus('saving')
@@ -45,20 +72,20 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">주제 / 목적</label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Topic / Purpose</label>
         <Textarea
           rows={3}
-          placeholder="이 파이프라인이 다루는 주제와 목적을 설명해 주세요..."
+          placeholder="Describe the topic and goal of this pipeline…"
           className="resize-none text-sm"
           {...field('purpose')}
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">타겟 독자</label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Target audience</label>
         <input
           type="text"
-          placeholder="예: IT 업계 종사자, AI에 관심 있는 일반인"
+          placeholder="e.g. Tech professionals, AI enthusiasts"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none
             focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
           {...field('target_audience')}
@@ -66,10 +93,10 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">톤 / 스타일</label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tone / Style</label>
         <input
           type="text"
-          placeholder="예: 기술적이지만 접근 쉬운 한국어"
+          placeholder="e.g. Technical but approachable"
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none
             focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
           {...field('tone_style')}
@@ -78,30 +105,30 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          포커스 키워드
-          <span className="ml-1 font-normal text-muted-foreground/70">(이 키워드를 중심으로 선별)</span>
+          Focus keywords
+          <span className="ml-1 font-normal text-muted-foreground/70">(prioritize items matching these)</span>
         </label>
         <KeywordTagInput
-          keywords={draft.focus_keywords}
+          keywords={draft.focus_keywords ?? []}
           onChange={(kws) => setDraft({ ...draft, focus_keywords: kws })}
-          placeholder="LLM, AI 모델, 빅테크..."
+          placeholder="LLM, AI models, big tech…"
         />
       </div>
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          제외 키워드
-          <span className="ml-1 font-normal text-muted-foreground/70">(이 키워드가 포함된 아이템 제외)</span>
+          Exclude keywords
+          <span className="ml-1 font-normal text-muted-foreground/70">(skip items matching these)</span>
         </label>
         <KeywordTagInput
-          keywords={draft.exclude_keywords}
+          keywords={draft.exclude_keywords ?? []}
           onChange={(kws) => setDraft({ ...draft, exclude_keywords: kws })}
-          placeholder="게임, 스포츠..."
+          placeholder="gaming, sports…"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">언어</label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Output language</label>
         <select
           value={draft.language}
           onChange={(e) => setDraft({ ...draft, language: e.target.value })}
@@ -114,23 +141,65 @@ export function EditorialBriefForm({ initialContext, onSave }: Props) {
         </select>
       </div>
 
-      <div className="flex items-center gap-3 pt-1">
-        <button
-          onClick={handleSave}
-          disabled={saveStatus === 'saving'}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-            bg-foreground text-background hover:opacity-90 transition-opacity
-            disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
-        >
-          {saveStatus === 'saving' ? (
-            <><Loader2 className="h-3.5 w-3.5 animate-spin" />저장 중…</>
-          ) : saveStatus === 'saved' ? (
-            <><Check className="h-3.5 w-3.5" />저장됨</>
-          ) : saveStatus === 'error' ? (
-            <><AlertCircle className="h-3.5 w-3.5" />저장 실패</>
-          ) : '저장'}
-        </button>
-      </div>
+      {autoSave ? (
+        <div className="flex justify-end pt-1 h-6">
+          {saveStatus === 'saving' && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />Saving…
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="flex items-center gap-1 text-xs text-success">
+              <Check className="h-3 w-3" />Saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="h-3 w-3" />Failed to save
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground
+                  hover:text-foreground transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+            )}
+            {onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground
+                  hover:text-foreground transition-colors cursor-pointer"
+              >
+                {skipLabel ?? 'Skip'}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saveStatus === 'saving'}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
+              bg-foreground text-background hover:opacity-90 transition-opacity
+              disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {saveStatus === 'saving' ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
+            ) : saveStatus === 'saved' ? (
+              <><Check className="h-3.5 w-3.5" />Saved</>
+            ) : saveStatus === 'error' ? (
+              <><AlertCircle className="h-3.5 w-3.5" />Failed</>
+            ) : submitLabel}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

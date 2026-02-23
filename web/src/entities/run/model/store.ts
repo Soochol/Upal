@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { RunEvent } from '@/shared/types'
+import { startRun as apiStartRun, connectToRunEvents } from '@/shared/api'
+import type { WorkflowDefinition } from '@/entities/workflow'
 
 export type NodeRunStatus = 'idle' | 'running' | 'completed' | 'error' | 'waiting' | 'skipped'
 
@@ -22,6 +24,8 @@ type ExecutionState = {
   nodeDurations: Record<string, number>
   runStartTime: number | null
   setRunStartTime: (t: number | null) => void
+
+  startRun: (name: string, inputs: Record<string, string>, workflow?: WorkflowDefinition) => Promise<void>
 }
 
 export const useExecutionStore = create<ExecutionState>((set, get) => ({
@@ -71,4 +75,62 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   },
 
   setRunStartTime: (t) => set({ runStartTime: t }),
+
+  startRun: async (name, inputs, workflow) => {
+    const { addRunEvent, setNodeStatus, setSessionState } = get()
+
+    // Reset previous run state
+    set({
+      runEvents: [],
+      sessionState: {},
+      nodeStatuses: {},
+      nodeStartTimes: {},
+      nodeDurations: {},
+      runStartTime: Date.now(),
+      isRunning: true,
+    })
+
+    try {
+      const { run_id } = await apiStartRun(name, inputs, workflow)
+      addRunEvent({ type: 'info', message: `Started local run: ${run_id}` })
+
+      await connectToRunEvents(
+        run_id,
+        (event: RunEvent) => {
+          addRunEvent(event)
+
+          if (event.type === 'node_started' || event.type === 'tool_call' || event.type === 'tool_result') {
+            const nodeId = 'nodeId' in event && event.nodeId ? event.nodeId : 'system'
+            setNodeStatus(nodeId, 'running')
+          } else if (event.type === 'node_completed') {
+            const nodeId = 'nodeId' in event && event.nodeId ? event.nodeId : 'system'
+            setNodeStatus(nodeId, 'completed')
+          } else if (event.type === 'error') {
+            // Workflow/General error
+          }
+          // Note: The backend may emit custom logical errors, which we log
+        },
+        (result: Record<string, unknown>) => {
+          addRunEvent({
+            type: 'done',
+            status: 'success',
+            sessionId: run_id,
+            state: result
+          } as RunEvent)
+          setSessionState(result)
+          set({ isRunning: false })
+        },
+        (error: Error) => {
+          addRunEvent({
+            type: 'error',
+            message: `Run failed: ${error.message}`
+          } as RunEvent)
+          set({ isRunning: false })
+        }
+      )
+    } catch (err) {
+      addRunEvent({ type: 'error', message: `Failed to start run: ${err instanceof Error ? err.message : String(err)}` })
+      set({ isRunning: false })
+    }
+  },
 }))

@@ -3,12 +3,11 @@ import { Link } from 'react-router-dom'
 import { useWorkflowStore } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import { useExecuteRun } from '@/features/execute-workflow'
-import { Button } from '@/shared/ui/button'
-import { Separator } from '@/shared/ui/separator'
-import { Play, Loader2, Eye, ExternalLink } from 'lucide-react'
+import { Play, Loader2, Zap, ExternalLink } from 'lucide-react'
 import { getInputNodesInOrder } from './preview/getInputNodesInOrder'
 import { InputWizard } from './preview/InputWizard'
 import { ResultsDisplay } from './preview/ResultsDisplay'
+import { PreviewBackground } from './preview/PreviewBackground'
 
 type Phase = 'idle' | 'collecting' | 'running'
 
@@ -84,78 +83,106 @@ export function PanelPreview() {
 
   return (
     <div className="flex flex-col h-full">
-      {phase === 'collecting' && (
-        <InputWizard
-          sortedInputs={sortedInputs}
-          stepIndex={stepIndex}
-          inputs={inputs}
-          onInputChange={(nodeId, value) =>
-            setInputs((prev) => ({ ...prev, [nodeId]: value }))
-          }
-          onNext={handleNext}
-          onBack={handleBack}
-        />
-      )}
 
-      {phase !== 'collecting' && (
-        <div className="p-3 shrink-0">
-          <Button
-            size="sm"
-            className="w-full"
-            onClick={handleRunClick}
-            disabled={isRunning || !workflowName}
+      {/* ── App chrome bar ── */}
+      <div className="shrink-0 flex items-center px-3 py-2.5 border-b border-border/40 bg-muted/20">
+        <p className="flex-1 text-center text-[11px] text-muted-foreground font-medium truncate">
+          {workflowName || 'Untitled'}
+        </p>
+        {runSessionId ? (
+          <Link
+            to={`/runs/${runSessionId}`}
+            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5 mr-1.5" />
-                Run
-              </>
-            )}
-          </Button>
-        </div>
-      )}
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        ) : (
+          <div className="w-3 shrink-0" />
+        )}
+      </div>
 
-      {hasResults && <Separator />}
+      {/* ── App content area ── */}
+      <div className="flex-1 min-h-0 overflow-auto">
 
-      {hasResults ? (
-        <>
+        {phase === 'collecting' && (
+          <InputWizard
+            sortedInputs={sortedInputs}
+            stepIndex={stepIndex}
+            inputs={inputs}
+            onInputChange={(nodeId, value) =>
+              setInputs((prev) => ({ ...prev, [nodeId]: value }))
+            }
+            onNext={handleNext}
+            onBack={handleBack}
+          />
+        )}
+
+        {isRunning && !hasResults && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 p-6">
+            <div className="relative h-12 w-12">
+              <div className="absolute inset-0 rounded-full border-2 border-primary/15 border-t-primary animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Zap className="h-5 w-5 text-primary/60" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Processing...</p>
+          </div>
+        )}
+
+        {hasResults && phase !== 'collecting' && (
           <ResultsDisplay
             sessionState={sessionState}
             doneEvent={doneEvent}
             workflowName={workflowName}
           />
-          {runSessionId && (
-            <div className="px-3 pb-3 shrink-0">
-              <Link
-                to={`/runs/${runSessionId}`}
-                className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-md text-xs text-primary hover:text-primary/80 border border-border hover:bg-muted/30 transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                View in Runs
-              </Link>
-            </div>
-          )}
-        </>
-      ) : !isRunning ? (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground p-6">
-          <div className="text-center">
-            <Eye className="h-6 w-6 mb-2 opacity-50 mx-auto" />
-            <p className="text-xs">Results will appear here after running.</p>
-          </div>
-        </div>
-      ) : null}
+        )}
 
-      {isRunning && !hasResults && (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <Loader2 className="h-6 w-6 mb-2 animate-spin mx-auto" />
-            <p className="text-xs">Running workflow...</p>
+        {!hasResults && !isRunning && phase === 'idle' && (
+          <div className="relative flex flex-col items-center justify-center h-full gap-4 p-6 text-center overflow-hidden">
+            <PreviewBackground />
+            {/* Foreground content — centered above the SVG */}
+            <div className="relative z-10 flex flex-col items-center gap-3">
+              <div className="h-14 w-14 rounded-2xl bg-background/80 backdrop-blur-sm border border-border/60 flex items-center justify-center shadow-md">
+                <Zap className="h-6 w-6 text-primary/70" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground/80">
+                  {workflowName || 'Workflow'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Run to see results here
+                </p>
+              </div>
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* ── Bottom Run button ── */}
+      {phase !== 'collecting' && (
+        <div className="shrink-0 p-3 border-t border-border/40">
+          <button
+            onClick={handleRunClick}
+            disabled={isRunning || !workflowName}
+            className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold
+                       flex items-center justify-center gap-2
+                       shadow-md shadow-primary/20
+                       hover:shadow-lg hover:shadow-primary/35 hover:brightness-105
+                       disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed
+                       transition-all duration-200 active:scale-[0.98]"
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5" fill="currentColor" />
+                Run Workflow
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>

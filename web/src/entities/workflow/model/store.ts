@@ -37,6 +37,10 @@ type WorkflowState = {
   setWorkflowName: (name: string) => void
   setOriginalName: (name: string) => void
 
+  // Template mode (read-only, no auto-save)
+  isTemplate: boolean
+  setIsTemplate: (v: boolean) => void
+
   // Group management
   createGroup: (nodeIds: string[]) => string | undefined
   removeGroup: (groupId: string) => void
@@ -54,6 +58,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   // Workflow identity
   workflowName: '',
   originalName: '',
+  isTemplate: false,
+  setIsTemplate: (v) => set({ isTemplate: v }),
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) })

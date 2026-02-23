@@ -11,12 +11,12 @@ type SourceTypeDef = {
 }
 
 const SOURCE_TYPES: SourceTypeDef[] = [
-  { type: 'rss',           source_type: 'static', label: 'RSS 피드',         description: 'RSS/Atom 피드 URL에서 수집' },
-  { type: 'hn',            source_type: 'static', label: 'Hacker News',      description: 'HN 상위 스토리 수집' },
-  { type: 'reddit',        source_type: 'signal', label: 'Reddit',           description: '서브레딧 인기 게시물 신호' },
-  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',    description: '키워드 검색 급증 신호' },
-  { type: 'twitter',       source_type: 'signal', label: 'X / Twitter',      description: '트렌딩 키워드 신호' },
-  { type: 'http',          source_type: 'static', label: 'HTTP 엔드포인트',   description: '커스텀 HTTP API 수집' },
+  { type: 'rss',           source_type: 'static', label: 'RSS Feed',         description: 'Collect from RSS/Atom feed URLs' },
+  { type: 'hn',            source_type: 'static', label: 'Hacker News',      description: 'Collect top HN stories' },
+  { type: 'reddit',        source_type: 'signal', label: 'Reddit',           description: 'Signal from subreddit hot posts' },
+  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',    description: 'Signal from keyword search spikes' },
+  { type: 'twitter',       source_type: 'signal', label: 'X / Twitter',      description: 'Signal from trending keywords' },
+  { type: 'http',          source_type: 'static', label: 'HTTP Endpoint',    description: 'Collect from custom HTTP API' },
 ]
 
 type Props = {
@@ -58,7 +58,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold">
-            {step === 'select' ? '소스 타입 선택' : `${selectedType?.label} 설정`}
+            {step === 'select' ? 'Select source type' : `Configure ${selectedType?.label}`}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
@@ -81,7 +81,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
                       ${typeDef.source_type === 'static'
                         ? 'border-border text-muted-foreground bg-muted/30'
                         : 'border-primary/20 text-primary bg-primary/10'}`}>
-                      {typeDef.source_type === 'static' ? '정적' : '신호'}
+                      {typeDef.source_type === 'static' ? 'static' : 'signal'}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">{typeDef.description}</p>
@@ -92,7 +92,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
             <div className="space-y-4">
               {/* Label */}
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">표시 이름</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Display name</label>
                 <input
                   type="text"
                   value={draft.label ?? ''}
@@ -117,7 +117,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
 
               {draft.type === 'reddit' && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">서브레딧</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Subreddit</label>
                   <input
                     type="text"
                     value={draft.subreddit ?? ''}
@@ -130,7 +130,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
 
               {(draft.type === 'google_trends' || draft.type === 'twitter') && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">모니터링 키워드</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Keywords to monitor</label>
                   <KeywordTagInput
                     keywords={draft.keywords ?? []}
                     onChange={(kws) => setDraft({ ...draft, keywords: kws })}
@@ -141,7 +141,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
 
               {(draft.type === 'reddit' || draft.type === 'hn') && (
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">최소 점수</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Min score</label>
                   <input
                     type="number"
                     value={draft.min_score ?? ''}
@@ -153,7 +153,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
               )}
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">최대 수집 개수</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
                 <input
                   type="number"
                   value={draft.limit ?? 20}
@@ -171,14 +171,14 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
               onClick={() => setStep('select')}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              ← 뒤로
+              ← Back
             </button>
             <button
               onClick={handleAdd}
               className="px-4 py-2 rounded-xl text-sm font-medium bg-foreground text-background
                 hover:opacity-90 transition-opacity cursor-pointer"
             >
-              소스 추가
+              Add source
             </button>
           </div>
         )}
