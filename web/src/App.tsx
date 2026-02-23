@@ -4,6 +4,9 @@ import Landing from '@/pages/Landing'
 import Editor from '@/pages/Editor'
 import Runs from '@/pages/Runs'
 import Pipelines from '@/pages/Pipelines'
+import PipelineDetailPage from '@/pages/pipelines/PipelineDetail'
+import PipelineNewPage from '@/pages/pipelines/PipelineNew'
+import PublishedPage from '@/pages/published'
 import Connections from '@/pages/Connections'
 import { RunDetail } from '@/widgets/run-detail'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
@@ -20,7 +23,10 @@ export default function App() {
           <Route path="/runs" element={<Runs />} />
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/pipelines" element={<Pipelines />} />
-          <Route path="/pipelines/:id" element={<Pipelines />} />
+          <Route path="/pipelines/new" element={<PipelineNewPage />} />
+          <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
+          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineDetailPage />} />
+          <Route path="/published" element={<PublishedPage />} />
           <Route path="/connections" element={<Connections />} />
         </Routes>
       </BrowserRouter>

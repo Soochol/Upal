@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ExternalLink, ArrowRight, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Header } from '@/shared/ui/Header'
+import { MainLayout } from '@/app/layout'
 import { fetchPublishedContent } from '@/entities/published-content'
 import type { PublishedContent, PublishedChannel } from '@/entities/published-content'
 
@@ -99,19 +99,20 @@ export default function PublishedPage() {
   })
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <Header />
+    <MainLayout headerContent={<span className="font-semibold">Published Content</span>}>
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
 
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold tracking-tight">Published Content</h1>
-            {!isLoading && (
-              <span className="text-sm text-muted-foreground">
-                <span className="text-foreground font-semibold tabular-nums">{items.length}</span>
-                {' '}건
-              </span>
-            )}
+          <div className="flex items-start justify-between mb-8 gap-4">
+            <div>
+              <h1 className="landing-display text-2xl font-bold tracking-tight">Published Content</h1>
+              {!isLoading && (
+                <span className="text-sm text-muted-foreground mt-1.5 block">
+                  <span className="text-foreground font-semibold tabular-nums">{items.length}</span>
+                  {' '}건
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/30 w-fit mb-6 flex-wrap">
@@ -119,11 +120,10 @@ export default function PublishedPage() {
               <button
                 key={value}
                 onClick={() => setChannelFilter(value)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                  channelFilter === value
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${channelFilter === value
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -144,7 +144,7 @@ export default function PublishedPage() {
                 <PublishedCard
                   key={item.id}
                   item={item}
-                  onViewSession={() => navigate(`/inbox/${item.session_id}`)}
+                  onViewSession={() => navigate(`/pipelines/${item.pipeline_id}/sessions/${item.session_id}`)}
                   onViewRun={() => navigate(`/runs/${item.run_id}`)}
                 />
               ))}
@@ -153,6 +153,6 @@ export default function PublishedPage() {
 
         </div>
       </main>
-    </div>
+    </MainLayout>
   )
 }
