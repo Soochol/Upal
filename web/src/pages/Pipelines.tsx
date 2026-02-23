@@ -36,10 +36,18 @@ export default function Pipelines() {
     queryFn: fetchPipelines,
   })
 
+  const pipelinesRef = useRef(pipelines)
+  pipelinesRef.current = pipelines
+
+  // Stable key based on pipeline IDs only — changes when pipelines are added/removed,
+  // but NOT when thumbnail_svg or other fields change. This prevents the effect from
+  // being cancelled mid-generation by unrelated list refreshes.
+  const pipelineIdsKey = pipelines.map(p => p.id).sort().join(',')
+
   // After list loads, generate thumbnails for pipelines that don't have one yet.
   useEffect(() => {
     if (loading) return
-    const missing = pipelines.filter(
+    const missing = pipelinesRef.current.filter(
       (p) => !p.thumbnail_svg && !thumbnailRequested.current.has(p.id),
     )
     if (missing.length === 0) return
@@ -51,17 +59,20 @@ export default function Pipelines() {
       thumbnailRequested.current.add(p.id)
       try {
         const svg = await generatePipelineThumbnail(p.id)
-        if (!cancelled && svg) {
+        // Always save the result — even if the effect was "cancelled" (due to a list
+        // refresh), we still want to show the thumbnail that was already generated.
+        if (svg) {
           queryClient.setQueryData<Pipeline[]>(['pipelines'], (old) =>
             old?.map(item => item.id === p.id ? { ...item, thumbnail_svg: svg } : item)
           )
         }
       } catch { /* skip — thumbnail is optional */ }
-      runNext(i + 1)
+      if (!cancelled) runNext(i + 1)
     }
     runNext(0)
     return () => { cancelled = true }
-  }, [loading, pipelines, queryClient])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, pipelineIdsKey, queryClient])
 
   useEffect(() => {
     setSelectedRun(null)
