@@ -15,7 +15,8 @@ import { MainLayout } from '@/app/layout'
 import { fetchPipeline, updatePipeline, collectPipeline } from '@/entities/pipeline'
 import { fetchContentSessions } from '@/entities/content-session/api'
 import { useContentSessionStore } from '@/entities/content-session/store'
-import type { PipelineSource, PipelineContext } from '@/shared/types'
+import { WorkflowPicker } from './WorkflowPicker'
+import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/shared/types'
 import type { ContentSession } from '@/entities/content-session/types'
 
 // ─── Schedule presets ──────────────────────────────────────────────────────────
@@ -33,20 +34,24 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 // ─── Right panel: Pipeline Settings ───────────────────────────────────────────
 
 function PipelineSettingsPanel({
-  sources, schedule, context,
-  onSourcesChange, onScheduleChange, onContextSave, autoSaveStatus,
+  sources, schedule, context, workflows,
+  onSourcesChange, onScheduleChange, onContextSave, onWorkflowsChange, autoSaveStatus,
 }: {
   sources: PipelineSource[]
   schedule: string
   context: PipelineContext | undefined
+  workflows: PipelineWorkflow[]
   onSourcesChange: (s: PipelineSource[]) => void
   onScheduleChange: (cron: string) => void
   onContextSave: (ctx: PipelineContext) => Promise<void>
+  onWorkflowsChange: (w: PipelineWorkflow[]) => void
   autoSaveStatus: 'idle' | 'saving' | 'saved'
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(true)
   const [briefOpen, setBriefOpen] = useState(false)
+  const [workflowsOpen, setWorkflowsOpen] = useState(false)
+  const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -140,6 +145,65 @@ function PipelineSettingsPanel({
               </div>
 
             </div>
+          )}
+        </section>
+
+        <section>
+          <button
+            onClick={() => setWorkflowsOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-2 cursor-pointer"
+          >
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Workflows
+            </span>
+            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${workflowsOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {workflowsOpen && (
+            <div className="space-y-3">
+              {workflows.length === 0 ? (
+                <div className="py-4 text-center rounded-xl border border-dashed border-border">
+                  <p className="text-xs text-muted-foreground mb-2">No workflows configured.</p>
+                  <button
+                    onClick={() => setShowWorkflowPicker(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Add workflow
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {workflows.map((wf, i) => (
+                    <div key={wf.workflow_name} className="flex items-center gap-2 px-3 py-2.5 border-b border-border last:border-b-0">
+                      <span className="text-xs font-medium flex-1 truncate">{wf.label || wf.workflow_name}</span>
+                      <button
+                        onClick={() => onWorkflowsChange(workflows.filter((_, j) => j !== i))}
+                        className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {workflows.length > 0 && (
+                <button
+                  onClick={() => setShowWorkflowPicker(true)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" /> Add workflow
+                </button>
+              )}
+            </div>
+          )}
+
+          {showWorkflowPicker && (
+            <WorkflowPicker
+              existingWorkflows={workflows}
+              onAdd={(wf) => onWorkflowsChange([...workflows, wf])}
+              onClose={() => setShowWorkflowPicker(false)}
+            />
           )}
         </section>
 
@@ -362,12 +426,14 @@ export default function PipelineDetailPage() {
 
   const [localSources, setLocalSources] = useState<PipelineSource[]>([])
   const [localSchedule, setLocalSchedule] = useState('')
+  const [localWorkflows, setLocalWorkflows] = useState<PipelineWorkflow[]>([])
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   useEffect(() => {
     if (pipeline) {
       setLocalSources(pipeline.sources ?? [])
       setLocalSchedule(pipeline.schedule ?? '')
+      setLocalWorkflows(pipeline.workflows ?? [])
     }
   }, [pipeline?.id])
 
@@ -378,15 +444,18 @@ export default function PipelineDetailPage() {
   localSourcesRef.current = localSources
   const localScheduleRef = useRef(localSchedule)
   localScheduleRef.current = localSchedule
+  const localWorkflowsRef = useRef(localWorkflows)
+  localWorkflowsRef.current = localWorkflows
 
   // Whether local values differ from server state
   const isDirty = useMemo(() => {
     if (!pipeline) return false
     return (
       JSON.stringify(localSources) !== JSON.stringify(pipeline.sources ?? []) ||
-      localSchedule !== (pipeline.schedule ?? '')
+      localSchedule !== (pipeline.schedule ?? '') ||
+      JSON.stringify(localWorkflows) !== JSON.stringify(pipeline.workflows ?? [])
     )
-  }, [localSources, localSchedule, pipeline])
+  }, [localSources, localSchedule, localWorkflows, pipeline])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
@@ -396,7 +465,7 @@ export default function PipelineDetailPage() {
     if (!p) return
     setAutoSaveStatus('saving')
     try {
-      await updatePipeline(id!, { ...p, sources: localSourcesRef.current, schedule: localScheduleRef.current })
+      await updatePipeline(id!, { ...p, sources: localSourcesRef.current, schedule: localScheduleRef.current, workflows: localWorkflowsRef.current })
       queryClient.invalidateQueries({ queryKey: ['pipeline', id] })
       setAutoSaveStatus('saved')
       setTimeout(() => setAutoSaveStatus('idle'), 2000)
@@ -413,7 +482,7 @@ export default function PipelineDetailPage() {
     if (!isDirty) return
     const timer = setTimeout(() => { void doSaveRef.current() }, 800)
     return () => clearTimeout(timer)
-  }, [localSources, localSchedule, isDirty])
+  }, [localSources, localSchedule, localWorkflows, isDirty])
 
   // Save on unmount if dirty
   useEffect(() => {
@@ -519,9 +588,11 @@ export default function PipelineDetailPage() {
           sources={localSources}
           schedule={localSchedule}
           context={pipeline.context}
+          workflows={localWorkflows}
           onSourcesChange={setLocalSources}
           onScheduleChange={setLocalSchedule}
           onContextSave={async (ctx) => { await updateContextMutation.mutateAsync(ctx) }}
+          onWorkflowsChange={setLocalWorkflows}
           autoSaveStatus={autoSaveStatus}
         />
       }
