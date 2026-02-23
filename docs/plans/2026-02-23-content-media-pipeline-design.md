@@ -58,6 +58,45 @@ Pipeline (IT AI)          Pipeline (Finance)        Pipeline (Global Tech)
 
 ---
 
+## 파이프라인 사전 정의 (Editorial Brief)
+
+파이프라인은 생성 시 한 번 사전 정의된다. 이 컨텍스트는 하위 모든 레이어(소스 수집 → LLM 분석 → 워크플로우 제작)에 시스템 프롬프트로 주입된다.
+
+```go
+type PipelineContext struct {
+    Purpose         string   // 주제/목적 설명
+    TargetAudience  string   // 타겟 독자
+    ToneStyle       string   // 톤/스타일 지침
+    FocusKeywords   []string // 포커스 키워드 (수집 필터링 기준)
+    ExcludeKeywords []string // 제외 키워드
+    ContentGoals    string   // 콘텐츠 목표 (빈도, 포맷)
+    Language        string   // "ko" | "en"
+}
+```
+
+### 컨텍스트 전파 흐름
+
+```
+Pipeline.Context (사전 정의)
+  │
+  ├──→ 소스 수집 워크플로우
+  │       "포커스 키워드 기준으로 관련도 평가"
+  │       "제외 키워드 필터링"
+  │
+  ├──→ LLM 분석 워크플로우
+  │       "타겟 독자 관점에서 가치 있는 각도 제안"
+  │       "목적/주제에 맞는 인사이트 추출"
+  │
+  └──→ 제작 워크플로우 (블로그/쇼츠/뉴스레터)
+          "정의된 톤/스타일로 작성"
+          "정의된 언어로 작성"
+          "정의된 독자를 위해 최적화"
+```
+
+동일한 소스(HN, Reuters)에서도 파이프라인 컨텍스트가 다르면 완전히 다른 성격의 콘텐츠가 생성된다.
+
+---
+
 ## 데이터 모델
 
 ### 연결 체인 (전체 계보)
@@ -231,6 +270,19 @@ Shorts Workflow Run #43 [실행 중...]
 
 스케줄: [cron] 0 */6 * * *   (6시간마다)
 알림: [Discord] webhook URL: ...
+
+                              [지금 수집하기 ▶]  ← 수동 트리거
+```
+
+### 세션 생성 트리거 (두 가지 모두 동일한 플로우)
+
+```
+트리거 방식
+  ├── 스케줄러 (cron)      → 자동, 주기적으로 새 Session 생성
+  └── 사용자 수동 트리거    → "지금 수집하기" 버튼 클릭 → 동일하게 새 Session 생성
+
+트리거 방식과 무관하게:
+  새 ContentSession 생성 → 소스 수집 → LLM 분석 → 사용자 알림
 ```
 
 ---
