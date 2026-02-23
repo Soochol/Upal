@@ -101,7 +101,14 @@ func (r *MemoryLLMAnalysisRepository) GetBySession(ctx context.Context, sessionI
 	if len(all) == 0 {
 		return nil, fmt.Errorf("llm analysis for session %q not found", sessionID)
 	}
-	return all[len(all)-1], nil
+	// Return most recently created (deterministic: latest CreatedAt wins).
+	latest := all[0]
+	for _, a := range all[1:] {
+		if a.CreatedAt.After(latest.CreatedAt) {
+			latest = a
+		}
+	}
+	return latest, nil
 }
 
 // --- PublishedContent ---

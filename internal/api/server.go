@@ -104,7 +104,9 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/{id}/runs/{runId}/reject", s.rejectPipelineRun)
 			r.Get("/{id}/triggers", s.listPipelineTriggers)
 			r.Post("/{id}/thumbnail", s.generatePipelineThumbnail)
-			r.Post("/{id}/collect", s.collectPipeline)
+			if s.contentSvc != nil {
+				r.Post("/{id}/collect", s.collectPipeline)
+			}
 		})
 		if s.contentSvc != nil {
 			r.Route("/content-sessions", func(r chi.Router) {
