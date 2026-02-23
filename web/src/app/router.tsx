@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import ProductLandingPage from '@/pages/landing/ProductLanding'
 import LandingPage from '@/pages/landing'
@@ -11,6 +12,8 @@ import { RunDetail } from '@/widgets/run-detail'
 import PublishedPage from '@/pages/Published'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
+
+const SessionDetailPage = lazy(() => import('@/pages/pipelines/session'))
 
 export function AppRouter() {
   return (
@@ -28,7 +31,7 @@ export function AppRouter() {
           <Route path="/pipelines" element={<PipelinesPage />} />
           <Route path="/pipelines/new" element={<PipelineNewPage />} />
           <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
-          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineDetailPage />} />
+          <Route path="/pipelines/:id/sessions/:sessionId" element={<Suspense fallback={null}><SessionDetailPage /></Suspense>} />
 
           {/* Content */}
           <Route path="/published" element={<PublishedPage />} />
