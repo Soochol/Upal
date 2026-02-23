@@ -1,4 +1,5 @@
 bin/
+tmp/
 /upal
 web/node_modules/
 web/dist/

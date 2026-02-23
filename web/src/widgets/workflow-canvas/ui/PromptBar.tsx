@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react'
 
 type Props = {
@@ -22,12 +22,19 @@ export function PromptBar({
 }: Props) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const wasGeneratingRef = useRef(false)
+
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating) {
+      setValue('')
+    }
+    wasGeneratingRef.current = isGenerating
+  }, [isGenerating])
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed || isGenerating) return
     onSubmit(trimmed)
-    setValue('')
   }, [value, isGenerating, onSubmit])
 
   const handleKeyDown = useCallback(

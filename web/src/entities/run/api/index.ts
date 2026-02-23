@@ -44,6 +44,8 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
       return { type: 'node_resumed', nodeId }
     case 'log':
       return { type: 'log', nodeId, message: data.message as string }
+    case 'error':
+      return { type: 'error', message: data.error as string ?? JSON.stringify(data) }
     default:
       return { type: 'info', message: JSON.stringify(data) }
   }

@@ -47,13 +47,14 @@ const (
 )
 
 type ModelInfo struct {
-	ID       string         `json:"id"`
-	Provider string         `json:"provider"`
-	Name     string         `json:"name"`
-	Category ModelCategory  `json:"category"`
-	Tier     ModelTier      `json:"tier,omitempty"`
-	Hint     string         `json:"hint,omitempty"` // one-line capability hint for LLM selection
-	Options  []OptionSchema `json:"options"`
+	ID           string         `json:"id"`
+	Provider     string         `json:"provider"`
+	Name         string         `json:"name"`
+	Category     ModelCategory  `json:"category"`
+	Tier         ModelTier      `json:"tier,omitempty"`
+	Hint         string         `json:"hint,omitempty"` // one-line capability hint for LLM selection
+	Options      []OptionSchema `json:"options"`
+	SupportsTools bool          `json:"supportsTools"`
 }
 
 // modelCategoryByType maps provider types to their model category.
@@ -111,6 +112,11 @@ func optionsForType(providerType string) (ModelCategory, []OptionSchema) {
 		cat = ModelCategoryText
 	}
 	return cat, categoryOptions[cat]
+}
+
+// categorySupportsTools reports whether models in a category support function calling.
+func categorySupportsTools(cat ModelCategory) bool {
+	return cat == ModelCategoryText
 }
 
 // modelEntry holds metadata for a known model within a provider type.
@@ -182,12 +188,13 @@ func KnownModelsGrouped(configs map[string]config.ProviderConfig) []ModelInfo {
 		if known, ok := knownModels[pc.Type]; ok {
 			for _, m := range known {
 				models = append(models, ModelInfo{
-					ID:       name + "/" + m.Name,
-					Provider: name,
-					Name:     m.Name,
-					Category: cat,
-					Tier:     m.Tier,
-					Hint:     m.Hint,
+					ID:            name + "/" + m.Name,
+					Provider:      name,
+					Name:          m.Name,
+					Category:      cat,
+					Tier:          m.Tier,
+					Hint:          m.Hint,
+					SupportsTools: categorySupportsTools(cat),
 				})
 			}
 		}
@@ -210,13 +217,14 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 		if known, ok := knownModels[pc.Type]; ok {
 			for _, m := range known {
 				models = append(models, ModelInfo{
-					ID:       name + "/" + m.Name,
-					Provider: name,
-					Name:     m.Name,
-					Category: cat,
-					Tier:     m.Tier,
-					Hint:     m.Hint,
-					Options:  opts,
+					ID:            name + "/" + m.Name,
+					Provider:      name,
+					Name:          m.Name,
+					Category:      cat,
+					Tier:          m.Tier,
+					Hint:          m.Hint,
+					Options:       opts,
+					SupportsTools: categorySupportsTools(cat),
 				})
 			}
 		}
@@ -271,11 +279,12 @@ func discoverOllamaModels(providerName, baseURL string, cat ModelCategory, opts 
 		// Ollama model names may include ":latest" tag — strip it for cleaner display
 		name := strings.TrimSuffix(m.Name, ":latest")
 		models = append(models, ModelInfo{
-			ID:       providerName + "/" + name,
-			Provider: providerName,
-			Name:     name,
-			Category: cat,
-			Options:  opts,
+			ID:            providerName + "/" + name,
+			Provider:      providerName,
+			Name:          name,
+			Category:      cat,
+			Options:       opts,
+			SupportsTools: categorySupportsTools(cat),
 		})
 	}
 	return models

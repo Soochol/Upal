@@ -63,7 +63,7 @@ export function useExecuteRun() {
         run_id,
         (event) => dispatchRunEvent(event, addRunEvent),
         (result) => {
-          addRunEvent({ type: 'done', status: result.status as string, sessionId: result.session_id as string, state: (result.state ?? {}) as Record<string, unknown> })
+          addRunEvent({ type: 'done', status: result.status as string, sessionId: result.session_id as string, state: (result.state ?? {}) as Record<string, unknown>, error: result.error as string | undefined })
           const statuses = useExecutionStore.getState().nodeStatuses
           for (const [id, status] of Object.entries(statuses)) {
             if (status === 'running') runEventBus.emit('node_completed', { nodeId: id })

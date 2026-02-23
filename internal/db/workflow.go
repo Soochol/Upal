@@ -97,28 +97,10 @@ func (d *DB) ListWorkflows(ctx context.Context) ([]WorkflowRow, error) {
 		}
 		result = append(result, row)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list workflows: %w", err)
+	}
 	return result, nil
-}
-
-// UpdateWorkflow updates a workflow definition.
-func (d *DB) UpdateWorkflow(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
-	defJSON, err := json.Marshal(wf)
-	if err != nil {
-		return fmt.Errorf("marshal definition: %w", err)
-	}
-
-	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE workflows SET name = $1, definition = $2, version = $3, updated_at = NOW() WHERE name = $4`,
-		wf.Name, defJSON, wf.Version, name,
-	)
-	if err != nil {
-		return fmt.Errorf("update workflow: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("workflow not found: %s", name)
-	}
-	return nil
 }
 
 // DeleteWorkflow removes a workflow by name.

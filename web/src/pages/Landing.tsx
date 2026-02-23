@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, GitBranch, Sparkles } from 'lucide-react'
 import { listWorkflows, deleteWorkflow, generateWorkflowThumbnail, deserializeWorkflow, useWorkflowStore } from '@/entities/workflow'
 import type { WorkflowDefinition } from '@/entities/workflow'
-import { fetchRuns } from '@/entities/run'
+import { fetchRuns, useExecutionStore } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
 import { Header } from '@/shared/ui/Header'
 import { WorkflowCard } from './landing/WorkflowCard'
@@ -67,6 +67,8 @@ export default function Landing() {
     useWorkflowStore.setState({ nodes, edges })
     useWorkflowStore.getState().setWorkflowName(wf.name)
     useWorkflowStore.getState().setOriginalName(wf.name)
+    useExecutionStore.getState().clearNodeStatuses()
+    useExecutionStore.getState().clearRunEvents()
     navigate('/editor')
   }
 
@@ -85,6 +87,8 @@ export default function Landing() {
     const name = `Untitled-${Date.now().toString(36).slice(-4)}`
     useWorkflowStore.getState().setWorkflowName(name)
     useWorkflowStore.getState().setOriginalName('')
+    useExecutionStore.getState().clearNodeStatuses()
+    useExecutionStore.getState().clearRunEvents()
     navigate('/editor')
   }
 

@@ -60,7 +60,7 @@ export async function rejectPipelineRun(pipelineId: string, runId: string): Prom
 
 export type PipelineBundle = {
   pipeline: Omit<Pipeline, 'id' | 'created_at' | 'updated_at'>
-  workflows: WorkflowDefinition[]
+  workflows: WorkflowDefinition[] | null
 }
 
 export async function generatePipelineBundle(

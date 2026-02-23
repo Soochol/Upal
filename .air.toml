@@ -1,0 +1,27 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/upal ./cmd/upal"
+  bin = "./tmp/upal serve"
+  full_bin = "./tmp/upal serve"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin", "web", "vendor"]
+  exclude_file = []
+  exclude_regex = ["_test\\.go$"]
+  delay = 500
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = 500
+
+[log]
+  time = false
+
+[color]
+  build = "yellow"
+  runner = "green"
+  watcher = "cyan"
+  app = ""
+
+[misc]
+  clean_on_exit = true

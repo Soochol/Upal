@@ -109,7 +109,7 @@ export default function Pipelines() {
         : undefined
       const bundle = await generatePipelineBundle(description, existingPipeline)
       await Promise.all(
-        bundle.workflows.map((wf) =>
+        (bundle.workflows ?? []).map((wf) =>
           saveWorkflow(wf).catch((e) => {
             if (e instanceof ApiError && e.status === 409) return
             throw e

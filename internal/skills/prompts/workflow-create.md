@@ -149,6 +149,8 @@ input → draft_agent → reviewer_agent → output
       "config": {
         "label": "요약 결과",
         "description": "생성된 요약을 표시",
+        "output_format": "html",
+        "model": "anthropic/claude-sonnet-4-6",
         "system_prompt": "깔끔하고 미니멀한 레이아웃을 사용하세요. 중립 배경에 제목 강조 색상 하나, Inter 본문 글꼴로 단일 컬럼에 표시하세요.",
         "prompt": "{{summarizer}}"
       }
@@ -168,6 +170,7 @@ input → draft_agent → reviewer_agent → output
 **Structure:**
 - Every workflow MUST have at least one `"input"` node and exactly one `"output"` node.
 - Every `"agent"` node MUST have `"model"` and `"prompt"` fields in its config.
+- Every `"output"` node MUST have `"output_format"` and `"prompt"` fields. For `"html"` format, MUST also set `"model"` and `"system_prompt"`.
 - Every node config MUST have `"label"` and `"description"`.
 - Node IDs must be unique English snake_case slugs. No duplicates.
 - Every edge `"from"` and `"to"` must reference an existing node id.

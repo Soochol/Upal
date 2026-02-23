@@ -2,17 +2,47 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/upal"
 )
 
+// validateWorkflowTools checks that every tool-type node references a tool
+// that is actually registered (custom or native). Returns a descriptive error
+// so the caller can return 400 instead of letting execution fail at runtime.
+func (s *Server) validateWorkflowTools(wf *upal.WorkflowDefinition) error {
+	if s.toolReg == nil {
+		return nil
+	}
+	for _, n := range wf.Nodes {
+		if n.Type != upal.NodeTypeTool {
+			continue
+		}
+		toolName, _ := n.Config["tool"].(string)
+		if toolName == "" {
+			return fmt.Errorf("tool node %q: missing required config field \"tool\"", n.ID)
+		}
+		_, isCustom := s.toolReg.Get(toolName)
+		isNative := s.toolReg.IsNative(toolName)
+		if !isCustom && !isNative {
+			return fmt.Errorf("tool node %q: unknown tool %q (available: use GET /api/tools to list registered tools)", n.ID, toolName)
+		}
+	}
+	return nil
+}
+
 // --- HTTP handlers ---
 
 func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 	var wf upal.WorkflowDefinition
 	if err := json.NewDecoder(r.Body).Decode(&wf); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.validateWorkflowTools(&wf); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -58,6 +88,11 @@ func (s *Server) updateWorkflow(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	var wf upal.WorkflowDefinition
 	if err := json.NewDecoder(r.Body).Decode(&wf); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.validateWorkflowTools(&wf); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

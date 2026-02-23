@@ -20,8 +20,9 @@ export type ModelInfo = {
   id: string
   provider: string
   name: string
-  category: 'text' | 'image'
+  category: 'text' | 'image' | 'tts'
   options: OptionSchema[]
+  supportsTools: boolean
 }
 
 export type ToolInfo = {

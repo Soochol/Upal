@@ -295,7 +295,7 @@ func (g *Generator) buildModelPrompt() string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n\nAvailable models for agent nodes (use in config \"model\" field):\nDefault model: %q\n", g.model)
+	fmt.Fprintf(&b, "\n\nAvailable models for agent nodes and HTML-format output nodes (use in config \"model\" field):\nDefault model: %q\n", g.model)
 
 	if text := groups["text"]; len(text) > 0 {
 		b.WriteString("\nText/reasoning models — use for analysis, generation, conversation, tool-use, and any task that processes or produces text:\n")
@@ -352,12 +352,21 @@ func (g *Generator) fixInvalidModels(wf *upal.WorkflowDefinition) {
 		}
 	}
 	for i, n := range wf.Nodes {
-		if n.Type != upal.NodeTypeAgent {
-			continue
-		}
-		model, _ := n.Config["model"].(string)
-		if model != "" && !valid[model] {
-			wf.Nodes[i].Config["model"] = defaultID
+		switch n.Type {
+		case upal.NodeTypeAgent:
+			model, _ := n.Config["model"].(string)
+			if model != "" && !valid[model] {
+				wf.Nodes[i].Config["model"] = defaultID
+			}
+		case upal.NodeTypeOutput:
+			format, _ := n.Config["output_format"].(string)
+			if format != "html" {
+				continue
+			}
+			model, _ := n.Config["model"].(string)
+			if model == "" || !valid[model] {
+				wf.Nodes[i].Config["model"] = defaultID
+			}
 		}
 	}
 }

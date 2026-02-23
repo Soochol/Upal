@@ -22,7 +22,7 @@ dev-frontend:
 	cd web && npm run dev
 
 dev-backend:
-	go run ./cmd/upal serve
+	air
 
 dev:
 	@echo "Run 'make dev-backend' and 'make dev-frontend' in separate terminals"

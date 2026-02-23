@@ -97,6 +97,23 @@ func toGenaiSchema(schema map[string]any) *genai.Schema {
 					ps.Type = genai.TypeBoolean
 				case "array":
 					ps.Type = genai.TypeArray
+					if items, ok := prop["items"].(map[string]any); ok {
+						itemSchema := &genai.Schema{Type: genai.TypeString}
+						if it, ok := items["type"].(string); ok {
+							switch it {
+							case "number":
+								itemSchema.Type = genai.TypeNumber
+							case "integer":
+								itemSchema.Type = genai.TypeInteger
+							case "boolean":
+								itemSchema.Type = genai.TypeBoolean
+							}
+						}
+						ps.Items = itemSchema
+					} else {
+						// Gemini requires Items for array types; default to string.
+						ps.Items = &genai.Schema{Type: genai.TypeString}
+					}
 				default:
 					ps.Type = genai.TypeString
 				}

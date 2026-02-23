@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
+	"strings"
 	"sync"
 
 	"google.golang.org/genai"
@@ -70,6 +72,22 @@ func (g *GeminiLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMReques
 		if stream {
 			for resp, err := range g.client.Models.GenerateContentStream(ctx, req.Model, req.Contents, cfg) {
 				if err != nil {
+					if isToolUnsupportedErr(err) && cfg.Tools != nil {
+						slog.Warn("gemini: model does not support function calling, retrying without tools", "model", req.Model)
+						cfgNoTools := *cfg
+						cfgNoTools.Tools = nil
+						for resp2, err2 := range g.client.Models.GenerateContentStream(ctx, req.Model, req.Contents, &cfgNoTools) {
+							if err2 != nil {
+								emitLog(ctx, fmt.Sprintf("gemini error: %s", err2))
+								yield(nil, fmt.Errorf("gemini: %w", err2))
+								return
+							}
+							if !yield(convertGeminiResponse(resp2), nil) {
+								return
+							}
+						}
+						return
+					}
 					emitLog(ctx, fmt.Sprintf("gemini error: %s", err))
 					yield(nil, fmt.Errorf("gemini: %w", err))
 					return
@@ -81,14 +99,32 @@ func (g *GeminiLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMReques
 		} else {
 			resp, err := g.client.Models.GenerateContent(ctx, req.Model, req.Contents, cfg)
 			if err != nil {
-				emitLog(ctx, fmt.Sprintf("gemini error: %s", err))
-				yield(nil, fmt.Errorf("gemini: %w", err))
-				return
+				if isToolUnsupportedErr(err) && cfg.Tools != nil {
+					slog.Warn("gemini: model does not support function calling, retrying without tools", "model", req.Model)
+					cfgNoTools := *cfg
+					cfgNoTools.Tools = nil
+					resp, err = g.client.Models.GenerateContent(ctx, req.Model, req.Contents, &cfgNoTools)
+					if err != nil {
+						emitLog(ctx, fmt.Sprintf("gemini error: %s", err))
+						yield(nil, fmt.Errorf("gemini: %w", err))
+						return
+					}
+				} else {
+					emitLog(ctx, fmt.Sprintf("gemini error: %s", err))
+					yield(nil, fmt.Errorf("gemini: %w", err))
+					return
+				}
 			}
 			emitLog(ctx, "gemini: response received")
 			yield(convertGeminiResponse(resp), nil)
 		}
 	}
+}
+
+// isToolUnsupportedErr reports whether a Gemini API error indicates the model
+// does not support function calling (e.g. some preview text models).
+func isToolUnsupportedErr(err error) bool {
+	return strings.Contains(err.Error(), "Tool use with function calling is unsupported by the model")
 }
 
 func init() {

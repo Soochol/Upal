@@ -64,7 +64,10 @@ func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefini
 
 func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Update(ctx, name, wf)
-	if err := r.db.UpdateWorkflow(ctx, name, wf); err != nil {
+	// Use upsert semantics: CreateWorkflow uses INSERT ON CONFLICT DO UPDATE,
+	// so it succeeds whether the row exists in DB or not. This handles the
+	// race where the workflow exists in memory but not yet in DB.
+	if _, err := r.db.CreateWorkflow(ctx, wf); err != nil {
 		return fmt.Errorf("db persist failed: %w", err)
 	}
 	return nil

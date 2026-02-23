@@ -6,13 +6,13 @@ import type { NodeEditorFieldProps } from './NodeEditor'
 export function InputNodeEditor({ config, setConfig }: NodeEditorFieldProps<InputNodeConfig>) {
   return (
     <div className="space-y-1">
-      <Label htmlFor="node-placeholder" className="text-xs">Placeholder</Label>
+      <Label htmlFor="node-prompt" className="text-xs">Prompt</Label>
       <Input
-        id="node-placeholder"
+        id="node-prompt"
         className="h-7 text-xs"
-        value={config.placeholder ?? ''}
-        placeholder="Enter placeholder text..."
-        onChange={(e) => setConfig('placeholder', e.target.value)}
+        value={config.prompt ?? ''}
+        placeholder="Enter prompt text..."
+        onChange={(e) => setConfig('prompt', e.target.value)}
       />
     </div>
   )

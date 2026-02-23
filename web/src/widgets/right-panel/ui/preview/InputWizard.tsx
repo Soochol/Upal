@@ -53,7 +53,7 @@ export function InputWizard({
           value={inputs[currentInput.id] ?? ''}
           onChange={(e) => onInputChange(currentInput.id, e.target.value)}
           placeholder={
-            (currentInput.data.config.placeholder as string) ||
+            (currentInput.data.config.prompt as string) ||
             `Enter value for ${currentInput.data.label}...`
           }
           className="min-h-[80px] resize-y text-xs"

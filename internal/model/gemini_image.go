@@ -70,10 +70,14 @@ func (g *GeminiImageLLM) generate(ctx context.Context, req *adkmodel.LLMRequest)
 		cfg = &genai.GenerateContentConfig{}
 	}
 
-	// Auto-set ResponseModalities for image-capable models.
-	if isImageCapableModel(req.Model) && len(cfg.ResponseModalities) == 0 {
-		modalities := []string{"TEXT", "IMAGE"}
-		cfg.ResponseModalities = modalities
+	// Image generation models require ResponseModalities and do not support
+	// function calling. Strip tools unconditionally to prevent INVALID_ARGUMENT
+	// errors when tools are configured on the agent node but forwarded here.
+	if isImageCapableModel(req.Model) {
+		if len(cfg.ResponseModalities) == 0 {
+			cfg.ResponseModalities = []string{"TEXT", "IMAGE"}
+		}
+		cfg.Tools = nil
 	}
 
 	emitLog(ctx, fmt.Sprintf("gemini-image: calling model %s", req.Model))
