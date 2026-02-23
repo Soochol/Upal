@@ -1,0 +1,235 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/soochol/upal/internal/upal"
+)
+
+// ContentDB defines the DB-layer methods needed by the persistent content repos.
+// *db.DB satisfies this interface.
+type ContentDB interface {
+	CreateContentSession(ctx context.Context, s *upal.ContentSession) error
+	GetContentSession(ctx context.Context, id string) (*upal.ContentSession, error)
+	ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error)
+	ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
+	UpdateContentSession(ctx context.Context, s *upal.ContentSession) error
+	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
+	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
+	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
+	GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
+	CreatePublishedContent(ctx context.Context, pc *upal.PublishedContent) error
+	ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent, error)
+	ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
+	ListPublishedContentByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error)
+	CreateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
+	ListSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
+	ListActiveSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
+	UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
+}
+
+// PersistentContentSessionRepository wraps MemoryContentSessionRepository with DB backend.
+type PersistentContentSessionRepository struct {
+	mem *MemoryContentSessionRepository
+	db  ContentDB
+}
+
+func NewPersistentContentSessionRepository(mem *MemoryContentSessionRepository, db ContentDB) *PersistentContentSessionRepository {
+	return &PersistentContentSessionRepository{mem: mem, db: db}
+}
+
+func (r *PersistentContentSessionRepository) Create(ctx context.Context, s *upal.ContentSession) error {
+	_ = r.mem.Create(ctx, s)
+	if err := r.db.CreateContentSession(ctx, s); err != nil {
+		return fmt.Errorf("db create content_session: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentContentSessionRepository) Get(ctx context.Context, id string) (*upal.ContentSession, error) {
+	if s, err := r.mem.Get(ctx, id); err == nil {
+		return s, nil
+	}
+	s, err := r.db.GetContentSession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.mem.Create(ctx, s)
+	return s, nil
+}
+
+func (r *PersistentContentSessionRepository) List(ctx context.Context) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListContentSessions(ctx)
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list content_sessions failed, falling back to in-memory", "err", err)
+	return r.mem.List(ctx)
+}
+
+func (r *PersistentContentSessionRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListContentSessionsByPipeline(ctx, pipelineID)
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list content_sessions by pipeline failed, falling back to in-memory", "err", err)
+	return r.mem.ListByPipeline(ctx, pipelineID)
+}
+
+func (r *PersistentContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {
+	_ = r.mem.Update(ctx, s)
+	if err := r.db.UpdateContentSession(ctx, s); err != nil {
+		return fmt.Errorf("db update content_session: %w", err)
+	}
+	return nil
+}
+
+// PersistentSourceFetchRepository wraps MemorySourceFetchRepository with DB backend.
+type PersistentSourceFetchRepository struct {
+	mem *MemorySourceFetchRepository
+	db  ContentDB
+}
+
+func NewPersistentSourceFetchRepository(mem *MemorySourceFetchRepository, db ContentDB) *PersistentSourceFetchRepository {
+	return &PersistentSourceFetchRepository{mem: mem, db: db}
+}
+
+func (r *PersistentSourceFetchRepository) Create(ctx context.Context, sf *upal.SourceFetch) error {
+	_ = r.mem.Create(ctx, sf)
+	if err := r.db.CreateSourceFetch(ctx, sf); err != nil {
+		return fmt.Errorf("db create source_fetch: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentSourceFetchRepository) ListBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {
+	fetches, err := r.db.ListSourceFetchesBySession(ctx, sessionID)
+	if err == nil {
+		return fetches, nil
+	}
+	slog.Warn("db list source_fetches failed, falling back to in-memory", "err", err)
+	return r.mem.ListBySession(ctx, sessionID)
+}
+
+// PersistentLLMAnalysisRepository wraps MemoryLLMAnalysisRepository with DB backend.
+type PersistentLLMAnalysisRepository struct {
+	mem *MemoryLLMAnalysisRepository
+	db  ContentDB
+}
+
+func NewPersistentLLMAnalysisRepository(mem *MemoryLLMAnalysisRepository, db ContentDB) *PersistentLLMAnalysisRepository {
+	return &PersistentLLMAnalysisRepository{mem: mem, db: db}
+}
+
+func (r *PersistentLLMAnalysisRepository) Create(ctx context.Context, a *upal.LLMAnalysis) error {
+	_ = r.mem.Create(ctx, a)
+	if err := r.db.CreateLLMAnalysis(ctx, a); err != nil {
+		return fmt.Errorf("db create llm_analysis: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentLLMAnalysisRepository) GetBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error) {
+	if a, err := r.mem.GetBySession(ctx, sessionID); err == nil {
+		return a, nil
+	}
+	return r.db.GetLLMAnalysisBySession(ctx, sessionID)
+}
+
+// PersistentPublishedContentRepository wraps MemoryPublishedContentRepository with DB backend.
+type PersistentPublishedContentRepository struct {
+	mem *MemoryPublishedContentRepository
+	db  ContentDB
+}
+
+func NewPersistentPublishedContentRepository(mem *MemoryPublishedContentRepository, db ContentDB) *PersistentPublishedContentRepository {
+	return &PersistentPublishedContentRepository{mem: mem, db: db}
+}
+
+func (r *PersistentPublishedContentRepository) Create(ctx context.Context, pc *upal.PublishedContent) error {
+	_ = r.mem.Create(ctx, pc)
+	if err := r.db.CreatePublishedContent(ctx, pc); err != nil {
+		return fmt.Errorf("db create published_content: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentPublishedContentRepository) List(ctx context.Context) ([]*upal.PublishedContent, error) {
+	pcs, err := r.db.ListPublishedContent(ctx)
+	if err == nil {
+		return pcs, nil
+	}
+	slog.Warn("db list published_content failed, falling back to in-memory", "err", err)
+	return r.mem.List(ctx)
+}
+
+func (r *PersistentPublishedContentRepository) ListBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error) {
+	pcs, err := r.db.ListPublishedContentBySession(ctx, sessionID)
+	if err == nil {
+		return pcs, nil
+	}
+	slog.Warn("db list published_content by session failed, falling back to in-memory", "err", err)
+	return r.mem.ListBySession(ctx, sessionID)
+}
+
+func (r *PersistentPublishedContentRepository) ListByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error) {
+	pcs, err := r.db.ListPublishedContentByChannel(ctx, channel)
+	if err == nil {
+		return pcs, nil
+	}
+	slog.Warn("db list published_content by channel failed, falling back to in-memory", "err", err)
+	return r.mem.ListByChannel(ctx, channel)
+}
+
+// PersistentSurgeEventRepository wraps MemorySurgeEventRepository with DB backend.
+type PersistentSurgeEventRepository struct {
+	mem *MemorySurgeEventRepository
+	db  ContentDB
+}
+
+func NewPersistentSurgeEventRepository(mem *MemorySurgeEventRepository, db ContentDB) *PersistentSurgeEventRepository {
+	return &PersistentSurgeEventRepository{mem: mem, db: db}
+}
+
+func (r *PersistentSurgeEventRepository) Create(ctx context.Context, se *upal.SurgeEvent) error {
+	_ = r.mem.Create(ctx, se)
+	if err := r.db.CreateSurgeEvent(ctx, se); err != nil {
+		return fmt.Errorf("db create surge_event: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentSurgeEventRepository) List(ctx context.Context) ([]*upal.SurgeEvent, error) {
+	events, err := r.db.ListSurgeEvents(ctx)
+	if err == nil {
+		return events, nil
+	}
+	slog.Warn("db list surge_events failed, falling back to in-memory", "err", err)
+	return r.mem.List(ctx)
+}
+
+func (r *PersistentSurgeEventRepository) ListActive(ctx context.Context) ([]*upal.SurgeEvent, error) {
+	events, err := r.db.ListActiveSurgeEvents(ctx)
+	if err == nil {
+		return events, nil
+	}
+	slog.Warn("db list active surge_events failed, falling back to in-memory", "err", err)
+	return r.mem.ListActive(ctx)
+}
+
+func (r *PersistentSurgeEventRepository) Get(ctx context.Context, id string) (*upal.SurgeEvent, error) {
+	if se, err := r.mem.Get(ctx, id); err == nil {
+		return se, nil
+	}
+	return nil, fmt.Errorf("surge event %q not found", id)
+}
+
+func (r *PersistentSurgeEventRepository) Update(ctx context.Context, se *upal.SurgeEvent) error {
+	_ = r.mem.Update(ctx, se)
+	if err := r.db.UpdateSurgeEvent(ctx, se); err != nil {
+		return fmt.Errorf("db update surge_event: %w", err)
+	}
+	return nil
+}
