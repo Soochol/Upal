@@ -8,7 +8,7 @@ type Pipeline struct {
 	Name         string           `json:"name"`
 	Description  string           `json:"description,omitempty"`
 	Stages       []Stage          `json:"stages"`
-	Context      PipelineContext  `json:"context,omitempty"`
+	Context      PipelineContext  `json:"context"`
 	Sources      []PipelineSource `json:"sources,omitempty"`
 	ThumbnailSVG string           `json:"thumbnail_svg,omitempty"`
 	CreatedAt    time.Time        `json:"created_at"`
