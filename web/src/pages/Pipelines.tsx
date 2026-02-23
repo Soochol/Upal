@@ -1,6 +1,6 @@
 // web/src/pages/Pipelines.tsx
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Plus, GitBranch,
@@ -10,7 +10,7 @@ import { Header } from '@/shared/ui/Header'
 import {
   fetchPipelines, fetchPipeline, createPipeline, updatePipeline,
   deletePipeline, startPipeline, generatePipelineBundle,
-  approvePipelineRun, rejectPipelineRun, generatePipelineThumbnail,
+  approvePipelineRun, rejectPipelineRun,
 } from '@/entities/pipeline'
 import { saveWorkflow } from '@/entities/workflow'
 import { ApiError } from '@/shared/api'
@@ -29,50 +29,10 @@ export default function Pipelines() {
   const [editorKey, setEditorKey] = useState(0)
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const thumbnailRequested = useRef<Set<string>>(new Set())
-
   const { data: pipelines = [], isLoading: loading } = useQuery({
     queryKey: ['pipelines'],
     queryFn: fetchPipelines,
   })
-
-  const pipelinesRef = useRef(pipelines)
-  pipelinesRef.current = pipelines
-
-  // Stable key based on pipeline IDs only — changes when pipelines are added/removed,
-  // but NOT when thumbnail_svg or other fields change. This prevents the effect from
-  // being cancelled mid-generation by unrelated list refreshes.
-  const pipelineIdsKey = pipelines.map(p => p.id).sort().join(',')
-
-  // After list loads, generate thumbnails for pipelines that don't have one yet.
-  useEffect(() => {
-    if (loading) return
-    const missing = pipelinesRef.current.filter(
-      (p) => !p.thumbnail_svg && !thumbnailRequested.current.has(p.id),
-    )
-    if (missing.length === 0) return
-
-    let cancelled = false
-    const runNext = async (i: number) => {
-      if (cancelled || i >= missing.length) return
-      const p = missing[i]
-      thumbnailRequested.current.add(p.id)
-      try {
-        const svg = await generatePipelineThumbnail(p.id)
-        // Always save the result — even if the effect was "cancelled" (due to a list
-        // refresh), we still want to show the thumbnail that was already generated.
-        if (svg) {
-          queryClient.setQueryData<Pipeline[]>(['pipelines'], (old) =>
-            old?.map(item => item.id === p.id ? { ...item, thumbnail_svg: svg } : item)
-          )
-        }
-      } catch { /* skip — thumbnail is optional */ }
-      if (!cancelled) runNext(i + 1)
-    }
-    runNext(0)
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, pipelineIdsKey, queryClient])
 
   useEffect(() => {
     setSelectedRun(null)
@@ -130,17 +90,12 @@ export default function Pipelines() {
       return bundle
     },
     onSuccess: async (bundle) => {
-      if (selected) {
-        await updatePipeline(selected.id, bundle.pipeline)
-        const fresh = await fetchPipeline(selected.id)
-        setSelected(fresh)
-        setEditorKey((k) => k + 1)
-        queryClient.invalidateQueries({ queryKey: ['pipelines'] })
-      } else {
-        const pipeline = await createPipeline(bundle.pipeline)
-        queryClient.invalidateQueries({ queryKey: ['pipelines'] })
-        navigate(`/pipelines/${pipeline.id}`)
-      }
+      if (!selected) return
+      await updatePipeline(selected.id, bundle.pipeline)
+      const fresh = await fetchPipeline(selected.id)
+      setSelected(fresh)
+      setEditorKey((k) => k + 1)
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
     },
     onError: (e) => {
       setGenerateError(e instanceof Error ? e.message : 'Generation failed')
@@ -168,15 +123,17 @@ export default function Pipelines() {
   return (
     <div className="flex flex-col h-screen bg-background">
       <Header />
-      {/* ─── Floating prompt bar ─── */}
-      <PromptBar
-        onSubmit={handleGenerate}
-        isGenerating={generateMutation.isPending}
-        placeholder={selected ? 'Edit these stages...' : 'Describe your pipeline...'}
-        positioning="fixed"
-        error={generateError}
-        onValueChange={() => setGenerateError(null)}
-      />
+      {/* ─── Floating prompt bar — edit page only ─── */}
+      {selected && (
+        <PromptBar
+          onSubmit={handleGenerate}
+          isGenerating={generateMutation.isPending}
+          placeholder="Edit these stages..."
+          positioning="fixed"
+          error={generateError}
+          onValueChange={() => setGenerateError(null)}
+        />
+      )}
       <main className="flex-1 overflow-y-auto pb-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
@@ -287,7 +244,7 @@ export default function Pipelines() {
                   </div>
                   <h3 className="landing-display text-lg font-semibold mb-2">No pipelines yet</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    Describe a pipeline above to generate one with AI, or create one manually.
+                    Create a pipeline manually or open one to edit with AI.
                   </p>
                 </div>
               )}
