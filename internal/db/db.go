@@ -164,4 +164,68 @@ CREATE TABLE IF NOT EXISTS connections (
     token    TEXT NOT NULL DEFAULT '',
     extras   JSONB NOT NULL DEFAULT '{}'
 );
+
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS context JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS session_id TEXT;
+
+CREATE TABLE IF NOT EXISTS content_sessions (
+    id           TEXT PRIMARY KEY,
+    pipeline_id  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'collecting',
+    trigger_type TEXT NOT NULL DEFAULT 'manual',
+    source_count INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reviewed_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_content_sessions_pipeline_id ON content_sessions(pipeline_id);
+CREATE INDEX IF NOT EXISTS idx_content_sessions_status ON content_sessions(status);
+
+CREATE TABLE IF NOT EXISTS source_fetches (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL REFERENCES content_sessions(id) ON DELETE CASCADE,
+    tool_name   TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'static',
+    raw_items   JSONB NOT NULL DEFAULT '[]',
+    error       TEXT,
+    fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_source_fetches_session_id ON source_fetches(session_id);
+
+CREATE TABLE IF NOT EXISTS llm_analyses (
+    id               TEXT PRIMARY KEY,
+    session_id       TEXT NOT NULL REFERENCES content_sessions(id) ON DELETE CASCADE,
+    raw_item_count   INTEGER NOT NULL DEFAULT 0,
+    filtered_count   INTEGER NOT NULL DEFAULT 0,
+    summary          TEXT NOT NULL DEFAULT '',
+    insights         JSONB NOT NULL DEFAULT '[]',
+    suggested_angles JSONB NOT NULL DEFAULT '[]',
+    overall_score    INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_llm_analyses_session_id ON llm_analyses(session_id);
+
+CREATE TABLE IF NOT EXISTS published_content (
+    id               TEXT PRIMARY KEY,
+    workflow_run_id  TEXT NOT NULL,
+    session_id       TEXT NOT NULL,
+    channel          TEXT NOT NULL,
+    external_url     TEXT NOT NULL DEFAULT '',
+    title            TEXT NOT NULL DEFAULT '',
+    published_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_published_content_session_id ON published_content(session_id);
+CREATE INDEX IF NOT EXISTS idx_published_content_channel ON published_content(channel);
+
+CREATE TABLE IF NOT EXISTS surge_events (
+    id          TEXT PRIMARY KEY,
+    keyword     TEXT NOT NULL,
+    pipeline_id TEXT NOT NULL DEFAULT '',
+    multiplier  DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sources     JSONB NOT NULL DEFAULT '[]',
+    dismissed   BOOLEAN NOT NULL DEFAULT false,
+    session_id  TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_surge_events_dismissed ON surge_events(dismissed);
 `

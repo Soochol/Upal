@@ -4,13 +4,15 @@ import "time"
 
 // Pipeline orchestrates a sequence of Stages (workflows, approvals, schedules).
 type Pipeline struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description,omitempty"`
-	Stages       []Stage   `json:"stages"`
-	ThumbnailSVG string    `json:"thumbnail_svg,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description,omitempty"`
+	Stages       []Stage          `json:"stages"`
+	Context      PipelineContext  `json:"context"`
+	Sources      []PipelineSource `json:"sources,omitempty"`
+	ThumbnailSVG string           `json:"thumbnail_svg,omitempty"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
 }
 
 // Stage is a single step in a Pipeline.
@@ -64,6 +66,27 @@ type StageConfig struct {
 
 	// Collect stage
 	Sources []CollectSource `json:"sources,omitempty"`
+}
+
+// PipelineContext carries editorial brief injected into all child layers.
+type PipelineContext struct {
+	Purpose         string   `json:"purpose,omitempty"`
+	TargetAudience  string   `json:"target_audience,omitempty"`
+	ToneStyle       string   `json:"tone_style,omitempty"`
+	FocusKeywords   []string `json:"focus_keywords,omitempty"`
+	ExcludeKeywords []string `json:"exclude_keywords,omitempty"`
+	ContentGoals    string   `json:"content_goals,omitempty"`
+	Language        string   `json:"language,omitempty"` // "ko" | "en"
+}
+
+// PipelineSource defines a single data source attached to a Pipeline.
+type PipelineSource struct {
+	ID         string         `json:"id"`
+	PipelineID string         `json:"pipeline_id"`
+	ToolName   string         `json:"tool_name"`   // "hn_fetch" | "reddit_fetch" | "rss_feed" | ...
+	SourceType string         `json:"source_type"` // "static" | "signal"
+	Config     map[string]any `json:"config,omitempty"` // tool-specific params
+	Enabled    bool           `json:"enabled"`
 }
 
 // PipelineRun tracks a single execution of a Pipeline.

@@ -257,6 +257,32 @@ func serve() {
 	schedulerSvc.SetPipelineRunner(pipelineRunner)
 	schedulerSvc.SetPipelineService(pipelineSvc)
 
+	// Content media pipeline
+	memContentSessionRepo := repository.NewMemoryContentSessionRepository()
+	memSourceFetchRepo := repository.NewMemorySourceFetchRepository()
+	memLLMAnalysisRepo := repository.NewMemoryLLMAnalysisRepository()
+	memPublishedRepo := repository.NewMemoryPublishedContentRepository()
+	memSurgeRepo := repository.NewMemorySurgeEventRepository()
+
+	var contentSessionRepo repository.ContentSessionRepository = memContentSessionRepo
+	var sourceFetchRepo repository.SourceFetchRepository = memSourceFetchRepo
+	var llmAnalysisRepo repository.LLMAnalysisRepository = memLLMAnalysisRepo
+	var publishedRepo repository.PublishedContentRepository = memPublishedRepo
+	var surgeRepo repository.SurgeEventRepository = memSurgeRepo
+
+	if database != nil {
+		contentSessionRepo = repository.NewPersistentContentSessionRepository(memContentSessionRepo, database)
+		sourceFetchRepo = repository.NewPersistentSourceFetchRepository(memSourceFetchRepo, database)
+		llmAnalysisRepo = repository.NewPersistentLLMAnalysisRepository(memLLMAnalysisRepo, database)
+		publishedRepo = repository.NewPersistentPublishedContentRepository(memPublishedRepo, database)
+		surgeRepo = repository.NewPersistentSurgeEventRepository(memSurgeRepo, database)
+	}
+
+	contentSvc := services.NewContentSessionService(
+		contentSessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo,
+	)
+	srv.SetContentSessionService(contentSvc)
+
 	// Configure natural language workflow generator if any provider is available.
 	skillReg := skills.New()
 	srv.SetSkills(skillReg)

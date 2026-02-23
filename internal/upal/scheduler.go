@@ -27,8 +27,9 @@ type RunRecord struct {
 	Outputs      map[string]any `json:"outputs,omitempty"`
 	Error        *string        `json:"error,omitempty"`
 	RetryOf      *string        `json:"retry_of,omitempty"` // original run ID if this is a retry
-	RetryCount   int            `json:"retry_count"`
-	CreatedAt    time.Time      `json:"created_at"`
+	RetryCount   int             `json:"retry_count"`
+	SessionID    *string         `json:"session_id,omitempty"` // set when run was triggered from a ContentSession
+	CreatedAt    time.Time       `json:"created_at"`
 	StartedAt    *time.Time     `json:"started_at,omitempty"`
 	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
 	NodeRuns     []NodeRunRecord `json:"node_runs,omitempty"`

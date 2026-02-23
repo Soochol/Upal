@@ -9,16 +9,24 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// CreatePipeline inserts a new pipeline. stages is stored as JSONB.
+// CreatePipeline inserts a new pipeline. stages, context, and sources are stored as JSONB.
 func (d *DB) CreatePipeline(ctx context.Context, p *upal.Pipeline) error {
 	stagesJSON, err := json.Marshal(p.Stages)
 	if err != nil {
 		return fmt.Errorf("marshal stages: %w", err)
 	}
+	ctxJSON, err := json.Marshal(p.Context)
+	if err != nil {
+		return fmt.Errorf("marshal context: %w", err)
+	}
+	sourcesJSON, err := json.Marshal(p.Sources)
+	if err != nil {
+		return fmt.Errorf("marshal sources: %w", err)
+	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO pipelines (id, name, description, stages, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		p.ID, p.Name, p.Description, stagesJSON, p.CreatedAt, p.UpdatedAt,
+		`INSERT INTO pipelines (id, name, description, stages, context, sources, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		p.ID, p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert pipeline: %w", err)
@@ -29,11 +37,11 @@ func (d *DB) CreatePipeline(ctx context.Context, p *upal.Pipeline) error {
 // GetPipeline retrieves a pipeline by ID.
 func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error) {
 	var p upal.Pipeline
-	var stagesJSON []byte
+	var stagesJSON, ctxJSON, sourcesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, name, description, stages, created_at, updated_at
+		`SELECT id, name, description, stages, context, sources, created_at, updated_at
 		 FROM pipelines WHERE id = $1`, id,
-	).Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("pipeline %q not found", id)
 	}
@@ -43,13 +51,19 @@ func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
 	if err := json.Unmarshal(stagesJSON, &p.Stages); err != nil {
 		return nil, fmt.Errorf("unmarshal stages: %w", err)
 	}
+	if err := json.Unmarshal(ctxJSON, &p.Context); err != nil {
+		return nil, fmt.Errorf("unmarshal context: %w", err)
+	}
+	if err := json.Unmarshal(sourcesJSON, &p.Sources); err != nil {
+		return nil, fmt.Errorf("unmarshal sources: %w", err)
+	}
 	return &p, nil
 }
 
 // ListPipelines returns all pipelines ordered by updated_at descending.
 func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, name, description, stages, created_at, updated_at
+		`SELECT id, name, description, stages, context, sources, created_at, updated_at
 		 FROM pipelines ORDER BY updated_at DESC`,
 	)
 	if err != nil {
@@ -60,12 +74,18 @@ func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 	var result []*upal.Pipeline
 	for rows.Next() {
 		var p upal.Pipeline
-		var stagesJSON []byte
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		var stagesJSON, ctxJSON, sourcesJSON []byte
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &ctxJSON, &sourcesJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan pipeline: %w", err)
 		}
 		if err := json.Unmarshal(stagesJSON, &p.Stages); err != nil {
 			return nil, fmt.Errorf("unmarshal stages: %w", err)
+		}
+		if err := json.Unmarshal(ctxJSON, &p.Context); err != nil {
+			return nil, fmt.Errorf("unmarshal context: %w", err)
+		}
+		if err := json.Unmarshal(sourcesJSON, &p.Sources); err != nil {
+			return nil, fmt.Errorf("unmarshal sources: %w", err)
 		}
 		result = append(result, &p)
 	}
@@ -75,16 +95,24 @@ func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 	return result, nil
 }
 
-// UpdatePipeline updates an existing pipeline's name, description, stages, and updated_at.
+// UpdatePipeline updates an existing pipeline's name, description, stages, context, sources, and updated_at.
 func (d *DB) UpdatePipeline(ctx context.Context, p *upal.Pipeline) error {
 	stagesJSON, err := json.Marshal(p.Stages)
 	if err != nil {
 		return fmt.Errorf("marshal stages: %w", err)
 	}
+	ctxJSON, err := json.Marshal(p.Context)
+	if err != nil {
+		return fmt.Errorf("marshal context: %w", err)
+	}
+	sourcesJSON, err := json.Marshal(p.Sources)
+	if err != nil {
+		return fmt.Errorf("marshal sources: %w", err)
+	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE pipelines SET name = $1, description = $2, stages = $3, updated_at = $4
-		 WHERE id = $5`,
-		p.Name, p.Description, stagesJSON, p.UpdatedAt, p.ID,
+		`UPDATE pipelines SET name = $1, description = $2, stages = $3, context = $4, sources = $5, updated_at = $6
+		 WHERE id = $7`,
+		p.Name, p.Description, stagesJSON, ctxJSON, sourcesJSON, p.UpdatedAt, p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update pipeline: %w", err)
