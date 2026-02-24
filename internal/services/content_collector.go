@@ -839,7 +839,16 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 			cs.Type = "http"
 			cs.URL = ps.URL
 
-		case "google_trends", "twitter":
+		case "google_trends":
+			cs.Type = "rss"
+			geo := ps.Geo
+			if geo == "" {
+				geo = "US"
+			}
+			cs.URL = fmt.Sprintf("https://trends.google.com/trending/rss?geo=%s", geo)
+			cs.Limit = ps.Limit
+
+		case "twitter":
 			log.Printf("content_collector: skipping unsupported source type %q (source %s)", ps.Type, ps.ID)
 			continue
 
