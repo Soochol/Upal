@@ -43,6 +43,9 @@ type CollectSource struct {
 	Selector    string            `json:"selector,omitempty"`     // Scrape: CSS selector
 	Attribute   string            `json:"attribute,omitempty"`    // Scrape: attr to extract (default: text)
 	ScrapeLimit int               `json:"scrape_limit,omitempty"` // Scrape: max elements (default 30)
+	Keywords    []string          `json:"keywords,omitempty"`     // Social: search keywords
+	Accounts    []string          `json:"accounts,omitempty"`     // Social: follow account handles
+	Geo         string            `json:"geo,omitempty"`          // Google Trends: country code
 }
 
 // StageConfig holds type-specific configuration for a Stage.
@@ -102,6 +105,8 @@ type PipelineSource struct {
 	Subreddit string   `json:"subreddit,omitempty"` // reddit
 	MinScore  int      `json:"min_score,omitempty"` // reddit, hn
 	Keywords  []string `json:"keywords,omitempty"`  // google_trends, twitter
+	Accounts  []string `json:"accounts,omitempty"` // social: follow account handles
+	Geo       string   `json:"geo,omitempty"`      // google_trends: country code
 	Limit     int      `json:"limit,omitempty"`
 }
 
