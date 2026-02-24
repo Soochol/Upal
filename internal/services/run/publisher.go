@@ -17,6 +17,7 @@ type RunPublisher struct {
 	workflowExec  ports.WorkflowExecutor
 	runManager    *services.RunManager
 	runHistorySvc ports.RunHistoryPort
+	executionReg  *services.ExecutionRegistry
 }
 
 // NewRunPublisher creates a RunPublisher that drives background workflow executions.
@@ -24,17 +25,24 @@ func NewRunPublisher(
 	workflowExec ports.WorkflowExecutor,
 	runManager *services.RunManager,
 	runHistorySvc ports.RunHistoryPort,
+	executionReg *services.ExecutionRegistry,
 ) *RunPublisher {
 	return &RunPublisher{
 		workflowExec:  workflowExec,
 		runManager:    runManager,
 		runHistorySvc: runHistorySvc,
+		executionReg:  executionReg,
 	}
 }
 
 // Launch starts background execution and publishes events to RunManager.
 // Caller MUST call runManager.Register(runID) before calling Launch.
 func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.WorkflowDefinition, inputs map[string]any) {
+	if p.executionReg != nil {
+		p.executionReg.Register(runID)
+		defer p.executionReg.Unregister(runID)
+	}
+
 	events, result, err := p.workflowExec.Run(ctx, wf, inputs)
 	if err != nil {
 		slog.Error("background run failed to start", "run_id", runID, "err", err)
@@ -46,6 +54,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 	}
 
 	// Stream events into the RunManager buffer.
+	var totalUsage upal.TokenUsage
 	for ev := range events {
 		if ev.Type == upal.EventError {
 			errMsg := fmt.Sprintf("%v", ev.Payload["error"])
@@ -75,7 +84,12 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 		})
 
 		if p.runHistorySvc != nil {
-			p.trackNodeRun(ctx, runID, ev)
+			nodeUsage := p.trackNodeRun(ctx, runID, ev)
+			if nodeUsage != nil {
+				totalUsage.PromptTokens += nodeUsage.PromptTokens
+				totalUsage.CompletionTokens += nodeUsage.CompletionTokens
+				totalUsage.TotalTokens += nodeUsage.TotalTokens
+			}
 		}
 	}
 
@@ -96,9 +110,10 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 }
 
 // trackNodeRun updates the run record with node-level execution status.
-func (p *RunPublisher) trackNodeRun(ctx context.Context, runID string, ev upal.WorkflowEvent) {
+// Returns token usage if the event is a completed node with usage data.
+func (p *RunPublisher) trackNodeRun(ctx context.Context, runID string, ev upal.WorkflowEvent) *upal.TokenUsage {
 	if p.runHistorySvc == nil || ev.NodeID == "" {
-		return
+		return nil
 	}
 
 	now := time.Now()
@@ -111,11 +126,35 @@ func (p *RunPublisher) trackNodeRun(ctx context.Context, runID string, ev upal.W
 			StartedAt: now,
 		})
 	case upal.EventNodeCompleted:
+		var usage *upal.TokenUsage
+		if tokens, ok := ev.Payload["tokens"].(map[string]any); ok {
+			usage = &upal.TokenUsage{
+				PromptTokens:     int32(toInt(tokens["prompt_token_count"])),
+				CompletionTokens: int32(toInt(tokens["candidates_token_count"])),
+				TotalTokens:      int32(toInt(tokens["total_token_count"])),
+			}
+		}
 		p.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:      ev.NodeID,
 			Status:      upal.NodeRunCompleted,
 			StartedAt:   now,
 			CompletedAt: &now,
+			Usage:       usage,
 		})
+		return usage
+	}
+	return nil
+}
+
+func toInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int32:
+		return int(n)
+	default:
+		return 0
 	}
 }

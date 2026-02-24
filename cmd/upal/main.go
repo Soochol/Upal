@@ -235,7 +235,7 @@ func serve() {
 	srv.SetRunManager(runManager)
 
 	// RunPublisher bridges workflow execution into RunManager + RunHistoryService.
-	publisher := runpub.NewRunPublisher(workflowSvc, runManager, runHistorySvc)
+	publisher := runpub.NewRunPublisher(workflowSvc, runManager, runHistorySvc, execReg)
 	srv.SetRunPublisher(publisher)
 
 	// Pipeline

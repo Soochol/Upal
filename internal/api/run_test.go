@@ -31,7 +31,7 @@ func newTestServer() *Server {
 	rm := services.NewRunManager(5 * time.Minute)
 	srv.SetRunManager(rm)
 
-	pub := runpub.NewRunPublisher(wfSvc, rm, runHistorySvc)
+	pub := runpub.NewRunPublisher(wfSvc, rm, runHistorySvc, nil)
 	srv.SetRunPublisher(pub)
 
 	return srv
