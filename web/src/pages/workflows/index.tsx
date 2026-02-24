@@ -16,13 +16,11 @@ import {
   useWorkflowStore, serializeWorkflow, deserializeWorkflow,
   loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow,
 } from '@/entities/workflow'
-import type { WorkflowDefinition } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import { fetchRuns } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
-import { templates } from '@/shared/lib/templates'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
 
