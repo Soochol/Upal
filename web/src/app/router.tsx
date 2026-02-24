@@ -14,6 +14,8 @@ import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
 
 const SessionDetailPage = lazy(() => import('@/pages/pipelines/session'))
+const ReviewInboxPage = lazy(() => import('@/pages/inbox'))
+const PublishInboxPage = lazy(() => import('@/pages/publish-inbox'))
 
 export function AppRouter() {
   return (
@@ -26,6 +28,10 @@ export function AppRouter() {
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/connections" element={<ConnectionsPage />} />
+
+          {/* Inbox (Unified Reviews) */}
+          <Route path="/inbox" element={<Suspense fallback={null}><ReviewInboxPage /></Suspense>} />
+          <Route path="/publish-inbox" element={<Suspense fallback={null}><PublishInboxPage /></Suspense>} />
 
           {/* Pipelines */}
           <Route path="/pipelines" element={<PipelinesPage />} />

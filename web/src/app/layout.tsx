@@ -1,7 +1,8 @@
 // src/app/layout.tsx
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Zap, Box, Activity, Settings, Workflow, Globe, Menu } from 'lucide-react';
+import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, Send } from 'lucide-react';
+import { useResizeDrag } from '@/shared/lib/useResizeDrag';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/shared/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip';
@@ -15,6 +16,8 @@ interface MainLayoutProps {
 }
 
 const NAV_ITEMS = [
+    { icon: Inbox, label: 'Review Inbox', to: '/inbox' },
+    { icon: Send, label: 'Publish Inbox', to: '/publish-inbox' },
     { icon: Box, label: 'Workflows', to: '/workflows' },
     { icon: Workflow, label: 'Pipelines', to: '/pipelines' },
     { icon: Globe, label: 'Published', to: '/published' },
@@ -25,6 +28,12 @@ const NAV_ITEMS = [
 export function MainLayout({ children, headerContent, rightPanel, bottomConsole }: MainLayoutProps) {
     const sidebarExpanded = false;
     const [gnbVisible, setGnbVisible] = useState(true);
+    const { size: rightPanelWidth, handleMouseDown: onRightPanelDrag } = useResizeDrag({
+        direction: 'horizontal',
+        min: 260,
+        max: 700,
+        initial: 320,
+    });
 
     return (
         <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground selection:bg-primary/20">
@@ -134,9 +143,19 @@ export function MainLayout({ children, headerContent, rightPanel, bottomConsole 
 
                     {/* 4. Right Inspector Panel */}
                     {rightPanel && (
-                        <aside className="w-[320px] 2xl:w-[380px] border-l border-border bg-sidebar/95 backdrop-blur-md shadow-2xl z-30 flex flex-col shrink-0 animate-in slide-in-from-right-8 duration-300">
-                            {rightPanel}
-                        </aside>
+                        <>
+                            <div
+                                onMouseDown={onRightPanelDrag}
+                                className="w-1 shrink-0 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-30 relative
+                                    after:absolute after:inset-y-0 after:-left-1 after:-right-1"
+                            />
+                            <aside
+                                style={{ width: rightPanelWidth }}
+                                className="border-l border-border bg-sidebar/95 backdrop-blur-md shadow-2xl z-30 flex flex-col shrink-0"
+                            >
+                                {rightPanel}
+                            </aside>
+                        </>
                     )}
 
                 </div>
