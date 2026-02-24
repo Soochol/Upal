@@ -90,6 +90,13 @@ export type ConfigurePipelineResponse = {
 export type RunRecord = {
   id: string
   workflow_name: string
+  workflow_definition?: {
+    name: string
+    version: number
+    nodes: { id: string; type: string; config: Record<string, unknown>; group?: string }[]
+    edges: { from: string; to: string; loop?: { max_iterations: number; exit_when: string }; condition?: string; trigger_rule?: string }[]
+    groups?: { id: string; label: string; color?: string }[]
+  }
   trigger_type: string
   trigger_ref: string
   status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | 'retrying'
@@ -205,6 +212,7 @@ export type ContentSessionStatus =
   | 'rejected'
   | 'producing'
   | 'published'
+  | 'error'
 
 export type SourceType = 'static' | 'signal'
 
