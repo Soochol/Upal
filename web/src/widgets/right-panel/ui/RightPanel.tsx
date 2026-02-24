@@ -1,11 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/shared/ui/tooltip'
 import { NodeEditor } from '@/features/edit-node'
 import { PanelPreview } from './PanelPreview'
 import { PanelConsole } from './PanelConsole'
@@ -14,12 +8,12 @@ import { AIChatEditor } from '@/features/edit-node'
 import { Settings2, Terminal, Eye } from 'lucide-react'
 import type { NodeData } from '@/entities/workflow'
 import { useUIStore } from '@/entities/ui'
-import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import type { Node } from '@xyflow/react'
 
 type RightPanelProps = {
   selectedNode: Node<NodeData> | null
   onCloseNode: () => void
+  onCollapse?: () => void
 }
 
 const tabs = [
@@ -28,41 +22,24 @@ const tabs = [
   { value: 'preview', label: 'Preview', icon: Eye },
 ] as const
 
-const DEFAULT_WIDTH = 512
-const MIN_WIDTH = 280
-const MAX_WIDTH = 800
-
-export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
+export function RightPanel({ selectedNode, onCloseNode, onCollapse }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState('properties')
-  const [expanded, setExpanded] = useState(true)
-  const { size: width, handleMouseDown } = useResizeDrag({
-    direction: 'horizontal',
-    min: MIN_WIDTH,
-    max: MAX_WIDTH,
-    initial: DEFAULT_WIDTH,
-  })
 
-  // Refs: read latest state inside effects without adding dependencies
+  // Ref: read latest activeTab inside effects without adding dependencies
   const activeTabRef = useRef(activeTab)
   activeTabRef.current = activeTab
-  const expandedRef = useRef(expanded)
-  expandedRef.current = expanded
 
-  // ── State machine: auto-expand / auto-collapse ──
-  // - Node selected  → expand (switch to Properties only if was collapsed)
-  // - Node deselected + on Properties → collapse
-  // - Node deselected + on Logs/Data/… → stay expanded
+  // ── Node selection → switch to Properties tab; deselection on Properties → signal collapse ──
   const prevNodeIdRef = useRef<string | null>(selectedNode?.id ?? null)
   useEffect(() => {
     if (selectedNode) {
       setActiveTab('properties')
-      setExpanded(true)
     } else if (prevNodeIdRef.current !== null && activeTabRef.current === 'properties') {
-      // Only auto-collapse on deselection (selected → null), not on initial mount
-      setExpanded(false)
+      // Node was deselected while on Properties tab — ask parent to hide the panel
+      onCollapse?.()
     }
     prevNodeIdRef.current = selectedNode?.id ?? null
-  }, [selectedNode?.id])
+  }, [selectedNode?.id, onCollapse])
 
   // ── Force Preview tab (from Ctrl+Enter or store signal) ──
   useEffect(() => {
@@ -70,7 +47,6 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
       (state, prevState) => {
         if (state.forcePreviewTab && !prevState.forcePreviewTab) {
           setActiveTab('preview')
-          setExpanded(true)
           useUIStore.getState().setForcePreviewTab(false)
         }
       },
@@ -80,100 +56,59 @@ export function RightPanel({ selectedNode, onCloseNode }: RightPanelProps) {
 
   const showAIChat = selectedNode && selectedNode.type !== 'groupNode'
 
-  // ── Collapsed: vertical icon strip (like VS Code activity bar) ──
-  if (!expanded) {
-    return (
-      <aside className="border-l border-white/10 bg-background/60 backdrop-blur-2xl flex flex-col items-center pt-2 w-12 shrink-0 shadow-[-4px_0_24px_rgba(0,0,0,0.2)] z-30">
-        <TooltipProvider>
+  return (
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
+      <div className="flex items-center justify-between border-b border-border px-1">
+        <TabsList className="h-10 bg-transparent p-0 gap-0">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
-              <Tooltip key={tab.value}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => {
-                      setActiveTab(tab.value)
-                      setExpanded(true)
-                    }}
-                    className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left">{tab.label}</TooltipContent>
-              </Tooltip>
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 flex items-center gap-1.5 text-xs font-medium"
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {tab.label}
+              </TabsTrigger>
             )
           })}
-        </TooltipProvider>
-      </aside>
-    )
-  }
+        </TabsList>
+      </div>
 
-  // ── Expanded: full panel ──
-  return (
-    <aside
-      className="border-l border-white/10 bg-background/60 backdrop-blur-2xl flex flex-col relative shadow-[-8px_0_32px_rgba(0,0,0,0.25)] z-30"
-      style={{ width, maxWidth: '45%' }}
-    >
-      {/* Resize handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10"
-      />
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
-        <div className="flex items-center justify-between border-b border-border px-1">
-          <TabsList className="h-10 bg-transparent p-0 gap-0">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 flex items-center gap-1.5 text-xs font-medium"
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {tab.label}
-                </TabsTrigger>
-              )
-            })}
-          </TabsList>
-          {/* Close button is inside NodeEditor header for properties tab */}
-        </div>
-
-        {/* Properties: flex-fill so prompt fields expand to fill space */}
-        <TabsContent value="properties" className="flex-1 min-h-0 flex flex-col mt-0">
-          {selectedNode && selectedNode.type === 'groupNode' ? (
-            <GroupEditor groupId={selectedNode.id} data={selectedNode.data as NodeData} onClose={onCloseNode} />
-          ) : selectedNode ? (
-            <NodeEditor
-              nodeId={selectedNode.id}
-              data={selectedNode.data as NodeData}
-              onClose={onCloseNode}
-              embedded
-            />
-          ) : (
-            <div className="flex items-center justify-center h-32 text-xs text-muted-foreground p-3">
-              Select a node to edit its properties.
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Other tabs: flex-1 to fill remaining space */}
-        <TabsContent value="console" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelConsole />
-        </TabsContent>
-
-        <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
-          <PanelPreview />
-        </TabsContent>
-
-        {/* AI Assistant — pinned to bottom of panel */}
-        {showAIChat && (
-          <div className="mt-auto shrink-0 border-t border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-md">
-            <AIChatEditor nodeId={selectedNode.id} data={selectedNode.data as NodeData} />
+      {/* Properties: flex-fill so prompt fields expand to fill space */}
+      <TabsContent value="properties" className="flex-1 min-h-0 flex flex-col mt-0">
+        {selectedNode && selectedNode.type === 'groupNode' ? (
+          <GroupEditor groupId={selectedNode.id} data={selectedNode.data as NodeData} onClose={onCloseNode} />
+        ) : selectedNode ? (
+          <NodeEditor
+            nodeId={selectedNode.id}
+            data={selectedNode.data as NodeData}
+            onClose={onCloseNode}
+            embedded
+          />
+        ) : (
+          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground p-3">
+            Select a node to edit its properties.
           </div>
         )}
-      </Tabs>
-    </aside>
+      </TabsContent>
+
+      {/* Other tabs: flex-1 to fill remaining space */}
+      <TabsContent value="console" className="flex-1 min-h-0 overflow-hidden mt-0">
+        <PanelConsole />
+      </TabsContent>
+
+      <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
+        <PanelPreview />
+      </TabsContent>
+
+      {/* AI Assistant — pinned to bottom of panel */}
+      {showAIChat && (
+        <div className="mt-auto shrink-0 border-t border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-md">
+          <AIChatEditor nodeId={selectedNode.id} data={selectedNode.data as NodeData} />
+        </div>
+      )}
+    </Tabs>
   )
 }
