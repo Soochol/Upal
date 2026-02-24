@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2, Trash2, Plus, Clock,
   X, Search, ChevronDown, CloudUpload, PanelRightClose, PanelRightOpen,
+  Archive, ArchiveRestore,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
@@ -12,9 +13,10 @@ import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialB
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { MainLayout } from '@/app/layout'
 import { fetchPipeline, updatePipeline, collectPipeline } from '@/entities/pipeline'
-import { fetchContentSessions } from '@/entities/content-session/api'
+import { fetchContentSessions, archiveSession as archiveSessionApi, unarchiveSession as unarchiveSessionApi, deleteSession as deleteSessionApi } from '@/entities/content-session/api'
 import { WorkflowPicker } from './WorkflowPicker'
 import { SessionDetailPreview } from './session/SessionDetailPreview'
+import { PipelineChatEditor } from '@/features/configure-pipeline/ui/PipelineChatEditor'
 import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/shared/types'
 
 // ─── Schedule presets ──────────────────────────────────────────────────────────
@@ -32,9 +34,11 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 // ─── Right panel: Pipeline Settings ───────────────────────────────────────────
 
 function PipelineSettingsPanel({
+  pipelineId,
   sources, schedule, context, workflows, model,
   onSourcesChange, onScheduleChange, onContextSave, onWorkflowsChange, onModelChange, autoSaveStatus,
 }: {
+  pipelineId: string
   sources: PipelineSource[]
   schedule: string
   context: PipelineContext | undefined
@@ -55,7 +59,7 @@ function PipelineSettingsPanel({
   const [modelOpen, setModelOpen] = useState(false)
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold">Settings</h2>
         <div className="h-4">
@@ -73,6 +77,39 @@ function PipelineSettingsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <section>
+          <button
+            onClick={() => setModelOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-2 cursor-pointer"
+          >
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Analysis Model
+            </span>
+            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${modelOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {modelOpen && (
+            <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground">
+                Model used for content analysis. Leave empty for system default.
+              </p>
+              <ModelSelector
+                key={model || '__default__'}
+                value={model}
+                onChange={onModelChange}
+                placeholder="System Default"
+              />
+              {model && (
+                <button
+                  onClick={() => onModelChange('')}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
         <section>
           <button
             onClick={() => setSourcesOpen(v => !v)}
@@ -176,7 +213,7 @@ function PipelineSettingsPanel({
                 <div className="rounded-xl border border-border overflow-hidden">
                   {workflows.map((wf, i) => (
                     <div key={wf.workflow_name} className="flex items-center gap-2 px-3 py-2.5 border-b border-border last:border-b-0">
-                      <span className="text-xs font-medium flex-1 truncate">{wf.label || wf.workflow_name}</span>
+                      <a href={`/editor?name=${encodeURIComponent(wf.workflow_name)}`} className="text-xs font-medium flex-1 truncate hover:text-primary hover:underline transition-colors">{wf.label || wf.workflow_name}</a>
                       <button
                         onClick={() => onWorkflowsChange(workflows.filter((_, j) => j !== i))}
                         className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
@@ -210,38 +247,6 @@ function PipelineSettingsPanel({
 
         <section>
           <button
-            onClick={() => setModelOpen(v => !v)}
-            className="w-full flex items-center justify-between mb-2 cursor-pointer"
-          >
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Analysis Model
-            </span>
-            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${modelOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {modelOpen && (
-            <div className="space-y-2">
-              <p className="text-[11px] text-muted-foreground">
-                Model used for content analysis. Leave empty for system default.
-              </p>
-              <ModelSelector
-                value={model}
-                onChange={onModelChange}
-                placeholder="System Default"
-              />
-              {model && (
-                <button
-                  onClick={() => onModelChange('')}
-                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                >
-                  Reset to default
-                </button>
-              )}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <button
             onClick={() => setBriefOpen(v => !v)}
             className="w-full flex items-center justify-between mb-2 cursor-pointer"
           >
@@ -254,6 +259,23 @@ function PipelineSettingsPanel({
             <EditorialBriefForm initialContext={context} onSave={onContextSave} autoSave />
           )}
         </section>
+      </div>
+
+      {/* AI Assistant — pinned to bottom */}
+      <div className="border-t border-border bg-background/80 backdrop-blur-sm">
+        <PipelineChatEditor
+          pipelineId={pipelineId}
+          currentSources={sources}
+          currentSchedule={schedule}
+          currentWorkflows={workflows}
+          currentModel={model}
+          currentContext={context}
+          onSourcesChange={onSourcesChange}
+          onScheduleChange={onScheduleChange}
+          onWorkflowsChange={onWorkflowsChange}
+          onModelChange={onModelChange}
+          onContextSave={onContextSave}
+        />
       </div>
 
       {showAddModal && (
@@ -366,7 +388,7 @@ const STATUS_DOT: Record<string, string> = {
 
 // ─── Session filter type ───────────────────────────────────────────────────────
 
-type SessionFilter = 'all' | 'pending_review' | 'producing' | 'published' | 'rejected'
+type SessionFilter = 'all' | 'pending_review' | 'producing' | 'published' | 'rejected' | 'archived'
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
@@ -466,6 +488,31 @@ export default function PipelineDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline', id] }),
   })
 
+  const archiveMutation = useMutation({
+    mutationFn: (sessionId: string) => archiveSessionApi(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id, archived: true }] })
+    },
+  })
+
+  const unarchiveMutation = useMutation({
+    mutationFn: (sessionId: string) => unarchiveSessionApi(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id, archived: true }] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (sessionId: string) => deleteSessionApi(sessionId),
+    onSuccess: () => {
+      setSelectedSessionId(null)
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: id, archived: true }] })
+    },
+  })
+
   const [showNewSession, setShowNewSession] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
@@ -479,24 +526,31 @@ export default function PipelineDetailPage() {
     enabled: !!id,
   })
 
+  const { data: archivedSessions = [], isLoading: archivedLoading } = useQuery({
+    queryKey: ['content-sessions', { pipelineId: id, archived: true }],
+    queryFn: () => fetchContentSessions({ pipelineId: id, archivedOnly: true }),
+    enabled: !!id && activeFilter === 'archived',
+  })
+
   const filterTabs: { value: SessionFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'pending_review', label: 'Pending' },
     { value: 'producing', label: 'Producing' },
     { value: 'published', label: 'Published' },
     { value: 'rejected', label: 'Rejected' },
+    { value: 'archived', label: 'Archived' },
   ]
 
   const filterCounts = useMemo(() => {
-    const counts: Record<SessionFilter, number> = { all: sessions.length, pending_review: 0, producing: 0, published: 0, rejected: 0 }
+    const counts: Record<SessionFilter, number> = { all: sessions.length, pending_review: 0, producing: 0, published: 0, rejected: 0, archived: archivedSessions.length }
     for (const s of sessions) {
       if (s.status in counts) counts[s.status as SessionFilter]++
     }
     return counts
-  }, [sessions])
+  }, [sessions, archivedSessions])
 
-  const filteredSessions = sessions
-    .filter(s => activeFilter === 'all' || s.status === activeFilter)
+  const filteredSessions = (activeFilter === 'archived' ? archivedSessions : sessions)
+    .filter(s => activeFilter === 'all' || activeFilter === 'archived' || s.status === activeFilter)
     .filter(s => {
       if (!search) return true
       const q = search.toLowerCase()
@@ -541,6 +595,7 @@ export default function PipelineDetailPage() {
       rightPanel={
         isSidebarOpen ? (
           <PipelineSettingsPanel
+            pipelineId={id!}
             sources={localSources}
             schedule={localSchedule}
             context={pipeline.context}
@@ -630,7 +685,7 @@ export default function PipelineDetailPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
-                {sessionsLoading ? (
+                {(activeFilter === 'archived' ? archivedLoading : sessionsLoading) ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
@@ -645,7 +700,7 @@ export default function PipelineDetailPage() {
                       <button
                         key={s.id}
                         onClick={() => setSelectedSessionId(s.id)}
-                        className={`w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border ${isSelected
+                        className={`group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border ${isSelected
                           ? 'bg-primary/5 border-primary/20 shadow-sm'
                           : 'bg-transparent border-transparent hover:bg-muted/50'
                           }`}
@@ -672,6 +727,35 @@ export default function PipelineDetailPage() {
                           <StatusBadge status={s.status} />
                           {s.status === 'pending_review' && (
                             <span className="flex h-2 w-2 rounded-full bg-warning animate-pulse ml-auto" title="Needs Review" />
+                          )}
+                          {activeFilter === 'archived' ? (
+                            <div className="flex items-center gap-1 ml-auto">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); unarchiveMutation.mutate(s.id) }}
+                                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+                                title="Unarchive"
+                              >
+                                <ArchiveRestore className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); if (confirm('Permanently delete this session? This cannot be undone.')) deleteMutation.mutate(s.id) }}
+                                className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                                title="Delete permanently"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); archiveMutation.mutate(s.id) }}
+                              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 ml-auto cursor-pointer"
+                              title="Archive"
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                            </button>
                           )}
                         </div>
                       </button>

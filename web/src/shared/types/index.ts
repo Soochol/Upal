@@ -62,6 +62,31 @@ export type ConfigureNodeResponse = {
   explanation: string
 }
 
+// --- AI Pipeline Configuration ---
+
+export type ConfigurePipelineRequest = {
+  message: string
+  model?: string
+  thinking?: boolean
+  history?: { role: string; content: string }[]
+  current_sources: PipelineSource[]
+  current_schedule: string
+  current_workflows: PipelineWorkflow[]
+  current_model: string
+  current_context?: PipelineContext
+}
+
+export type ConfigurePipelineResponse = {
+  sources?: PipelineSource[]
+  schedule?: string
+  workflows?: PipelineWorkflow[]
+  model?: string
+  context?: PipelineContext
+  name?: string
+  description?: string
+  explanation: string
+}
+
 // --- Run History ---
 
 export type RunRecord = {
