@@ -17,6 +17,7 @@ import (
 	upalcrypto "github.com/soochol/upal/internal/crypto"
 	"github.com/soochol/upal/internal/db"
 	"github.com/soochol/upal/internal/generate"
+	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/notify"
 	"github.com/soochol/upal/internal/repository"
@@ -282,6 +283,19 @@ func serve() {
 		contentSessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo,
 	)
 	srv.SetContentSessionService(contentSvc)
+
+	// Wire content collector for actual source fetching and workflow execution.
+	if defaultLLM != nil {
+		resolver := llmutil.NewMapResolver(llms, defaultLLM, defaultModelName)
+		collector := services.NewContentCollector(
+			contentSvc,
+			services.NewCollectStageExecutor(),
+			workflowSvc,
+			repo,
+			resolver,
+		)
+		srv.SetContentCollector(collector)
+	}
 
 	// Configure natural language workflow generator if any provider is available.
 	skillReg := skills.New()
