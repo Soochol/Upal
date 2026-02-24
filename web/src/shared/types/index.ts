@@ -234,6 +234,7 @@ export type Pipeline = {
   workflows?: PipelineWorkflow[]
   context?: PipelineContext
   schedule?: string          // cron expression
+  model?: string              // "provider/model" format, empty = system default
   last_collected_at?: string
   pending_session_count?: number
   created_at: string
