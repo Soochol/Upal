@@ -439,9 +439,15 @@ func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, fetch
 	return
 }
 
+// WorkflowRequest represents a workflow to execute with an optional channel assignment.
+type WorkflowRequest struct {
+	Name      string
+	ChannelID string
+}
+
 // ProduceWorkflows executes the selected workflows with collected content as input.
 // This is designed to run in a background goroutine after session approval.
-func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID string, workflowNames []string) {
+func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID string, requests []WorkflowRequest) {
 	// Get session detail for analysis and sources.
 	detail, err := c.contentSvc.GetSessionDetail(ctx, sessionID)
 	if err != nil {
@@ -453,11 +459,12 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	}
 
 	// Initialize workflow results with pending status.
-	results := make([]upal.WorkflowResult, len(workflowNames))
-	for i, name := range workflowNames {
+	results := make([]upal.WorkflowResult, len(requests))
+	for i, req := range requests {
 		results[i] = upal.WorkflowResult{
-			WorkflowName: name,
+			WorkflowName: req.Name,
 			Status:       upal.WFResultPending,
+			ChannelID:    req.ChannelID,
 		}
 	}
 	c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
@@ -477,14 +484,14 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
-	for i, name := range workflowNames {
+	for i, req := range requests {
 		g.Go(func() error {
 			updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultRunning })
 
 			// Look up workflow definition.
-			wf, err := c.workflowRepo.Get(gCtx, name)
+			wf, err := c.workflowRepo.Get(gCtx, req.Name)
 			if err != nil {
-				log.Printf("content_collector: workflow %q not found: %v", name, err)
+				log.Printf("content_collector: workflow %q not found: %v", req.Name, err)
 				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
 				return nil
 			}
@@ -495,7 +502,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			// Run the workflow.
 			eventCh, resultCh, err := c.workflowSvc.Run(gCtx, wf, inputs)
 			if err != nil {
-				log.Printf("content_collector: failed to run workflow %q: %v", name, err)
+				log.Printf("content_collector: failed to run workflow %q: %v", req.Name, err)
 				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
 				return nil
 			}
@@ -511,7 +518,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			}
 
 			if runErr != "" {
-				log.Printf("content_collector: workflow %q execution error: %s", name, runErr)
+				log.Printf("content_collector: workflow %q execution error: %s", req.Name, runErr)
 				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
 				return nil
 			}
@@ -519,7 +526,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			// Wait for result.
 			runResult, ok := <-resultCh
 			if !ok {
-				log.Printf("content_collector: workflow %q result channel closed unexpectedly", name)
+				log.Printf("content_collector: workflow %q result channel closed unexpectedly", req.Name)
 				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
 				return nil
 			}

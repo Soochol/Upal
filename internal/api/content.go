@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/repository"
+	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
 
@@ -124,12 +125,15 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/content-sessions/{id}/produce
-// Body: {"workflows": ["blog", "shorts"]}
+// Body: {"workflows": [{"name": "blog", "channel_id": "youtube"}, ...]}
 // Validates the session exists and launches background workflow production.
 func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Workflows []string `json:"workflows"`
+		Workflows []struct {
+			Name      string `json:"name"`
+			ChannelID string `json:"channel_id,omitempty"`
+		} `json:"workflows"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -146,9 +150,18 @@ func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert body to WorkflowRequest slice.
+	requests := make([]services.WorkflowRequest, len(body.Workflows))
+	for i, bw := range body.Workflows {
+		requests[i] = services.WorkflowRequest{
+			Name:      bw.Name,
+			ChannelID: bw.ChannelID,
+		}
+	}
+
 	// Launch background production if collector is wired.
 	if s.collector != nil {
-		go s.collector.ProduceWorkflows(context.Background(), id, body.Workflows)
+		go s.collector.ProduceWorkflows(context.Background(), id, requests)
 	} else {
 		// Fallback: just update status directly (no collector available).
 		if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionProducing); err != nil {
@@ -236,22 +249,28 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Look up workflow results to derive titles for published records.
+	// Look up workflow results to derive titles and channels for published records.
 	wfResults := s.contentSvc.GetWorkflowResults(ctx, id)
 	runToName := make(map[string]string, len(wfResults))
+	runToChannel := make(map[string]string, len(wfResults))
 	for _, wr := range wfResults {
 		if wr.RunID != "" {
 			runToName[wr.RunID] = wr.WorkflowName
+			runToChannel[wr.RunID] = wr.ChannelID
 		}
 	}
 
 	// Create a PublishedContent record for each run_id.
 	for _, runID := range body.RunIDs {
 		title := runToName[runID] // may be empty if not found
+		channel := runToChannel[runID]
+		if channel == "" {
+			channel = "default"
+		}
 		pc := &upal.PublishedContent{
 			SessionID:     id,
 			WorkflowRunID: runID,
-			Channel:       "default",
+			Channel:       channel,
 			Title:         title,
 		}
 		if err := s.contentSvc.RecordPublished(ctx, pc); err != nil {
