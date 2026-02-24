@@ -9,7 +9,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-func newNodeRun(nodeID, status string) upal.NodeRunRecord {
+func newNodeRun(nodeID string, status upal.NodeRunStatus) upal.NodeRunRecord {
 	return upal.NodeRunRecord{
 		NodeID:    nodeID,
 		Status:    status,
@@ -140,7 +140,7 @@ func TestRunHistoryService_UpdateNodeRun(t *testing.T) {
 	record, _ := svc.StartRun(ctx, "test-wf", "manual", "", nil)
 
 	// Add a node run.
-	svc.UpdateNodeRun(ctx, record.ID, newNodeRun("node-1", "running"))
+	svc.UpdateNodeRun(ctx, record.ID, newNodeRun("node-1", upal.NodeRunRunning))
 
 	got, _ := svc.GetRun(ctx, record.ID)
 	if len(got.NodeRuns) != 1 {
@@ -151,13 +151,13 @@ func TestRunHistoryService_UpdateNodeRun(t *testing.T) {
 	}
 
 	// Update existing node run.
-	svc.UpdateNodeRun(ctx, record.ID, newNodeRun("node-1", "completed"))
+	svc.UpdateNodeRun(ctx, record.ID, newNodeRun("node-1", upal.NodeRunCompleted))
 
 	got, _ = svc.GetRun(ctx, record.ID)
 	if len(got.NodeRuns) != 1 {
 		t.Fatalf("expected 1 node run after update, got %d", len(got.NodeRuns))
 	}
-	if got.NodeRuns[0].Status != "completed" {
+	if got.NodeRuns[0].Status != upal.NodeRunCompleted {
 		t.Fatalf("expected completed, got %s", got.NodeRuns[0].Status)
 	}
 }

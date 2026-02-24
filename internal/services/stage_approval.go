@@ -38,7 +38,7 @@ func (e *ApprovalStageExecutor) Execute(ctx context.Context, stage upal.Stage, _
 	// and the API layer handles resume via Approve/Reject endpoints.
 	return &upal.StageResult{
 		StageID:   stage.ID,
-		Status:    "waiting",
+		Status:    upal.StageStatusWaiting,
 		Output:    map[string]any{"message": stage.Config.Message},
 		StartedAt: time.Now(),
 	}, nil

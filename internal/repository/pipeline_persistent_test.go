@@ -167,7 +167,7 @@ func TestPersistentPipelineRunRepository_CreateAndListByPipeline(t *testing.T) {
 	run := &upal.PipelineRun{
 		ID:           "prun-1",
 		PipelineID:   "pipe-1",
-		Status:       "running",
+		Status:       upal.PipelineRunRunning,
 		StageResults: map[string]*upal.StageResult{},
 		StartedAt:    time.Now(),
 	}

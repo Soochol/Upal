@@ -32,7 +32,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 	if stage.Config.ConnectionID == "" {
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "failed",
+			Status:      upal.StageStatusFailed,
 			Error:       "notification stage requires a connection_id",
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -42,7 +42,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 	if e.senderReg == nil || e.connResolver == nil {
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "failed",
+			Status:      upal.StageStatusFailed,
 			Error:       "notification service not configured",
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -54,7 +54,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 		errMsg := fmt.Sprintf("failed to resolve connection %q: %v", stage.Config.ConnectionID, err)
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "failed",
+			Status:      upal.StageStatusFailed,
 			Error:       errMsg,
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -66,7 +66,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 		errMsg := fmt.Sprintf("no sender for connection type %q: %v", conn.Type, err)
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "failed",
+			Status:      upal.StageStatusFailed,
 			Error:       errMsg,
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -91,7 +91,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 		errMsg := fmt.Sprintf("send failed: %v", err)
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "failed",
+			Status:      upal.StageStatusFailed,
 			Error:       errMsg,
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -100,7 +100,7 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stag
 
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output: map[string]any{
 			"sent":    true,
 			"channel": conn.Name,

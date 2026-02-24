@@ -112,9 +112,9 @@ func (s *Server) startPipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if run.Status == "waiting" {
+	if run.Status == upal.PipelineRunWaiting {
 		w.WriteHeader(http.StatusAccepted)
-	} else if run.Status == "failed" {
+	} else if run.Status == upal.PipelineRunFailed {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		w.WriteHeader(http.StatusOK)
@@ -155,12 +155,12 @@ func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
-	if run.Status != "waiting" {
+	if run.Status != upal.PipelineRunWaiting {
 		http.Error(w, "run is not waiting for approval", http.StatusBadRequest)
 		return
 	}
 
-	run.Status = "running"
+	run.Status = upal.PipelineRunRunning
 	if err := s.pipelineSvc.UpdateRun(r.Context(), run); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -212,16 +212,16 @@ func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
-	if run.Status != "waiting" {
+	if run.Status != upal.PipelineRunWaiting {
 		http.Error(w, "run is not waiting for approval", http.StatusBadRequest)
 		return
 	}
 
 	now := time.Now()
-	run.Status = "failed"
+	run.Status = upal.PipelineRunFailed
 	run.CompletedAt = &now
 	if result, ok := run.StageResults[run.CurrentStage]; ok {
-		result.Status = "failed"
+		result.Status = upal.StageStatusFailed
 		result.Error = "rejected by user"
 		result.CompletedAt = &now
 	}

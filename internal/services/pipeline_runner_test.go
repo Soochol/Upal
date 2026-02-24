@@ -25,7 +25,7 @@ func (m *mockStageExecutor) Execute(_ context.Context, stage upal.Stage, _ *upal
 	}
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output:  m.output,
 	}, nil
 }
@@ -53,7 +53,7 @@ func TestPipelineRunner_ExecuteSequential(t *testing.T) {
 		t.Fatalf("start failed: %v", err)
 	}
 
-	if run.Status != "completed" {
+	if run.Status != upal.PipelineRunCompleted {
 		t.Errorf("expected status 'completed', got %q", run.Status)
 	}
 	if len(wfExec.calls) != 1 || wfExec.calls[0] != "s1" {
@@ -86,7 +86,7 @@ func TestPipelineRunner_StageFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from failed stage")
 	}
-	if run.Status != "failed" {
+	if run.Status != upal.PipelineRunFailed {
 		t.Errorf("expected status 'failed', got %q", run.Status)
 	}
 }
@@ -119,7 +119,7 @@ func (m *mockWaitingExecutor) Execute(_ context.Context, stage upal.Stage, _ *up
 	m.calls = append(m.calls, stage.ID)
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "waiting",
+		Status:  upal.StageStatusWaiting,
 		Output:  map[string]any{"message": "please approve"},
 	}, nil
 }
@@ -148,7 +148,7 @@ func TestPipelineRunner_Resume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
-	if run.Status != "waiting" {
+	if run.Status != upal.PipelineRunWaiting {
 		t.Fatalf("expected status 'waiting', got %q", run.Status)
 	}
 	if run.CurrentStage != "s2" {
@@ -164,7 +164,7 @@ func TestPipelineRunner_Resume(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume failed: %v", err)
 	}
-	if run.Status != "completed" {
+	if run.Status != upal.PipelineRunCompleted {
 		t.Errorf("expected status 'completed' after resume, got %q", run.Status)
 	}
 	if len(wfExec.calls) != 1 || wfExec.calls[0] != "s3" {
@@ -188,7 +188,7 @@ func TestPipelineRunner_Resume_CurrentStageNotFound(t *testing.T) {
 	run := &upal.PipelineRun{
 		ID:           "prun-bad",
 		PipelineID:   "pipe-bad",
-		Status:       "waiting",
+		Status:       upal.PipelineRunWaiting,
 		CurrentStage: "nonexistent",
 		StageResults: make(map[string]*upal.StageResult),
 	}

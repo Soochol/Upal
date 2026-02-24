@@ -44,7 +44,7 @@ func (e *TransformStageExecutor) Execute(_ context.Context, stage upal.Stage, pr
 
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output:  output,
 	}, nil
 }

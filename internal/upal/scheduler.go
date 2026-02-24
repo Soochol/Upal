@@ -16,6 +16,15 @@ const (
 	RunStatusRetrying  RunStatus = "retrying"
 )
 
+// NodeRunStatus represents the execution state of a single node within a run record.
+type NodeRunStatus string
+
+const (
+	NodeRunRunning   NodeRunStatus = "running"
+	NodeRunCompleted NodeRunStatus = "completed"
+	NodeRunError     NodeRunStatus = "error"
+)
+
 // TokenUsage tracks LLM token consumption.
 type TokenUsage struct {
 	PromptTokens     int32 `json:"prompt_tokens"`
@@ -45,13 +54,13 @@ type RunRecord struct {
 
 // NodeRunRecord tracks execution of a single node within a run.
 type NodeRunRecord struct {
-	NodeID      string      `json:"node_id"`
-	Status      string      `json:"status"` // "running" | "completed" | "error"
-	StartedAt   time.Time   `json:"started_at"`
-	CompletedAt *time.Time  `json:"completed_at,omitempty"`
-	Error       *string     `json:"error,omitempty"`
-	RetryCount  int         `json:"retry_count"`
-	Usage       *TokenUsage `json:"usage,omitempty"`
+	NodeID      string        `json:"node_id"`
+	Status      NodeRunStatus `json:"status"`
+	StartedAt   time.Time     `json:"started_at"`
+	CompletedAt *time.Time    `json:"completed_at,omitempty"`
+	Error       *string       `json:"error,omitempty"`
+	RetryCount  int           `json:"retry_count"`
+	Usage       *TokenUsage   `json:"usage,omitempty"`
 }
 
 // --- Retry Policy ---

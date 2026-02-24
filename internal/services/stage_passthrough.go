@@ -28,7 +28,7 @@ func (e *PassthroughStageExecutor) Execute(_ context.Context, stage upal.Stage, 
 	}
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output:  output,
 	}, nil
 }

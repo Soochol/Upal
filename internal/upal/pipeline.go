@@ -112,11 +112,35 @@ type PipelineWorkflow struct {
 	AutoSelect   bool   `json:"auto_select,omitempty"`
 }
 
+// PipelineRunStatus represents the lifecycle state of a pipeline run.
+type PipelineRunStatus string
+
+const (
+	PipelineRunPending   PipelineRunStatus = "pending"
+	PipelineRunRunning   PipelineRunStatus = "running"
+	PipelineRunWaiting   PipelineRunStatus = "waiting"
+	PipelineRunCompleted PipelineRunStatus = "completed"
+	PipelineRunFailed    PipelineRunStatus = "failed"
+	PipelineRunRejected  PipelineRunStatus = "rejected"
+)
+
+// StageStatus represents the lifecycle state of a pipeline stage execution.
+type StageStatus string
+
+const (
+	StageStatusPending   StageStatus = "pending"
+	StageStatusRunning   StageStatus = "running"
+	StageStatusWaiting   StageStatus = "waiting"
+	StageStatusCompleted StageStatus = "completed"
+	StageStatusFailed    StageStatus = "failed"
+	StageStatusSkipped   StageStatus = "skipped"
+)
+
 // PipelineRun tracks a single execution of a Pipeline.
 type PipelineRun struct {
 	ID           string                  `json:"id"`
 	PipelineID   string                  `json:"pipeline_id"`
-	Status       string                  `json:"status"` // pending, running, waiting, completed, failed
+	Status       PipelineRunStatus       `json:"status"`
 	CurrentStage string                  `json:"current_stage,omitempty"`
 	StageResults map[string]*StageResult `json:"stage_results,omitempty"`
 	StartedAt    time.Time               `json:"started_at"`
@@ -125,8 +149,8 @@ type PipelineRun struct {
 
 // StageResult is the output of a completed Stage.
 type StageResult struct {
-	StageID     string         `json:"stage_id"`
-	Status      string         `json:"status"` // pending, running, waiting, completed, skipped, failed
+	StageID     string      `json:"stage_id"`
+	Status      StageStatus `json:"status"`
 	Output      map[string]any `json:"output,omitempty"`
 	Error       string         `json:"error,omitempty"`
 	StartedAt   time.Time      `json:"started_at"`

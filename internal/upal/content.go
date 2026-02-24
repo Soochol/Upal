@@ -59,11 +59,13 @@ type SourceFetch struct {
 
 // ContentAngle is a suggested content angle from the LLM analysis.
 type ContentAngle struct {
-	ID        string `json:"id,omitempty"`
-	Format    string `json:"format"`    // "blog" | "shorts" | "newsletter" | "longform"
-	Headline  string `json:"title"`     // frontend expects "title"
-	Rationale string `json:"rationale,omitempty"`
-	Selected  bool   `json:"selected"`
+	ID           string `json:"id,omitempty"`
+	Format       string `json:"format"`                    // "blog" | "shorts" | "newsletter" | "longform"
+	Headline     string `json:"title"`                     // frontend expects "title"
+	Rationale    string `json:"rationale,omitempty"`
+	Selected     bool   `json:"selected"`
+	WorkflowName string `json:"workflow_name,omitempty"`   // LLM-recommended workflow
+	MatchType    string `json:"match_type,omitempty"`      // "matched" | "generated" | "none"
 }
 
 // LLMAnalysis stores the synthesized result of the LLM's analysis step.
@@ -108,13 +110,23 @@ type SurgeEvent struct {
 
 // --- WorkflowResult ---
 
+// WorkflowResultStatus represents the lifecycle state of a workflow result in the produce stage.
+type WorkflowResultStatus string
+
+const (
+	WFResultPending WorkflowResultStatus = "pending"
+	WFResultRunning WorkflowResultStatus = "running"
+	WFResultSuccess WorkflowResultStatus = "success"
+	WFResultFailed  WorkflowResultStatus = "failed"
+)
+
 // WorkflowResult tracks workflow execution results for the produce stage.
 type WorkflowResult struct {
-	WorkflowName string     `json:"workflow_name"`
-	RunID        string     `json:"run_id"`
-	Status       string     `json:"status"` // "pending" | "running" | "success" | "failed"
-	OutputURL    string     `json:"output_url,omitempty"`
-	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	WorkflowName string               `json:"workflow_name"`
+	RunID        string               `json:"run_id"`
+	Status       WorkflowResultStatus `json:"status"`
+	OutputURL    string               `json:"output_url,omitempty"`
+	CompletedAt  *time.Time           `json:"completed_at,omitempty"`
 }
 
 // --- ContentSessionDetail ---

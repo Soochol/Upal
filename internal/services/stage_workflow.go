@@ -64,7 +64,7 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, stage upal.Stage, p
 
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output:  result.State,
 	}, nil
 }

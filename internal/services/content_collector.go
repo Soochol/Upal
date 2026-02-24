@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/soochol/upal/internal/llmutil"
 	"github.com/soochol/upal/internal/repository"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/upal"
 	"github.com/soochol/upal/internal/upal/ports"
 	adkmodel "google.golang.org/adk/model"
@@ -25,7 +29,10 @@ type ContentCollector struct {
 	collectExec  *CollectStageExecutor
 	workflowSvc  *WorkflowService
 	workflowRepo repository.WorkflowRepository
+	pipelineRepo repository.PipelineRepository
 	resolver     ports.LLMResolver
+	generator    ports.WorkflowGenerator
+	skills       skills.Provider
 }
 
 // NewContentCollector creates a ContentCollector with all required dependencies.
@@ -34,15 +41,24 @@ func NewContentCollector(
 	collectExec *CollectStageExecutor,
 	workflowSvc *WorkflowService,
 	workflowRepo repository.WorkflowRepository,
+	pipelineRepo repository.PipelineRepository,
 	resolver ports.LLMResolver,
+	skills skills.Provider,
 ) *ContentCollector {
 	return &ContentCollector{
 		contentSvc:   contentSvc,
 		collectExec:  collectExec,
 		workflowSvc:  workflowSvc,
 		workflowRepo: workflowRepo,
+		pipelineRepo: pipelineRepo,
 		resolver:     resolver,
+		skills:       skills,
 	}
+}
+
+// SetGenerator injects the workflow generator (called after both collector and generator are created).
+func (c *ContentCollector) SetGenerator(g ports.WorkflowGenerator) {
+	c.generator = g
 }
 
 // CollectAndAnalyze fetches content from pipeline sources, records the results,
@@ -204,13 +220,20 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		return
 	}
 
+	// Fetch all available workflows for smart matching.
+	allWorkflows, err := c.workflowRepo.List(ctx)
+	if err != nil {
+		log.Printf("content_collector: failed to list workflows for analysis: %v", err)
+		allWorkflows = nil // non-fatal
+	}
+
 	llm, modelName, err := c.resolver.Resolve(pipeline.Model)
 	if err != nil {
 		log.Printf("content_collector: failed to resolve model %q: %v", pipeline.Model, err)
 		return
 	}
 
-	systemPrompt, userPrompt := buildAnalysisPrompt(pipeline, fetches)
+	systemPrompt, userPrompt := buildAnalysisPrompt(c.skills.GetPrompt("content-analyze"), pipeline, fetches, allWorkflows)
 
 	req := &adkmodel.LLMRequest{
 		Model: modelName,
@@ -250,8 +273,10 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		Summary         string   `json:"summary"`
 		Insights        []string `json:"insights"`
 		SuggestedAngles []struct {
-			Format   string `json:"format"`
-			Headline string `json:"headline"`
+			Format       string `json:"format"`
+			Headline     string `json:"headline"`
+			WorkflowName string `json:"workflow_name"`
+			Rationale    string `json:"rationale"`
 		} `json:"suggested_angles"`
 		OverallScore int `json:"overall_score"`
 	}
@@ -266,13 +291,32 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		totalItems += len(sf.RawItems)
 	}
 
+	// Build a set of valid workflow names for validation.
+	validWorkflows := make(map[string]bool)
+	for _, wf := range allWorkflows {
+		validWorkflows[wf.Name] = true
+	}
+
 	angles := make([]upal.ContentAngle, 0, len(parsed.SuggestedAngles))
 	for i, a := range parsed.SuggestedAngles {
+		workflowName := a.WorkflowName
+		matchType := "none"
+
+		// Validate that the LLM didn't hallucinate a workflow name.
+		if workflowName != "" && validWorkflows[workflowName] {
+			matchType = "matched"
+		} else {
+			workflowName = ""
+		}
+
 		angles = append(angles, upal.ContentAngle{
-			ID:       fmt.Sprintf("angle-%d", i+1),
-			Format:   a.Format,
-			Headline: a.Headline,
-			Selected: true, // default: all angles selected
+			ID:           fmt.Sprintf("angle-%d", i+1),
+			Format:       a.Format,
+			Headline:     a.Headline,
+			Rationale:    a.Rationale,
+			Selected:     true,
+			WorkflowName: workflowName,
+			MatchType:    matchType,
 		})
 	}
 
@@ -292,14 +336,8 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 }
 
 // buildAnalysisPrompt constructs system and user prompts for the LLM analysis step.
-func buildAnalysisPrompt(pipeline *upal.Pipeline, fetches []*upal.SourceFetch) (systemPrompt, userPrompt string) {
-	systemPrompt = `You are a content analyst. Analyze the collected data and return a JSON object with these fields:
-- summary: 2-3 sentence overview of the collected content
-- insights: array of up to 5 key findings as strings
-- suggested_angles: array of objects with "format" (one of: blog, shorts, newsletter, longform) and "headline" (short title) fields
-- overall_score: 0-100 relevance score based on how well the content matches the pipeline context
-
-Only return valid JSON, no markdown fences, no commentary.`
+func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, fetches []*upal.SourceFetch, workflows []*upal.WorkflowDefinition) (systemPrompt, userPrompt string) {
+	systemPrompt = systemPromptBase
 
 	var b strings.Builder
 	b.WriteString("## Pipeline Context\n")
@@ -327,6 +365,39 @@ Only return valid JSON, no markdown fences, no commentary.`
 		fmt.Fprintf(&b, "Pipeline: %s\n", pipeline.Name)
 		if pipeline.Description != "" {
 			fmt.Fprintf(&b, "Description: %s\n", pipeline.Description)
+		}
+	}
+
+	if len(pipeline.Workflows) > 0 {
+		b.WriteString("\n## Pipeline's Preferred Workflows\n")
+		for _, pw := range pipeline.Workflows {
+			fmt.Fprintf(&b, "- %s", pw.WorkflowName)
+			if pw.Label != "" {
+				fmt.Fprintf(&b, " (%s)", pw.Label)
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	if len(workflows) > 0 {
+		b.WriteString("\n## Available Workflows\n")
+		for _, wf := range workflows {
+			fmt.Fprintf(&b, "- %q", wf.Name)
+			if wf.Description != "" {
+				fmt.Fprintf(&b, ": %s", wf.Description)
+			}
+			b.WriteString("\n")
+			for _, n := range wf.Nodes {
+				label, _ := n.Config["label"].(string)
+				desc, _ := n.Config["description"].(string)
+				if label != "" || desc != "" {
+					fmt.Fprintf(&b, "  [%s] %s", n.Type, label)
+					if desc != "" {
+						fmt.Fprintf(&b, " — %s", desc)
+					}
+					b.WriteString("\n")
+				}
+			}
 		}
 	}
 
@@ -386,7 +457,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	for i, name := range workflowNames {
 		results[i] = upal.WorkflowResult{
 			WorkflowName: name,
-			Status:       "pending",
+			Status:       upal.WFResultPending,
 		}
 	}
 	c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
@@ -396,71 +467,79 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 		log.Printf("content_collector: failed to transition to producing: %v", err)
 	}
 
-	// Execute each workflow sequentially.
-	for i, name := range workflowNames {
-		// Update status to running.
-		results[i].Status = "running"
+	// Execute workflows in parallel.
+	var mu sync.Mutex
+	updateResult := func(i int, fn func(*upal.WorkflowResult)) {
+		mu.Lock()
+		fn(&results[i])
 		c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
+		mu.Unlock()
+	}
 
-		// Look up workflow definition.
-		wf, err := c.workflowRepo.Get(ctx, name)
-		if err != nil {
-			log.Printf("content_collector: workflow %q not found: %v", name, err)
-			results[i].Status = "failed"
-			c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
-			continue
-		}
+	g, gCtx := errgroup.WithContext(ctx)
+	for i, name := range workflowNames {
+		g.Go(func() error {
+			updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultRunning })
 
-		// Build inputs mapped to actual input node IDs.
-		inputs := buildProductionInputs(detail, wf)
+			// Look up workflow definition.
+			wf, err := c.workflowRepo.Get(gCtx, name)
+			if err != nil {
+				log.Printf("content_collector: workflow %q not found: %v", name, err)
+				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				return nil
+			}
 
-		// Run the workflow.
-		eventCh, resultCh, err := c.workflowSvc.Run(ctx, wf, inputs)
-		if err != nil {
-			log.Printf("content_collector: failed to run workflow %q: %v", name, err)
-			results[i].Status = "failed"
-			c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
-			continue
-		}
+			// Build inputs mapped to actual input node IDs.
+			inputs := buildProductionInputs(detail, wf)
 
-		// Drain event channel, capturing any errors.
-		var runErr string
-		for evt := range eventCh {
-			if evt.Type == "error" {
-				if errMsg, ok := evt.Payload["error"].(string); ok {
-					runErr = errMsg
+			// Run the workflow.
+			eventCh, resultCh, err := c.workflowSvc.Run(gCtx, wf, inputs)
+			if err != nil {
+				log.Printf("content_collector: failed to run workflow %q: %v", name, err)
+				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				return nil
+			}
+
+			// Drain event channel, capturing any errors.
+			var runErr string
+			for evt := range eventCh {
+				if evt.Type == "error" {
+					if errMsg, ok := evt.Payload["error"].(string); ok {
+						runErr = errMsg
+					}
 				}
 			}
-		}
 
-		if runErr != "" {
-			log.Printf("content_collector: workflow %q execution error: %s", name, runErr)
-			results[i].Status = "failed"
-			c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
-			continue
-		}
+			if runErr != "" {
+				log.Printf("content_collector: workflow %q execution error: %s", name, runErr)
+				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				return nil
+			}
 
-		// Wait for result.
-		runResult, ok := <-resultCh
-		if !ok {
-			log.Printf("content_collector: workflow %q result channel closed unexpectedly", name)
-			results[i].Status = "failed"
-			c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
-			continue
-		}
+			// Wait for result.
+			runResult, ok := <-resultCh
+			if !ok {
+				log.Printf("content_collector: workflow %q result channel closed unexpectedly", name)
+				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				return nil
+			}
 
-		now := time.Now()
-		results[i].Status = "success"
-		results[i].RunID = runResult.SessionID
-		results[i].CompletedAt = &now
-		c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
+			now := time.Now()
+			updateResult(i, func(r *upal.WorkflowResult) {
+				r.Status = upal.WFResultSuccess
+				r.RunID = runResult.SessionID
+				r.CompletedAt = &now
+			})
+			return nil
+		})
 	}
+	_ = g.Wait()
 
 	// Determine final status: if any succeeded, move to approved (awaiting publish);
 	// if all failed, move to error.
 	anySuccess := false
 	for _, r := range results {
-		if r.Status == "success" {
+		if r.Status == upal.WFResultSuccess {
 			anySuccess = true
 			break
 		}
@@ -472,6 +551,94 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	if err := c.contentSvc.UpdateSessionStatus(ctx, sessionID, finalStatus); err != nil {
 		log.Printf("content_collector: failed to transition after produce: %v", err)
 	}
+}
+
+// GenerateWorkflowForAngle creates a new workflow for an unmatched content angle
+// using the Generator, saves it to the workflow repo, and updates the analysis.
+func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, sessionID, angleID string) (*upal.ContentAngle, error) {
+	if c.generator == nil {
+		return nil, fmt.Errorf("workflow generator not available")
+	}
+
+	// Get the analysis and find the angle.
+	analysis, err := c.contentSvc.GetAnalysis(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("get analysis: %w", err)
+	}
+	if analysis == nil {
+		return nil, fmt.Errorf("no analysis found for session %s", sessionID)
+	}
+
+	var targetIdx int = -1
+	for i := range analysis.SuggestedAngles {
+		if analysis.SuggestedAngles[i].ID == angleID {
+			targetIdx = i
+			break
+		}
+	}
+	if targetIdx < 0 {
+		return nil, fmt.Errorf("angle %q not found in session %s", angleID, sessionID)
+	}
+
+	angle := &analysis.SuggestedAngles[targetIdx]
+
+	// Build a description enriched with pipeline context.
+	var desc strings.Builder
+	fmt.Fprintf(&desc, "Create a %s content production workflow that takes collected source material as input and produces a polished %s.\nTarget headline: %q\n",
+		angle.Format, angle.Format, angle.Headline)
+
+	// Inject pipeline editorial brief so the generated workflow reflects the user's intent.
+	session, err := c.contentSvc.GetSession(ctx, sessionID)
+	if err == nil && session != nil {
+		if pipeline, pErr := c.pipelineRepo.Get(ctx, session.PipelineID); pErr == nil && pipeline != nil {
+			if pipeline.Context != nil {
+				pctx := pipeline.Context
+				if pctx.Purpose != "" {
+					fmt.Fprintf(&desc, "Purpose: %s\n", pctx.Purpose)
+				}
+				if pctx.TargetAudience != "" {
+					fmt.Fprintf(&desc, "Target audience: %s\n", pctx.TargetAudience)
+				}
+				if pctx.ToneStyle != "" {
+					fmt.Fprintf(&desc, "Tone/style: %s\n", pctx.ToneStyle)
+				}
+				if pctx.ContentGoals != "" {
+					fmt.Fprintf(&desc, "Content goals: %s\n", pctx.ContentGoals)
+				}
+				if pctx.Language != "" {
+					fmt.Fprintf(&desc, "Output language: %s\n", pctx.Language)
+				}
+			} else if pipeline.Description != "" {
+				fmt.Fprintf(&desc, "Pipeline context: %s\n", pipeline.Description)
+			}
+		}
+	}
+
+	// Generate the workflow.
+	wf, err := c.generator.GenerateWorkflow(ctx, desc.String())
+	if err != nil {
+		return nil, fmt.Errorf("generate workflow: %w", err)
+	}
+
+	// Save the workflow to the repo.
+	if err := c.workflowRepo.Create(ctx, wf); err != nil {
+		// Name conflict — try with a suffix.
+		wf.Name = wf.Name + "-" + upal.GenerateID("")[:6]
+		if err2 := c.workflowRepo.Create(ctx, wf); err2 != nil {
+			return nil, fmt.Errorf("save generated workflow: %w", err2)
+		}
+	}
+
+	// Update the angle in the analysis.
+	angle.WorkflowName = wf.Name
+	angle.MatchType = "generated"
+
+	if err := c.contentSvc.UpdateAnalysisAngles(ctx, sessionID, analysis.SuggestedAngles); err != nil {
+		log.Printf("content_collector: failed to update analysis angles: %v", err)
+		// Non-fatal: workflow was created, angle just won't persist the link
+	}
+
+	return angle, nil
 }
 
 // buildProductionInputs creates the input map for production workflows.

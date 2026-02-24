@@ -82,7 +82,7 @@ func TestMemoryPipelineRunRepo_CRUD(t *testing.T) {
 	run := &upal.PipelineRun{
 		ID:         "prun-1",
 		PipelineID: "pipe-1",
-		Status:     "running",
+		Status:     upal.PipelineRunRunning,
 		StartedAt:  time.Now(),
 	}
 
@@ -94,7 +94,7 @@ func TestMemoryPipelineRunRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
-	if got.Status != "running" {
+	if got.Status != upal.PipelineRunRunning {
 		t.Errorf("expected status 'running', got %q", got.Status)
 	}
 
@@ -106,10 +106,10 @@ func TestMemoryPipelineRunRepo_CRUD(t *testing.T) {
 		t.Fatalf("expected 1 run, got %d", len(runs))
 	}
 
-	run.Status = "completed"
+	run.Status = upal.PipelineRunCompleted
 	repo.Update(ctx, run)
 	got, _ = repo.Get(ctx, "prun-1")
-	if got.Status != "completed" {
+	if got.Status != upal.PipelineRunCompleted {
 		t.Errorf("expected updated status, got %q", got.Status)
 	}
 }

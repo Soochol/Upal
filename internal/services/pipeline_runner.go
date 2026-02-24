@@ -41,7 +41,7 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 	run := &upal.PipelineRun{
 		ID:           upal.GenerateID("prun"),
 		PipelineID:   pipeline.ID,
-		Status:       "running",
+		Status:       upal.PipelineRunRunning,
 		StageResults: make(map[string]*upal.StageResult),
 		StartedAt:    time.Now(),
 	}
@@ -78,7 +78,7 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 	var prevResult *upal.StageResult
 	for i := 0; i < startIdx; i++ {
 		stage := pipeline.Stages[i]
-		if result, ok := run.StageResults[stage.ID]; ok && result.Status == "completed" {
+		if result, ok := run.StageResults[stage.ID]; ok && result.Status == upal.StageStatusCompleted {
 			prevResult = result
 		}
 	}
@@ -89,7 +89,7 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 		executor, ok := r.executors[stage.Type]
 		if !ok {
 			now := time.Now()
-			run.Status = "failed"
+			run.Status = upal.PipelineRunFailed
 			run.CompletedAt = &now
 			r.runRepo.Update(ctx, run)
 			return fmt.Errorf("no executor registered for stage type %q", stage.Type)
@@ -98,7 +98,7 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 		run.CurrentStage = stage.ID
 		stageResult := &upal.StageResult{
 			StageID:   stage.ID,
-			Status:    "running",
+			Status:    upal.StageStatusRunning,
 			StartedAt: time.Now(),
 		}
 		run.StageResults[stage.ID] = stageResult
@@ -107,17 +107,17 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 		result, err := executor.Execute(ctx, stage, prevResult)
 		if err != nil {
 			now := time.Now()
-			stageResult.Status = "failed"
+			stageResult.Status = upal.StageStatusFailed
 			stageResult.Error = err.Error()
 			stageResult.CompletedAt = &now
-			run.Status = "failed"
+			run.Status = upal.PipelineRunFailed
 			run.CompletedAt = &now
 			r.runRepo.Update(ctx, run)
 			return fmt.Errorf("stage %q failed: %w", stage.ID, err)
 		}
 
-		if result.Status == "waiting" {
-			run.Status = "waiting"
+		if result.Status == upal.StageStatusWaiting {
+			run.Status = upal.PipelineRunWaiting
 			run.StageResults[stage.ID] = result
 			r.runRepo.Update(ctx, run)
 			return nil
@@ -132,7 +132,7 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 	}
 
 	now := time.Now()
-	run.Status = "completed"
+	run.Status = upal.PipelineRunCompleted
 	run.CompletedAt = &now
 	r.runRepo.Update(ctx, run)
 	return nil

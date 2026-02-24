@@ -20,7 +20,7 @@ type noopStageExecutor struct{ t string }
 
 func (n *noopStageExecutor) Type() string { return n.t }
 func (n *noopStageExecutor) Execute(_ context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
-	return &upal.StageResult{StageID: stage.ID, Status: "completed"}, nil
+	return &upal.StageResult{StageID: stage.ID, Status: upal.StageStatusCompleted}, nil
 }
 
 func newTestPipelineServer(t *testing.T) (*Server, *repository.MemoryPipelineRepository, *repository.MemoryPipelineRunRepository) {
@@ -56,11 +56,11 @@ func TestApprovePipelineRun(t *testing.T) {
 	run := &upal.PipelineRun{
 		ID:           "prun-1",
 		PipelineID:   "pipe-1",
-		Status:       "waiting",
+		Status:       upal.PipelineRunWaiting,
 		CurrentStage: "s2",
 		StageResults: map[string]*upal.StageResult{
-			"s1": {StageID: "s1", Status: "completed", StartedAt: time.Now()},
-			"s2": {StageID: "s2", Status: "waiting", StartedAt: time.Now()},
+			"s1": {StageID: "s1", Status: upal.StageStatusCompleted, StartedAt: time.Now()},
+			"s2": {StageID: "s2", Status: upal.StageStatusWaiting, StartedAt: time.Now()},
 		},
 		StartedAt: time.Now(),
 	}
@@ -81,7 +81,7 @@ func TestApprovePipelineRun(t *testing.T) {
 
 	var resp upal.PipelineRun
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp.Status != "running" {
+	if resp.Status != upal.PipelineRunRunning {
 		t.Errorf("expected run status 'running' in response, got %q", resp.Status)
 	}
 }
@@ -101,10 +101,10 @@ func TestRejectPipelineRun(t *testing.T) {
 	run := &upal.PipelineRun{
 		ID:           "prun-2",
 		PipelineID:   "pipe-2",
-		Status:       "waiting",
+		Status:       upal.PipelineRunWaiting,
 		CurrentStage: "s1",
 		StageResults: map[string]*upal.StageResult{
-			"s1": {StageID: "s1", Status: "waiting", StartedAt: time.Now()},
+			"s1": {StageID: "s1", Status: upal.StageStatusWaiting, StartedAt: time.Now()},
 		},
 		StartedAt: time.Now(),
 	}
@@ -125,7 +125,7 @@ func TestRejectPipelineRun(t *testing.T) {
 
 	// Verify persisted as failed
 	updated, _ := runRepo.Get(context.Background(), "prun-2")
-	if updated.Status != "failed" {
+	if updated.Status != upal.PipelineRunFailed {
 		t.Errorf("expected persisted status 'failed', got %q", updated.Status)
 	}
 }
@@ -136,7 +136,7 @@ func TestRejectPipelineRun_NotWaiting(t *testing.T) {
 	pipeline := &upal.Pipeline{ID: "pipe-4", Name: "P4", Stages: []upal.Stage{{ID: "s1", Type: "workflow"}}}
 	pipelineRepo.Create(context.Background(), pipeline)
 
-	run := &upal.PipelineRun{ID: "prun-4", PipelineID: "pipe-4", Status: "completed", StageResults: map[string]*upal.StageResult{}}
+	run := &upal.PipelineRun{ID: "prun-4", PipelineID: "pipe-4", Status: upal.PipelineRunCompleted, StageResults: map[string]*upal.StageResult{}}
 	runRepo.Create(context.Background(), run)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -159,7 +159,7 @@ func TestApprovePipelineRun_NotWaiting(t *testing.T) {
 	pipeline := &upal.Pipeline{ID: "pipe-3", Name: "P3", Stages: []upal.Stage{{ID: "s1", Type: "workflow"}}}
 	pipelineRepo.Create(context.Background(), pipeline)
 
-	run := &upal.PipelineRun{ID: "prun-3", PipelineID: "pipe-3", Status: "completed", StageResults: map[string]*upal.StageResult{}}
+	run := &upal.PipelineRun{ID: "prun-3", PipelineID: "pipe-3", Status: upal.PipelineRunCompleted, StageResults: map[string]*upal.StageResult{}}
 	runRepo.Create(context.Background(), run)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)

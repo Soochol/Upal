@@ -76,7 +76,7 @@ func TestCollectStageExecutor_EmptySources(t *testing.T) {
 	if result.Output["text"] != "" {
 		t.Errorf("expected empty text, got %q", result.Output["text"])
 	}
-	if result.Status != "completed" {
+	if result.Status != upal.StageStatusCompleted {
 		t.Errorf("expected status=completed, got %q", result.Status)
 	}
 }

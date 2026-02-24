@@ -46,6 +46,13 @@ func (e *CollectStageExecutor) RegisterFetcher(f SourceFetcher) {
 	e.fetchers[f.Type()] = f
 }
 
+// Fetcher returns the registered SourceFetcher for the given type string.
+// Returns false if no fetcher is registered for that type.
+func (e *CollectStageExecutor) Fetcher(typ string) (SourceFetcher, bool) {
+	f, ok := e.fetchers[typ]
+	return f, ok
+}
+
 func (e *CollectStageExecutor) Type() string { return "collect" }
 
 func (e *CollectStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
@@ -57,7 +64,7 @@ func (e *CollectStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ 
 		completedAt = time.Now()
 		return &upal.StageResult{
 			StageID:     stage.ID,
-			Status:      "completed",
+			Status:      upal.StageStatusCompleted,
 			Output:      map[string]any{"text": "", "sources": map[string]any{}},
 			StartedAt:   now,
 			CompletedAt: &completedAt,
@@ -107,7 +114,7 @@ func (e *CollectStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ 
 
 	return &upal.StageResult{
 		StageID: stage.ID,
-		Status:  "completed",
+		Status:  upal.StageStatusCompleted,
 		Output: map[string]any{
 			"text":    combinedText,
 			"sources": sourcesMap,

@@ -111,13 +111,13 @@ func (p *RunPublisher) trackNodeRun(ctx context.Context, runID string, ev upal.W
 	case upal.EventNodeStarted:
 		p.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:    ev.NodeID,
-			Status:    "running",
+			Status:    upal.NodeRunRunning,
 			StartedAt: now,
 		})
 	case upal.EventNodeCompleted:
 		p.runHistorySvc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:      ev.NodeID,
-			Status:      "completed",
+			Status:      upal.NodeRunCompleted,
 			StartedAt:   now,
 			CompletedAt: &now,
 		})
