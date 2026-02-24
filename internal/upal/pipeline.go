@@ -14,6 +14,7 @@ type Pipeline struct {
 	ThumbnailSVG string             `json:"thumbnail_svg,omitempty"`
 	// Content pipeline fields
 	Schedule             string     `json:"schedule,omitempty"`               // cron expression for content collection
+	Model                string     `json:"model,omitempty"`                  // "provider/model" format, empty = system default
 	LastCollectedAt      *time.Time `json:"last_collected_at,omitempty"`      // set after each successful collect
 	PendingSessionCount  int        `json:"pending_session_count,omitempty"`  // count of pending_review sessions
 	CreatedAt    time.Time        `json:"created_at"`
