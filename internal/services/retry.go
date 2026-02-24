@@ -54,7 +54,7 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				retryOf = &firstRunID
 			}
 
-			record, err := r.runHistorySvc.StartRun(ctx, wf.Name, triggerType, triggerRef, inputs)
+			record, err := r.runHistorySvc.StartRun(ctx, wf.Name, triggerType, triggerRef, inputs, wf)
 			if err != nil {
 				slog.Warn("retry: failed to create run record", "err", err)
 			} else {

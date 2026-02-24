@@ -34,8 +34,9 @@ type TokenUsage struct {
 
 // RunRecord captures a single workflow execution with full provenance.
 type RunRecord struct {
-	ID           string         `json:"id"`
-	WorkflowName string         `json:"workflow_name"`
+	ID           string               `json:"id"`
+	WorkflowName string               `json:"workflow_name"`
+	WorkflowDef  *WorkflowDefinition  `json:"workflow_definition,omitempty"`
 	TriggerType  string         `json:"trigger_type"`  // "manual" | "cron" | "webhook"
 	TriggerRef   string         `json:"trigger_ref"`   // schedule ID or trigger ID
 	Status       RunStatus      `json:"status"`

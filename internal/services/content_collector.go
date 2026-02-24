@@ -526,7 +526,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			// Create a RunRecord if history service is available.
 			var runRecordID string
 			if c.runHistorySvc != nil {
-				rec, startErr := c.runHistorySvc.StartRun(gCtx, req.Name, "pipeline", sessionID, inputs)
+				rec, startErr := c.runHistorySvc.StartRun(gCtx, req.Name, "pipeline", sessionID, inputs, wf)
 				if startErr != nil {
 					log.Printf("content_collector: failed to start run record for %q: %v", req.Name, startErr)
 				} else {

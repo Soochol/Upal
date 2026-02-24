@@ -23,11 +23,12 @@ func NewRunHistoryService(runRepo repository.RunRepository) *RunHistoryService {
 }
 
 // StartRun creates a new RunRecord in pending/running state.
-func (s *RunHistoryService) StartRun(ctx context.Context, workflowName, triggerType, triggerRef string, inputs map[string]any) (*upal.RunRecord, error) {
+func (s *RunHistoryService) StartRun(ctx context.Context, workflowName string, triggerType, triggerRef string, inputs map[string]any, wfDef *upal.WorkflowDefinition) (*upal.RunRecord, error) {
 	now := time.Now()
 	record := &upal.RunRecord{
 		ID:           upal.GenerateID("run"),
 		WorkflowName: workflowName,
+		WorkflowDef:  wfDef,
 		TriggerType:  triggerType,
 		TriggerRef:   triggerRef,
 		Status:       upal.RunStatusRunning,

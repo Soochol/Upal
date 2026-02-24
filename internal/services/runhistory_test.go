@@ -23,7 +23,7 @@ func TestRunHistoryService_StartAndComplete(t *testing.T) {
 	ctx := context.Background()
 
 	// Start a run.
-	record, err := svc.StartRun(ctx, "test-workflow", "manual", "", map[string]any{"key": "value"})
+	record, err := svc.StartRun(ctx, "test-workflow", "manual", "", map[string]any{"key": "value"}, nil)
 	if err != nil {
 		t.Fatalf("StartRun: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestRunHistoryService_StartAndFail(t *testing.T) {
 	svc := NewRunHistoryService(repo)
 	ctx := context.Background()
 
-	record, err := svc.StartRun(ctx, "test-workflow", "cron", "sched-123", nil)
+	record, err := svc.StartRun(ctx, "test-workflow", "cron", "sched-123", nil, nil)
 	if err != nil {
 		t.Fatalf("StartRun: %v", err)
 	}
@@ -89,10 +89,10 @@ func TestRunHistoryService_ListRuns(t *testing.T) {
 
 	// Create 3 runs for wf-a, 2 for wf-b.
 	for i := 0; i < 3; i++ {
-		svc.StartRun(ctx, "wf-a", "manual", "", nil)
+		svc.StartRun(ctx, "wf-a", "manual", "", nil, nil)
 	}
 	for i := 0; i < 2; i++ {
-		svc.StartRun(ctx, "wf-b", "manual", "", nil)
+		svc.StartRun(ctx, "wf-b", "manual", "", nil, nil)
 	}
 
 	// List all.
@@ -137,7 +137,7 @@ func TestRunHistoryService_UpdateNodeRun(t *testing.T) {
 	svc := NewRunHistoryService(repo)
 	ctx := context.Background()
 
-	record, _ := svc.StartRun(ctx, "test-wf", "manual", "", nil)
+	record, _ := svc.StartRun(ctx, "test-wf", "manual", "", nil, nil)
 
 	// Add a node run.
 	svc.UpdateNodeRun(ctx, record.ID, newNodeRun("node-1", upal.NodeRunRunning))

@@ -14,14 +14,18 @@ func (d *DB) CreateRun(ctx context.Context, r *upal.RunRecord) error {
 	inputsJSON, _ := json.Marshal(r.Inputs)
 	outputsJSON, _ := json.Marshal(r.Outputs)
 	nodeRunsJSON, _ := json.Marshal(r.NodeRuns)
+	var wfDefJSON []byte
+	if r.WorkflowDef != nil {
+		wfDefJSON, _ = json.Marshal(r.WorkflowDef)
+	}
 
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO runs (id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, created_at, started_at, completed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+		`INSERT INTO runs (id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
 		r.ID, r.WorkflowName, r.TriggerType, r.TriggerRef,
 		string(r.Status), inputsJSON, outputsJSON, r.Error,
 		r.RetryOf, r.RetryCount, nodeRunsJSON,
-		r.SessionID, r.CreatedAt, r.StartedAt, r.CompletedAt,
+		r.SessionID, wfDefJSON, r.CreatedAt, r.StartedAt, r.CompletedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert run: %w", err)
@@ -33,15 +37,15 @@ func (d *DB) CreateRun(ctx context.Context, r *upal.RunRecord) error {
 func (d *DB) GetRun(ctx context.Context, id string) (*upal.RunRecord, error) {
 	r := &upal.RunRecord{}
 	var status string
-	var inputsJSON, outputsJSON, nodeRunsJSON []byte
+	var inputsJSON, outputsJSON, nodeRunsJSON, wfDefJSON []byte
 
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, created_at, started_at, completed_at
+		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
 		 FROM runs WHERE id = $1`, id,
 	).Scan(&r.ID, &r.WorkflowName, &r.TriggerType, &r.TriggerRef,
 		&status, &inputsJSON, &outputsJSON, &r.Error,
 		&r.RetryOf, &r.RetryCount, &nodeRunsJSON,
-		&r.SessionID, &r.CreatedAt, &r.StartedAt, &r.CompletedAt,
+		&r.SessionID, &wfDefJSON, &r.CreatedAt, &r.StartedAt, &r.CompletedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("run not found: %s", id)
@@ -54,6 +58,10 @@ func (d *DB) GetRun(ctx context.Context, id string) (*upal.RunRecord, error) {
 	json.Unmarshal(inputsJSON, &r.Inputs)
 	json.Unmarshal(outputsJSON, &r.Outputs)
 	json.Unmarshal(nodeRunsJSON, &r.NodeRuns)
+	if len(wfDefJSON) > 0 {
+		r.WorkflowDef = &upal.WorkflowDefinition{}
+		json.Unmarshal(wfDefJSON, r.WorkflowDef)
+	}
 	return r, nil
 }
 
@@ -85,7 +93,7 @@ func (d *DB) ListRunsByWorkflow(ctx context.Context, workflowName string, limit,
 	}
 
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, created_at, started_at, completed_at
+		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
 		 FROM runs WHERE workflow_name = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		workflowName, limit, offset,
 	)
@@ -114,13 +122,13 @@ func (d *DB) ListAllRuns(ctx context.Context, limit, offset int, status string) 
 	var err error
 	if status == "" {
 		rows, err = d.Pool.QueryContext(ctx,
-			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, created_at, started_at, completed_at
+			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
 			 FROM runs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 			limit, offset,
 		)
 	} else {
 		rows, err = d.Pool.QueryContext(ctx,
-			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, created_at, started_at, completed_at
+			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
 			 FROM runs WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 			status, limit, offset,
 		)
@@ -152,12 +160,12 @@ func scanRuns(rows *sql.Rows, total int) ([]*upal.RunRecord, int, error) {
 	for rows.Next() {
 		r := &upal.RunRecord{}
 		var status string
-		var inputsJSON, outputsJSON, nodeRunsJSON []byte
+		var inputsJSON, outputsJSON, nodeRunsJSON, wfDefJSON []byte
 
 		if err := rows.Scan(&r.ID, &r.WorkflowName, &r.TriggerType, &r.TriggerRef,
 			&status, &inputsJSON, &outputsJSON, &r.Error,
 			&r.RetryOf, &r.RetryCount, &nodeRunsJSON,
-			&r.SessionID, &r.CreatedAt, &r.StartedAt, &r.CompletedAt,
+			&r.SessionID, &wfDefJSON, &r.CreatedAt, &r.StartedAt, &r.CompletedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan run: %w", err)
 		}
@@ -166,6 +174,10 @@ func scanRuns(rows *sql.Rows, total int) ([]*upal.RunRecord, int, error) {
 		json.Unmarshal(inputsJSON, &r.Inputs)
 		json.Unmarshal(outputsJSON, &r.Outputs)
 		json.Unmarshal(nodeRunsJSON, &r.NodeRuns)
+		if len(wfDefJSON) > 0 {
+			r.WorkflowDef = &upal.WorkflowDefinition{}
+			json.Unmarshal(wfDefJSON, r.WorkflowDef)
+		}
 		result = append(result, r)
 	}
 	return result, total, nil

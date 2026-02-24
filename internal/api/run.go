@@ -59,7 +59,7 @@ func (s *Server) runWorkflow(w http.ResponseWriter, r *http.Request) {
 	// 4. Create run record if history service is available.
 	var runID string
 	if s.runHistorySvc != nil {
-		record, err := s.runHistorySvc.StartRun(r.Context(), name, "manual", "", req.Inputs)
+		record, err := s.runHistorySvc.StartRun(r.Context(), name, "manual", "", req.Inputs, wf)
 		if err != nil {
 			slog.Warn("failed to create run record", "err", err)
 		} else {
