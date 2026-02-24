@@ -88,7 +88,7 @@ Input workflow:
   "description": "입력된 텍스트를 영어로 번역합니다.",
   "version": 1,
   "nodes": [
-    { "id": "text_input", "type": "input",  "config": { "label": "원문 텍스트", "description": "번역할 텍스트" } },
+    { "id": "text_input", "type": "input",  "config": { "label": "원문 텍스트", "description": "번역할 텍스트", "prompt": "번역할 텍스트를 입력하세요..." } },
     { "id": "translator",  "type": "agent",  "config": { "label": "번역기", "description": "텍스트를 번역", "model": "anthropic/claude-sonnet-4-6", "prompt": "다음을 영어로 번역하세요:\n\n{{text_input}}" } },
     { "id": "result",      "type": "output", "config": { "label": "번역 결과", "description": "번역된 텍스트를 표시", "prompt": "{{translator}}" } }
   ],
@@ -108,7 +108,7 @@ Output (only `translator` prompt unchanged; new `spell_check` node added; edges 
   "description": "입력된 텍스트를 영어로 번역하고 맞춤법을 검사합니다.",
   "version": 1,
   "nodes": [
-    { "id": "text_input",   "type": "input",  "config": { "label": "원문 텍스트", "description": "번역할 텍스트" } },
+    { "id": "text_input",   "type": "input",  "config": { "label": "원문 텍스트", "description": "번역할 텍스트", "prompt": "번역할 텍스트를 입력하세요..." } },
     { "id": "translator",   "type": "agent",  "config": { "label": "번역기", "description": "텍스트를 번역", "model": "anthropic/claude-sonnet-4-6", "prompt": "다음을 영어로 번역하세요:\n\n{{text_input}}" } },
     { "id": "spell_check",  "type": "agent",  "config": { "label": "맞춤법 검사기", "description": "번역된 텍스트의 맞춤법과 문법을 검토", "model": "anthropic/claude-sonnet-4-6", "prompt": "다음 영어 텍스트의 맞춤법과 문법을 검토하고 수정된 버전을 제공하세요:\n\n{{translator}}" } },
     { "id": "result",       "type": "output", "config": { "label": "최종 결과", "description": "번역 및 맞춤법 검사 결과를 표시", "prompt": "{{spell_check}}" } }
@@ -128,5 +128,5 @@ Output (only `translator` prompt unchanged; new `spell_check` node added; edges 
 - Use ONLY models from the "Available models" list injected below.
 - Use ONLY tools from the "Available tools" list injected below. Never invent tool names.
 - Avoid duplicate node IDs — check against all existing IDs before creating a new one.
-- ALL user-facing text (`label`, `description`, `placeholder`, `system_prompt`, `prompt`, `output`) MUST be in Korean (한국어).
+- ALL user-facing text (`label`, `description`, `system_prompt`, `prompt`, `output`) MUST be in Korean (한국어).
 - `name` and node `id` fields remain English slugs.

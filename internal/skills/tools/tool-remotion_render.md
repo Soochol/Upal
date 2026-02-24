@@ -34,3 +34,4 @@ script_agent → tts_node → remotion_compose_agent → remotion_render (tool) 
 2. `audio_path` should reference the TTS node output: `{{tts_node}}`.
 3. The upstream remotion_compose agent MUST be instructed to output ONLY the code, no markdown fences.
 4. Host must have Node.js and `@remotion/renderer` installed.
+5. Rendering has a **30-minute timeout**. Complex compositions at high resolution may approach this limit.

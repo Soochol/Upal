@@ -48,3 +48,4 @@ File path string to the merged file, e.g. `/tmp/upal-outputs/abc123.mp4`.
 1. Host must have `ffmpeg` on PATH.
 2. For `mux_audio`, inputs order is always `[video, audio]`.
 3. Output path is returned as a plain string — reference as `{{video_merge_node}}`.
+4. Merging has a **10-minute timeout**.

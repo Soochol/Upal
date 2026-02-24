@@ -52,8 +52,8 @@ export function PipelineChatEditor({
   return (
     <ConfigureChat
       onSubmit={handleSubmit}
-      placeholder="파이프라인 설정을 설명하세요..."
-      loadingText="설정 중..."
+      placeholder="Describe your pipeline settings..."
+      loadingText="Configuring..."
     />
   )
 }

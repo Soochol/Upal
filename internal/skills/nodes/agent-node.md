@@ -18,6 +18,19 @@ Configure an agent node that calls an AI model. You MUST fill ALL relevant field
 | `description` | string | Yes | Brief explanation of what this node does |
 | `output` | string | Yes | Output format instruction appended to system_prompt (e.g. `"Respond in JSON with keys: title, summary, tags"`) |
 | `tools` | array of strings | No | Tool names to enable for agentic tool-use loop (e.g. `["web_search", "python_exec"]`). Only use tools from the available tools list. |
+| `temperature` | number | No | Sampling temperature (0.0–2.0). Lower = more focused, higher = more creative. Omit to use model default. |
+| `max_tokens` | number | No | Maximum output tokens. Omit to use model default. |
+| `top_p` | number | No | Nucleus sampling threshold (0.0–1.0). Omit to use model default. |
+| `output_extract` | object | No | Extract a specific portion from the LLM response. `mode`: `"json"` or `"tagged"`. For `"json"`: set `key` (the JSON key to extract). For `"tagged"`: set `tag` (the XML tag name to extract). |
+
+### Image model options
+
+When using an image generation model, these additional fields apply:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `aspect_ratio` | string | No | Image aspect ratio (e.g. `"16:9"`, `"1:1"`, `"9:16"`) |
+| `steps` | number | No | Number of diffusion steps (higher = better quality, slower) |
 
 {{include system-prompt}}
 

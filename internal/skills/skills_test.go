@@ -53,6 +53,36 @@ func TestGetToolSkills(t *testing.T) {
 	}
 }
 
+func TestGetPrompts(t *testing.T) {
+	r := New()
+
+	expectedPrompts := []string{
+		"content-analyze",
+		"node-configure",
+		"workflow-name",
+		"html-layout",
+	}
+
+	for _, name := range expectedPrompts {
+		content := r.GetPrompt(name)
+		if content == "" {
+			t.Errorf("prompt %q not found or empty", name)
+		}
+	}
+
+	// Prompts should not be accessible via Get (separate namespace).
+	for _, name := range expectedPrompts {
+		if got := r.Get(name); got != "" {
+			t.Errorf("prompt %q should not be accessible via Get(), but returned content", name)
+		}
+	}
+
+	// Missing prompts return empty string.
+	if got := r.GetPrompt("nonexistent-prompt"); got != "" {
+		t.Errorf("GetPrompt(nonexistent) = %q, want empty string", got)
+	}
+}
+
 func TestGetReturnsEmptyForMissing(t *testing.T) {
 	r := New()
 	if got := r.Get("nonexistent-skill"); got != "" {

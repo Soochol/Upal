@@ -127,8 +127,8 @@ input → draft_agent → reviewer_agent → output
       "type": "input",
       "config": {
         "label": "기사 URL",
-        "placeholder": "요약할 기사의 URL을 붙여넣으세요...",
-        "description": "분석할 기사의 URL"
+        "description": "분석할 기사의 URL",
+        "prompt": "요약할 기사의 URL을 붙여넣으세요..."
       }
     },
     {
@@ -169,6 +169,7 @@ input → draft_agent → reviewer_agent → output
 
 **Structure:**
 - Every workflow MUST have at least one `"input"` node and exactly one `"output"` node.
+- Every `"input"` node MUST have `"prompt"` field — guiding text shown as placeholder when the user runs the workflow.
 - Every `"agent"` node MUST have `"model"` and `"prompt"` fields in its config.
 - Every `"output"` node MUST have `"output_format"` and `"prompt"` fields. For `"html"` format, MUST also set `"model"` and `"system_prompt"`.
 - Every node config MUST have `"label"` and `"description"`.
@@ -191,5 +192,5 @@ input → draft_agent → reviewer_agent → output
 - For detailed node config requirements, call `get_skill("agent-node")`, `get_skill("input-node")`, etc.
 
 **Language:**
-- ALL user-facing text (`label`, `description`, `placeholder`, `system_prompt`, `prompt`, `output`) MUST be in Korean (한국어).
+- ALL user-facing text (`label`, `description`, `system_prompt`, `prompt`, `output`) MUST be in Korean (한국어).
 - `name` and node `id` fields remain English slugs.
