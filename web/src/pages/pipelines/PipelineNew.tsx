@@ -115,7 +115,7 @@ export default function PipelineNewPage() {
       workflows,
     }),
     onSuccess: (pipeline) => {
-      navigate(`/pipelines/${pipeline.id}`)
+      navigate(`/pipelines?p=${pipeline.id}`)
     },
   })
 

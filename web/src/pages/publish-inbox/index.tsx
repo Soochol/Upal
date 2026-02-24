@@ -4,14 +4,25 @@ import { MainLayout } from '@/app/layout'
 import { PublishInboxSidebar } from './PublishInboxSidebar'
 import { PublishInboxPreview } from './PublishInboxPreview'
 import { fetchContentSessions } from '@/entities/content-session/api'
+import { useSettingsStore } from '@/entities/settings/store'
 import { Loader2 } from 'lucide-react'
 
 export default function PublishInboxPage() {
     const [userSelectedId, setUserSelectedId] = useState<string | null>(null)
+    const showArchived = useSettingsStore((s) => s.showArchived)
 
     const { data: sessions = [], isLoading } = useQuery({
-        queryKey: ['publish-inbox-sessions'],
-        queryFn: () => fetchContentSessions({ status: 'approved' }),
+        queryKey: ['publish-inbox-sessions', showArchived],
+        queryFn: async () => {
+            const [approved, producing, errored] = await Promise.all([
+                fetchContentSessions({ status: 'approved', includeArchived: showArchived }),
+                fetchContentSessions({ status: 'producing', includeArchived: showArchived }),
+                fetchContentSessions({ status: 'error', includeArchived: showArchived }),
+            ])
+            return [...approved, ...producing, ...errored].sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+            )
+        },
         staleTime: 2000,
         refetchInterval: 5000,
     })

@@ -13,11 +13,11 @@ const CHANNEL_LABELS: Record<PublishedChannel, string> = {
   substack: '📧 Substack',
   discord: '💬 Discord',
   telegram: '✈️ Telegram',
-  other: '🔗 기타',
+  other: '🔗 Other',
 }
 
 const CHANNEL_TABS: { label: string; value: PublishedChannel | 'all' }[] = [
-  { label: '전체', value: 'all' },
+  { label: 'All', value: 'all' },
   { label: 'YouTube', value: 'youtube' },
   { label: 'Substack', value: 'substack' },
   { label: 'Discord', value: 'discord' },
@@ -34,7 +34,7 @@ function PublishedCard({
   onViewSession: () => void
   onViewRun: () => void
 }) {
-  const publishedAt = new Date(item.published_at).toLocaleString('ko-KR', {
+  const publishedAt = new Date(item.published_at).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -63,7 +63,7 @@ function PublishedCard({
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              원본 보기
+              View Original
             </a>
           )}
           <button
@@ -71,7 +71,7 @@ function PublishedCard({
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
             <ArrowRight className="h-3.5 w-3.5" />
-            실행 결과
+            Run Results
           </button>
           <button
             onClick={onViewSession}
@@ -109,7 +109,7 @@ export default function PublishedPage() {
               {!isLoading && (
                 <span className="text-sm text-muted-foreground mt-1.5 block">
                   <span className="text-foreground font-semibold tabular-nums">{items.length}</span>
-                  {' '}건
+                  {' '}items
                 </span>
               )}
             </div>
@@ -136,7 +136,7 @@ export default function PublishedPage() {
             </div>
           ) : items.length === 0 ? (
             <div className="text-center py-16 text-sm text-muted-foreground">
-              게시된 콘텐츠가 없습니다.
+              No published content yet.
             </div>
           ) : (
             <div className="space-y-3">
@@ -144,7 +144,7 @@ export default function PublishedPage() {
                 <PublishedCard
                   key={item.id}
                   item={item}
-                  onViewSession={() => navigate(`/pipelines/${item.pipeline_id}/sessions/${item.session_id}`)}
+                  onViewSession={() => navigate(`/pipelines?p=${item.pipeline_id}&s=${item.session_id}`)}
                   onViewRun={() => navigate(`/runs/${item.run_id}`)}
                 />
               ))}

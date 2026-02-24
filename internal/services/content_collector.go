@@ -875,20 +875,40 @@ func trackNodeRunFromEvent(ctx context.Context, svc ports.RunHistoryPort, runID 
 			StartedAt: now,
 		})
 	case upal.EventNodeCompleted:
+		var usage *upal.TokenUsage
+		if tokens, ok := ev.Payload["tokens"].(map[string]any); ok {
+			usage = &upal.TokenUsage{
+				PromptTokens:     int32(toIntVal(tokens["prompt_token_count"])),
+				CompletionTokens: int32(toIntVal(tokens["candidates_token_count"])),
+				TotalTokens:      int32(toIntVal(tokens["total_token_count"])),
+			}
+		}
 		svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
 			NodeID:      ev.NodeID,
 			Status:      upal.NodeRunCompleted,
 			StartedAt:   now,
 			CompletedAt: &now,
+			Usage:       usage,
 		})
 	case upal.EventError:
-		if ev.NodeID != "" {
-			svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
-				NodeID:      ev.NodeID,
-				Status:      upal.NodeRunError,
-				StartedAt:   now,
-				CompletedAt: &now,
-			})
-		}
+		svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+			NodeID:      ev.NodeID,
+			Status:      upal.NodeRunError,
+			StartedAt:   now,
+			CompletedAt: &now,
+		})
+	}
+}
+
+func toIntVal(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int32:
+		return int(n)
+	default:
+		return 0
 	}
 }

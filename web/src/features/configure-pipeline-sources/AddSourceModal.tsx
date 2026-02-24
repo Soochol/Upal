@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { X, Rss, Flame, MessageCircle, TrendingUp, Hash, Globe } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineSource, PipelineSourceType } from '@/shared/types'
 
@@ -8,16 +8,23 @@ type SourceTypeDef = {
   source_type: 'static' | 'signal'
   label: string
   description: string
+  icon: ReactNode
+  accent: string          // tailwind color class for icon bg
+  accentText: string      // tailwind color class for icon fg
 }
 
-const SOURCE_TYPES: SourceTypeDef[] = [
-  { type: 'rss',           source_type: 'static', label: 'RSS Feed',         description: 'Collect from RSS/Atom feed URLs' },
-  { type: 'hn',            source_type: 'static', label: 'Hacker News',      description: 'Collect top HN stories' },
-  { type: 'reddit',        source_type: 'signal', label: 'Reddit',           description: 'Signal from subreddit hot posts' },
-  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',    description: 'Signal from keyword search spikes' },
-  { type: 'twitter',       source_type: 'signal', label: 'X / Twitter',      description: 'Signal from trending keywords' },
-  { type: 'http',          source_type: 'static', label: 'HTTP Endpoint',    description: 'Collect from custom HTTP API' },
+const STATIC_SOURCES: SourceTypeDef[] = [
+  { type: 'rss',  source_type: 'static', label: 'RSS Feed',      description: 'RSS/Atom feed URLs',       icon: <Rss className="h-4 w-4" />,   accent: 'bg-warning/12', accentText: 'text-warning' },
+  { type: 'hn',   source_type: 'static', label: 'Hacker News',   description: 'Top HN stories',           icon: <Flame className="h-4 w-4" />, accent: 'bg-[oklch(0.75_0.15_50)]/12', accentText: 'text-[oklch(0.65_0.15_50)]' },
+  { type: 'http', source_type: 'static', label: 'HTTP Endpoint',  description: 'Custom HTTP API',          icon: <Globe className="h-4 w-4" />, accent: 'bg-muted', accentText: 'text-muted-foreground' },
 ]
+
+const SIGNAL_SOURCES: SourceTypeDef[] = [
+  { type: 'reddit',        source_type: 'signal', label: 'Reddit',         description: 'Subreddit hot posts',        icon: <MessageCircle className="h-4 w-4" />, accent: 'bg-[oklch(0.7_0.15_25)]/12', accentText: 'text-[oklch(0.6_0.15_25)]' },
+  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',  description: 'Keyword search spikes',      icon: <TrendingUp className="h-4 w-4" />,    accent: 'bg-info/12', accentText: 'text-info' },
+  { type: 'twitter',       source_type: 'signal', label: 'X / Twitter',    description: 'Trending keywords',          icon: <Hash className="h-4 w-4" />,       accent: 'bg-foreground/8', accentText: 'text-foreground' },
+]
+
 
 type Props = {
   onAdd: (source: PipelineSource) => void
@@ -58,7 +65,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold">
-            {step === 'select' ? 'Select source type' : `Configure ${selectedType?.label}`}
+            {step === 'select' ? 'Add Source' : `Configure ${selectedType?.label}`}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
@@ -67,26 +74,62 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
 
         <div className="p-5">
           {step === 'select' ? (
-            <div className="grid grid-cols-2 gap-2">
-              {SOURCE_TYPES.map((typeDef) => (
-                <button
-                  key={typeDef.type}
-                  onClick={() => handleSelectType(typeDef)}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-border p-3
-                    hover:border-foreground/20 hover:bg-muted/30 transition-all text-left cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium">{typeDef.label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium
-                      ${typeDef.source_type === 'static'
-                        ? 'border-border text-muted-foreground bg-muted/30'
-                        : 'border-primary/20 text-primary bg-primary/10'}`}>
-                      {typeDef.source_type === 'static' ? 'static' : 'signal'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{typeDef.description}</p>
-                </button>
-              ))}
+            <div className="space-y-5">
+              {/* Static data sources */}
+              <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Data Sources</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <div className="space-y-1.5">
+                  {STATIC_SOURCES.map((typeDef) => (
+                    <button
+                      key={typeDef.type}
+                      onClick={() => handleSelectType(typeDef)}
+                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
+                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
+                        active:scale-[0.99] transition-all text-left cursor-pointer"
+                    >
+                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
+                        group-hover:scale-110 transition-transform`}>
+                        {typeDef.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
+                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Signal sources */}
+              <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Signals</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <div className="space-y-1.5">
+                  {SIGNAL_SOURCES.map((typeDef) => (
+                    <button
+                      key={typeDef.type}
+                      onClick={() => handleSelectType(typeDef)}
+                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
+                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
+                        active:scale-[0.99] transition-all text-left cursor-pointer"
+                    >
+                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
+                        group-hover:scale-110 transition-transform`}>
+                        {typeDef.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
+                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

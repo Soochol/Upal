@@ -130,6 +130,8 @@ type WorkflowResult struct {
 	ChannelID    string               `json:"channel_id,omitempty"`
 	OutputURL    string               `json:"output_url,omitempty"`
 	CompletedAt  *time.Time           `json:"completed_at,omitempty"`
+	ErrorMessage string               `json:"error_message,omitempty"`
+	FailedNodeID string               `json:"failed_node_id,omitempty"`
 }
 
 // --- ContentSessionDetail ---

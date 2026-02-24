@@ -4,24 +4,25 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/soochol/upal/internal/upal/ports"
 	adkmodel "google.golang.org/adk/model"
 )
 
-// MapResolver implements ports.LLMResolver using a map of provider name → LLM.
-type MapResolver struct {
+// mapResolver implements ports.LLMResolver using a map of provider name → LLM.
+type mapResolver struct {
 	llms         map[string]adkmodel.LLM
 	defaultLLM   adkmodel.LLM
 	defaultModel string
 }
 
 // NewMapResolver creates a resolver. llms keys are provider names (e.g. "anthropic").
-func NewMapResolver(llms map[string]adkmodel.LLM, defaultLLM adkmodel.LLM, defaultModel string) *MapResolver {
-	return &MapResolver{llms: llms, defaultLLM: defaultLLM, defaultModel: defaultModel}
+func NewMapResolver(llms map[string]adkmodel.LLM, defaultLLM adkmodel.LLM, defaultModel string) ports.LLMResolver {
+	return &mapResolver{llms: llms, defaultLLM: defaultLLM, defaultModel: defaultModel}
 }
 
 // Resolve parses "provider/model" and returns the matching LLM + model name.
 // Empty modelID returns the system default.
-func (r *MapResolver) Resolve(modelID string) (adkmodel.LLM, string, error) {
+func (r *mapResolver) Resolve(modelID string) (adkmodel.LLM, string, error) {
 	if modelID == "" {
 		return r.defaultLLM, r.defaultModel, nil
 	}

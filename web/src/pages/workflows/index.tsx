@@ -5,13 +5,14 @@ import { useCallback, useRef, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ReactFlowProvider } from '@xyflow/react'
-import { PanelRightClose, PanelRightOpen, ArrowLeft, Search } from 'lucide-react'
+import { PanelRightOpen, ArrowLeft, Search } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
 import { Canvas } from '@/widgets/workflow-canvas'
 import { RightPanel } from '@/widgets/right-panel'
 import { WorkflowHeader } from '@/widgets/workflow-header'
 import { Console } from '@/widgets/bottom-console'
+import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import {
   useWorkflowStore, serializeWorkflow, deserializeWorkflow,
   loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow,
@@ -62,13 +63,19 @@ export default function WorkflowsPage() {
   // ─── Local state ────────────────────────────────────────────────────────
 
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false)
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
+  const { size: rightPanelWidth, handleMouseDown: onRightPanelDrag } = useResizeDrag({
+    direction: 'horizontal',
+    min: 260,
+    max: 700,
+    initial: 320,
+  })
 
   // ─── Auto-save + reconnect ──────────────────────────────────────────────
 
-  const { saveStatus, saveNow } = useAutoSave()
+  const { saveStatus, saveNow, markClean } = useAutoSave()
   useReconnectRun()
   useKeyboardShortcuts({ onSave: saveNow })
 
@@ -89,7 +96,9 @@ export default function WorkflowsPage() {
         }
         setRunningWorkflows(running) // eslint-disable-line react-hooks/set-state-in-effect
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn('Failed to fetch running workflows:', err)
+      })
   }, [])
 
   // ─── Load workflow when ?w= param changes ──────────────────────────────
@@ -105,6 +114,9 @@ export default function WorkflowsPage() {
         useWorkflowStore.getState().setOriginalName(wf.name)
         useExecutionStore.getState().clearNodeStatuses()
         useExecutionStore.getState().clearRunEvents()
+        // Mark loaded state as clean so auto-save doesn't re-save it
+        // (which would bump updated_at and move the item to top of the list)
+        markClean()
       })
       .catch(() => {
         addToast(`Workflow "${selectedWorkflowName}" not found.`)
@@ -123,54 +135,53 @@ export default function WorkflowsPage() {
     setIsRightPanelOpen(false)
   }, [])
 
+  // ─── Store reset helper ────────────────────────────────────────────────
+
+  const resetStores = useCallback((name: string, template = false) => {
+    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: template })
+    useWorkflowStore.getState().setWorkflowName(name)
+    useWorkflowStore.getState().setOriginalName('')
+    useExecutionStore.getState().clearNodeStatuses()
+    useExecutionStore.getState().clearRunEvents()
+  }, [])
+
   // ─── Sidebar callbacks ─────────────────────────────────────────────────
 
-  const handleSelect = useCallback((name: string) => {
-    saveNow()
+  const handleSelect = useCallback(async (name: string) => {
+    await saveNow()
     setSearchParams({ w: name })
   }, [saveNow, setSearchParams])
 
-  const handleNew = useCallback(() => {
-    saveNow()
-    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: false })
+  const handleNew = useCallback(async () => {
+    await saveNow()
     const name = `Untitled-${Date.now().toString(36).slice(-4)}`
-    useWorkflowStore.getState().setWorkflowName(name)
-    useWorkflowStore.getState().setOriginalName('')
-    useExecutionStore.getState().clearNodeStatuses()
-    useExecutionStore.getState().clearRunEvents()
+    resetStores(name)
     setSearchParams({ w: name })
-  }, [saveNow, setSearchParams])
+  }, [saveNow, resetStores, setSearchParams])
 
-  const handleGenerate = useCallback(() => {
-    saveNow()
-    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: false })
+  const handleGenerate = useCallback(async () => {
+    await saveNow()
     const name = `Untitled-${Date.now().toString(36).slice(-4)}`
-    useWorkflowStore.getState().setWorkflowName(name)
-    useWorkflowStore.getState().setOriginalName('')
-    useExecutionStore.getState().clearNodeStatuses()
-    useExecutionStore.getState().clearRunEvents()
+    resetStores(name)
     setSearchParams({ w: name, generate: 'true' })
-  }, [saveNow, setSearchParams])
+  }, [saveNow, resetStores, setSearchParams])
 
   const handleDelete = useCallback(async (name: string) => {
     if (!confirm(`Delete workflow "${name}"?`)) return
     try {
       await deleteWorkflow(name)
       queryClient.invalidateQueries({ queryKey: ['workflows'] })
-      // If the deleted workflow is currently selected, clear selection
       if (selectedWorkflowName === name) {
         setSearchParams({})
-        useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: false })
-        useWorkflowStore.getState().setWorkflowName('')
-        useWorkflowStore.getState().setOriginalName('')
+        resetStores('')
       }
     } catch (err) {
       addToast(`Failed to delete workflow: ${err instanceof Error ? err.message : 'unknown error'}`)
     }
-  }, [queryClient, selectedWorkflowName, setSearchParams, addToast])
+  }, [queryClient, selectedWorkflowName, setSearchParams, resetStores, addToast])
 
-  const handleTemplate = useCallback((tpl: TemplateDefinition) => {
-    saveNow()
+  const handleTemplate = useCallback(async (tpl: TemplateDefinition) => {
+    await saveNow()
     const { nodes: n, edges: e } = deserializeWorkflow(tpl.workflow)
     useWorkflowStore.setState({ nodes: n, edges: e, isTemplate: true })
     useWorkflowStore.getState().setWorkflowName(tpl.workflow.name)
@@ -259,6 +270,14 @@ export default function WorkflowsPage() {
     useWorkflowStore.getState().setOriginalName('')
   }, [setIsTemplate, setWorkflowName])
 
+  // ─── Refresh sidebar after auto-save ────────────────────────────────────
+
+  useEffect(() => {
+    if (saveStatus === 'saved') {
+      queryClient.invalidateQueries({ queryKey: ['workflows'] })
+    }
+  }, [saveStatus, queryClient])
+
   // ─── Generate mode: auto-focus prompt bar ──────────────────────────────
 
   useEffect(() => {
@@ -302,15 +321,6 @@ export default function WorkflowsPage() {
           <span className="font-semibold tracking-tight">Workflows</span>
         )
       }
-      rightPanel={
-        isRightPanelOpen && hasWorkflowSelected ? (
-          <RightPanel
-            selectedNode={selectedNode}
-            onCloseNode={() => selectNode(null)}
-            onCollapse={handleRightPanelCollapse}
-          />
-        ) : null
-      }
       bottomConsole={hasWorkflowSelected ? <Console /> : undefined}
     >
       <div className="flex h-full w-full overflow-hidden bg-background">
@@ -342,41 +352,65 @@ export default function WorkflowsPage() {
         )}>
           {hasWorkflowSelected ? (
             <>
-              {/* Sub-header strip */}
-              <div className="px-4 md:px-6 py-2 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center justify-between gap-3">
-                {/* Mobile back button */}
+              {/* Mobile-only back button */}
+              <div className="md:hidden px-4 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center">
                 <button
                   onClick={goBackToList}
-                  className="md:hidden flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
-
-                <div className="flex-1 min-w-0" />
-
-                {/* Right panel toggle */}
-                <button
-                  onClick={() => setIsRightPanelOpen((v) => !v)}
-                  className="hidden md:flex p-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                  title="Toggle Panel"
-                >
-                  {isRightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-                </button>
               </div>
 
-              {/* Canvas */}
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <ReactFlowProvider>
-                  <Canvas
-                    onAddFirstNode={() => handleAddNode('input')}
-                    onDropNode={handleDropNode}
-                    onPromptSubmit={handlePromptSubmit}
-                    isGenerating={isGenerating}
-                    exposeGetViewportCenter={handleExposeViewportCenter}
-                    onAddNode={handleAddNode}
-                    readOnly={isTemplate}
-                  />
-                </ReactFlowProvider>
+              {/* Canvas + Right Panel */}
+              <div className="flex-1 min-h-0 overflow-hidden flex">
+                <div className="flex-1 min-w-0 h-full relative">
+                  <ReactFlowProvider>
+                    <Canvas
+                      onAddFirstNode={() => handleAddNode('input')}
+                      onDropNode={handleDropNode}
+                      onPromptSubmit={handlePromptSubmit}
+                      isGenerating={isGenerating}
+                      exposeGetViewportCenter={handleExposeViewportCenter}
+                      onAddNode={handleAddNode}
+                      readOnly={isTemplate}
+                      autoFocusPrompt={isGenerateMode}
+                    />
+                  </ReactFlowProvider>
+
+                  {/* Floating panel toggle — visible when panel is closed */}
+                  {!isRightPanelOpen && (
+                    <button
+                      onClick={() => setIsRightPanelOpen(true)}
+                      className="hidden md:flex absolute top-3 right-3 z-20 p-2 rounded-xl border border-border bg-card/90 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer shadow-sm"
+                      title="Open Panel"
+                    >
+                      <PanelRightOpen className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Right Inspector Panel — inside canvas area */}
+                {isRightPanelOpen && (
+                  <div className="hidden md:contents">
+                    <div
+                      onMouseDown={onRightPanelDrag}
+                      className="w-1 shrink-0 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-30 relative
+                        after:absolute after:inset-y-0 after:-left-1 after:-right-1"
+                    />
+                    <aside
+                      style={{ width: rightPanelWidth }}
+                      className="border-l border-border bg-sidebar/95 backdrop-blur-md shadow-2xl z-30 flex flex-col shrink-0"
+                    >
+                      <RightPanel
+                        selectedNode={selectedNode}
+                        onCloseNode={() => selectNode(null)}
+                        onCollapse={handleRightPanelCollapse}
+                        onTogglePanel={() => setIsRightPanelOpen(false)}
+                      />
+                    </aside>
+                  </div>
+                )}
               </div>
             </>
           ) : (

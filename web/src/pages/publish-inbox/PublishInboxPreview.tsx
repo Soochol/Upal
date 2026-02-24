@@ -37,6 +37,7 @@ export function PublishInboxPreview({ sessionId }: Props) {
 
     const results = session.workflow_results ?? []
     const actionableResults = results.filter(r => r.status === 'success')
+    const inFlightResults = results.filter(r => r.status === 'running' || r.status === 'pending')
     const terminalResults = results.filter(r => r.status === 'published' || r.status === 'rejected' || r.status === 'failed')
 
     const handlePublish = async (runId: string) => {
@@ -75,8 +76,15 @@ export function PublishInboxPreview({ sessionId }: Props) {
                     <h2 className="text-lg font-bold tracking-tight">
                         {session.pipeline_name || 'Pipeline'} — Session #{session.session_number || session.id.slice(0, 8)}
                     </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {actionableResults.length} workflow{actionableResults.length !== 1 ? 's' : ''} ready for review
+                    <p className={`text-sm mt-1 ${session.status === 'error' && results.length === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {results.length === 0
+                            ? session.status === 'error'
+                                ? 'All workflows failed to start'
+                                : 'Workflows starting...'
+                            : inFlightResults.length > 0
+                                ? `${inFlightResults.length} workflow${inFlightResults.length !== 1 ? 's' : ''} running`
+                                    + (actionableResults.length > 0 ? ` · ${actionableResults.length} ready for review` : '')
+                                : `${actionableResults.length} workflow${actionableResults.length !== 1 ? 's' : ''} ready for review`}
                         {terminalResults.length > 0 && ` · ${terminalResults.length} processed`}
                     </p>
                 </div>
@@ -154,7 +162,14 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
             <div className="px-5 py-4">
                 {result.run_id && (
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Run: {result.run_id.slice(0, 12)}</span>
+                        {result.run_id.startsWith('run-') ? (
+                            <a href={`/runs/${result.run_id}`}
+                                className="text-primary underline decoration-primary/30 hover:decoration-primary transition-colors">
+                                Run: {result.run_id.slice(0, 12)}
+                            </a>
+                        ) : (
+                            <span>Run: {result.run_id.slice(0, 12)}</span>
+                        )}
                         {result.completed_at && (
                             <span>Completed: {new Date(result.completed_at).toLocaleString()}</span>
                         )}
@@ -167,6 +182,22 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
                     </div>
                 )}
             </div>
+
+            {/* Error details for failed workflows */}
+            {result.status === 'failed' && result.error_message && (
+                <div className="px-5 pb-4">
+                    <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+                        <p className="text-xs text-destructive font-medium mb-1">
+                            {result.failed_node_id
+                                ? `Failed at node: ${result.failed_node_id}`
+                                : 'Execution failed'}
+                        </p>
+                        <p className="text-xs text-destructive/80 font-mono whitespace-pre-wrap break-all">
+                            {result.error_message}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Actions */}
             {isActionable && (

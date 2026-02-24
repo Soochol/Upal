@@ -111,13 +111,14 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
           // Note: The backend may emit custom logical errors, which we log
         },
         (result: Record<string, unknown>) => {
+          const stateData = (result.state ?? {}) as Record<string, unknown>
           addRunEvent({
             type: 'done',
-            status: 'success',
-            sessionId: run_id,
-            state: result
+            status: (result.status as string) ?? 'success',
+            sessionId: (result.session_id as string) ?? run_id,
+            state: stateData,
           } as RunEvent)
-          setSessionState(result)
+          setSessionState(stateData)
           set({ isRunning: false })
         },
         (error: Error) => {

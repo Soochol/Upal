@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Archive } from 'lucide-react'
 
 import { fetchPipeline } from '@/entities/pipeline/api'
-import { fetchContentSession, publishSession, archiveSession as archiveSessionApi } from '@/entities/content-session/api'
+import { fetchContentSession, publishSession, produceSession, archiveSession as archiveSessionApi } from '@/entities/content-session/api'
 import { useContentSessionStore } from '@/entities/content-session/store'
 import type { Pipeline } from '@/shared/types'
 import type { ContentSession } from '@/entities/content-session'
@@ -52,8 +52,13 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
         queryFn: () => fetchContentSession(sessionId),
         enabled: !!sessionId,
         refetchInterval: (query) => {
-            const status = query.state.data?.status
-            return status === 'collecting' || status === 'producing' ? 3000 : false
+            const s = query.state.data
+            if (!s) return false
+            // Poll while session is in-flight: collecting, producing, or
+            // approved-but-produce-not-yet-started (race with background goroutine).
+            if (s.status === 'collecting' || s.status === 'producing') return 3000
+            if (s.status === 'approved' && (!s.workflow_results || s.workflow_results.length === 0)) return 3000
+            return false
         },
     })
 
@@ -109,6 +114,20 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
         },
         [sessionId, pipelineId, queryClient],
     )
+
+    const handleRetryProduce = useCallback(async () => {
+        if (!session || !pipeline) return
+        const angles = session.analysis?.angles?.filter(a => a.selected && a.workflow_name) ?? []
+        if (angles.length === 0) return
+        const workflows = angles.map(a => ({
+            name: a.workflow_name!,
+            ...(pipeline.workflows?.find(pw => pw.workflow_name === a.workflow_name)?.channel_id
+                ? { channel_id: pipeline.workflows.find(pw => pw.workflow_name === a.workflow_name)!.channel_id }
+                : {}),
+        }))
+        await produceSession(sessionId, workflows)
+        await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+    }, [session, pipeline, sessionId, queryClient])
 
     const archiveMutation = useMutation({
         mutationFn: () => archiveSessionApi(sessionId),
@@ -189,7 +208,7 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
                         state={getStageState('produce', session)}
                         summary={produceSummary(session)}
                     >
-                        <ProduceStage session={session} />
+                        <ProduceStage session={session} onRetry={handleRetryProduce} />
                     </StageSection>
 
                     {/* 4. Publish */}

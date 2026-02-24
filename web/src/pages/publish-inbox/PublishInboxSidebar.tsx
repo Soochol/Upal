@@ -33,6 +33,7 @@ export function PublishInboxSidebar({ sessions, selectedId, onSelect }: Props) {
                 {sessions.map((s) => {
                     const results = s.workflow_results ?? []
                     const successCount = results.filter(r => r.status === 'success').length
+                    const inFlightCount = results.filter(r => r.status === 'running' || r.status === 'pending').length
                     const totalCount = results.length
                     const isSelected = s.id === selectedId
 
@@ -58,15 +59,21 @@ export function PublishInboxSidebar({ sessions, selectedId, onSelect }: Props) {
                                 Session #{s.session_number || s.id.slice(0, 8)}
                             </p>
                             <div className="flex items-center gap-2 mt-1.5">
-                                <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full bg-success transition-all duration-500"
-                                        style={{ width: totalCount > 0 ? `${(successCount / totalCount) * 100}%` : '0%' }}
-                                    />
-                                </div>
-                                <span className="text-[10px] font-medium text-muted-foreground">
-                                    {successCount}/{totalCount}
-                                </span>
+                                {totalCount === 0 ? (
+                                    <span className="text-[10px] font-medium text-muted-foreground">Starting...</span>
+                                ) : (
+                                    <>
+                                        <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-500 ${inFlightCount > 0 ? 'bg-info animate-pulse' : 'bg-success'}`}
+                                                style={{ width: `${((successCount + inFlightCount) / totalCount) * 100}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-medium text-muted-foreground">
+                                            {inFlightCount > 0 ? `${inFlightCount} running` : `${successCount}/${totalCount}`}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </button>
                     )

@@ -76,3 +76,32 @@ func (s *PipelineService) CreateRun(ctx context.Context, run *upal.PipelineRun) 
 func (s *PipelineService) UpdateRun(ctx context.Context, run *upal.PipelineRun) error {
 	return s.runRepo.Update(ctx, run)
 }
+
+// RejectRun rejects a pipeline run that is waiting for approval.
+// It validates the run belongs to the given pipeline and is in waiting status,
+// then transitions it to failed.
+func (s *PipelineService) RejectRun(ctx context.Context, pipelineID, runID string) (*upal.PipelineRun, error) {
+	run, err := s.runRepo.Get(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("get run %s: %w", runID, err)
+	}
+	if run.PipelineID != pipelineID {
+		return nil, fmt.Errorf("run %s: %w", runID, repository.ErrNotFound)
+	}
+	if run.Status != upal.PipelineRunWaiting {
+		return nil, fmt.Errorf("run %s status %s: %w", runID, run.Status, upal.ErrInvalidStatus)
+	}
+
+	now := time.Now()
+	run.Status = upal.PipelineRunFailed
+	run.CompletedAt = &now
+	if result, ok := run.StageResults[run.CurrentStage]; ok {
+		result.Status = upal.StageStatusFailed
+		result.Error = "rejected by user"
+		result.CompletedAt = &now
+	}
+	if err := s.runRepo.Update(ctx, run); err != nil {
+		return nil, fmt.Errorf("update run %s: %w", runID, err)
+	}
+	return run, nil
+}

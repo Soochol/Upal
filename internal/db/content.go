@@ -123,6 +123,29 @@ func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]
 	return result, rows.Err()
 }
 
+func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
+	rows, err := d.Pool.QueryContext(ctx,
+		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
+		status,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all content_sessions by status: %w", err)
+	}
+	defer rows.Close()
+	var result []*upal.ContentSession
+	for rows.Next() {
+		var s upal.ContentSession
+		var st string
+		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+			return nil, fmt.Errorf("scan content_session: %w", err)
+		}
+		s.Status = upal.ContentSessionStatus(st)
+		result = append(result, &s)
+	}
+	return result, rows.Err()
+}
+
 func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
@@ -444,6 +467,51 @@ func (d *DB) GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, er
 		return nil, fmt.Errorf("unmarshal sources: %w", err)
 	}
 	return &se, nil
+}
+
+// --- WorkflowResults ---
+
+func (d *DB) SaveWorkflowResults(ctx context.Context, sessionID string, results []upal.WorkflowResult) error {
+	resultsJSON, err := json.Marshal(results)
+	if err != nil {
+		return fmt.Errorf("marshal workflow_results: %w", err)
+	}
+	_, err = d.Pool.ExecContext(ctx,
+		`INSERT INTO workflow_results (session_id, results, updated_at)
+		 VALUES ($1, $2, NOW())
+		 ON CONFLICT (session_id) DO UPDATE SET results = $2, updated_at = NOW()`,
+		sessionID, resultsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert workflow_results: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) GetWorkflowResultsBySession(ctx context.Context, sessionID string) ([]upal.WorkflowResult, error) {
+	var resultsJSON []byte
+	err := d.Pool.QueryRowContext(ctx,
+		`SELECT results FROM workflow_results WHERE session_id = $1`, sessionID,
+	).Scan(&resultsJSON)
+	if err == sql.ErrNoRows {
+		return []upal.WorkflowResult{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get workflow_results: %w", err)
+	}
+	var results []upal.WorkflowResult
+	if err := json.Unmarshal(resultsJSON, &results); err != nil {
+		return nil, fmt.Errorf("unmarshal workflow_results: %w", err)
+	}
+	return results, nil
+}
+
+func (d *DB) DeleteWorkflowResultsBySession(ctx context.Context, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM workflow_results WHERE session_id = $1`, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete workflow_results: %w", err)
+	}
+	return nil
 }
 
 func scanSurgeEvents(rows *sql.Rows) ([]*upal.SurgeEvent, error) {

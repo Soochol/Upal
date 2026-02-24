@@ -13,6 +13,7 @@ type ContentSessionRepository interface {
 	List(ctx context.Context) ([]*upal.ContentSession, error)
 	ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error)
+	ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error)
 	ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error)
 	ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	Update(ctx context.Context, s *upal.ContentSession) error

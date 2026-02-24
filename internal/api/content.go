@@ -57,7 +57,14 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 
 	// No pipeline_id but status provided: return composed details (includes pipeline_name).
 	if statusStr != "" {
-		details, err := s.contentSvc.ListSessionDetailsByStatus(ctx, upal.ContentSessionStatus(statusStr))
+		includeArchived := r.URL.Query().Get("include_archived") == "true"
+		var details []*upal.ContentSessionDetail
+		var err error
+		if includeArchived {
+			details, err = s.contentSvc.ListSessionDetailsByStatusIncludeArchived(ctx, upal.ContentSessionStatus(statusStr))
+		} else {
+			details, err = s.contentSvc.ListSessionDetailsByStatus(ctx, upal.ContentSessionStatus(statusStr))
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

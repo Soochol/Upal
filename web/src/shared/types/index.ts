@@ -94,7 +94,7 @@ export type RunRecord = {
     name: string
     version: number
     nodes: { id: string; type: string; config: Record<string, unknown>; group?: string }[]
-    edges: { from: string; to: string; loop?: { max_iterations: number; exit_when: string }; condition?: string; trigger_rule?: string }[]
+    edges: { from: string; to: string; loop?: { max_iterations: number; exit_when: string }; condition?: string; trigger_rule?: 'on_success' | 'on_failure' | 'always' }[]
     groups?: { id: string; label: string; color?: string }[]
   }
   trigger_type: string
@@ -113,7 +113,7 @@ export type RunRecord = {
 
 export type NodeRunRecord = {
   node_id: string
-  status: string
+  status: 'idle' | 'running' | 'completed' | 'error' | 'waiting' | 'skipped'
   started_at: string
   completed_at?: string
   error?: string
@@ -207,6 +207,7 @@ export type RunEvent =
 
 export type ContentSessionStatus =
   | 'collecting'
+  | 'analyzing'
   | 'pending_review'
   | 'approved'
   | 'rejected'

@@ -16,8 +16,11 @@ type ContentDB interface {
 	ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error)
 	ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error)
+	ListAllContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error)
 	ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error)
 	UpdateContentSession(ctx context.Context, s *upal.ContentSession) error
+	ListArchivedContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
+	DeleteContentSession(ctx context.Context, id string) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
 	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
@@ -27,11 +30,15 @@ type ContentDB interface {
 	ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent, error)
 	ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
 	ListPublishedContentByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error)
+	DeletePublishedContentBySession(ctx context.Context, sessionID string) error
 	CreateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
 	GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, error)
 	ListSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
 	ListActiveSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error)
 	UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error
+	SaveWorkflowResults(ctx context.Context, sessionID string, results []upal.WorkflowResult) error
+	GetWorkflowResultsBySession(ctx context.Context, sessionID string) ([]upal.WorkflowResult, error)
+	DeleteWorkflowResultsBySession(ctx context.Context, sessionID string) error
 }
 
 // PersistentContentSessionRepository wraps MemoryContentSessionRepository with DB backend.
@@ -91,6 +98,15 @@ func (r *PersistentContentSessionRepository) ListByStatus(ctx context.Context, s
 	return r.mem.ListByStatus(ctx, status)
 }
 
+func (r *PersistentContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListAllContentSessionsByStatus(ctx, string(status))
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list all content_sessions by status failed, falling back to in-memory", "err", err)
+	return r.mem.ListAllByStatus(ctx, status)
+}
+
 func (r *PersistentContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	sessions, err := r.db.ListContentSessionsByPipelineAndStatus(ctx, pipelineID, string(status))
 	if err == nil {
@@ -100,10 +116,27 @@ func (r *PersistentContentSessionRepository) ListByPipelineAndStatus(ctx context
 	return r.mem.ListByPipelineAndStatus(ctx, pipelineID, status)
 }
 
+func (r *PersistentContentSessionRepository) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListArchivedContentSessionsByPipeline(ctx, pipelineID)
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list archived content_sessions failed, falling back to in-memory", "err", err)
+	return r.mem.ListArchivedByPipeline(ctx, pipelineID)
+}
+
 func (r *PersistentContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {
 	_ = r.mem.Update(ctx, s)
 	if err := r.db.UpdateContentSession(ctx, s); err != nil {
 		return fmt.Errorf("db update content_session: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentContentSessionRepository) Delete(ctx context.Context, id string) error {
+	_ = r.mem.Delete(ctx, id)
+	if err := r.db.DeleteContentSession(ctx, id); err != nil {
+		return fmt.Errorf("db delete content_session: %w", err)
 	}
 	return nil
 }
@@ -213,6 +246,14 @@ func (r *PersistentPublishedContentRepository) ListByChannel(ctx context.Context
 	return r.mem.ListByChannel(ctx, channel)
 }
 
+func (r *PersistentPublishedContentRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	_ = r.mem.DeleteBySession(ctx, sessionID)
+	if err := r.db.DeletePublishedContentBySession(ctx, sessionID); err != nil {
+		return fmt.Errorf("db delete published_content by session: %w", err)
+	}
+	return nil
+}
+
 // PersistentSurgeEventRepository wraps MemorySurgeEventRepository with DB backend.
 type PersistentSurgeEventRepository struct {
 	mem *MemorySurgeEventRepository
@@ -265,6 +306,46 @@ func (r *PersistentSurgeEventRepository) Update(ctx context.Context, se *upal.Su
 	_ = r.mem.Update(ctx, se)
 	if err := r.db.UpdateSurgeEvent(ctx, se); err != nil {
 		return fmt.Errorf("db update surge_event: %w", err)
+	}
+	return nil
+}
+
+// PersistentWorkflowResultRepository wraps MemoryWorkflowResultRepository with DB backend.
+type PersistentWorkflowResultRepository struct {
+	mem *MemoryWorkflowResultRepository
+	db  ContentDB
+}
+
+func NewPersistentWorkflowResultRepository(mem *MemoryWorkflowResultRepository, db ContentDB) *PersistentWorkflowResultRepository {
+	return &PersistentWorkflowResultRepository{mem: mem, db: db}
+}
+
+func (r *PersistentWorkflowResultRepository) Save(ctx context.Context, sessionID string, results []upal.WorkflowResult) error {
+	_ = r.mem.Save(ctx, sessionID, results)
+	if err := r.db.SaveWorkflowResults(ctx, sessionID, results); err != nil {
+		return fmt.Errorf("db save workflow_results: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentWorkflowResultRepository) GetBySession(ctx context.Context, sessionID string) ([]upal.WorkflowResult, error) {
+	if results, err := r.mem.GetBySession(ctx, sessionID); err == nil && len(results) > 0 {
+		return results, nil
+	}
+	results, err := r.db.GetWorkflowResultsBySession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) > 0 {
+		_ = r.mem.Save(ctx, sessionID, results)
+	}
+	return results, nil
+}
+
+func (r *PersistentWorkflowResultRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	_ = r.mem.DeleteBySession(ctx, sessionID)
+	if err := r.db.DeleteWorkflowResultsBySession(ctx, sessionID); err != nil {
+		return fmt.Errorf("db delete workflow_results: %w", err)
 	}
 	return nil
 }

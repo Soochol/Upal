@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Upal is a visual AI workflow platform — a Go backend with embedded React frontend that lets users build and execute DAG-based workflows connecting LLM providers. Think Google Opal-style visual workflow editor with multi-model support (Anthropic, Gemini, OpenAI, Ollama).
+Upal is a visual AI workflow platform — a Go backend with embedded React frontend that lets users build and execute DAG-based workflows connecting LLM providers. Multi-model support (Anthropic, Gemini, OpenAI, Ollama).
 
 ## Build & Development Commands
 
@@ -30,135 +30,57 @@ cd web && npm run build       # tsc -b && vite build
 
 ## Architecture
 
-### Backend (Go 1.23, Chi router, Google ADK)
+### Backend (Go 1.24, Chi router, Google ADK)
 
-The backend follows a layered clean architecture with dependency injection throughout.
+Layered clean architecture with dependency injection. Entry point: `cmd/upal/main.go` wires Config → LLMs → Tools → Repositories → Services → NodeRegistry → Skills → Generator → API Server.
 
-**`cmd/upal/main.go`** — Entry point. Wires all dependencies bottom-up: Config → LLMs → Tools → Repositories → Services → NodeRegistry → Skills → Generator → API Server.
-
-**`internal/upal/`** — Core domain types (no external dependencies):
-- `workflow.go` — `WorkflowDefinition`, `NodeDefinition`, `EdgeDefinition`, `NodeType` (input/agent/output/tool/asset)
-- `pipeline.go` — `Pipeline`, `Stage`, `PipelineRun`, `StageConfig` (multi-stage orchestration types)
-- `types.go` — `GenerateID()` utility
-- `events.go` — event type definitions
-- `ports/` — port interfaces: `WorkflowExecutor`, `RunHistoryPort`, `SchedulerPort`, `PipelineRunner`, `RetryExecutor`
-
-**`internal/dag/`** — DAG construction and traversal (no LLM dependencies):
-- `dag.go` — Builds DAG from workflow definition, topological sort, cycle detection, parent/child relationships
-
-**`internal/agents/`** — Node builder implementations (ADK-based):
-- `registry.go` — `NodeRegistry` maps node types to `NodeBuilder` implementations
-- `input_builder.go` / `output_builder.go` / `llm_builder.go` / `tool_builder.go` / `asset_builder.go` — per-type ADK agent builders
-- `builders.go` — shared template resolution (`{{key}}` placeholders), `namedLLM` wrapper
-- `dag.go` — DAG-aware execution logic
-- `context.go` — execution context helpers
-- `eval.go` — result evaluation
-
-**`internal/model/`** — LLM provider implementations (satisfy ADK `model.LLM` interface):
-- `anthropic.go` / `openai.go` — provider implementations
-- `gemini_image.go` / `zimage.go` — image generation models
-- `claudecode.go` — Claude Code integration
-
-**`internal/tools/`** — Built-in tool implementations:
-- `registry.go` — `Registry` maps tool names to `Tool` instances
-- `get_webpage.go` / `http_request.go` / `rss_feed.go` / `python_exec.go` / `content_store.go` / `publish.go`
-
-**`internal/services/`** — Business logic layer:
-- `workflow.go` — `WorkflowService` orchestrates workflow execution via ADK runner
-- `pipeline_runner.go` — `PipelineRunner` executes pipeline stages sequentially via pluggable `StageExecutor`
-- `pipeline_service.go` — pipeline CRUD and run management
-- `runhistory.go` / `runmanager.go` — run lifecycle and history
-- `execution.go` — `ExecutionRegistry` for pause/resume handle tracking
-- `concurrency.go` — `ConcurrencyLimiter` (semaphore-based)
-- `retry.go` — `RetryExecutor` with backoff
-- `connection.go` — connection management with encrypted secrets
-- `stage_*.go` — stage executor implementations (workflow, approval, notification, transform, collect, passthrough)
-- `scheduler/` — cron-based scheduler with dispatch and sync
-- `run/publisher.go` — SSE event publisher for background run streaming
-
-**`internal/repository/`** — Data access layer (memory + optional PostgreSQL):
-- Per-domain repositories: `WorkflowRepository`, `RunRepository`, `ScheduleRepository`, `TriggerRepository`, `PipelineRepository`, `ConnectionRepository`
-- `memory/store.go` — generic thread-safe in-memory KV store used by memory adapters
-
-**`internal/db/`** — PostgreSQL schema and query helpers (optional, graceful fallback to in-memory)
-
-**`internal/api/`** — HTTP layer (Chi router):
-- `server.go` — `Server` struct with all service dependencies, `Handler()` builds Chi router
-- `run.go` / `workflow.go` / `pipelines.go` / `runs.go` / `triggers.go` / `generate.go` / `upload.go` / `models.go` / `connections.go` — handlers
-- `a2a.go` — A2A protocol (agent card + JSON-RPC)
-- `configure.go` — LLM-guided node configuration endpoint
-
-**`internal/generate/`** — LLM-based generation:
-- `generate.go` — `Generator` converts natural language → `WorkflowDefinition` JSON
-- `pipeline.go` — generates `Pipeline` definitions
-- `backfill.go` — backfills descriptions for existing nodes
-- `thumbnail.go` — generates workflow thumbnails
-
-**`internal/skills/`** — Embedded AI skill & prompt registry:
-- `skills.go` — `Registry` loads embedded markdown files, resolves `{{include name}}` references
-- `nodes/*.md` — per-node-type skill docs (agent, input, output, tool, asset)
-- `stages/*.md` — pipeline stage docs (approval, collect, notification, schedule, transform, trigger)
-- `prompts/*.md` — generation prompts (workflow-create, workflow-edit, pipeline-create, etc.)
-- `_frameworks/*.md` — shared prompt framework fragments
-
-**Supporting packages**: `internal/extract/` (PDF/image/office text extraction), `internal/storage/` (local file storage), `internal/notify/` (Slack/SMTP/Telegram), `internal/crypto/` (secret encryption), `internal/llmutil/` (response parsing), `internal/output/` (result formatting)
+| Package | Purpose |
+|---------|---------|
+| `internal/upal/` | Core domain types, port interfaces (`ports/`). No external deps |
+| `internal/dag/` | DAG construction, topological sort, cycle detection |
+| `internal/agents/` | ADK-based node builders (`NodeRegistry` → per-type builders). Template resolution (`{{key}}`) |
+| `internal/model/` | LLM provider implementations (Anthropic, OpenAI, Gemini, TTS, image gen, Claude Code) |
+| `internal/tools/` | Built-in tool registry (webpage, HTTP, RSS, Python, content store, publish, video) |
+| `internal/services/` | Business logic: workflow execution, pipeline runner, stage executors, content sessions, scheduler, run history, connections |
+| `internal/repository/` | Data access layer (memory + optional PostgreSQL). Per-domain repositories |
+| `internal/db/` | PostgreSQL schema and queries (optional, graceful fallback to in-memory) |
+| `internal/api/` | Chi HTTP handlers. See `server.go` `Handler()` for all routes |
+| `internal/generate/` | LLM-based generation (workflow, pipeline, backfill, thumbnail) |
+| `internal/skills/` | Embedded prompt registry with `{{include}}` resolution. Subdirs: `nodes/`, `stages/`, `prompts/`, `tools/`, `_frameworks/` |
+| `internal/config/` | Configuration loading |
+| `internal/extract/` | PDF/image/office text extraction |
+| `internal/storage/` | Local file storage |
+| `internal/notify/` | Slack/SMTP/Telegram notifications |
+| `internal/crypto/` | Secret encryption |
+| `internal/llmutil/` | LLM response parsing |
+| `internal/output/` | Result formatting |
 
 ### Frontend (React 19, TypeScript, Vite — FSD Architecture)
 
-Organized by Feature-Sliced Design layers: `app` → `pages` → `widgets` → `features` → `entities` → `shared`
+Organized by Feature-Sliced Design: `app` → `pages` → `widgets` → `features` → `entities` → `shared`
 
-**`web/src/app/`** — Router, providers, app-level config
+| Layer | Contents |
+|-------|----------|
+| `app/` | Router, providers |
+| `pages/` | Editor, Pipelines (+ session detail, stages), Runs, Connections, Landing, Inbox, Published |
+| `widgets/` | workflow-canvas, right-panel, bottom-console, workflow-header, node-palette, pipeline-editor, run-detail |
+| `features/` | edit-node, execute-workflow, manage-canvas, upload-asset, generate-workflow, generate-pipeline, configure-pipeline-sources, define-editorial-brief |
+| `entities/` | workflow, run, pipeline, node, ui, content-session, published-content, surge |
+| `shared/` | Typed API client, Shadcn/ui components, TipTap PromptEditor, event bus, utility hooks |
 
-**`web/src/pages/`** — Route-level components: `Editor`, `Pipelines`, `Runs`, `Connections`, `Landing`
-
-**`web/src/widgets/`** — Composite UI regions:
-- `workflow-canvas/` — React Flow canvas, `UpalNode`, `CanvasPromptBar`, `EmptyState`
-- `right-panel/` — collapsible Properties/Logs/Data/Chat/Preview panel
-- `bottom-console/` — execution event stream console
-- `workflow-header/` — top bar with save/run controls
-- `node-palette/` — drag-to-add node sidebar
-- `pipeline-editor/` — pipeline stage editor
-- `run-detail/` — run history detail with timeline
-
-**`web/src/features/`** — Feature slices:
-- `edit-node/` — per-type node editors (Agent, Asset, Input, Output, AI Chat)
-- `execute-workflow/` — run execution, SSE event bus, reconnect
-- `manage-canvas/` — auto-save, keyboard shortcuts, canvas actions
-- `upload-asset/` — file upload hook
-
-**`web/src/entities/`** — Domain models and API clients:
-- `workflow/` — Zustand store, serializer, layout, API
-- `run/` — Zustand store, API
-- `pipeline/` — API
-- `node/` — types, node type registry
-- `ui/` — Zustand UI state store
-
-**`web/src/shared/`** — Reusable utilities and components:
-- `api/` — typed HTTP client, per-domain API modules
-- `lib/` — event bus, prompt serialization, node configs, output formats, utility hooks
-- `ui/` — Shadcn/ui components, `PromptEditor` (TipTap + mention), `ModelSelector`, `ContentViewer`
-
-**React Flow**: `@xyflow/react` with custom `UpalNode` component. `proOptions={{ hideAttribution: true }}`.
+**React Flow**: `@xyflow/react` with custom `UpalNode`. `proOptions={{ hideAttribution: true }}`.
 
 **Styling**: Tailwind CSS v4 + oklch color tokens. Status colors: `text-success/warning/info/destructive`. Node-type colors: `--node-input/agent/output/tool/asset`.
 
-### Data Flow
+### Key Conventions
 
-1. User builds workflow visually → serialized to `WorkflowDefinition` JSON
-2. Save: POST `/api/workflows` → stored in memory + optional PostgreSQL
-3. Run: POST `/api/workflows/{name}/run` with `{ "inputs": {...} }`
-4. `WorkflowService` builds DAG via `internal/dag`, constructs ADK agents via `NodeRegistry`
-5. ADK runner executes agents in topological order with parallel fan-out
-6. Events published via `RunPublisher` → streamed to frontend via SSE (`GET /api/runs/{id}/events`)
-7. Template references (`{{node_id}}`) in prompts resolve from ADK session state at runtime
-
-### Model ID Format
-
-All model references use `"provider/model"` format: `anthropic/claude-sonnet-4-20250514`, `gemini/gemini-2.0-flash`, `ollama/llama3.2`
+- **Model ID format**: `"provider/model"` — e.g. `anthropic/claude-sonnet-4-20250514`, `gemini/gemini-2.0-flash`, `ollama/llama3.2`
+- **Template references**: `{{node_id}}` in prompts resolve from ADK session state at runtime
+- **Data flow**: Visual workflow → `WorkflowDefinition` JSON → DAG → ADK agents (topological order, parallel fan-out) → SSE events to frontend
 
 ## Configuration
 
-`config.yaml` at project root defines server port, database URL, and provider API keys. Providers are registered at startup based on this config. Database is optional — omit the `database` section to use in-memory storage only.
+`config.yaml` at project root defines server port, database URL, and provider API keys. Database is optional — omit the `database` section to use in-memory storage only.
 
 ## Testing Patterns
 
@@ -167,68 +89,45 @@ All model references use `"provider/model"` format: `anthropic/claude-sonnet-4-2
 - Node tests mock the ADK model interface
 - Always use `-race` flag (concurrent DAG execution)
 
-## API Endpoints
+## Skills System (`internal/skills/`)
 
+Skills are the **single source of truth** for all LLM behavior in Upal. Every LLM invocation (workflow generation, node configuration, pipeline creation, backfill, thumbnail) must be guided by the appropriate skill. Never hardcode LLM instructions in Go code — always use the skills registry.
+
+### Registry Two-Tier Architecture
+
+```go
+type Registry struct {
+    skills  map[string]string  // on-demand docs (nodes/, stages/, tools/)
+    prompts map[string]string  // pre-loaded base instructions (prompts/)
+}
+// Get(name) → skill doc | ""     — on-demand, for tool calls during generation
+// GetPrompt(name) → prompt | ""  — pre-loaded, for system prompt base
 ```
-# Workflows
-POST   /api/workflows                          Create workflow
-GET    /api/workflows                          List workflows
-POST   /api/workflows/suggest-name            Suggest workflow name
-GET    /api/workflows/{name}                   Get workflow
-PUT    /api/workflows/{name}                   Update workflow
-DELETE /api/workflows/{name}                   Delete workflow
-POST   /api/workflows/{name}/run               Execute workflow (SSE stream)
-POST   /api/workflows/{name}/thumbnail         Generate thumbnail
-GET    /api/workflows/{name}/runs              List runs for workflow
-GET    /api/workflows/{name}/triggers          List triggers for workflow
 
-# Runs
-GET    /api/runs                               List all runs
-GET    /api/runs/{id}                          Get run
-GET    /api/runs/{id}/events                   Stream run events (SSE)
-POST   /api/runs/{id}/nodes/{nodeId}/resume    Resume paused node
+### Skill Categories & Naming
 
-# Triggers & Webhooks
-POST   /api/triggers                           Create trigger
-DELETE /api/triggers/{id}                      Delete trigger
-POST   /api/hooks/{id}                         Webhook handler
+| Category | Location | Naming | Access | Purpose |
+|----------|----------|--------|--------|---------|
+| **Node skills** | `nodes/` | `{type}-node` (agent-node, input-node, ...) | `Get()` | Node configuration guidance for LLM |
+| **Stage skills** | `stages/` | `stage-{type}` (stage-approval, stage-collect, ...) | `Get()` | Pipeline stage configuration guidance |
+| **Tool skills** | `tools/` | `tool-{name}` (tool-web_search, tool-python_exec, ...) | `Get()` | Tool usage documentation for LLM |
+| **Prompts** | `prompts/` | `{action}` (workflow-create, pipeline-edit, ...) | `GetPrompt()` | Base system prompts for generation tasks |
+| **Frameworks** | `_frameworks/` | — | Internal only | Shared fragments resolved via `{{include name}}` |
 
-# Pipelines
-POST   /api/pipelines                          Create pipeline
-GET    /api/pipelines                          List pipelines
-GET    /api/pipelines/{id}                     Get pipeline
-PUT    /api/pipelines/{id}                     Update pipeline
-DELETE /api/pipelines/{id}                     Delete pipeline
-POST   /api/pipelines/{id}/start               Start pipeline run
-GET    /api/pipelines/{id}/runs                List pipeline runs
-POST   /api/pipelines/{id}/runs/{runId}/approve  Approve pipeline run
-POST   /api/pipelines/{id}/runs/{runId}/reject   Reject pipeline run
-GET    /api/pipelines/{id}/triggers            List pipeline triggers
-POST   /api/pipelines/{id}/thumbnail           Generate thumbnail
+### How Skills Are Consumed
 
-# Generation
-POST   /api/generate                           Generate workflow from description
-POST   /api/generate-pipeline                  Generate pipeline from description
-POST   /api/generate/backfill                  Backfill node descriptions
-POST   /api/nodes/configure                    LLM-guided node configuration
+1. **Workflow/Pipeline generation** (`internal/generate/`): Base prompt from `GetPrompt("workflow-create")`. During generation, LLM calls `get_skill(name)` tool → `executeSkillCalls()` resolves via `Get(name)`.
+2. **Node configuration** (`internal/api/configure.go`): Appends `Get(nodeType + "-node")` to system prompt. e.g. `Get("agent-node")`.
+3. **Backfill** (`internal/generate/backfill.go`): Uses `GetPrompt("node-describe")` for description generation.
+4. **Thumbnail** (`internal/generate/thumbnail.go`): Uses `GetPrompt("thumbnail")`.
 
-# Files
-POST   /api/upload                             Upload file
-GET    /api/files                              List files
-GET    /api/files/{id}/serve                   Serve file
-DELETE /api/files/{id}                         Delete file
+### Rules for Writing/Modifying Skills
 
-# Discovery
-GET    /api/models                             List available models
-GET    /api/tools                              List available tools
-
-# Connections (optional)
-POST   /api/connections                        Create connection
-GET    /api/connections                        List connections
-GET    /api/connections/{id}                   Get connection
-PUT    /api/connections/{id}                   Update connection
-DELETE /api/connections/{id}                   Delete connection
-```
+- **`{{include name}}`** in skill files resolves to `_frameworks/{name}.md` content at load time
+- **`{{node_id}}`** template syntax in user prompts — resolved at workflow runtime from ADK session state. Never use placeholder text like `[여기에 입력]`
+- **System prompts** must follow `_frameworks/system-prompt.md` quality: rich expert persona with role, expertise (3-5 competencies), style, constraints. Never generic ("You are a helpful assistant")
+- **User prompts** must follow `_frameworks/prompt-framework.md`: reference upstream data via `{{node_id}}`, one clear task per prompt
+- New LLM-facing features **must** have a corresponding skill file. Add to the appropriate subdirectory and the LLM will discover it via `get_skill()` tool calls or direct `Get()`/`GetPrompt()` lookups
 
 ## Node Types
 
@@ -239,6 +138,15 @@ DELETE /api/connections/{id}                   Delete connection
 | `tool` | Direct tool execution | `tool`, `input` |
 | `output` | Aggregate results | — |
 | `asset` | Inject uploaded file content into session | `asset_id` |
+
+## Communication Style
+
+코드 작업을 설명할 때 코드 수준의 디테일(함수명, 변수, 구현 방식)이 아니라 **비즈니스 로직과 동작 변화**에 초점을 맞춘다.
+
+- "X 함수에 Y 파라미터를 추가하고 Z 타입으로 변경합니다" ❌
+- "파이프라인 발행 시 채널을 선택할 수 있게 됩니다" ✅
+
+코드 diff는 사용자가 직접 확인하므로, **왜 하는지**(목적)와 **뭐가 달라지는지**(사용자·시스템 관점의 동작 변화)를 중심으로 설명한다.
 
 ## Solution Approach
 

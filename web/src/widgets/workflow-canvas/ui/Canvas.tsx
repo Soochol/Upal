@@ -33,6 +33,7 @@ type CanvasProps = {
   exposeGetViewportCenter?: (fn: () => { x: number; y: number }) => void
   onAddNode: (type: NodeType) => void
   readOnly?: boolean
+  autoFocusPrompt?: boolean
 }
 
 /** Inner component that uses React Flow hooks (must be inside ReactFlow). */
@@ -68,7 +69,7 @@ function SelectionGrouper() {
   return null
 }
 
-export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly }: CanvasProps) {
+export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly, autoFocusPrompt }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
   const { screenToFlowPosition } = useReactFlow()
@@ -225,6 +226,8 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
             nodeColor="var(--muted)"
             maskColor="var(--background)"
             className="!bg-card !border-border !rounded-lg !shadow-sm"
+            pannable
+            zoomable
           />
         )}
       </ReactFlow>
@@ -233,6 +236,7 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
           onSubmit={onPromptSubmit}
           isGenerating={isGenerating}
           hasNodes={!isEmpty}
+          autoFocusPrompt={autoFocusPrompt}
         />
       )}
     </div>

@@ -43,10 +43,10 @@ export function StageSection({ id, number, title, state, summary, statusText, ch
           {title}
         </span>
         {state === 'completed' && !expanded && summary && (
-          <span className="text-xs text-muted-foreground truncate flex-1 text-left ml-1">{summary}</span>
+          <span className="text-sm text-muted-foreground truncate flex-1 text-left ml-1">{summary}</span>
         )}
         <div className="flex-1" />
-        {statusText && <span className="text-xs text-muted-foreground shrink-0">{statusText}</span>}
+        {statusText && <span className="text-sm text-muted-foreground shrink-0">{statusText}</span>}
         {state === 'locked'
           ? <Lock className="h-3.5 w-3.5 text-muted-foreground" />
           : <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${isVisible ? 'rotate-180' : ''}`} />}

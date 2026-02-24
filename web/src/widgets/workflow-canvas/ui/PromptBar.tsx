@@ -9,6 +9,7 @@ type Props = {
   hint?: string
   error?: string | null
   onValueChange?: () => void
+  autoFocus?: boolean
 }
 
 export function PromptBar({
@@ -19,6 +20,7 @@ export function PromptBar({
   hint,
   error,
   onValueChange,
+  autoFocus,
 }: Props) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -30,6 +32,10 @@ export function PromptBar({
     }
     wasGeneratingRef.current = isGenerating
   }, [isGenerating])
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus()
+  }, [autoFocus])
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()

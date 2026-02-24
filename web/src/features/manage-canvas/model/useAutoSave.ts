@@ -82,10 +82,10 @@ export function useAutoSave() {
     timerRef.current = setTimeout(performSave, DEBOUNCE_MS)
   }, [performSave])
 
-  // Immediate save (for Ctrl+S)
+  // Immediate save (for Ctrl+S) — returns promise so callers can await
   const saveNow = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
-    performSave()
+    return performSave()
   }, [performSave])
 
   useEffect(() => {
@@ -106,5 +106,18 @@ export function useAutoSave() {
     }
   }, [debouncedSave])
 
-  return { saveStatus, saveNow }
+  // Mark current store state as "clean" — prevents auto-save from treating
+  // a freshly-loaded workflow as a pending change.
+  const markClean = useCallback(() => {
+    const { nodes, edges, workflowName } = useWorkflowStore.getState()
+    lastSnapshotRef.current = JSON.stringify({
+      nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })),
+      edges,
+      workflowName,
+    })
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setSaveStatus('idle')
+  }, [])
+
+  return { saveStatus, saveNow, markClean }
 }

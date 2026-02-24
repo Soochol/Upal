@@ -32,3 +32,20 @@ func TestMapResolver_UnknownProvider(t *testing.T) {
 		t.Fatal("expected error for unknown provider")
 	}
 }
+
+type stubLLM struct{ adkmodel.LLM }
+
+func TestMapResolver_ValidProviderModel(t *testing.T) {
+	fake := &stubLLM{}
+	r := NewMapResolver(map[string]adkmodel.LLM{"anthropic": fake}, nil, "")
+	llm, model, err := r.Resolve("anthropic/claude-sonnet-4-6")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if llm != fake {
+		t.Error("expected the anthropic LLM instance")
+	}
+	if model != "claude-sonnet-4-6" {
+		t.Errorf("expected claude-sonnet-4-6, got %s", model)
+	}
+}

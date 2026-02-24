@@ -13,6 +13,7 @@ import { ToastContainer } from '@/shared/ui/ToastContainer'
 
 const ReviewInboxPage = lazy(() => import('@/pages/inbox'))
 const PublishInboxPage = lazy(() => import('@/pages/publish-inbox'))
+const SettingsPage = lazy(() => import('@/pages/settings'))
 
 function PipelineRedirect() {
   const { id, sessionId } = useParams()
@@ -45,6 +46,9 @@ export function AppRouter() {
 
           {/* Content */}
           <Route path="/published" element={<PublishedPage />} />
+
+          {/* Settings */}
+          <Route path="/settings" element={<Suspense fallback={null}><SettingsPage /></Suspense>} />
         </Routes>
       </BrowserRouter>
       <ToastContainer />

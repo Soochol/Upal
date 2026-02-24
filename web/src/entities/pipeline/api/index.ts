@@ -59,10 +59,13 @@ export async function rejectPipelineRun(pipelineId: string, runId: string): Prom
 }
 
 // Content pipeline: manual collect trigger
-export async function collectPipeline(id: string): Promise<{ session_id: string }> {
+export async function collectPipeline(id: string, config?: { isTest?: boolean, limit?: number }): Promise<{ session_id: string }> {
   return apiFetch<{ session_id: string }>(
     `${API_BASE}/pipelines/${encodeURIComponent(id)}/collect`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      ...(config ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) } : {})
+    },
   )
 }
 

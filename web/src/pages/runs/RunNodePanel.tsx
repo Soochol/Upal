@@ -1,7 +1,6 @@
 import type { Node } from '@xyflow/react'
 import type { NodeData } from '@/entities/workflow'
 import type { RunRecord, NodeRunRecord } from '@/shared/types'
-import type { NodeRunStatus } from '@/entities/run'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
 import {
   FileText, AlertTriangle, Info,
@@ -21,7 +20,6 @@ type Props = {
   selectedNode: Node<NodeData> | null
   run: RunRecord
   onClose: () => void
-  onCollapse: () => void
 }
 
 function formatDuration(startedAt?: string, completedAt?: string): string {
@@ -44,14 +42,14 @@ function formatOutput(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-export function RunNodePanel({ selectedNode, run, onClose, onCollapse: _onCollapse }: Props) {
+export function RunNodePanel({ selectedNode, run, onClose }: Props) {
   if (!selectedNode) return null
 
   const nodeId = selectedNode.id
   const nodeRun: NodeRunRecord | undefined = run.node_runs?.find(
     (nr) => nr.node_id === nodeId,
   )
-  const nodeStatus = (nodeRun?.status ?? 'idle') as NodeRunStatus
+  const nodeStatus = nodeRun?.status ?? 'idle'
   const cfg = nodeStatusConfig[nodeStatus] ?? nodeStatusConfig.idle
   const StatusIcon = cfg.icon
   const hasError = !!nodeRun?.error

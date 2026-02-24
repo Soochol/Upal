@@ -17,14 +17,30 @@ interface MainLayoutProps {
     bottomConsole?: ReactNode;
 }
 
-const NAV_ITEMS = [
-    { icon: Inbox, label: 'Review Inbox', to: '/inbox' },
-    { icon: Send, label: 'Publish Inbox', to: '/publish-inbox' },
-    { icon: Box, label: 'Workflows', to: '/workflows' },
-    { icon: Workflow, label: 'Pipelines', to: '/pipelines' },
-    { icon: Globe, label: 'Published', to: '/published' },
-    { icon: Activity, label: 'Runs', to: '/runs' },
-    { icon: Zap, label: 'Connections', to: '/connections' },
+const NAV_GROUPS = [
+    {
+        items: [
+            { icon: Inbox, label: 'Review Inbox', to: '/inbox' },
+            { icon: Send, label: 'Publish Inbox', to: '/publish-inbox' },
+        ],
+    },
+    {
+        items: [
+            { icon: Box, label: 'Workflows', to: '/workflows' },
+            { icon: Workflow, label: 'Pipelines', to: '/pipelines' },
+        ],
+    },
+    {
+        items: [
+            { icon: Globe, label: 'Published', to: '/published' },
+        ],
+    },
+    {
+        items: [
+            { icon: Activity, label: 'Runs', to: '/runs' },
+            { icon: Zap, label: 'Connections', to: '/connections' },
+        ],
+    },
 ];
 
 export function MainLayout({ children, headerContent, rightPanel, bottomConsole }: MainLayoutProps) {
@@ -76,53 +92,70 @@ export function MainLayout({ children, headerContent, rightPanel, bottomConsole 
                 </div>
 
                 <TooltipProvider delayDuration={0}>
-                    <div className="flex flex-col gap-2 flex-1 px-2">
-                        {NAV_ITEMS.map((item) => (
-                            <Tooltip key={item.to}>
-                                <TooltipTrigger asChild>
-                                    <NavLink
-                                        to={item.to}
-                                        className={({ isActive }) =>
-                                            cn(
-                                                "relative block px-3 py-2.5 rounded-xl transition-all duration-200 group overflow-hidden",
-                                                isActive
-                                                    ? "bg-primary/10 text-primary shadow-sm"
-                                                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                                            )
-                                        }
-                                    >
-                                        <div className="flex flex-row items-center gap-3 whitespace-nowrap">
-                                            <span className="relative shrink-0">
-                                                <item.icon className="size-5 min-w-5" />
-                                                {(badgeMap[item.to] ?? 0) > 0 && (
-                                                    <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
-                                                        {badgeMap[item.to] > 99 ? '99+' : badgeMap[item.to]}
-                                                    </span>
-                                                )}
-                                            </span>
-                                            {gnbVisible && (
-                                                <span className="text-sm font-medium">
-                                                    {item.label}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </NavLink>
-                                </TooltipTrigger>
-                                {!gnbVisible && <TooltipContent side="right" className="font-medium">{item.label}</TooltipContent>}
-                            </Tooltip>
+                    <div className="flex flex-col flex-1 px-2">
+                        {NAV_GROUPS.map((group, gi) => (
+                            <div key={gi}>
+                                {gi > 0 && <Separator className="my-2 mx-1" />}
+                                <div className="flex flex-col gap-1">
+                                    {group.items.map((item) => (
+                                        <Tooltip key={item.to}>
+                                            <TooltipTrigger asChild>
+                                                <NavLink
+                                                    to={item.to}
+                                                    className={({ isActive }) =>
+                                                        cn(
+                                                            "relative block px-3 py-2.5 rounded-xl transition-all duration-200 group overflow-hidden",
+                                                            isActive
+                                                                ? "bg-primary/10 text-primary shadow-sm"
+                                                                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                                        )
+                                                    }
+                                                >
+                                                    <div className="flex flex-row items-center gap-3 whitespace-nowrap">
+                                                        <span className="relative shrink-0">
+                                                            <item.icon className="size-5 min-w-5" />
+                                                            {(badgeMap[item.to] ?? 0) > 0 && (
+                                                                <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
+                                                                    {badgeMap[item.to] > 99 ? '99+' : badgeMap[item.to]}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        {gnbVisible && (
+                                                            <span className="text-sm font-medium">
+                                                                {item.label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </NavLink>
+                                            </TooltipTrigger>
+                                            {!gnbVisible && <TooltipContent side="right" className="font-medium">{item.label}</TooltipContent>}
+                                        </Tooltip>
+                                    ))}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </TooltipProvider>
 
                 <div className="mt-auto px-2 flex flex-col gap-2">
-                    <button className="block px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-sidebar-accent transition-colors overflow-hidden">
+                    <NavLink
+                        to="/settings"
+                        className={({ isActive }) =>
+                            cn(
+                                "block px-3 py-2.5 rounded-xl transition-all duration-200 overflow-hidden",
+                                isActive
+                                    ? "bg-primary/10 text-primary shadow-sm"
+                                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            )
+                        }
+                    >
                         <div className="flex flex-row items-center gap-3 whitespace-nowrap">
                             <Settings className="size-5 min-w-5 shrink-0" />
                             {gnbVisible && (
                                 <span className="text-sm font-medium">Settings</span>
                             )}
                         </div>
-                    </button>
+                    </NavLink>
                 </div>
             </nav>
 
@@ -140,41 +173,58 @@ export function MainLayout({ children, headerContent, rightPanel, bottomConsole 
                                 <X className="size-5" />
                             </button>
                         </div>
-                        <div className="flex flex-col gap-1 flex-1 px-2">
-                            {NAV_ITEMS.map((item) => (
-                                <NavLink
-                                    key={item.to}
-                                    to={item.to}
-                                    className={({ isActive }) =>
-                                        cn(
-                                            "block px-3 py-2.5 rounded-xl transition-all duration-200",
-                                            isActive
-                                                ? "bg-primary/10 text-primary shadow-sm"
-                                                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                                        )
-                                    }
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="relative shrink-0">
-                                            <item.icon className="size-5" />
-                                            {(badgeMap[item.to] ?? 0) > 0 && (
-                                                <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
-                                                    {badgeMap[item.to] > 99 ? '99+' : badgeMap[item.to]}
-                                                </span>
-                                            )}
-                                        </span>
-                                        <span className="text-sm font-medium">{item.label}</span>
+                        <div className="flex flex-col flex-1 px-2">
+                            {NAV_GROUPS.map((group, gi) => (
+                                <div key={gi}>
+                                    {gi > 0 && <Separator className="my-2 mx-1" />}
+                                    <div className="flex flex-col gap-1">
+                                        {group.items.map((item) => (
+                                            <NavLink
+                                                key={item.to}
+                                                to={item.to}
+                                                className={({ isActive }) =>
+                                                    cn(
+                                                        "block px-3 py-2.5 rounded-xl transition-all duration-200",
+                                                        isActive
+                                                            ? "bg-primary/10 text-primary shadow-sm"
+                                                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                                    )
+                                                }
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="relative shrink-0">
+                                                        <item.icon className="size-5" />
+                                                        {(badgeMap[item.to] ?? 0) > 0 && (
+                                                            <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
+                                                                {badgeMap[item.to] > 99 ? '99+' : badgeMap[item.to]}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="text-sm font-medium">{item.label}</span>
+                                                </div>
+                                            </NavLink>
+                                        ))}
                                     </div>
-                                </NavLink>
+                                </div>
                             ))}
                         </div>
                         <div className="px-2">
-                            <button className="block w-full px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-sidebar-accent transition-colors">
+                            <NavLink
+                                to="/settings"
+                                className={({ isActive }) =>
+                                    cn(
+                                        "block w-full px-3 py-2.5 rounded-xl transition-all duration-200",
+                                        isActive
+                                            ? "bg-primary/10 text-primary shadow-sm"
+                                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                    )
+                                }
+                            >
                                 <div className="flex items-center gap-3">
                                     <Settings className="size-5 shrink-0" />
                                     <span className="text-sm font-medium">Settings</span>
                                 </div>
-                            </button>
+                            </NavLink>
                         </div>
                     </nav>
                 </div>

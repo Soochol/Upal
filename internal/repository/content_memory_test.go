@@ -95,3 +95,102 @@ func TestMemorySurgeEventRepo(t *testing.T) {
 		t.Fatalf("expected 0 active after dismiss, got %d", len(active))
 	}
 }
+
+func TestMemoryContentSessionRepo_ArchiveFiltering(t *testing.T) {
+	repo := NewMemoryContentSessionRepository()
+	ctx := context.Background()
+	now := time.Now()
+
+	active := &upal.ContentSession{
+		ID: "csess-active", PipelineID: "pipe-1",
+		Status: upal.SessionPendingReview, CreatedAt: now,
+	}
+	archived := &upal.ContentSession{
+		ID: "csess-archived", PipelineID: "pipe-1",
+		Status: upal.SessionRejected, CreatedAt: now, ArchivedAt: &now,
+	}
+
+	repo.Create(ctx, active)
+	repo.Create(ctx, archived)
+
+	// List excludes archived
+	list, _ := repo.List(ctx)
+	if len(list) != 1 {
+		t.Errorf("List: expected 1, got %d", len(list))
+	}
+
+	// ListByPipeline excludes archived
+	byPipeline, _ := repo.ListByPipeline(ctx, "pipe-1")
+	if len(byPipeline) != 1 {
+		t.Errorf("ListByPipeline: expected 1, got %d", len(byPipeline))
+	}
+
+	// ListByStatus excludes archived
+	byStatus, _ := repo.ListByStatus(ctx, upal.SessionRejected)
+	if len(byStatus) != 0 {
+		t.Errorf("ListByStatus(rejected): expected 0 (archived excluded), got %d", len(byStatus))
+	}
+
+	// ListByPipelineAndStatus excludes archived
+	byBoth, _ := repo.ListByPipelineAndStatus(ctx, "pipe-1", upal.SessionRejected)
+	if len(byBoth) != 0 {
+		t.Errorf("ListByPipelineAndStatus: expected 0, got %d", len(byBoth))
+	}
+
+	// ListArchivedByPipeline returns only archived
+	archivedList, _ := repo.ListArchivedByPipeline(ctx, "pipe-1")
+	if len(archivedList) != 1 {
+		t.Errorf("ListArchivedByPipeline: expected 1, got %d", len(archivedList))
+	}
+	if archivedList[0].ID != "csess-archived" {
+		t.Errorf("expected archived session ID, got %q", archivedList[0].ID)
+	}
+}
+
+func TestMemoryContentSessionRepo_Delete(t *testing.T) {
+	repo := NewMemoryContentSessionRepository()
+	ctx := context.Background()
+
+	s := &upal.ContentSession{
+		ID: "csess-del", PipelineID: "pipe-1",
+		Status: upal.SessionCollecting, CreatedAt: time.Now(),
+	}
+	repo.Create(ctx, s)
+
+	if err := repo.Delete(ctx, s.ID); err != nil {
+		t.Fatalf("Delete: unexpected error: %v", err)
+	}
+	if _, err := repo.Get(ctx, s.ID); err == nil {
+		t.Error("Get after Delete: expected error, got nil")
+	}
+}
+
+func TestMemoryContentSessionRepo_DeleteNotFound(t *testing.T) {
+	repo := NewMemoryContentSessionRepository()
+	ctx := context.Background()
+
+	if err := repo.Delete(ctx, "nonexistent"); err == nil {
+		t.Error("Delete nonexistent: expected error, got nil")
+	}
+}
+
+func TestMemoryPublishedContentRepo_DeleteBySession(t *testing.T) {
+	repo := NewMemoryPublishedContentRepository()
+	ctx := context.Background()
+
+	repo.Create(ctx, &upal.PublishedContent{ID: "pc-1", SessionID: "sess-1", Channel: "youtube"})
+	repo.Create(ctx, &upal.PublishedContent{ID: "pc-2", SessionID: "sess-1", Channel: "substack"})
+	repo.Create(ctx, &upal.PublishedContent{ID: "pc-3", SessionID: "sess-2", Channel: "youtube"})
+
+	if err := repo.DeleteBySession(ctx, "sess-1"); err != nil {
+		t.Fatalf("DeleteBySession: unexpected error: %v", err)
+	}
+
+	remaining, _ := repo.List(ctx)
+	if len(remaining) != 1 {
+		t.Errorf("expected 1 remaining, got %d", len(remaining))
+	}
+	if remaining[0].ID != "pc-3" {
+		t.Errorf("expected pc-3 to remain, got %q", remaining[0].ID)
+	}
+}

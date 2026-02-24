@@ -46,6 +46,8 @@ export type WorkflowResult = {
   output_url?: string
   completed_at?: string
   channel_id?: string
+  error_message?: string
+  failed_node_id?: string
 }
 
 export type ContentSession = {

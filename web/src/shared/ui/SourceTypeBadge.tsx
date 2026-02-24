@@ -17,7 +17,7 @@ export function SourceTypeBadge({ type, className }: SourceTypeBadgeProps) {
         className,
       )}
     >
-      {type === "static" ? "정적" : "신호"}
+      {type === "static" ? "static" : "signal"}
     </span>
   )
 }

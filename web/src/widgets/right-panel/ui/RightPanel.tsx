@@ -5,7 +5,7 @@ import { PanelPreview } from './PanelPreview'
 import { PanelConsole } from './PanelConsole'
 import { GroupEditor } from './GroupEditor'
 import { AIChatEditor } from '@/features/edit-node'
-import { Settings2, Terminal, Eye } from 'lucide-react'
+import { Settings2, Terminal, Eye, PanelRightClose } from 'lucide-react'
 import type { NodeData } from '@/entities/workflow'
 import { useUIStore } from '@/entities/ui'
 import type { Node } from '@xyflow/react'
@@ -14,6 +14,7 @@ type RightPanelProps = {
   selectedNode: Node<NodeData> | null
   onCloseNode: () => void
   onCollapse?: () => void
+  onTogglePanel?: () => void
 }
 
 const tabs = [
@@ -22,7 +23,7 @@ const tabs = [
   { value: 'preview', label: 'Preview', icon: Eye },
 ] as const
 
-export function RightPanel({ selectedNode, onCloseNode, onCollapse }: RightPanelProps) {
+export function RightPanel({ selectedNode, onCloseNode, onCollapse, onTogglePanel }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState('properties')
 
   // Ref: read latest activeTab inside effects without adding dependencies
@@ -58,8 +59,8 @@ export function RightPanel({ selectedNode, onCloseNode, onCollapse }: RightPanel
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
-      <div className="flex items-center justify-between border-b border-border px-1">
-        <TabsList className="h-10 bg-transparent p-0 gap-0">
+      <div className="flex items-center border-b border-border px-1">
+        <TabsList className="h-10 bg-transparent p-0 gap-0 flex-1">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -74,6 +75,15 @@ export function RightPanel({ selectedNode, onCloseNode, onCollapse }: RightPanel
             )
           })}
         </TabsList>
+        {onTogglePanel && (
+          <button
+            onClick={onTogglePanel}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer shrink-0 mr-1"
+            title="Close Panel"
+          >
+            <PanelRightClose className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Properties: flex-fill so prompt fields expand to fill space */}

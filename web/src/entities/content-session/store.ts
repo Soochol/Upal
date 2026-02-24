@@ -56,11 +56,13 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
 
   syncBadgeCounts: async () => {
     try {
-      const [pending, approved] = await Promise.all([
+      const [pending, approved, producing, errored] = await Promise.all([
         fetchContentSessions({ status: 'pending_review' }),
         fetchContentSessions({ status: 'approved' }),
+        fetchContentSessions({ status: 'producing' }),
+        fetchContentSessions({ status: 'error' }),
       ])
-      set({ pendingCount: pending.length, publishReadyCount: approved.length })
+      set({ pendingCount: pending.length, publishReadyCount: approved.length + producing.length + errored.length })
     } catch {
       // Badge polling failure is non-critical — fail silently
     }
@@ -73,7 +75,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
       return {
         sessions,
         pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
-        publishReadyCount: sessions.filter((s) => s.status === 'approved').length,
+        publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
       }
     })
     // Chain: trigger production with the selected workflows
@@ -82,8 +84,8 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
         name,
         ...(channelMap?.[name] ? { channel_id: channelMap[name] } : {}),
       }))
-      await produceSession(id, workflowRequests).catch(() => {
-        // Production trigger failure is non-critical — session is already approved
+      await produceSession(id, workflowRequests).catch((err) => {
+        console.error('Failed to trigger production:', err)
       })
     }
   },
@@ -95,7 +97,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
       return {
         sessions,
         pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
-        publishReadyCount: sessions.filter((s) => s.status === 'approved').length,
+        publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
       }
     })
   },

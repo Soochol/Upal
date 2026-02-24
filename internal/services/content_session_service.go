@@ -124,6 +124,49 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 	return details, nil
 }
 
+// ListSessionDetailsByStatusIncludeArchived returns composed details including archived sessions.
+func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error) {
+	sessions, err := s.sessions.ListAllByStatus(ctx, status)
+	if err != nil {
+		return nil, err
+	}
+
+	pipelineNames := make(map[string]string)
+	lookupPipelineName := func(pipelineID string) string {
+		if pipelineID == "" || s.pipelineRepo == nil {
+			return ""
+		}
+		if name, ok := pipelineNames[pipelineID]; ok {
+			return name
+		}
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineNames[pipelineID] = p.Name
+			return p.Name
+		}
+		return ""
+	}
+
+	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
+	for _, sess := range sessions {
+		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
+		wfResults := s.GetWorkflowResults(ctx, sess.ID)
+		details = append(details, &upal.ContentSessionDetail{
+			ID:              sess.ID,
+			PipelineID:      sess.PipelineID,
+			PipelineName:    lookupPipelineName(sess.PipelineID),
+			Status:          sess.Status,
+			TriggerType:     sess.TriggerType,
+			SourceCount:     sess.SourceCount,
+			Analysis:        analysis,
+			WorkflowResults: wfResults,
+			CreatedAt:       sess.CreatedAt,
+			ReviewedAt:      sess.ReviewedAt,
+			ArchivedAt:      sess.ArchivedAt,
+		})
+	}
+	return details, nil
+}
+
 func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
 }

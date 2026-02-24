@@ -239,4 +239,10 @@ CREATE INDEX IF NOT EXISTS idx_surge_events_dismissed ON surge_events(dismissed)
 
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS workflow_results (
+    session_id  TEXT PRIMARY KEY REFERENCES content_sessions(id) ON DELETE CASCADE,
+    results     JSONB NOT NULL DEFAULT '[]',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `

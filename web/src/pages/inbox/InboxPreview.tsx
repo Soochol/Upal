@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { fetchContentSession } from '@/entities/content-session/api'
 import { fetchPipeline } from '@/entities/pipeline/api'
@@ -12,6 +13,7 @@ interface InboxPreviewProps {
 
 export function InboxPreview({ sessionId }: InboxPreviewProps) {
     const queryClient = useQueryClient()
+    const navigate = useNavigate()
     const { approveSession, rejectSession } = useContentSessionStore()
 
     const { data: session, isLoading: sessionLoading } = useQuery({
@@ -43,12 +45,13 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                 }
                 await approveSession(sessionId, selectedWorkflows, channelMap)
                 await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] }) // Refresh inbox list immediately
+                await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
+                navigate('/publish-inbox')
             } finally {
                 setIsApproving(false)
             }
         },
-        [sessionId, pipelineId, pipeline, approveSession, queryClient],
+        [sessionId, pipelineId, pipeline, approveSession, queryClient, navigate],
     )
 
     const handleReject = useCallback(async () => {
@@ -74,15 +77,18 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
 
     return (
         <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-4 duration-300">
-            <div className="px-8 py-5 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex flex-col gap-1.5">
-                <div className="text-xs font-bold uppercase tracking-widest text-primary/80">
+            <div className="px-4 md:px-8 py-4 md:py-5 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex flex-col gap-1.5">
+                <Link
+                    to={`/pipelines?p=${pipeline.id}`}
+                    className="text-xs font-bold uppercase tracking-widest text-primary/80 hover:text-primary hover:underline transition-colors w-fit"
+                >
                     {pipeline.name}
-                </div>
+                </Link>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
                     Session {session.session_number ? `#${session.session_number}` : session.id.slice(0, 8)}
                 </h1>
             </div>
-            <div className="flex-1 overflow-y-auto px-8 py-8">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">
                 <div className="max-w-[1200px] mx-auto">
                     <AnalyzeStage
                         session={session}

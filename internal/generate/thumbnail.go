@@ -65,24 +65,37 @@ func buildThumbnailPrompt(wf *upal.WorkflowDefinition) string {
 		nodeDesc = append(nodeDesc, fmt.Sprintf("%d %s", count, nt))
 	}
 
-	// Extract first agent's prompt text for semantic context (first 120 chars)
-	agentContext := ""
+	// Extract prompt text from agents for semantic context
+	var agentContexts []string
 	for _, n := range wf.Nodes {
 		if n.Type == upal.NodeTypeAgent {
 			if p, ok := n.Config["prompt"].(string); ok && len(strings.TrimSpace(p)) > 5 {
 				p = strings.TrimSpace(p)
-				if len(p) > 120 {
-					p = p[:120] + "…"
+				if len(p) > 100 {
+					p = p[:100] + "…"
 				}
-				agentContext = fmt.Sprintf(" The main task is: \"%s\"", p)
-				break
+				agentContexts = append(agentContexts, p)
 			}
 		}
 	}
 
+	agentContext := ""
+	if len(agentContexts) > 0 {
+		agentContext = fmt.Sprintf("\nKey agent tasks:\n- %s", strings.Join(agentContexts, "\n- "))
+		if len(agentContext) > 400 {
+			agentContext = agentContext[:400] + "..."
+		}
+	}
+
+	descContext := ""
+	if wf.Description != "" {
+		descContext = fmt.Sprintf("\nDescription: %s", wf.Description)
+	}
+
 	return fmt.Sprintf(
-		"Create a thumbnail for an AI workflow named %q.\nNodes: %s.%s\nDesign a visual that captures the essence of this workflow.",
+		"Create a thumbnail for an AI workflow named %q.%s\nNodes: %s.%s\n\nDesign a bold, conceptual visual that captures the specific semantic purpose and objective of this workflow. DO NOT just draw a generic graph of nodes and edges — illustrate what it actually does.",
 		wf.Name,
+		descContext,
 		strings.Join(nodeDesc, ", "),
 		agentContext,
 	)

@@ -55,6 +55,12 @@ func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, statu
 	})
 }
 
+func (r *MemoryContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.Status == status
+	})
+}
+
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
 		return s.PipelineID == pipelineID && s.Status == status && s.ArchivedAt == nil

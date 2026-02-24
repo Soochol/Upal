@@ -12,6 +12,7 @@ type WorkflowHeaderProps = {
   isTemplate?: boolean
   templateName?: string
   onRemix?: () => void
+  returnTo?: string | null
 }
 
 function SaveStatusIndicator({ saveStatus }: { saveStatus?: SaveStatus }) {
@@ -43,10 +44,23 @@ function SaveStatusIndicator({ saveStatus }: { saveStatus?: SaveStatus }) {
   return null
 }
 
-export function WorkflowHeader({ workflowName, onWorkflowNameChange, saveStatus, onRun, isTemplate, templateName, onRemix }: WorkflowHeaderProps) {
+export function WorkflowHeader({ workflowName, onWorkflowNameChange, saveStatus, onRun, isTemplate, templateName, onRemix, returnTo }: WorkflowHeaderProps) {
   return (
     <div className="flex items-center justify-between flex-1 gap-3">
       <div className="flex items-center gap-2">
+        {returnTo && (
+          <>
+            <button
+              onClick={() => { window.location.href = decodeURIComponent(returnTo) }}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors mr-2 cursor-pointer border border-border shrink-0"
+              title="Return to previous page after saving"
+            >
+              <Check className="h-3.5 w-3.5 text-success" />
+              Save & Return
+            </button>
+            <div className="w-px h-5 bg-border mx-1" />
+          </>
+        )}
         {isTemplate ? (
           <>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20 text-xs font-medium text-primary">
@@ -82,7 +96,7 @@ export function WorkflowHeader({ workflowName, onWorkflowNameChange, saveStatus,
             Remix
           </button>
         )}
-        <RunWorkflowButton onRun={onRun ?? (() => {})} />
+        <RunWorkflowButton onRun={onRun ?? (() => { })} />
         <ThemeToggle />
       </div>
     </div>

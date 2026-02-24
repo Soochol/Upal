@@ -42,6 +42,7 @@ export function RunViewer() {
 
   const [run, setRun] = useState<RunRecord | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
 
   const selectedNodeId = useUIStore((s) => s.selectedNodeId)
@@ -85,19 +86,18 @@ export function RunViewer() {
 
         // Deserialize the workflow definition into the canvas store
         if (r.workflow_definition) {
-          const { nodes: flowNodes, edges: flowEdges } = deserializeWorkflow(r.workflow_definition as import('@/entities/workflow/lib/serializer').WorkflowDefinition)
-          useWorkflowStore.setState({ nodes: flowNodes, edges: flowEdges })
+          try {
+            const { nodes: flowNodes, edges: flowEdges } = deserializeWorkflow(r.workflow_definition)
+            useWorkflowStore.setState({ nodes: flowNodes, edges: flowEdges })
+          } catch {
+            console.error('Failed to deserialize workflow definition for run', r.id)
+          }
         }
 
         // Map existing node_runs statuses to the execution store
         if (r.node_runs) {
           for (const nr of r.node_runs) {
-            const status = nr.status === 'success' || nr.status === 'completed'
-              ? 'completed'
-              : nr.status === 'failed'
-              ? 'error'
-              : (nr.status as 'idle' | 'running' | 'completed' | 'error' | 'waiting' | 'skipped')
-            setNodeStatus(nr.node_id, status)
+            setNodeStatus(nr.node_id, nr.status)
           }
         }
 
@@ -106,8 +106,11 @@ export function RunViewer() {
           connectSSE(r.id)
         }
       })
-      .catch(() => {
-        if (!cancelled) setRun(null)
+      .catch((err) => {
+        if (!cancelled) {
+          setRun(null)
+          setError(err instanceof Error ? err.message : 'Failed to load run')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -179,7 +182,7 @@ export function RunViewer() {
       <div className="h-screen flex flex-col bg-background">
         <Header />
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Run not found</p>
+          <p className="text-muted-foreground">{error ?? 'Run not found'}</p>
         </div>
       </div>
     )
@@ -299,7 +302,6 @@ export function RunViewer() {
                   selectNode(null)
                   setIsPanelOpen(false)
                 }}
-                onCollapse={() => setIsPanelOpen(false)}
               />
             </div>
           </div>
