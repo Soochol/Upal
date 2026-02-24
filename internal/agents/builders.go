@@ -9,6 +9,7 @@ import (
 
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 	"google.golang.org/adk/agent"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/adk/session"
@@ -17,10 +18,11 @@ import (
 
 // BuildAgent creates an ADK Agent from a NodeDefinition using the default
 // registry. This is a backward-compatible convenience function.
-func BuildAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolReg *tools.Registry) (agent.Agent, error) {
+func BuildAgent(nd *upal.NodeDefinition, llms map[string]adkmodel.LLM, toolReg *tools.Registry, resolver ports.LLMResolver) (agent.Agent, error) {
 	return DefaultRegistry().Build(nd, BuildDeps{
-		LLMs:    llms,
-		ToolReg: toolReg,
+		LLMs:        llms,
+		LLMResolver: resolver,
+		ToolReg:     toolReg,
 	})
 }
 
@@ -37,28 +39,6 @@ type namedLLM struct {
 }
 
 func (n *namedLLM) Name() string { return n.name }
-
-// resolveLLM resolves a "provider/model" format model ID into an LLM instance
-// and the bare model name. Falls back to the first available LLM if the
-// specified provider is not found. Returns (nil, "") if no LLMs are available.
-func resolveLLM(modelID string, llms map[string]adkmodel.LLM) (adkmodel.LLM, string) {
-	if modelID != "" && llms != nil {
-		parts := strings.SplitN(modelID, "/", 2)
-		providerName := parts[0]
-		if l, ok := llms[providerName]; ok {
-			if len(parts) == 2 {
-				return &namedLLM{LLM: l, name: parts[1]}, parts[1]
-			}
-			return l, ""
-		}
-	}
-
-	// Fallback: first available LLM
-	for _, l := range llms {
-		return l, ""
-	}
-	return nil, ""
-}
 
 // resolveTemplateFromState replaces {{key}} placeholders in a template string
 // with values from session state. Unresolved placeholders are left as-is.

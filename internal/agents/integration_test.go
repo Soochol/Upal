@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/soochol/upal/internal/agents"
+	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/upal"
 	"google.golang.org/adk/agent"
@@ -52,7 +53,8 @@ func TestDAGAgent_EndToEnd(t *testing.T) {
 	}
 
 	// 4. Build DAGAgent
-	dagAgent, err := agents.NewDAGAgent(wf, agents.DefaultRegistry(), agents.BuildDeps{LLMs: llms})
+	resolver := llmutil.NewMapResolver(llms, llms["test"], "claude-sonnet-4-20250514")
+	dagAgent, err := agents.NewDAGAgent(wf, agents.DefaultRegistry(), agents.BuildDeps{LLMs: llms, LLMResolver: resolver})
 	if err != nil {
 		t.Fatalf("new dag agent: %v", err)
 	}

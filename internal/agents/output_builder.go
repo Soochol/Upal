@@ -23,7 +23,7 @@ func (b *OutputNodeBuilder) NodeType() upal.NodeType { return upal.NodeTypeOutpu
 func (b *OutputNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.Agent, error) {
 	nodeID := nd.ID
 	promptTpl, _ := nd.Config["prompt"].(string)
-	formatter := output.NewFormatter(nd.Config, deps.LLMs, resolveLLM)
+	formatter := output.NewFormatter(nd.Config, deps.LLMResolver, deps.HTMLLayoutPrompt)
 
 	return agent.New(agent.Config{
 		Name:        nodeID,

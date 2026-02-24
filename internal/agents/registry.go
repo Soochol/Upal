@@ -7,6 +7,7 @@ import (
 
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 	"google.golang.org/adk/agent"
 	adkmodel "google.golang.org/adk/model"
 )
@@ -27,6 +28,7 @@ type ConnectionResolver interface {
 // Fields may be nil — each builder checks for what it needs.
 type BuildDeps struct {
 	LLMs             map[string]adkmodel.LLM
+	LLMResolver      ports.LLMResolver // resolves "provider/model" → LLM + model name
 	ToolReg          *tools.Registry
 	OutputDir        string // directory for saving media outputs (audio, video)
 	HTMLLayoutPrompt string // base prompt for HTML output formatting

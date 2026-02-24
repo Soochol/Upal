@@ -29,6 +29,7 @@ var _ ports.WorkflowExecutor = (*WorkflowService)(nil)
 type WorkflowService struct {
 	repo           repository.WorkflowRepository
 	llms           map[string]adkmodel.LLM
+	llmResolver    ports.LLMResolver
 	sessionService session.Service
 	toolReg        *tools.Registry
 	nodeRegistry   *agents.NodeRegistry
@@ -43,14 +44,17 @@ func NewWorkflowService(
 	toolReg *tools.Registry,
 	nodeRegistry *agents.NodeRegistry,
 	outputDir string,
+	htmlLayoutPrompt string,
+	resolver ports.LLMResolver,
 ) *WorkflowService {
 	return &WorkflowService{
 		repo:           repo,
 		llms:           llms,
+		llmResolver:    resolver,
 		sessionService: sessionService,
 		toolReg:        toolReg,
 		nodeRegistry:   nodeRegistry,
-		buildDeps:      agents.BuildDeps{LLMs: llms, ToolReg: toolReg, OutputDir: outputDir},
+		buildDeps:      agents.BuildDeps{LLMs: llms, LLMResolver: resolver, ToolReg: toolReg, OutputDir: outputDir, HTMLLayoutPrompt: htmlLayoutPrompt},
 	}
 }
 

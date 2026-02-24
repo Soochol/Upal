@@ -8,6 +8,7 @@ import (
 
 	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
+	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -84,14 +85,14 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Inject available models (same pattern as configureNode in configure.go)
-	if allModels := KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
+	if allModels := upalmodel.KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
 		sysPrompt += fmt.Sprintf("\n\nAvailable models (use in \"model\" field):\nDefault model: %q\n", modelName)
-		var textModels, imageModels []ModelInfo
+		var textModels, imageModels []upal.ModelInfo
 		for _, m := range allModels {
 			switch m.Category {
-			case ModelCategoryText:
+			case upal.ModelCategoryText:
 				textModels = append(textModels, m)
-			case ModelCategoryImage:
+			case upal.ModelCategoryImage:
 				imageModels = append(imageModels, m)
 			}
 		}

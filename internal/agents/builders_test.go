@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/soochol/upal/internal/llmutil"
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
@@ -27,7 +28,7 @@ func (m *mockLLMForBuild) GenerateContent(_ context.Context, _ *adkmodel.LLMRequ
 
 func TestBuildAgent_Input(t *testing.T) {
 	nd := &upal.NodeDefinition{ID: "input1", Type: upal.NodeTypeInput}
-	a, err := BuildAgent(nd, nil, nil)
+	a, err := BuildAgent(nd, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestBuildAgent_Input(t *testing.T) {
 
 func TestBuildAgent_Output(t *testing.T) {
 	nd := &upal.NodeDefinition{ID: "output1", Type: upal.NodeTypeOutput}
-	a, err := BuildAgent(nd, nil, nil)
+	a, err := BuildAgent(nd, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -62,8 +63,9 @@ func TestBuildAgent_AgentWithWebSearch(t *testing.T) {
 	// Use a mock LLM — we only need to verify the agent builds without error.
 	mockLLM := &mockLLMForBuild{}
 	llms := map[string]adkmodel.LLM{"anthropic": mockLLM}
+	resolver := llmutil.NewMapResolver(llms, mockLLM, "claude-sonnet-4-6")
 
-	a, err := BuildAgent(nd, llms, nil)
+	a, err := BuildAgent(nd, llms, nil, resolver)
 	if err != nil {
 		t.Fatalf("BuildAgent with web_search tool should succeed: %v", err)
 	}
@@ -86,9 +88,10 @@ func TestBuildAgent_AgentWithWebSearchAndNilToolReg(t *testing.T) {
 
 	mockLLM := &mockLLMForBuild{}
 	llms := map[string]adkmodel.LLM{"anthropic": mockLLM}
+	resolver := llmutil.NewMapResolver(llms, mockLLM, "claude-sonnet-4-6")
 
 	// toolReg is nil — native tools should still work.
-	a, err := BuildAgent(nd, llms, nil)
+	a, err := BuildAgent(nd, llms, nil, resolver)
 	if err != nil {
 		t.Fatalf("BuildAgent with nil toolReg should succeed for native tools: %v", err)
 	}
@@ -99,7 +102,7 @@ func TestBuildAgent_AgentWithWebSearchAndNilToolReg(t *testing.T) {
 
 func TestBuildAgent_UnknownType(t *testing.T) {
 	nd := &upal.NodeDefinition{ID: "x", Type: "unknown"}
-	_, err := BuildAgent(nd, nil, nil)
+	_, err := BuildAgent(nd, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -222,7 +225,7 @@ func TestBuildAgent_Tool_UnknownTool(t *testing.T) {
 			"input": map[string]any{"text": "hello"},
 		},
 	}
-	_, err := BuildAgent(nd, nil, reg)
+	_, err := BuildAgent(nd, nil, reg, nil)
 	if err == nil {
 		t.Fatal("expected error for unknown tool")
 	}
@@ -240,7 +243,7 @@ func TestBuildAgent_Tool_NoToolReg(t *testing.T) {
 			"input": map[string]any{"text": "hello"},
 		},
 	}
-	_, err := BuildAgent(nd, nil, nil)
+	_, err := BuildAgent(nd, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error when toolReg is nil")
 	}
@@ -258,7 +261,7 @@ func TestBuildAgent_Tool_KnownTool(t *testing.T) {
 			"input": map[string]any{"text": "{{upstream}}", "voice": "Rachel"},
 		},
 	}
-	a, err := BuildAgent(nd, nil, reg)
+	a, err := BuildAgent(nd, nil, reg, nil)
 	if err != nil {
 		t.Fatalf("expected no error for known tool: %v", err)
 	}
@@ -346,7 +349,7 @@ func TestBuildAgent_Tool_MissingToolConfig(t *testing.T) {
 			"input": map[string]any{"text": "hello"},
 		},
 	}
-	_, err := BuildAgent(nd, nil, reg)
+	_, err := BuildAgent(nd, nil, reg, nil)
 	if err == nil {
 		t.Fatal("expected error when tool config field is missing")
 	}

@@ -52,8 +52,7 @@ func openAICompatResponse(content string) map[string]any {
 	}
 }
 
-// noopSkills satisfies the unexported generate.skillProvider interface with no-op responses.
-// generate.New() accepts any type implementing Get and GetPrompt — structural typing in Go.
+// noopSkills satisfies the skills.Provider interface with no-op responses.
 type noopSkills struct{}
 
 func (noopSkills) Get(name string) string      { return "" }
@@ -124,7 +123,7 @@ func TestGeneratePipelineHandlerSavesWorkflows(t *testing.T) {
 
 	// Build the workflow service (uses spy repo internally for lookups).
 	sessionSvc := session.InMemoryService()
-	wfSvc := services.NewWorkflowService(spy, nil, sessionSvc, nil, agents.DefaultRegistry(), "")
+	wfSvc := services.NewWorkflowService(spy, nil, sessionSvc, nil, agents.DefaultRegistry(), "", "", nil)
 
 	// Build the server with the spy repo.
 	srv := NewServer(nil, wfSvc, spy, nil)

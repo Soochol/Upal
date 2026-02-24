@@ -1,4 +1,4 @@
-package api
+package model
 
 import (
 	"testing"
@@ -20,9 +20,9 @@ func TestIsOllama(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := isOllama(c.pc)
+			got := IsOllama(c.pc)
 			if got != c.want {
-				t.Errorf("isOllama(%+v) = %v, want %v", c.pc, got, c.want)
+				t.Errorf("IsOllama(%+v) = %v, want %v", c.pc, got, c.want)
 			}
 		})
 	}

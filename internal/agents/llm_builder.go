@@ -69,10 +69,11 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 		systemPrompt += outputExtract.systemPromptAppend()
 	}
 
-	llm, modelName := resolveLLM(modelID, deps.LLMs)
-	if llm == nil {
-		return nil, fmt.Errorf("no LLM found for model %q in node %q", modelID, nodeID)
+	llm, modelName, err := deps.LLMResolver.Resolve(modelID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve model for node %q: %w", nodeID, err)
 	}
+	named := &namedLLM{LLM: llm, name: modelName}
 
 	var funcDecls []*genai.FunctionDeclaration
 	var nativeTools []*genai.Tool
@@ -85,7 +86,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 			}
 			// Check if it's a global native tool (e.g., web_search).
 			if spec, isGlobalNative := upalmodel.LookupNativeTool(name); isGlobalNative {
-				if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
+				if provider, ok := named.LLM.(upalmodel.NativeToolProvider); ok {
 					if modelSpec, supported := provider.NativeTool(name); supported {
 						nativeTools = append(nativeTools, modelSpec)
 					}
@@ -98,7 +99,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 			}
 			// Check if it's a registry native tool.
 			if deps.ToolReg != nil && deps.ToolReg.IsNative(name) {
-				if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
+				if provider, ok := named.LLM.(upalmodel.NativeToolProvider); ok {
 					if modelSpec, supported := provider.NativeTool(name); supported {
 						nativeTools = append(nativeTools, modelSpec)
 					}
@@ -180,7 +181,7 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 					}
 
 					var resp *adkmodel.LLMResponse
-					for r, err := range llm.GenerateContent(llmCtx, req, false) {
+					for r, err := range named.GenerateContent(llmCtx, req, false) {
 						if err != nil {
 							yield(nil, fmt.Errorf("LLM call failed for node %q: %w", nodeID, err))
 							return

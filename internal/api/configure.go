@@ -8,6 +8,7 @@ import (
 
 	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
+	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -110,24 +111,22 @@ func (s *Server) configureNode(w http.ResponseWriter, r *http.Request) {
 	sysPrompt := ""
 	if s.skills != nil {
 		sysPrompt = s.skills.GetPrompt("node-configure")
-	}
-	if s.skills != nil {
 		if nodeSkill := s.skills.Get(req.NodeType + "-node"); nodeSkill != "" {
 			sysPrompt += "\n\n--- NODE TYPE GUIDE ---\n\n" + nodeSkill
 		}
 	}
 
 	// Inject available models grouped by category so the LLM matches purpose to model.
-	if allModels := KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
+	if allModels := upalmodel.KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
 		sysPrompt += fmt.Sprintf("\n\nAvailable models (use in config \"model\" field):\nDefault model: %q\n", modelName)
 
 		// Group by category for clear presentation.
-		var textModels, imageModels []ModelInfo
+		var textModels, imageModels []upal.ModelInfo
 		for _, m := range allModels {
 			switch m.Category {
-			case ModelCategoryText:
+			case upal.ModelCategoryText:
 				textModels = append(textModels, m)
-			case ModelCategoryImage:
+			case upal.ModelCategoryImage:
 				imageModels = append(imageModels, m)
 			}
 		}

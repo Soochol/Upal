@@ -167,9 +167,12 @@ func serve() {
 	// Skills registry — created early so prompts are available to services.
 	skillReg := skills.New()
 
+	// Create LLM resolver for "provider/model" → LLM mapping.
+	resolver := llmutil.NewMapResolver(llms, defaultLLM, defaultModelName)
+
 	// Create WorkflowService for execution orchestration.
 	nodeReg := agents.DefaultRegistry()
-	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg, outputDir, skillReg.GetPrompt("html-layout"))
+	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg, outputDir, skillReg.GetPrompt("html-layout"), resolver)
 	runHistorySvc := services.NewRunHistoryService(runRepo)
 	runHistorySvc.CleanupOrphanedRuns(context.Background())
 
@@ -289,7 +292,6 @@ func serve() {
 	// Wire content collector for actual source fetching and workflow execution.
 	var collector *services.ContentCollector
 	if defaultLLM != nil {
-		resolver := llmutil.NewMapResolver(llms, defaultLLM, defaultModelName)
 		collector = services.NewContentCollector(
 			contentSvc,
 			services.NewCollectStageExecutor(),
@@ -308,7 +310,7 @@ func serve() {
 		for _, t := range toolReg.AllTools() {
 			toolInfos = append(toolInfos, upal.ToolSummary{Name: t.Name, Description: t.Description})
 		}
-		allModels := api.KnownModelsGrouped(cfg.Providers)
+		allModels := upalmodel.KnownModelsGrouped(cfg.Providers)
 		var modelOpts []upal.ModelSummary
 		for _, m := range allModels {
 			modelOpts = append(modelOpts, upal.ModelSummary{
