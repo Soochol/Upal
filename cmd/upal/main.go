@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 
@@ -232,7 +231,7 @@ func serve() {
 	srv.SetExecutionRegistry(execReg)
 
 	// Run manager for background execution with event buffering.
-	runManager := services.NewRunManager(15 * time.Minute)
+	runManager := services.NewRunManager(cfg.Runs.TTL)
 	srv.SetRunManager(runManager)
 
 	// RunPublisher bridges workflow execution into RunManager + RunHistoryService.
@@ -332,6 +331,7 @@ func serve() {
 		}
 	}
 	srv.SetProviderConfigs(cfg.Providers)
+	srv.SetServerConfig(cfg.Server, cfg.Generator)
 
 	// Enable A2A protocol endpoints.
 	a2aURL := fmt.Sprintf("http://localhost:%d", cfg.Server.Port)

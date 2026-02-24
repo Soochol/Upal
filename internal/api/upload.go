@@ -15,16 +15,15 @@ import (
 	"github.com/soochol/upal/internal/storage"
 )
 
-const maxUploadSize = 50 << 20 // 50MB
-
 func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 	if s.storage == nil {
 		http.Error(w, "file storage not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	maxSize := s.uploadMaxSizeOrDefault()
+	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+	if err := r.ParseMultipartForm(maxSize); err != nil {
 		http.Error(w, "file too large (max 50MB)", http.StatusBadRequest)
 		return
 	}

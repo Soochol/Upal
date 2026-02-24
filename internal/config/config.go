@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/soochol/upal/internal/upal"
@@ -16,13 +17,26 @@ type Config struct {
 	Server    ServerConfig              `yaml:"server"`
 	Database  DatabaseConfig            `yaml:"database"`
 	Providers map[string]ProviderConfig `yaml:"providers"`
-	Scheduler upal.ConcurrencyLimits `yaml:"scheduler"`
+	Scheduler upal.ConcurrencyLimits    `yaml:"scheduler"`
+	Runs      RunsConfig                `yaml:"runs"`
+	Generator GeneratorConfig           `yaml:"generator"`
 }
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host          string `yaml:"host"`
+	Port          int    `yaml:"port"`
+	UploadMaxSize int64  `yaml:"upload_max_size"`
+}
+
+// RunsConfig holds run manager settings.
+type RunsConfig struct {
+	TTL time.Duration `yaml:"ttl"`
+}
+
+// GeneratorConfig holds generation-related timeouts.
+type GeneratorConfig struct {
+	ThumbnailTimeout time.Duration `yaml:"thumbnail_timeout"`
 }
 
 // DatabaseConfig holds database connection settings.
@@ -41,11 +55,18 @@ type ProviderConfig struct {
 func defaults() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Host: "0.0.0.0",
-			Port: 8080,
+			Host:          "0.0.0.0",
+			Port:          8080,
+			UploadMaxSize: 50 << 20, // 50 MB
 		},
-		Database: DatabaseConfig{},
+		Database:  DatabaseConfig{},
 		Providers: map[string]ProviderConfig{},
+		Runs: RunsConfig{
+			TTL: 15 * time.Minute,
+		},
+		Generator: GeneratorConfig{
+			ThumbnailTimeout: 60 * time.Second,
+		},
 	}
 }
 

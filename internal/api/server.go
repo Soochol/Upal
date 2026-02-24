@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -273,6 +274,28 @@ func (s *Server) SetContentCollector(c *services.ContentCollector) {
 
 // SetLLMResolver configures the LLM resolver for "provider/model" lookups.
 func (s *Server) SetLLMResolver(r ports.LLMResolver) { s.llmResolver = r }
+
+// SetServerConfig applies server-level configuration values.
+func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
+	s.thumbnailTimeout = genCfg.ThumbnailTimeout
+	s.uploadMaxSize = cfg.UploadMaxSize
+}
+
+// ThumbnailTimeout returns the configured timeout, falling back to 60s.
+func (s *Server) thumbnailTimeoutOrDefault() time.Duration {
+	if s.thumbnailTimeout > 0 {
+		return s.thumbnailTimeout
+	}
+	return 60 * time.Second
+}
+
+// UploadMaxSize returns the configured max upload size, falling back to 50MB.
+func (s *Server) uploadMaxSizeOrDefault() int64 {
+	if s.uploadMaxSize > 0 {
+		return s.uploadMaxSize
+	}
+	return 50 << 20
+}
 
 // SetA2ABaseURL enables A2A protocol endpoints on the server.
 // The URL is used in the AgentCard to advertise the invoke endpoint.

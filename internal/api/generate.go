@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/generate"
@@ -71,7 +70,7 @@ func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate thumbnail best-effort — don't fail the request if this fails.
-	thumbCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
 	defer cancel()
 	if svg, thumbErr := s.generator.GeneratePipelineThumbnail(thumbCtx, &bundle.Pipeline); thumbErr == nil {
 		bundle.Pipeline.ThumbnailSVG = svg
@@ -115,7 +114,7 @@ func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate thumbnail best-effort — don't fail the request if this fails.
-	thumbCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
 	defer cancel()
 	if svg, thumbErr := s.generator.GenerateThumbnail(thumbCtx, wf); thumbErr == nil {
 		wf.ThumbnailSVG = svg
@@ -146,7 +145,7 @@ func (s *Server) generateWorkflowThumbnail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	thumbCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
 	defer cancel()
 	svg, err := s.generator.GenerateThumbnail(thumbCtx, wf)
 	if err != nil {
@@ -231,7 +230,7 @@ func (s *Server) generatePipelineThumbnail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	thumbCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
 	defer cancel()
 	svg, err := s.generator.GeneratePipelineThumbnail(thumbCtx, p)
 	if err != nil {
