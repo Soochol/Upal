@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ContentSession, ContentSessionStatus } from './types'
-import { fetchContentSessions, approveSession, rejectSession } from './api'
+import { fetchContentSessions, approveSession, rejectSession, produceSession } from './api'
 
 export interface ContentSessionFilters {
   status?: ContentSessionStatus
@@ -70,6 +70,13 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
         pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
       }
     })
+    // Chain: trigger production with the selected workflows
+    if (selectedAngles.length > 0) {
+      const workflowRequests = selectedAngles.map(name => ({ name }))
+      await produceSession(id, workflowRequests).catch(() => {
+        // Production trigger failure is non-critical — session is already approved
+      })
+    }
   },
 
   rejectSession: async (id, reason) => {

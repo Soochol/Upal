@@ -1,5 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { ContentSession, LLMAnalysis } from './types'
+import type { ContentSession, ContentAngle, LLMAnalysis } from './types'
 
 const BASE = '/api/content-sessions'
 
@@ -33,8 +33,8 @@ export async function approveSession(
 
 export async function produceSession(
   id: string,
-  workflows: string[],
-): Promise<{ session_id: string; workflows: string[]; status: string }> {
+  workflows: { name: string; channel_id?: string }[],
+): Promise<{ session_id: string; status: string }> {
   return apiFetch(`${BASE}/${encodeURIComponent(id)}/produce`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,6 +70,20 @@ export async function updateSessionAnalysis(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+}
+
+export async function generateAngleWorkflow(
+  sessionId: string,
+  angleId: string,
+): Promise<ContentAngle> {
+  return apiFetch<ContentAngle>(
+    `${BASE}/${encodeURIComponent(sessionId)}/generate-workflow`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ angle_id: angleId }),
+    },
+  )
 }
 
 export async function archiveSession(id: string): Promise<ContentSession> {
