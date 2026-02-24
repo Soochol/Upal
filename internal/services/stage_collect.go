@@ -37,6 +37,7 @@ func NewCollectStageExecutor() *CollectStageExecutor {
 	e.RegisterFetcher(&rssFetcher{client: client})
 	e.RegisterFetcher(&httpFetcher{client: client})
 	e.RegisterFetcher(&scrapeFetcher{client: client})
+	e.RegisterFetcher(NewSocialFetcher(client))
 	return e
 }
 
