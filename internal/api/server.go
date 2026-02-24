@@ -43,6 +43,7 @@ type Server struct {
 	pipelineSvc          *services.PipelineService
 	pipelineRunner       ports.PipelineRunner
 	contentSvc           *services.ContentSessionService
+	collector            *services.ContentCollector
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -113,10 +114,14 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/", s.listContentSessions)
 				r.Get("/{id}", s.getContentSession)
 				r.Patch("/{id}", s.patchContentSession)
+				r.Delete("/{id}", s.deleteContentSession)
+				r.Post("/{id}/archive", s.archiveContentSession)
+				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Post("/{id}/produce", s.produceContentSession)
 				r.Get("/{id}/sources", s.listSessionSources)
 				r.Get("/{id}/analysis", s.getSessionAnalysis)
 				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
+				r.Post("/{id}/publish", s.publishContentSession)
 			})
 			r.Route("/published", func(r chi.Router) {
 				r.Get("/", s.listPublished)
@@ -239,6 +244,11 @@ func (s *Server) SetPipelineRunner(runner ports.PipelineRunner) {
 // SetContentSessionService configures the content session management service.
 func (s *Server) SetContentSessionService(svc *services.ContentSessionService) {
 	s.contentSvc = svc
+}
+
+// SetContentCollector configures the content collector for background collection and production.
+func (s *Server) SetContentCollector(c *services.ContentCollector) {
+	s.collector = c
 }
 
 // SetA2ABaseURL enables A2A protocol endpoints on the server.
