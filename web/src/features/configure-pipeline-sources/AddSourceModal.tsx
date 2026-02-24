@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { X, Rss, Flame, MessageCircle, TrendingUp, Hash, Globe } from 'lucide-react'
+import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineSource, PipelineSourceType } from '@/shared/types'
 
@@ -22,7 +22,7 @@ const STATIC_SOURCES: SourceTypeDef[] = [
 const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'reddit',        source_type: 'signal', label: 'Reddit',         description: 'Subreddit hot posts',        icon: <MessageCircle className="h-4 w-4" />, accent: 'bg-[oklch(0.7_0.15_25)]/12', accentText: 'text-[oklch(0.6_0.15_25)]' },
   { type: 'google_trends', source_type: 'signal', label: 'Google Trends',  description: 'Keyword search spikes',      icon: <TrendingUp className="h-4 w-4" />,    accent: 'bg-info/12', accentText: 'text-info' },
-  { type: 'twitter',       source_type: 'signal', label: 'X / Twitter',    description: 'Trending keywords',          icon: <Hash className="h-4 w-4" />,       accent: 'bg-foreground/8', accentText: 'text-foreground' },
+  { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
 ]
 
 
@@ -49,6 +49,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
       label: typeDef.label,
       limit: 20,
       keywords: [],
+      accounts: [],
     })
     setStep('config')
   }
@@ -171,7 +172,7 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
                 </div>
               )}
 
-              {(draft.type === 'google_trends' || draft.type === 'twitter') && (
+              {(draft.type === 'google_trends' || draft.type === 'social') && (
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">Keywords to monitor</label>
                   <KeywordTagInput
@@ -179,6 +180,42 @@ export function AddSourceModal({ onAdd, onClose }: Props) {
                     onChange={(kws) => setDraft({ ...draft, keywords: kws })}
                     placeholder="AI, LLM, GPT..."
                   />
+                </div>
+              )}
+
+              {draft.type === 'social' && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Follow accounts</label>
+                  <KeywordTagInput
+                    keywords={draft.accounts ?? []}
+                    onChange={(accts) => setDraft({ ...draft, accounts: accts })}
+                    placeholder="alice.bsky.social, user@mastodon.social"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Bluesky: handle (e.g. alice.bsky.social) · Mastodon: user@instance
+                  </p>
+                </div>
+              )}
+
+              {draft.type === 'google_trends' && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Region</label>
+                  <select
+                    value={draft.geo ?? 'US'}
+                    onChange={(e) => setDraft({ ...draft, geo: e.target.value })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="US">United States</option>
+                    <option value="KR">South Korea</option>
+                    <option value="JP">Japan</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="DE">Germany</option>
+                    <option value="FR">France</option>
+                    <option value="IN">India</option>
+                    <option value="BR">Brazil</option>
+                    <option value="CA">Canada</option>
+                    <option value="AU">Australia</option>
+                  </select>
                 </div>
               )}
 

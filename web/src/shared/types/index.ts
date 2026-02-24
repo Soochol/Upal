@@ -224,7 +224,7 @@ export type PipelineSourceType =
   | 'hn'
   | 'reddit'
   | 'google_trends'
-  | 'twitter'
+  | 'social'
   | 'http'
 
 export type PipelineSource = {
@@ -236,7 +236,9 @@ export type PipelineSource = {
   url?: string             // rss, http
   subreddit?: string       // reddit
   min_score?: number       // reddit, hn
-  keywords?: string[]      // google_trends, twitter
+  keywords?: string[]      // google_trends, social
+  accounts?: string[]      // social: follow account handles
+  geo?: string             // google_trends: country code
   limit?: number
 }
 
