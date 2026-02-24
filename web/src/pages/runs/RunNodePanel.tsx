@@ -44,7 +44,7 @@ function formatOutput(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-export function RunNodePanel({ selectedNode, run, onClose, onCollapse }: Props) {
+export function RunNodePanel({ selectedNode, run, onClose, onCollapse: _onCollapse }: Props) {
   if (!selectedNode) return null
 
   const nodeId = selectedNode.id

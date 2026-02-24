@@ -85,7 +85,7 @@ export function RunViewer() {
 
         // Deserialize the workflow definition into the canvas store
         if (r.workflow_definition) {
-          const { nodes: flowNodes, edges: flowEdges } = deserializeWorkflow(r.workflow_definition)
+          const { nodes: flowNodes, edges: flowEdges } = deserializeWorkflow(r.workflow_definition as import('@/entities/workflow/lib/serializer').WorkflowDefinition)
           useWorkflowStore.setState({ nodes: flowNodes, edges: flowEdges })
         }
 
@@ -150,7 +150,7 @@ export function RunViewer() {
           setNodeStatus(event.nodeId, 'waiting')
         }
       },
-      (result) => {
+      (_result) => {
         // Run completed — re-fetch for final state
         fetchRun(runId).then((r) => setRun(r)).catch(() => {})
       },

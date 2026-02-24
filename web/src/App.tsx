@@ -6,7 +6,7 @@ import Pipelines from '@/pages/Pipelines'
 import PipelineNewPage from '@/pages/pipelines/PipelineNew'
 import PublishedPage from '@/pages/published'
 import Connections from '@/pages/Connections'
-import { RunDetail } from '@/widgets/run-detail'
+import { RunViewer } from '@/pages/runs/RunViewer'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
 
@@ -26,7 +26,7 @@ export default function App() {
           <Route path="/" element={<ProductLanding />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/runs" element={<Runs />} />
-          <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/runs/:id" element={<RunViewer />} />
           <Route path="/pipelines" element={<Pipelines />} />
           <Route path="/pipelines/new" element={<PipelineNewPage />} />
           <Route path="/pipelines/:id" element={<PipelineRedirect />} />
