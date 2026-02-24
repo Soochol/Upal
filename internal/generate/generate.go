@@ -8,6 +8,7 @@ import (
 
 	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -29,17 +30,11 @@ type ToolEntry struct {
 	Description string // one-line description from Tool.Description()
 }
 
-// skillProvider abstracts read access to skill and prompt content.
-type skillProvider interface {
-	Get(name string) string
-	GetPrompt(name string) string
-}
-
 // Generator converts natural language descriptions into WorkflowDefinitions.
 type Generator struct {
 	llm            adkmodel.LLM
 	model          string
-	skills         skillProvider
+	skills         skills.Provider
 	toolInfos      []ToolEntry   // available tools with names and descriptions
 	models         []ModelOption // available models with category/tier metadata
 	defaultModelID string        // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
@@ -50,7 +45,7 @@ type Generator struct {
 // these are injected into the generation prompt so the LLM only references real tools.
 // models lists the available models with category/tier/hint metadata;
 // these are injected so the LLM selects the right model for each node's purpose.
-func New(llm adkmodel.LLM, model string, skills skillProvider, toolInfos []ToolEntry, models []ModelOption) *Generator {
+func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos []ToolEntry, models []ModelOption) *Generator {
 	// Resolve the full provider-prefixed model ID once at construction time.
 	defaultModelID := ""
 	for _, m := range models {
@@ -62,7 +57,7 @@ func New(llm adkmodel.LLM, model string, skills skillProvider, toolInfos []ToolE
 	if defaultModelID == "" && len(models) > 0 {
 		defaultModelID = models[0].ID
 	}
-	return &Generator{llm: llm, model: model, skills: skills, toolInfos: toolInfos, models: models, defaultModelID: defaultModelID}
+	return &Generator{llm: llm, model: model, skills: skillsProv, toolInfos: toolInfos, models: models, defaultModelID: defaultModelID}
 }
 
 // LLM returns the underlying LLM used by the generator.
@@ -73,6 +68,12 @@ func (g *Generator) LLM() adkmodel.LLM {
 // Model returns the model name used by the generator.
 func (g *Generator) Model() string {
 	return g.model
+}
+
+// GenerateWorkflow creates a WorkflowDefinition from a description.
+// Satisfies ports.WorkflowGenerator interface.
+func (g *Generator) GenerateWorkflow(ctx context.Context, description string) (*upal.WorkflowDefinition, error) {
+	return g.Generate(ctx, description, nil, nil)
 }
 
 // skillLoaderTool is the FunctionDeclaration that allows the generation LLM
