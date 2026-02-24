@@ -45,6 +45,8 @@ type Server struct {
 	collector            *services.ContentCollector
 	llmResolver          ports.LLMResolver
 	publishChannelRepo   repository.PublishChannelRepository
+	thumbnailTimeout     time.Duration
+	uploadMaxSize        int64
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -125,6 +127,7 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/{id}/analysis", s.getSessionAnalysis)
 				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
 				r.Post("/{id}/publish", s.publishContentSession)
+			r.Post("/{id}/reject-result", s.rejectWorkflowResult)
 			})
 			r.Route("/published", func(r chi.Router) {
 				r.Get("/", s.listPublished)

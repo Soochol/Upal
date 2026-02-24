@@ -279,15 +279,19 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Transition session to published.
-	if err := s.contentSvc.UpdateSessionStatus(ctx, id, upal.SessionPublished); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Mark each published run_id in workflow results.
+	results := s.contentSvc.GetWorkflowResults(ctx, id)
+	for i, wr := range results {
+		for _, runID := range body.RunIDs {
+			if wr.RunID == runID {
+				results[i].Status = upal.WFResultPublished
+			}
 		}
-		return
 	}
+	s.contentSvc.SetWorkflowResults(ctx, id, results)
+
+	// Check if all results are terminal — only then transition session.
+	s.checkAndFinalizeSession(ctx, id)
 
 	// Return the composed session detail.
 	detail, err := s.contentSvc.GetSessionDetail(ctx, id)
@@ -297,6 +301,63 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(detail)
+}
+
+// POST /api/content-sessions/{id}/reject-result
+// Body: {"run_id": "..."}
+func (s *Server) rejectWorkflowResult(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.RunID == "" {
+		http.Error(w, "run_id is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	results := s.contentSvc.GetWorkflowResults(ctx, id)
+	updated := false
+	for i, wr := range results {
+		if wr.RunID == body.RunID {
+			results[i].Status = upal.WFResultRejected
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		http.Error(w, "run_id not found", http.StatusNotFound)
+		return
+	}
+	s.contentSvc.SetWorkflowResults(ctx, id, results)
+
+	// Check if all results are now terminal (published or rejected)
+	s.checkAndFinalizeSession(ctx, id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "rejected"})
+}
+
+// checkAndFinalizeSession transitions session to published if all workflow results are terminal.
+func (s *Server) checkAndFinalizeSession(ctx context.Context, id string) {
+	results := s.contentSvc.GetWorkflowResults(ctx, id)
+	if len(results) == 0 {
+		return
+	}
+	allTerminal := true
+	for _, wr := range results {
+		if wr.Status != upal.WFResultPublished && wr.Status != upal.WFResultRejected && wr.Status != upal.WFResultFailed {
+			allTerminal = false
+			break
+		}
+	}
+	if allTerminal {
+		_ = s.contentSvc.UpdateSessionStatus(ctx, id, upal.SessionPublished)
+	}
 }
 
 // GET /api/published
