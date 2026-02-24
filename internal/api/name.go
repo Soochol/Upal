@@ -13,14 +13,6 @@ import (
 	"google.golang.org/genai"
 )
 
-var nameSystemPrompt = `You name workflows. Given a workflow definition JSON, produce a short descriptive slug-style name.
-Rules:
-- lowercase letters and hyphens only
-- max 4 words
-- descriptive of what the workflow does
-Examples: "content-pipeline", "multi-model-compare", "code-review-agent", "research-summarizer"
-Respond with ONLY a JSON object: {"name": "the-slug-name"}`
-
 var slugRegexp = regexp.MustCompile(`[^a-z0-9-]+`)
 
 func sanitizeSlug(s string) string {
@@ -53,7 +45,7 @@ func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 	llmReq := &adkmodel.LLMRequest{
 		Model: s.generator.Model(),
 		Config: &genai.GenerateContentConfig{
-			SystemInstruction: genai.NewContentFromText(nameSystemPrompt, genai.RoleUser),
+			SystemInstruction: genai.NewContentFromText(s.skills.GetPrompt("workflow-name"), genai.RoleUser),
 		},
 		Contents: []*genai.Content{
 			genai.NewContentFromText(string(wfJSON), genai.RoleUser),
