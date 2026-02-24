@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ProductLandingPage from '@/pages/landing/ProductLanding'
 import LandingPage from '@/pages/landing'
 import EditorPage from '@/pages/Editor'
@@ -13,7 +13,6 @@ import PublishedPage from '@/pages/Published'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
 
-const SessionDetailPage = lazy(() => import('@/pages/pipelines/session'))
 const ReviewInboxPage = lazy(() => import('@/pages/inbox'))
 const PublishInboxPage = lazy(() => import('@/pages/publish-inbox'))
 
@@ -37,7 +36,7 @@ export function AppRouter() {
           <Route path="/pipelines" element={<PipelinesPage />} />
           <Route path="/pipelines/new" element={<PipelineNewPage />} />
           <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
-          <Route path="/pipelines/:id/sessions/:sessionId" element={<Suspense fallback={null}><SessionDetailPage /></Suspense>} />
+          <Route path="/pipelines/:id/sessions/*" element={<Navigate to=".." replace />} />
 
           {/* Content */}
           <Route path="/published" element={<PublishedPage />} />
