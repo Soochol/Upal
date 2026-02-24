@@ -110,6 +110,7 @@ type PipelineWorkflow struct {
 	WorkflowName string `json:"workflow_name"`
 	Label        string `json:"label,omitempty"`
 	AutoSelect   bool   `json:"auto_select,omitempty"`
+	ChannelID    string `json:"channel_id,omitempty"`
 }
 
 // PipelineRunStatus represents the lifecycle state of a pipeline run.

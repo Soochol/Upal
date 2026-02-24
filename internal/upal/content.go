@@ -114,10 +114,12 @@ type SurgeEvent struct {
 type WorkflowResultStatus string
 
 const (
-	WFResultPending WorkflowResultStatus = "pending"
-	WFResultRunning WorkflowResultStatus = "running"
-	WFResultSuccess WorkflowResultStatus = "success"
-	WFResultFailed  WorkflowResultStatus = "failed"
+	WFResultPending   WorkflowResultStatus = "pending"
+	WFResultRunning   WorkflowResultStatus = "running"
+	WFResultSuccess   WorkflowResultStatus = "success"
+	WFResultFailed    WorkflowResultStatus = "failed"
+	WFResultPublished WorkflowResultStatus = "published"
+	WFResultRejected  WorkflowResultStatus = "rejected"
 )
 
 // WorkflowResult tracks workflow execution results for the produce stage.
@@ -125,6 +127,7 @@ type WorkflowResult struct {
 	WorkflowName string               `json:"workflow_name"`
 	RunID        string               `json:"run_id"`
 	Status       WorkflowResultStatus `json:"status"`
+	ChannelID    string               `json:"channel_id,omitempty"`
 	OutputURL    string               `json:"output_url,omitempty"`
 	CompletedAt  *time.Time           `json:"completed_at,omitempty"`
 }
