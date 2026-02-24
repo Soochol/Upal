@@ -11,10 +11,15 @@ import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts } from '@/features/manage-canvas'
 import { useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
-import { serializeWorkflow, deserializeWorkflow } from '@/entities/workflow'
+import { serializeWorkflow, deserializeWorkflow, loadWorkflow } from '@/entities/workflow'
 import { generateWorkflow } from '@/entities/workflow'
+import { useSearchParams } from 'react-router-dom'
+import { useEffect } from 'react'
 
 export default function Editor() {
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
+
   const addNode = useWorkflowStore((s) => s.addNode)
   const nodes = useWorkflowStore((s) => s.nodes)
   const workflowName = useWorkflowStore((s) => s.workflowName)
@@ -38,6 +43,35 @@ export default function Editor() {
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId)
     : null
+
+  // Support opening a saved workflow by name via ?name= URL parameter
+  useEffect(() => {
+    const name = searchParams.get('name')
+    if (!name) return
+    searchParams.delete('name')
+    window.history.replaceState(null, '', `?${searchParams.toString()}`)
+    loadWorkflow(name).then((wf) => {
+      const { nodes: n, edges: e } = deserializeWorkflow(wf)
+      useWorkflowStore.setState({ nodes: n, edges: e, isTemplate: false })
+      useWorkflowStore.getState().setWorkflowName(wf.name)
+      useWorkflowStore.getState().setOriginalName(wf.name)
+      useExecutionStore.getState().clearNodeStatuses()
+      useExecutionStore.getState().clearRunEvents()
+    }).catch(() => {
+      // Workflow not found — ignore, stay on empty editor
+    })
+  }, [])
+
+  // Support generating a workflow immediately from a prompt URL parameter
+  useEffect(() => {
+    const prompt = searchParams.get('prompt')
+    if (prompt && !isGenerating && nodes.length === 0 && !workflowName) {
+      // Clear the prompt from URL to avoid re-generating on reload
+      searchParams.delete('prompt')
+      window.history.replaceState(null, '', `?${searchParams.toString()}`)
+      handlePromptSubmit(prompt)
+    }
+  }, [searchParams])
 
   const handleAddNode = (type: Parameters<typeof addNode>[0]) => {
     const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
@@ -132,6 +166,7 @@ export default function Editor() {
           isTemplate={isTemplate}
           templateName={workflowName}
           onRemix={handleRemix}
+          returnTo={returnTo}
         />
       }
       bottomConsole={<Console />}

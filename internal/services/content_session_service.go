@@ -79,6 +79,51 @@ func (s *ContentSessionService) ListSessionsByStatus(ctx context.Context, status
 	return s.sessions.ListByStatus(ctx, status)
 }
 
+// ListSessionDetailsByStatus returns composed ContentSessionDetail records
+// for all sessions matching the given status, across all pipelines.
+func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error) {
+	sessions, err := s.sessions.ListByStatus(ctx, status)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache pipeline names to avoid repeated lookups.
+	pipelineNames := make(map[string]string)
+	lookupPipelineName := func(pipelineID string) string {
+		if pipelineID == "" || s.pipelineRepo == nil {
+			return ""
+		}
+		if name, ok := pipelineNames[pipelineID]; ok {
+			return name
+		}
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineNames[pipelineID] = p.Name
+			return p.Name
+		}
+		return ""
+	}
+
+	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
+	for _, sess := range sessions {
+		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
+		wfResults := s.GetWorkflowResults(ctx, sess.ID)
+		details = append(details, &upal.ContentSessionDetail{
+			ID:              sess.ID,
+			PipelineID:      sess.PipelineID,
+			PipelineName:    lookupPipelineName(sess.PipelineID),
+			Status:          sess.Status,
+			TriggerType:     sess.TriggerType,
+			SourceCount:     sess.SourceCount,
+			Analysis:        analysis,
+			WorkflowResults: wfResults,
+			CreatedAt:       sess.CreatedAt,
+			ReviewedAt:      sess.ReviewedAt,
+			ArchivedAt:      sess.ArchivedAt,
+		})
+	}
+	return details, nil
+}
+
 func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
 }

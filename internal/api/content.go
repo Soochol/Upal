@@ -55,16 +55,23 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No pipeline_id: return raw sessions.
-	var (
-		sessions []*upal.ContentSession
-		err      error
-	)
+	// No pipeline_id but status provided: return composed details (includes pipeline_name).
 	if statusStr != "" {
-		sessions, err = s.contentSvc.ListSessionsByStatus(ctx, upal.ContentSessionStatus(statusStr))
-	} else {
-		sessions, err = s.contentSvc.ListSessions(ctx)
+		details, err := s.contentSvc.ListSessionDetailsByStatus(ctx, upal.ContentSessionStatus(statusStr))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if details == nil {
+			details = []*upal.ContentSessionDetail{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(details)
+		return
 	}
+
+	// No pipeline_id, no status: return raw sessions.
+	sessions, err := s.contentSvc.ListSessions(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
