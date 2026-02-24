@@ -261,16 +261,9 @@ func (s *Server) SetA2ABaseURL(url string) {
 
 // listAvailableTools returns all tools available for agent nodes.
 func (s *Server) listAvailableTools(w http.ResponseWriter, r *http.Request) {
-	type toolInfo struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}
-
-	var result []toolInfo
+	var result []tools.ToolInfo
 	if s.toolReg != nil {
-		for _, t := range s.toolReg.AllTools() {
-			result = append(result, toolInfo{Name: t.Name, Description: t.Description})
-		}
+		result = s.toolReg.AllTools()
 	}
 
 	w.Header().Set("Content-Type", "application/json")

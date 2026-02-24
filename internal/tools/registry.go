@@ -84,9 +84,9 @@ func (r *Registry) ListNative() []NativeTool {
 
 // AllNames returns the names of all tools (custom + native) for API listing.
 type ToolInfo struct {
-	Name        string
-	Description string
-	Native      bool
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Native      bool   `json:"native,omitempty"`
 }
 
 func (r *Registry) AllTools() []ToolInfo {

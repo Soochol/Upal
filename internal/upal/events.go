@@ -3,9 +3,9 @@ package upal
 // WorkflowEvent is a domain event emitted during workflow execution.
 // It decouples the business logic from transport concerns (SSE, A2A).
 type WorkflowEvent struct {
-	Type    string         // "node_started", "tool_call", "tool_result", "node_completed"
-	NodeID  string
-	Payload map[string]any
+	Type    string         `json:"type"`
+	NodeID  string         `json:"node_id,omitempty"`
+	Payload map[string]any `json:"payload"`
 }
 
 // RunResult contains the final state after a workflow execution completes.

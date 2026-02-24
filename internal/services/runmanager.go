@@ -3,14 +3,14 @@ package services
 import (
 	"sync"
 	"time"
+
+	"github.com/soochol/upal/internal/upal"
 )
 
 // EventRecord is a timestamped workflow event stored in the per-run buffer.
 type EventRecord struct {
-	Seq     int            `json:"seq"`
-	Type    string         `json:"type"`
-	NodeID  string         `json:"node_id,omitempty"`
-	Payload map[string]any `json:"payload"`
+	upal.WorkflowEvent
+	Seq int `json:"seq"`
 }
 
 // runEntry holds the in-memory state for a single run: buffered events,

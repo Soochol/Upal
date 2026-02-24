@@ -204,7 +204,7 @@ func TestValidate_BadEdge(t *testing.T) {
 }
 
 func TestStripInvalidTools(t *testing.T) {
-	gen := &Generator{toolInfos: []ToolEntry{
+	gen := &Generator{toolInfos: []upal.ToolSummary{
 		{Name: "web_search"},
 		{Name: "real_tool"},
 	}}
@@ -316,7 +316,7 @@ func TestValidate_AgentMissingModel(t *testing.T) {
 func TestFixInvalidModels(t *testing.T) {
 	gen := &Generator{
 		model: "sonnet",
-		models: []ModelOption{
+		models: []upal.ModelSummary{
 			{ID: "claude/sonnet", Tier: "mid", Hint: "balanced"},
 			{ID: "claude/haiku", Tier: "low", Hint: "fast"},
 			{ID: "gemini/gemini-2.0-flash", Tier: "low", Hint: "fast"},
@@ -612,10 +612,10 @@ func TestGeneratePipelineCreate_Phase2GeneratesWorkflows(t *testing.T) {
 
 func TestBuildPipelineSysPromptInjectsModelsAndTools(t *testing.T) {
 	g := &Generator{
-		models: []ModelOption{
+		models: []upal.ModelSummary{
 			{ID: "anthropic/claude-sonnet-4-6", Category: "text", Tier: "mid", Hint: "general purpose"},
 		},
-		toolInfos: []ToolEntry{
+		toolInfos: []upal.ToolSummary{
 			{Name: "web_search", Description: "Search the web"},
 		},
 		defaultModelID: "anthropic/claude-sonnet-4-6",

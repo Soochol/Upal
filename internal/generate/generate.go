@@ -14,30 +14,14 @@ import (
 	"google.golang.org/genai"
 )
 
-// ModelOption describes an available model for prompt injection.
-// Constructed from api.ModelInfo at the call site to avoid import cycles.
-type ModelOption struct {
-	ID       string // "provider/model-name"
-	Category string // "text" or "image"
-	Tier     string // "high", "mid", "low"
-	Hint     string // one-line capability description
-}
-
-// ToolEntry describes an available tool for prompt injection.
-// Constructed from tools.ToolInfo at the call site to avoid import cycles.
-type ToolEntry struct {
-	Name        string // registered tool name (e.g. "web_search")
-	Description string // one-line description from Tool.Description()
-}
-
 // Generator converts natural language descriptions into WorkflowDefinitions.
 type Generator struct {
 	llm            adkmodel.LLM
 	model          string
 	skills         skills.Provider
-	toolInfos      []ToolEntry   // available tools with names and descriptions
-	models         []ModelOption // available models with category/tier metadata
-	defaultModelID string        // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
+	toolInfos      []upal.ToolSummary  // available tools with names and descriptions
+	models         []upal.ModelSummary // available models with category/tier metadata
+	defaultModelID string              // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
 }
 
 // New creates a Generator that uses the given LLM and model name.
@@ -45,7 +29,7 @@ type Generator struct {
 // these are injected into the generation prompt so the LLM only references real tools.
 // models lists the available models with category/tier/hint metadata;
 // these are injected so the LLM selects the right model for each node's purpose.
-func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos []ToolEntry, models []ModelOption) *Generator {
+func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos []upal.ToolSummary, models []upal.ModelSummary) *Generator {
 	// Resolve the full provider-prefixed model ID once at construction time.
 	defaultModelID := ""
 	for _, m := range models {
@@ -290,7 +274,7 @@ func (g *Generator) stripInvalidTools(wf *upal.WorkflowDefinition) {
 
 // buildModelPrompt creates a categorized model list for the system prompt.
 func (g *Generator) buildModelPrompt() string {
-	groups := map[string][]ModelOption{}
+	groups := map[string][]upal.ModelSummary{}
 	for _, m := range g.models {
 		groups[m.Category] = append(groups[m.Category], m)
 	}

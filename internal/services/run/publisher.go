@@ -51,9 +51,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 			errMsg := fmt.Sprintf("%v", ev.Payload["error"])
 			slog.Error("background run error", "run_id", runID, "err", errMsg)
 			p.runManager.Append(runID, services.EventRecord{
-				Type:    ev.Type,
-				NodeID:  ev.NodeID,
-				Payload: ev.Payload,
+				WorkflowEvent: ev,
 			})
 			if p.runHistorySvc != nil {
 				p.runHistorySvc.FailRun(ctx, runID, errMsg)
@@ -73,9 +71,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 		}
 
 		p.runManager.Append(runID, services.EventRecord{
-			Type:    ev.Type,
-			NodeID:  ev.NodeID,
-			Payload: ev.Payload,
+			WorkflowEvent: ev,
 		})
 
 		if p.runHistorySvc != nil {

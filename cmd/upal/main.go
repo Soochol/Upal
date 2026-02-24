@@ -164,17 +164,17 @@ func serve() {
 		triggerRepo = repository.NewPersistentTriggerRepository(memTriggerRepo, database)
 	}
 
+	// Skills registry — created early so prompts are available to services.
+	skillReg := skills.New()
+
 	// Create WorkflowService for execution orchestration.
 	nodeReg := agents.DefaultRegistry()
-	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg, outputDir)
+	workflowSvc := services.NewWorkflowService(repo, llms, sessionService, toolReg, nodeReg, outputDir, skillReg.GetPrompt("html-layout"))
 	runHistorySvc := services.NewRunHistoryService(runRepo)
 	runHistorySvc.CleanupOrphanedRuns(context.Background())
 
 	// Create concurrency limiter from config (with defaults).
-	concurrencyLimits := upal.ConcurrencyLimits{
-		GlobalMax:   cfg.Scheduler.GlobalMax,
-		PerWorkflow: cfg.Scheduler.PerWorkflow,
-	}
+	concurrencyLimits := cfg.Scheduler
 	if concurrencyLimits.GlobalMax <= 0 {
 		concurrencyLimits.GlobalMax = 10
 	}
@@ -284,31 +284,34 @@ func serve() {
 	)
 	srv.SetContentSessionService(contentSvc)
 
+	srv.SetSkills(skillReg)
+
 	// Wire content collector for actual source fetching and workflow execution.
+	var collector *services.ContentCollector
 	if defaultLLM != nil {
 		resolver := llmutil.NewMapResolver(llms, defaultLLM, defaultModelName)
-		collector := services.NewContentCollector(
+		collector = services.NewContentCollector(
 			contentSvc,
 			services.NewCollectStageExecutor(),
 			workflowSvc,
 			repo,
+			pipelineRepo,
 			resolver,
+			skillReg,
 		)
 		srv.SetContentCollector(collector)
 	}
 
 	// Configure natural language workflow generator if any provider is available.
-	skillReg := skills.New()
-	srv.SetSkills(skillReg)
 	if defaultLLM != nil {
-		var toolInfos []generate.ToolEntry
+		var toolInfos []upal.ToolSummary
 		for _, t := range toolReg.AllTools() {
-			toolInfos = append(toolInfos, generate.ToolEntry{Name: t.Name, Description: t.Description})
+			toolInfos = append(toolInfos, upal.ToolSummary{Name: t.Name, Description: t.Description})
 		}
 		allModels := api.KnownModelsGrouped(cfg.Providers)
-		var modelOpts []generate.ModelOption
+		var modelOpts []upal.ModelSummary
 		for _, m := range allModels {
-			modelOpts = append(modelOpts, generate.ModelOption{
+			modelOpts = append(modelOpts, upal.ModelSummary{
 				ID:       m.ID,
 				Category: string(m.Category),
 				Tier:     string(m.Tier),
@@ -317,6 +320,9 @@ func serve() {
 		}
 		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolInfos, modelOpts)
 		srv.SetGenerator(gen, defaultModelName)
+		if collector != nil {
+			collector.SetGenerator(gen)
+		}
 	}
 	srv.SetProviderConfigs(cfg.Providers)
 
