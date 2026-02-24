@@ -107,6 +107,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/{id}/thumbnail", s.generatePipelineThumbnail)
 			if s.contentSvc != nil {
 				r.Post("/{id}/collect", s.collectPipeline)
+				r.Post("/{id}/configure", s.configurePipeline)
 			}
 		})
 		if s.contentSvc != nil {
@@ -118,6 +119,7 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/{id}/archive", s.archiveContentSession)
 				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Post("/{id}/produce", s.produceContentSession)
+			r.Post("/{id}/generate-workflow", s.generateAngleWorkflow)
 				r.Get("/{id}/sources", s.listSessionSources)
 				r.Get("/{id}/analysis", s.getSessionAnalysis)
 				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
