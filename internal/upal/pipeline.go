@@ -99,12 +99,12 @@ type PipelineSource struct {
 	Config     map[string]any `json:"config,omitempty"`      // tool-specific params
 	Enabled    bool           `json:"enabled,omitempty"`
 	// Frontend-compatible flat fields (stored as-is from the UI)
-	Type      string   `json:"type,omitempty"`      // "rss" | "hn" | "reddit" | "google_trends" | "twitter" | "http"
+	Type      string   `json:"type,omitempty"`      // "rss" | "hn" | "reddit" | "google_trends" | "social" | "http"
 	Label     string   `json:"label,omitempty"`     // display name
 	URL       string   `json:"url,omitempty"`       // rss, http
 	Subreddit string   `json:"subreddit,omitempty"` // reddit
 	MinScore  int      `json:"min_score,omitempty"` // reddit, hn
-	Keywords  []string `json:"keywords,omitempty"`  // google_trends, twitter
+	Keywords  []string `json:"keywords,omitempty"`  // google_trends, social
 	Accounts  []string `json:"accounts,omitempty"` // social: follow account handles
 	Geo       string   `json:"geo,omitempty"`      // google_trends: country code
 	Limit     int      `json:"limit,omitempty"`
