@@ -108,7 +108,7 @@ export default function ProductLanding() {
 
             <div className="mt-10 flex justify-center">
               <button
-                onClick={() => navigate('/editor?generate=true')}
+                onClick={() => navigate('/workflows?generate=true')}
                 className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium landing-body transition-all cursor-pointer bg-foreground text-background hover:bg-foreground/90"
               >
                 <Sparkles className="w-4 h-4" />

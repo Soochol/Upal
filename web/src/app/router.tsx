@@ -1,11 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import ProductLandingPage from '@/pages/landing/ProductLanding'
-import LandingPage from '@/pages/landing'
-import EditorPage from '@/pages/Editor'
+import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
-import PipelineDetailPage from '@/pages/pipelines/PipelineDetail'
 import PipelineNewPage from '@/pages/pipelines/PipelineNew'
 import ConnectionsPage from '@/pages/connections'
 import { RunDetail } from '@/widgets/run-detail'
@@ -16,14 +14,21 @@ import { ToastContainer } from '@/shared/ui/ToastContainer'
 const ReviewInboxPage = lazy(() => import('@/pages/inbox'))
 const PublishInboxPage = lazy(() => import('@/pages/publish-inbox'))
 
+function PipelineRedirect() {
+  const { id, sessionId } = useParams()
+  const params = new URLSearchParams()
+  if (id) params.set('p', id)
+  if (sessionId) params.set('s', sessionId)
+  return <Navigate to={`/pipelines?${params.toString()}`} replace />
+}
+
 export function AppRouter() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<ProductLandingPage />} />
-          <Route path="/workflows" element={<LandingPage />} />
-          <Route path="/editor" element={<EditorPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/connections" element={<ConnectionsPage />} />
@@ -35,8 +40,8 @@ export function AppRouter() {
           {/* Pipelines */}
           <Route path="/pipelines" element={<PipelinesPage />} />
           <Route path="/pipelines/new" element={<PipelineNewPage />} />
-          <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
-          <Route path="/pipelines/:id/sessions/*" element={<Navigate to=".." replace />} />
+          <Route path="/pipelines/:id" element={<PipelineRedirect />} />
+          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineRedirect />} />
 
           {/* Content */}
           <Route path="/published" element={<PublishedPage />} />

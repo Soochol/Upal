@@ -392,7 +392,7 @@ export function AnalyzeStage({
                     </div>
                     {hasWorkflow && (
                       <a
-                        href={`/editor?name=${encodeURIComponent(angle.workflow_name!)}`}
+                        href={`/workflows?w=${encodeURIComponent(angle.workflow_name!)}`}
                         onClick={(e) => e.stopPropagation()}
                         className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors mt-0.5"
                       >

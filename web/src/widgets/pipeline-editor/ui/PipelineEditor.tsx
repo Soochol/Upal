@@ -81,7 +81,7 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
       useWorkflowStore.setState({ nodes, edges })
       useWorkflowStore.getState().setWorkflowName(wf.name)
       useWorkflowStore.getState().setOriginalName(wf.name)
-      navigate('/editor')
+      navigate('/workflows?w=' + encodeURIComponent(name))
     } catch {
       // silent — workflow may not exist yet
     }

@@ -44,9 +44,9 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-5 py-3 border-b border-border">
-          <div className="relative">
+        {/* Search & Actions */}
+        <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               type="search"
@@ -58,6 +58,18 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
                 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
             />
           </div>
+          <button
+            onClick={() => {
+              // Contextual routing: pass current path so Workflows page can bounce back
+              const returnTo = encodeURIComponent(window.location.pathname)
+              window.open(`/workflows?returnTo=${returnTo}`, '_blank')
+            }}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium
+              bg-foreground text-background hover:opacity-90 transition-opacity rounded-lg whitespace-nowrap"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Create New
+          </button>
         </div>
 
         {/* List */}

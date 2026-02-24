@@ -136,7 +136,7 @@ export function RunDetail() {
                 </button>
               )}
               <Link
-                to={`/editor?name=${encodeURIComponent(run.workflow_name)}`}
+                to={`/workflows?w=${encodeURIComponent(run.workflow_name)}`}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <ExternalLink className="h-3 w-3" />

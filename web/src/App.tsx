@@ -1,10 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import ProductLanding from '@/pages/ProductLanding'
-import Landing from '@/pages/Landing'
-import Editor from '@/pages/Editor'
+import WorkflowsPage from '@/pages/workflows'
 import Runs from '@/pages/Runs'
 import Pipelines from '@/pages/Pipelines'
-import PipelineDetailPage from '@/pages/pipelines/PipelineDetail'
 import PipelineNewPage from '@/pages/pipelines/PipelineNew'
 import PublishedPage from '@/pages/published'
 import Connections from '@/pages/Connections'
@@ -12,20 +10,27 @@ import { RunDetail } from '@/widgets/run-detail'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
 
+function PipelineRedirect() {
+  const { id, sessionId } = useParams()
+  const params = new URLSearchParams()
+  if (id) params.set('p', id)
+  if (sessionId) params.set('s', sessionId)
+  return <Navigate to={`/pipelines?${params.toString()}`} replace />
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<ProductLanding />} />
-          <Route path="/workflows" element={<Landing />} />
-          <Route path="/editor" element={<Editor />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/runs" element={<Runs />} />
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/pipelines" element={<Pipelines />} />
           <Route path="/pipelines/new" element={<PipelineNewPage />} />
-          <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
-          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineDetailPage />} />
+          <Route path="/pipelines/:id" element={<PipelineRedirect />} />
+          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineRedirect />} />
           <Route path="/published" element={<PublishedPage />} />
           <Route path="/connections" element={<Connections />} />
         </Routes>
