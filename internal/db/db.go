@@ -189,11 +189,15 @@ CREATE TABLE IF NOT EXISTS source_fetches (
     session_id  TEXT NOT NULL REFERENCES content_sessions(id) ON DELETE CASCADE,
     tool_name   TEXT NOT NULL,
     source_type TEXT NOT NULL DEFAULT 'static',
+    label       TEXT NOT NULL DEFAULT '',
+    item_count  INTEGER NOT NULL DEFAULT 0,
     raw_items   JSONB NOT NULL DEFAULT '[]',
     error       TEXT,
     fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_source_fetches_session_id ON source_fetches(session_id);
+ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
+ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS llm_analyses (
     id               TEXT PRIMARY KEY,
@@ -231,4 +235,6 @@ CREATE TABLE IF NOT EXISTS surge_events (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_surge_events_dismissed ON surge_events(dismissed);
+
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 `
