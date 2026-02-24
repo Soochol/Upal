@@ -19,7 +19,7 @@ import (
 type noopStageExecutor struct{ t string }
 
 func (n *noopStageExecutor) Type() string { return n.t }
-func (n *noopStageExecutor) Execute(_ context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (n *noopStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	return &upal.StageResult{StageID: stage.ID, Status: upal.StageStatusCompleted}, nil
 }
 

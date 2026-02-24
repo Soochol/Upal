@@ -18,7 +18,7 @@ type mockStageExecutor struct {
 }
 
 func (m *mockStageExecutor) Type() string { return m.stageType }
-func (m *mockStageExecutor) Execute(_ context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (m *mockStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	m.calls = append(m.calls, stage.ID)
 	if m.err != nil {
 		return nil, m.err
@@ -48,7 +48,7 @@ func TestPipelineRunner_ExecuteSequential(t *testing.T) {
 		},
 	}
 
-	run, err := runner.Start(context.Background(), pipeline)
+	run, err := runner.Start(context.Background(), pipeline, nil)
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestPipelineRunner_StageFailure(t *testing.T) {
 		},
 	}
 
-	run, err := runner.Start(context.Background(), pipeline)
+	run, err := runner.Start(context.Background(), pipeline, nil)
 	if err == nil {
 		t.Fatal("expected error from failed stage")
 	}
@@ -102,7 +102,7 @@ func TestPipelineRunner_UnknownStageType(t *testing.T) {
 		},
 	}
 
-	_, err := runner.Start(context.Background(), pipeline)
+	_, err := runner.Start(context.Background(), pipeline, nil)
 	if err == nil {
 		t.Fatal("expected error for unknown stage type")
 	}
@@ -115,7 +115,7 @@ type mockWaitingExecutor struct {
 }
 
 func (m *mockWaitingExecutor) Type() string { return m.stageType }
-func (m *mockWaitingExecutor) Execute(_ context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (m *mockWaitingExecutor) Execute(_ context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	m.calls = append(m.calls, stage.ID)
 	return &upal.StageResult{
 		StageID: stage.ID,
@@ -144,7 +144,7 @@ func TestPipelineRunner_Resume(t *testing.T) {
 	}
 
 	// Start: should pause at s2
-	run, err := runner.Start(context.Background(), pipeline)
+	run, err := runner.Start(context.Background(), pipeline, nil)
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}

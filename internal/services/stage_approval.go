@@ -24,7 +24,7 @@ func NewApprovalStageExecutor(senderReg *notify.SenderRegistry, connResolver age
 
 func (e *ApprovalStageExecutor) Type() string { return "approval" }
 
-func (e *ApprovalStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (e *ApprovalStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	// Send external notification if connection is configured (best-effort).
 	if stage.Config.ConnectionID != "" && e.senderReg != nil && e.connResolver != nil {
 		if conn, err := e.connResolver.Resolve(ctx, stage.Config.ConnectionID); err == nil {

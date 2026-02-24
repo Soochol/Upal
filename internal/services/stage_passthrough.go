@@ -19,7 +19,7 @@ func NewPassthroughStageExecutor(stageType string) *PassthroughStageExecutor {
 
 func (e *PassthroughStageExecutor) Type() string { return e.stageType }
 
-func (e *PassthroughStageExecutor) Execute(_ context.Context, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
+func (e *PassthroughStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
 	output := make(map[string]any)
 	if prevResult != nil {
 		for k, v := range prevResult.Output {

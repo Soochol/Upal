@@ -25,7 +25,7 @@ func NewNotificationStageExecutor(senderReg *notify.SenderRegistry, connResolver
 
 func (e *NotificationStageExecutor) Type() string { return "notification" }
 
-func (e *NotificationStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (e *NotificationStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	now := time.Now()
 	completedAt := now
 

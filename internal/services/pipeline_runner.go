@@ -17,7 +17,7 @@ var _ ports.PipelineRunner = (*PipelineRunner)(nil)
 // Implement this interface to add new stage types.
 type StageExecutor interface {
 	Type() string
-	Execute(ctx context.Context, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error)
+	Execute(ctx context.Context, pipeline *upal.Pipeline, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error)
 }
 
 // PipelineRunner orchestrates sequential execution of pipeline stages.
@@ -37,7 +37,7 @@ func (r *PipelineRunner) RegisterExecutor(exec StageExecutor) {
 	r.executors[exec.Type()] = exec
 }
 
-func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*upal.PipelineRun, error) {
+func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline, inputs map[string]any) (*upal.PipelineRun, error) {
 	run := &upal.PipelineRun{
 		ID:           upal.GenerateID("prun"),
 		PipelineID:   pipeline.ID,
@@ -48,7 +48,7 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline) (*u
 	if err := r.runRepo.Create(ctx, run); err != nil {
 		return nil, fmt.Errorf("create run: %w", err)
 	}
-	if err := r.executeFrom(ctx, pipeline, run, 0); err != nil {
+	if err := r.executeFrom(ctx, pipeline, run, 0, inputs); err != nil {
 		return run, err
 	}
 	return run, nil
@@ -66,16 +66,17 @@ func (r *PipelineRunner) Resume(ctx context.Context, pipeline *upal.Pipeline, ru
 	if currentIdx == -1 {
 		return fmt.Errorf("current stage %q not found in pipeline %q", run.CurrentStage, pipeline.ID)
 	}
-	return r.executeFrom(ctx, pipeline, run, currentIdx+1)
+	return r.executeFrom(ctx, pipeline, run, currentIdx+1, nil)
 }
 
 // executeFrom runs pipeline stages sequentially starting from startIdx.
 // It updates run in the repository at each transition.
-func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun, startIdx int) error {
-	// Seed prevResult from the last completed stage before startIdx.
-	// Waiting results (e.g., from an approval gate) are excluded because
-	// they represent a paused state, not a usable data output.
+func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun, startIdx int, inputs map[string]any) error {
+	// Seed prevResult from webhook/trigger inputs or from the last completed stage.
 	var prevResult *upal.StageResult
+	if inputs != nil {
+		prevResult = &upal.StageResult{Output: inputs, Status: upal.StageStatusCompleted}
+	}
 	for i := 0; i < startIdx; i++ {
 		stage := pipeline.Stages[i]
 		if result, ok := run.StageResults[stage.ID]; ok && result.Status == upal.StageStatusCompleted {
@@ -104,7 +105,7 @@ func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipelin
 		run.StageResults[stage.ID] = stageResult
 		r.runRepo.Update(ctx, run)
 
-		result, err := executor.Execute(ctx, stage, prevResult)
+		result, err := executor.Execute(ctx, pipeline, stage, prevResult)
 		if err != nil {
 			now := time.Now()
 			stageResult.Status = upal.StageStatusFailed

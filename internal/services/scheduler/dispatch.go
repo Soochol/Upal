@@ -30,7 +30,7 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 			return
 		}
 
-		if _, err := s.pipelineRunner.Start(ctx, pipeline); err != nil {
+		if _, err := s.pipelineRunner.Start(ctx, pipeline, nil); err != nil {
 			slog.Error("scheduler: pipeline execution failed",
 				"schedule", schedule.ID, "pipeline", schedule.PipelineID, "err", err)
 		}

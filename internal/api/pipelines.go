@@ -4,12 +4,13 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
 )
 
@@ -105,7 +106,7 @@ func (s *Server) startPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	run, err := s.pipelineRunner.Start(r.Context(), p)
+	run, err := s.pipelineRunner.Start(r.Context(), p, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -203,29 +204,16 @@ func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {
 	pipelineID := chi.URLParam(r, "id")
 	runID := chi.URLParam(r, "runId")
 
-	run, err := s.pipelineSvc.GetRun(r.Context(), runID)
+	run, err := s.pipelineSvc.RejectRun(r.Context(), pipelineID, runID)
 	if err != nil {
-		http.Error(w, "run not found", http.StatusNotFound)
-		return
-	}
-	if run.PipelineID != pipelineID {
-		http.Error(w, "run not found", http.StatusNotFound)
-		return
-	}
-	if run.Status != upal.PipelineRunWaiting {
-		http.Error(w, "run is not waiting for approval", http.StatusBadRequest)
-		return
-	}
-
-	now := time.Now()
-	run.Status = upal.PipelineRunFailed
-	run.CompletedAt = &now
-	if result, ok := run.StageResults[run.CurrentStage]; ok {
-		result.Status = upal.StageStatusFailed
-		result.Error = "rejected by user"
-		result.CompletedAt = &now
-	}
-	if err := s.pipelineSvc.UpdateRun(r.Context(), run); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, "run not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, upal.ErrInvalidStatus) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

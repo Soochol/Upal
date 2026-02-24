@@ -14,7 +14,7 @@ type TransformStageExecutor struct{}
 
 func (e *TransformStageExecutor) Type() string { return "transform" }
 
-func (e *TransformStageExecutor) Execute(_ context.Context, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
+func (e *TransformStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
 	output := make(map[string]any)
 
 	if prevResult != nil {

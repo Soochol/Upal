@@ -25,7 +25,7 @@ type ConcurrencyControl interface {
 
 // PipelineRunner starts and resumes pipeline executions.
 type PipelineRunner interface {
-	Start(ctx context.Context, pipeline *upal.Pipeline) (*upal.PipelineRun, error)
+	Start(ctx context.Context, pipeline *upal.Pipeline, inputs map[string]any) (*upal.PipelineRun, error)
 	Resume(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun) error
 }
 

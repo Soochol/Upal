@@ -34,7 +34,7 @@ func TestCollectStageExecutor_CustomFetcher(t *testing.T) {
 			Sources: []upal.CollectSource{{ID: "src1", Type: "mock", URL: "http://x"}},
 		},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestCollectStageExecutor_UnknownSourceType(t *testing.T) {
 			Sources: []upal.CollectSource{{ID: "src1", Type: "nonexistent", URL: "http://x"}},
 		},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestCollectStageExecutor_EmptySources(t *testing.T) {
 		Type:   "collect",
 		Config: upal.StageConfig{Sources: nil},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestCollectStageExecutor_MultiSource(t *testing.T) {
 			},
 		},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestCollectStageExecutor_PartialFailure(t *testing.T) {
 			},
 		},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("Execute should not return error on partial failure: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestCollectStageExecutor_FetcherReplacement(t *testing.T) {
 			Sources: []upal.CollectSource{{ID: "src1", Type: "mock", URL: "http://x"}},
 		},
 	}
-	result, err := exec.Execute(context.Background(), stage, nil)
+	result, err := exec.Execute(context.Background(), nil, stage, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

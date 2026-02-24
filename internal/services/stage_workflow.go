@@ -20,7 +20,7 @@ func NewWorkflowStageExecutor(workflowSvc ports.WorkflowExecutor) *WorkflowStage
 
 func (e *WorkflowStageExecutor) Type() string { return "workflow" }
 
-func (e *WorkflowStageExecutor) Execute(ctx context.Context, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
+func (e *WorkflowStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error) {
 	wfName := stage.Config.WorkflowName
 	if wfName == "" {
 		return nil, fmt.Errorf("workflow_name is required for workflow stage")

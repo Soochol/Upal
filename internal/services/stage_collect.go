@@ -55,7 +55,7 @@ func (e *CollectStageExecutor) Fetcher(typ string) (SourceFetcher, bool) {
 
 func (e *CollectStageExecutor) Type() string { return "collect" }
 
-func (e *CollectStageExecutor) Execute(ctx context.Context, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
+func (e *CollectStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
 	now := time.Now()
 	completedAt := now
 

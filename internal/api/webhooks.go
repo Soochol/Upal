@@ -72,7 +72,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go func() {
-			_, err := s.pipelineRunner.Start(context.Background(), pipeline)
+			_, err := s.pipelineRunner.Start(context.Background(), pipeline, inputs)
 			if err != nil {
 				slog.Error("webhook: pipeline start failed", "trigger", id, "pipeline", trigger.PipelineID, "err", err)
 			} else {
