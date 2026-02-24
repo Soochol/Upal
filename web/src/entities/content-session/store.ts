@@ -15,13 +15,14 @@ interface ContentSessionStore {
 
   setFilters: (filters: ContentSessionFilters) => void
   fetchSessions: () => Promise<void>
-  // Fetches only pending count — ignores active filters, safe for Header polling
-  syncPendingCount: () => Promise<void>
+  // Fetches badge counts (pending_review + approved) — safe for sidebar polling
+  syncBadgeCounts: () => Promise<void>
   approveSession: (id: string, selectedAngles: string[], channelMap?: Record<string, string>) => Promise<void>
   rejectSession: (id: string, reason?: string) => Promise<void>
 
   // Derived
   pendingCount: number
+  publishReadyCount: number
 }
 
 export const useContentSessionStore = create<ContentSessionStore>((set, get) => ({
@@ -30,6 +31,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
   loading: false,
   error: null,
   pendingCount: 0,
+  publishReadyCount: 0,
 
   setFilters: (filters) => set({ filters }),
 
@@ -52,10 +54,13 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
     }
   },
 
-  syncPendingCount: async () => {
+  syncBadgeCounts: async () => {
     try {
-      const pending = await fetchContentSessions({ status: 'pending_review' })
-      set({ pendingCount: pending.length })
+      const [pending, approved] = await Promise.all([
+        fetchContentSessions({ status: 'pending_review' }),
+        fetchContentSessions({ status: 'approved' }),
+      ])
+      set({ pendingCount: pending.length, publishReadyCount: approved.length })
     } catch {
       // Badge polling failure is non-critical — fail silently
     }
@@ -68,6 +73,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
       return {
         sessions,
         pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
+        publishReadyCount: sessions.filter((s) => s.status === 'approved').length,
       }
     })
     // Chain: trigger production with the selected workflows
@@ -89,6 +95,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
       return {
         sessions,
         pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
+        publishReadyCount: sessions.filter((s) => s.status === 'approved').length,
       }
     })
   },
