@@ -99,6 +99,12 @@ export async function generateAngleWorkflow(
   )
 }
 
+export async function retryAnalyze(sessionId: string): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(sessionId)}/retry-analyze`, {
+    method: 'POST',
+  })
+}
+
 export async function archiveSession(id: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/archive`, {
     method: 'POST',

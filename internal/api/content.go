@@ -489,6 +489,22 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
 }
 
+// POST /api/content-sessions/{id}/retry-analyze
+// Re-runs LLM analysis for a session stuck in "analyzing" state.
+func (s *Server) retryAnalyze(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if s.collector == nil {
+		http.Error(w, "collector not available", http.StatusServiceUnavailable)
+		return
+	}
+	if err := s.collector.RetryAnalysis(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 // POST /api/content-sessions/{id}/generate-workflow
 // Body: {"angle_id": "angle-1"}
 // Generates a new workflow for an unmatched content angle using the Generator.

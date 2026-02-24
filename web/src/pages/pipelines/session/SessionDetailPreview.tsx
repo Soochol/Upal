@@ -56,7 +56,7 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
             if (!s) return false
             // Poll while session is in-flight: collecting, producing, or
             // approved-but-produce-not-yet-started (race with background goroutine).
-            if (s.status === 'collecting' || s.status === 'producing') return 3000
+            if (s.status === 'collecting' || s.status === 'analyzing' || s.status === 'producing') return 3000
             if (s.status === 'approved' && (!s.workflow_results || s.workflow_results.length === 0)) return 3000
             return false
         },

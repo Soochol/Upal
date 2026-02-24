@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, CheckCircle, XCircle, CheckSquare, Square, AlertTriangle, Sparkles, ExternalLink } from 'lucide-react'
-import { updateSessionAnalysis, generateAngleWorkflow } from '@/entities/content-session/api'
+import { Loader2, CheckCircle, XCircle, CheckSquare, Square, AlertTriangle, Sparkles, ExternalLink, RotateCcw } from 'lucide-react'
+import { updateSessionAnalysis, generateAngleWorkflow, retryAnalyze } from '@/entities/content-session/api'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
 import type { ContentSession, ContentAngle } from '@/entities/content-session'
 
@@ -239,12 +239,45 @@ export function AnalyzeStage({
     onApprove(workflowNames)
   }, [analysis, selectedAngles, onApprove])
 
+  // ---- Retry analysis for stuck sessions ----
+  const [isRetrying, setIsRetrying] = useState(false)
+  const handleRetryAnalyze = useCallback(async () => {
+    setIsRetrying(true)
+    try {
+      await retryAnalyze(session.id)
+      queryClient.invalidateQueries({ queryKey: ['content-session', session.id] })
+    } catch (err) {
+      console.error('Failed to retry analysis:', err)
+    } finally {
+      setIsRetrying(false)
+    }
+  }, [session.id, queryClient])
+
   // ---- Early return if no analysis ----
   if (!analysis) {
+    const isAnalyzing = session.status === 'analyzing'
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Analyzing sources...
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Analyzing sources...
+        </div>
+        {isAnalyzing && (
+          <button
+            onClick={handleRetryAnalyze}
+            disabled={isRetrying}
+            className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg text-xs font-medium
+              border border-border bg-muted/50 hover:bg-muted transition-colors cursor-pointer
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRetrying ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+            Retry Analysis
+          </button>
+        )}
       </div>
     )
   }

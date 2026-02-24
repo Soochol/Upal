@@ -24,6 +24,7 @@ export function getActiveStage(session: ContentSession): Stage {
   switch (session.status) {
     case 'collecting':
       return 'collect'
+    case 'analyzing':
     case 'pending_review':
       return 'analyze'
     case 'approved':

@@ -123,6 +123,7 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/{id}/archive", s.archiveContentSession)
 				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Post("/{id}/produce", s.produceContentSession)
+				r.Post("/{id}/retry-analyze", s.retryAnalyze)
 				r.Post("/{id}/generate-workflow", s.generateAngleWorkflow)
 				r.Get("/{id}/sources", s.listSessionSources)
 				r.Get("/{id}/analysis", s.getSessionAnalysis)
