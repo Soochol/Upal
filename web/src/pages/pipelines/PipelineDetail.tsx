@@ -17,6 +17,7 @@ import { fetchContentSessions, archiveSession as archiveSessionApi, unarchiveSes
 import { WorkflowPicker } from './WorkflowPicker'
 import { SessionDetailPreview } from './session/SessionDetailPreview'
 import { PipelineChatEditor } from '@/features/configure-pipeline/ui/PipelineChatEditor'
+import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/shared/types'
 
 // ─── Schedule presets ──────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 
 function PipelineSettingsPanel({
   pipelineId,
-  sources, schedule, context, workflows, model,
+  sources, schedule, context, workflows, model, channels,
   onSourcesChange, onScheduleChange, onContextSave, onWorkflowsChange, onModelChange, autoSaveStatus,
 }: {
   pipelineId: string
@@ -44,6 +45,7 @@ function PipelineSettingsPanel({
   context: PipelineContext | undefined
   workflows: PipelineWorkflow[]
   model: string
+  channels: { id: string; name: string; type: string }[]
   onSourcesChange: (s: PipelineSource[]) => void
   onScheduleChange: (cron: string) => void
   onContextSave: (ctx: PipelineContext) => Promise<void>
@@ -214,6 +216,22 @@ function PipelineSettingsPanel({
                   {workflows.map((wf, i) => (
                     <div key={wf.workflow_name} className="flex items-center gap-2 px-3 py-2.5 border-b border-border last:border-b-0">
                       <a href={`/editor?name=${encodeURIComponent(wf.workflow_name)}`} className="text-xs font-medium flex-1 truncate hover:text-primary hover:underline transition-colors">{wf.label || wf.workflow_name}</a>
+                      {channels.length > 0 && (
+                        <select
+                          value={wf.channel_id || ''}
+                          onChange={(e) => {
+                            const updated = [...workflows]
+                            updated[i] = { ...updated[i], channel_id: e.target.value || undefined }
+                            onWorkflowsChange(updated)
+                          }}
+                          className="w-28 rounded-md border border-input bg-background px-1.5 py-1 text-xs outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                        >
+                          <option value="">No channel</option>
+                          {channels.map(ch => (
+                            <option key={ch.id} value={ch.id}>{ch.name}</option>
+                          ))}
+                        </select>
+                      )}
                       <button
                         onClick={() => onWorkflowsChange(workflows.filter((_, j) => j !== i))}
                         className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
@@ -401,6 +419,11 @@ export default function PipelineDetailPage() {
     queryKey: ['pipeline', id],
     queryFn: () => fetchPipeline(id!),
     enabled: !!id,
+  })
+
+  const { data: channels = [] } = useQuery({
+    queryKey: ['publish-channels'],
+    queryFn: fetchPublishChannels,
   })
 
   const [localSources, setLocalSources] = useState<PipelineSource[]>([])
@@ -600,6 +623,7 @@ export default function PipelineDetailPage() {
             schedule={localSchedule}
             context={pipeline.context}
             workflows={localWorkflows}
+            channels={channels}
             onSourcesChange={setLocalSources}
             onScheduleChange={setLocalSchedule}
             onContextSave={async (ctx) => { await updateContextMutation.mutateAsync(ctx) }}

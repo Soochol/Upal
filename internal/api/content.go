@@ -150,13 +150,18 @@ func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert body to WorkflowRequest slice.
-	requests := make([]services.WorkflowRequest, len(body.Workflows))
-	for i, bw := range body.Workflows {
-		requests[i] = services.WorkflowRequest{
+	// Deduplicate by workflow name (first occurrence wins).
+	seen := make(map[string]bool, len(body.Workflows))
+	var requests []services.WorkflowRequest
+	for _, bw := range body.Workflows {
+		if seen[bw.Name] {
+			continue
+		}
+		seen[bw.Name] = true
+		requests = append(requests, services.WorkflowRequest{
 			Name:      bw.Name,
 			ChannelID: bw.ChannelID,
-		}
+		})
 	}
 
 	// Launch background production if collector is wired.

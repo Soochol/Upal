@@ -18,6 +18,10 @@ func (s *Server) createPublishChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name and type are required", http.StatusBadRequest)
 		return
 	}
+	if !upal.ValidChannelType(ch.Type) {
+		http.Error(w, "invalid channel type", http.StatusBadRequest)
+		return
+	}
 	ch.ID = upal.NewPublishChannelID()
 	if err := s.publishChannelRepo.Create(r.Context(), &ch); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

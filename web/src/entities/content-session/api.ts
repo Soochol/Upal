@@ -53,6 +53,17 @@ export async function publishSession(
   })
 }
 
+export async function rejectWorkflowResult(
+  id: string,
+  runId: string,
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`${BASE}/${encodeURIComponent(id)}/reject-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_id: runId }),
+  })
+}
+
 export async function rejectSession(id: string, _reason?: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'PATCH',

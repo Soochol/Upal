@@ -17,7 +17,7 @@ interface ContentSessionStore {
   fetchSessions: () => Promise<void>
   // Fetches only pending count — ignores active filters, safe for Header polling
   syncPendingCount: () => Promise<void>
-  approveSession: (id: string, selectedAngles: string[]) => Promise<void>
+  approveSession: (id: string, selectedAngles: string[], channelMap?: Record<string, string>) => Promise<void>
   rejectSession: (id: string, reason?: string) => Promise<void>
 
   // Derived
@@ -61,7 +61,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
     }
   },
 
-  approveSession: async (id, selectedAngles) => {
+  approveSession: async (id, selectedAngles, channelMap) => {
     const updated = await approveSession(id, selectedAngles)
     set((state) => {
       const sessions = state.sessions.map((s) => (s.id === id ? updated : s))
@@ -72,7 +72,10 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
     })
     // Chain: trigger production with the selected workflows
     if (selectedAngles.length > 0) {
-      const workflowRequests = selectedAngles.map(name => ({ name }))
+      const workflowRequests = selectedAngles.map(name => ({
+        name,
+        ...(channelMap?.[name] ? { channel_id: channelMap[name] } : {}),
+      }))
       await produceSession(id, workflowRequests).catch(() => {
         // Production trigger failure is non-critical — session is already approved
       })

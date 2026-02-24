@@ -20,6 +20,16 @@ const (
 	ChannelHTTP      PublishChannelType = "http"
 )
 
+// ValidChannelType reports whether t is a known publish channel type.
+func ValidChannelType(t PublishChannelType) bool {
+	switch t {
+	case ChannelWordPress, ChannelYouTube, ChannelSlack, ChannelTelegram,
+		ChannelSubstack, ChannelDiscord, ChannelMedium, ChannelTikTok, ChannelHTTP:
+		return true
+	}
+	return false
+}
+
 // PublishChannel links a pipeline workflow to an external distribution target.
 type PublishChannel struct {
 	ID   string             `json:"id"`

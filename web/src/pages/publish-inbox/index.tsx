@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MainLayout } from '@/app/layout'
 import { PublishInboxSidebar } from './PublishInboxSidebar'
@@ -7,25 +7,21 @@ import { fetchContentSessions } from '@/entities/content-session/api'
 import { Loader2 } from 'lucide-react'
 
 export default function PublishInboxPage() {
-    const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+    const [userSelectedId, setUserSelectedId] = useState<string | null>(null)
 
     const { data: sessions = [], isLoading } = useQuery({
         queryKey: ['publish-inbox-sessions'],
         queryFn: () => fetchContentSessions({ status: 'approved' }),
+        staleTime: 2000,
         refetchInterval: 5000,
     })
 
-    // Auto-select first item if nothing selected
-    useEffect(() => {
-        if (!selectedSessionId && sessions.length > 0) {
-            setSelectedSessionId(sessions[0].id)
-        } else if (sessions.length > 0 && !sessions.find(s => s.id === selectedSessionId)) {
-            // If selected session was removed, select the new first one
-            setSelectedSessionId(sessions[0].id)
-        } else if (sessions.length === 0 && selectedSessionId) {
-            setSelectedSessionId(null)
-        }
-    }, [sessions, selectedSessionId])
+    // Derive effective selection: use user choice if still valid, else first session
+    const selectedSessionId = sessions.length === 0
+        ? null
+        : (userSelectedId && sessions.find(s => s.id === userSelectedId))
+            ? userSelectedId
+            : sessions[0].id
 
     return (
         <MainLayout headerContent={<span className="font-semibold tracking-tight">Publish Inbox</span>}>
@@ -41,7 +37,7 @@ export default function PublishInboxPage() {
                         <PublishInboxSidebar
                             sessions={sessions}
                             selectedId={selectedSessionId}
-                            onSelect={setSelectedSessionId}
+                            onSelect={setUserSelectedId}
                         />
                     )}
                 </div>

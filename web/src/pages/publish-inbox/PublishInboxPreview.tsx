@@ -1,19 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchContentSession, publishSession } from '@/entities/content-session/api'
+import { fetchContentSession, publishSession, rejectWorkflowResult } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
-import { apiFetch } from '@/shared/api/client'
 import type { WorkflowResult } from '@/entities/content-session/types'
 import type { PublishChannel } from '@/entities/publish-channel/types'
 import { Loader2, CheckCircle2, XCircle, Send, ExternalLink, Clock } from 'lucide-react'
-
-async function rejectWorkflowResult(sessionId: string, runId: string) {
-    return apiFetch(`/api/content-sessions/${encodeURIComponent(sessionId)}/reject-result`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_id: runId }),
-    })
-}
 
 type Props = { sessionId: string }
 
@@ -21,6 +12,7 @@ export function PublishInboxPreview({ sessionId }: Props) {
     const queryClient = useQueryClient()
     const [publishingRunId, setPublishingRunId] = useState<string | null>(null)
     const [rejectingRunId, setRejectingRunId] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
 
     const { data: session, isLoading } = useQuery({
         queryKey: ['content-session', sessionId],
@@ -49,10 +41,13 @@ export function PublishInboxPreview({ sessionId }: Props) {
 
     const handlePublish = async (runId: string) => {
         setPublishingRunId(runId)
+        setError(null)
         try {
             await publishSession(sessionId, [runId])
             queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
             queryClient.invalidateQueries({ queryKey: ['publish-inbox-sessions'] })
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to publish')
         } finally {
             setPublishingRunId(null)
         }
@@ -60,10 +55,13 @@ export function PublishInboxPreview({ sessionId }: Props) {
 
     const handleReject = async (runId: string) => {
         setRejectingRunId(runId)
+        setError(null)
         try {
             await rejectWorkflowResult(sessionId, runId)
             queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
             queryClient.invalidateQueries({ queryKey: ['publish-inbox-sessions'] })
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to reject')
         } finally {
             setRejectingRunId(null)
         }
@@ -82,6 +80,13 @@ export function PublishInboxPreview({ sessionId }: Props) {
                         {terminalResults.length > 0 && ` · ${terminalResults.length} processed`}
                     </p>
                 </div>
+
+                {error && (
+                    <div className="mb-4 px-4 py-3 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-sm flex items-center justify-between">
+                        <span>{error}</span>
+                        <button onClick={() => setError(null)} className="text-xs hover:underline cursor-pointer">Dismiss</button>
+                    </div>
+                )}
 
                 {/* Workflow cards */}
                 <div className="space-y-4">
@@ -113,13 +118,13 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
     const isTerminal = result.status === 'published' || result.status === 'rejected' || result.status === 'failed'
     const isActionable = result.status === 'success'
 
-    const statusConfig: Record<string, { bg: string; text: string; icon: typeof CheckCircle2; label: string }> = {
-        success: { bg: 'border-info/30 bg-info/5', text: 'text-info', icon: Clock, label: 'Awaiting Review' },
-        published: { bg: 'border-success/30 bg-success/5', text: 'text-success', icon: CheckCircle2, label: 'Published' },
-        rejected: { bg: 'border-muted bg-muted/10', text: 'text-muted-foreground', icon: XCircle, label: 'Rejected' },
-        failed: { bg: 'border-destructive/30 bg-destructive/5', text: 'text-destructive', icon: XCircle, label: 'Failed' },
-        running: { bg: 'border-info/50 bg-info/5', text: 'text-info', icon: Loader2, label: 'Running' },
-        pending: { bg: 'border-border bg-muted/5', text: 'text-muted-foreground', icon: Clock, label: 'Pending' },
+    const statusConfig: Record<string, { bg: string; text: string; badge: string; icon: typeof CheckCircle2; label: string }> = {
+        success: { bg: 'border-info/30 bg-info/5', text: 'text-info', badge: 'bg-info/10', icon: Clock, label: 'Awaiting Review' },
+        published: { bg: 'border-success/30 bg-success/5', text: 'text-success', badge: 'bg-success/10', icon: CheckCircle2, label: 'Published' },
+        rejected: { bg: 'border-muted bg-muted/10', text: 'text-muted-foreground', badge: 'bg-muted/20', icon: XCircle, label: 'Rejected' },
+        failed: { bg: 'border-destructive/30 bg-destructive/5', text: 'text-destructive', badge: 'bg-destructive/10', icon: XCircle, label: 'Failed' },
+        running: { bg: 'border-info/50 bg-info/5', text: 'text-info', badge: 'bg-info/10', icon: Loader2, label: 'Running' },
+        pending: { bg: 'border-border bg-muted/5', text: 'text-muted-foreground', badge: 'bg-muted/10', icon: Clock, label: 'Pending' },
     }
 
     const config = statusConfig[result.status] || statusConfig.pending
@@ -139,7 +144,7 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
                             {channel.name} ({channel.type})
                         </span>
                     )}
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${config.text} bg-current/10`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${config.text} ${config.badge}`}>
                         {config.label}
                     </span>
                 </div>
