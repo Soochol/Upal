@@ -1,10 +1,8 @@
 package upal
 
-import "fmt"
-
 // NewPublishChannelID returns a unique identifier for a publish channel.
 func NewPublishChannelID() string {
-	return fmt.Sprintf("ch-%s", GenerateID("")[1:]) // strip leading "-"
+	return GenerateID("ch")
 }
 
 // PublishChannelType identifies the external platform for content distribution.

@@ -217,6 +217,10 @@ func serve() {
 	connSvc := services.NewConnectionService(connRepo, connEnc)
 	srv.SetConnectionService(connSvc)
 
+	// Publish channel management.
+	publishChannelRepo := repository.NewMemoryPublishChannelRepository()
+	srv.SetPublishChannelRepo(publishChannelRepo)
+
 	// Notification sender registry.
 	senderReg := notify.NewSenderRegistry()
 	senderReg.Register(&notify.TelegramSender{})

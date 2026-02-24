@@ -44,6 +44,7 @@ type Server struct {
 	contentSvc           *services.ContentSessionService
 	collector            *services.ContentCollector
 	llmResolver          ports.LLMResolver
+	publishChannelRepo   repository.PublishChannelRepository
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -154,6 +155,15 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/{id}", s.deleteConnection)
 			})
 		}
+		if s.publishChannelRepo != nil {
+			r.Route("/publish-channels", func(r chi.Router) {
+				r.Post("/", s.createPublishChannel)
+				r.Get("/", s.listPublishChannels)
+				r.Get("/{id}", s.getPublishChannel)
+				r.Put("/{id}", s.updatePublishChannel)
+				r.Delete("/{id}", s.deletePublishChannel)
+			})
+		}
 	})
 
 	// A2A protocol endpoints (agent card + JSON-RPC).
@@ -216,6 +226,11 @@ func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) {
 // SetConnectionService configures the connection management service.
 func (s *Server) SetConnectionService(svc *services.ConnectionService) {
 	s.connectionSvc = svc
+}
+
+// SetPublishChannelRepo configures the publish channel repository.
+func (s *Server) SetPublishChannelRepo(repo repository.PublishChannelRepository) {
+	s.publishChannelRepo = repo
 }
 
 // SetExecutionRegistry configures the execution registry for pause/resume.
