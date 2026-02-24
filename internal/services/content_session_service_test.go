@@ -16,6 +16,7 @@ func newTestContentSvc() *services.ContentSessionService {
 		repository.NewMemoryLLMAnalysisRepository(),
 		repository.NewMemoryPublishedContentRepository(),
 		repository.NewMemorySurgeEventRepository(),
+		repository.NewMemoryWorkflowResultRepository(),
 	)
 }
 

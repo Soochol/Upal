@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/soochol/upal/internal/repository"
@@ -13,14 +12,12 @@ import (
 
 // ContentSessionService manages content collection sessions and related records.
 type ContentSessionService struct {
-	sessions  repository.ContentSessionRepository
-	fetches   repository.SourceFetchRepository
-	analyses  repository.LLMAnalysisRepository
-	published repository.PublishedContentRepository
-	surges    repository.SurgeEventRepository
-
-	mu              sync.Mutex
-	workflowResults map[string][]upal.WorkflowResult // sessionID → results
+	sessions        repository.ContentSessionRepository
+	fetches         repository.SourceFetchRepository
+	analyses        repository.LLMAnalysisRepository
+	published       repository.PublishedContentRepository
+	surges          repository.SurgeEventRepository
+	workflowResults repository.WorkflowResultRepository
 }
 
 func NewContentSessionService(
@@ -29,6 +26,7 @@ func NewContentSessionService(
 	analyses repository.LLMAnalysisRepository,
 	published repository.PublishedContentRepository,
 	surges repository.SurgeEventRepository,
+	workflowResults repository.WorkflowResultRepository,
 ) *ContentSessionService {
 	return &ContentSessionService{
 		sessions:        sessions,
@@ -36,7 +34,7 @@ func NewContentSessionService(
 		analyses:        analyses,
 		published:       published,
 		surges:          surges,
-		workflowResults: make(map[string][]upal.WorkflowResult),
+		workflowResults: workflowResults,
 	}
 }
 
@@ -270,10 +268,8 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 		return err
 	}
 
-	// Clean up in-memory workflow results
-	s.mu.Lock()
-	delete(s.workflowResults, id)
-	s.mu.Unlock()
+	// Clean up workflow results
+	_ = s.workflowResults.DeleteBySession(ctx, id)
 
 	return nil
 }
@@ -338,31 +334,18 @@ func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelin
 	return all
 }
 
-// --- WorkflowResults (in-memory) ---
+// --- WorkflowResults ---
 
-// SetWorkflowResults stores a copy of workflow results for a session, replacing any existing results.
-// A defensive copy is made so callers can continue mutating the original slice without data races.
-func (s *ContentSessionService) SetWorkflowResults(_ context.Context, sessionID string, results []upal.WorkflowResult) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	cp := make([]upal.WorkflowResult, len(results))
-	copy(cp, results)
-	s.workflowResults[sessionID] = cp
+// SetWorkflowResults stores workflow results for a session, replacing any existing results.
+func (s *ContentSessionService) SetWorkflowResults(ctx context.Context, sessionID string, results []upal.WorkflowResult) {
+	_ = s.workflowResults.Save(ctx, sessionID, results)
 }
 
 // GetWorkflowResults retrieves workflow results for a session.
-// Returns a copy of the slice to avoid data races with concurrent producers.
 // Returns an empty slice (not nil) if no results are stored.
-func (s *ContentSessionService) GetWorkflowResults(_ context.Context, sessionID string) []upal.WorkflowResult {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	orig, ok := s.workflowResults[sessionID]
-	if !ok {
-		return []upal.WorkflowResult{}
-	}
-	cp := make([]upal.WorkflowResult, len(orig))
-	copy(cp, orig)
-	return cp
+func (s *ContentSessionService) GetWorkflowResults(ctx context.Context, sessionID string) []upal.WorkflowResult {
+	results, _ := s.workflowResults.GetBySession(ctx, sessionID)
+	return results
 }
 
 // --- Session Detail (composed views) ---

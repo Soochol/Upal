@@ -14,7 +14,9 @@ type ContentSessionRepository interface {
 	ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error)
 	ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error)
+	ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	Update(ctx context.Context, s *upal.ContentSession) error
+	Delete(ctx context.Context, id string) error
 }
 
 // SourceFetchRepository manages SourceFetch persistence.
@@ -36,6 +38,14 @@ type PublishedContentRepository interface {
 	List(ctx context.Context) ([]*upal.PublishedContent, error)
 	ListBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
 	ListByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error)
+	DeleteBySession(ctx context.Context, sessionID string) error
+}
+
+// WorkflowResultRepository manages WorkflowResult persistence per session.
+type WorkflowResultRepository interface {
+	Save(ctx context.Context, sessionID string, results []upal.WorkflowResult) error
+	GetBySession(ctx context.Context, sessionID string) ([]upal.WorkflowResult, error)
+	DeleteBySession(ctx context.Context, sessionID string) error
 }
 
 // SurgeEventRepository manages SurgeEvent persistence.

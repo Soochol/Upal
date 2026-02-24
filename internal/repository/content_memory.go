@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
@@ -232,4 +233,45 @@ func (r *MemorySurgeEventRepository) Update(ctx context.Context, se *upal.SurgeE
 		return fmt.Errorf("surge event %q: %w", se.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, se)
+}
+
+// --- WorkflowResult ---
+
+type MemoryWorkflowResultRepository struct {
+	mu      sync.RWMutex
+	results map[string][]upal.WorkflowResult // sessionID → results
+}
+
+func NewMemoryWorkflowResultRepository() *MemoryWorkflowResultRepository {
+	return &MemoryWorkflowResultRepository{
+		results: make(map[string][]upal.WorkflowResult),
+	}
+}
+
+func (r *MemoryWorkflowResultRepository) Save(_ context.Context, sessionID string, results []upal.WorkflowResult) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := make([]upal.WorkflowResult, len(results))
+	copy(cp, results)
+	r.results[sessionID] = cp
+	return nil
+}
+
+func (r *MemoryWorkflowResultRepository) GetBySession(_ context.Context, sessionID string) ([]upal.WorkflowResult, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	orig, ok := r.results[sessionID]
+	if !ok {
+		return []upal.WorkflowResult{}, nil
+	}
+	cp := make([]upal.WorkflowResult, len(orig))
+	copy(cp, orig)
+	return cp, nil
+}
+
+func (r *MemoryWorkflowResultRepository) DeleteBySession(_ context.Context, sessionID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.results, sessionID)
+	return nil
 }

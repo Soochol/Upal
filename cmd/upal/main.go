@@ -271,12 +271,14 @@ func serve() {
 	memLLMAnalysisRepo := repository.NewMemoryLLMAnalysisRepository()
 	memPublishedRepo := repository.NewMemoryPublishedContentRepository()
 	memSurgeRepo := repository.NewMemorySurgeEventRepository()
+	memWFResultRepo := repository.NewMemoryWorkflowResultRepository()
 
 	var contentSessionRepo repository.ContentSessionRepository = memContentSessionRepo
 	var sourceFetchRepo repository.SourceFetchRepository = memSourceFetchRepo
 	var llmAnalysisRepo repository.LLMAnalysisRepository = memLLMAnalysisRepo
 	var publishedRepo repository.PublishedContentRepository = memPublishedRepo
 	var surgeRepo repository.SurgeEventRepository = memSurgeRepo
+	var wfResultRepo repository.WorkflowResultRepository = memWFResultRepo
 
 	if database != nil {
 		contentSessionRepo = repository.NewPersistentContentSessionRepository(memContentSessionRepo, database)
@@ -287,7 +289,7 @@ func serve() {
 	}
 
 	contentSvc := services.NewContentSessionService(
-		contentSessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo,
+		contentSessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo, wfResultRepo,
 	)
 	srv.SetContentSessionService(contentSvc)
 
