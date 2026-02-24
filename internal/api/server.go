@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -44,6 +43,7 @@ type Server struct {
 	pipelineRunner       ports.PipelineRunner
 	contentSvc           *services.ContentSessionService
 	collector            *services.ContentCollector
+	llmResolver          ports.LLMResolver
 }
 
 // SetProviderConfigs stores the provider configuration for model discovery.
@@ -253,6 +253,9 @@ func (s *Server) SetContentCollector(c *services.ContentCollector) {
 	s.collector = c
 }
 
+// SetLLMResolver configures the LLM resolver for "provider/model" lookups.
+func (s *Server) SetLLMResolver(r ports.LLMResolver) { s.llmResolver = r }
+
 // SetA2ABaseURL enables A2A protocol endpoints on the server.
 // The URL is used in the AgentCard to advertise the invoke endpoint.
 func (s *Server) SetA2ABaseURL(url string) {
@@ -270,22 +273,3 @@ func (s *Server) listAvailableTools(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// resolvedModel holds a resolved LLM and its model name.
-type resolvedModel struct {
-	llm   adkmodel.LLM
-	model string
-}
-
-// resolveModel parses a "provider/model" string and returns the matching LLM.
-func (s *Server) resolveModel(modelID string) (resolvedModel, bool) {
-	parts := strings.SplitN(modelID, "/", 2)
-	if len(parts) != 2 {
-		return resolvedModel{}, false
-	}
-	provider, model := parts[0], parts[1]
-	llm, ok := s.llms[provider]
-	if !ok {
-		return resolvedModel{}, false
-	}
-	return resolvedModel{llm: llm, model: model}, true
-}

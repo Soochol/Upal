@@ -77,12 +77,8 @@ func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 			}
 			return fmt.Errorf("node %q has no model selected — please choose a model before running", label)
 		}
-		parts := strings.SplitN(modelID, "/", 2)
-		if len(parts) != 2 || parts[1] == "" {
-			return fmt.Errorf("node %q has invalid model format %q — expected \"provider/model\"", n.ID, modelID)
-		}
-		if _, ok := s.llms[parts[0]]; !ok {
-			return fmt.Errorf("node %q uses provider %q which is not configured", n.ID, parts[0])
+		if _, _, err := s.llmResolver.Resolve(modelID); err != nil {
+			return fmt.Errorf("node %q: %w", n.ID, err)
 		}
 	}
 	return nil

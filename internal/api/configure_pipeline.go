@@ -51,10 +51,10 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 
 	llm := s.generator.LLM()
 	modelName := s.generator.Model()
-	if req.Model != "" {
-		if resolved, ok := s.resolveModel(req.Model); ok {
-			llm = resolved.llm
-			modelName = resolved.model
+	if req.Model != "" && s.llmResolver != nil {
+		if resolved, resolvedName, err := s.llmResolver.Resolve(req.Model); err == nil {
+			llm = resolved
+			modelName = resolvedName
 		}
 	}
 
