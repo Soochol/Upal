@@ -244,6 +244,7 @@ export type PipelineWorkflow = {
   workflow_name: string
   label?: string
   auto_select?: boolean
+  channel_id?: string
 }
 
 export type Pipeline = {

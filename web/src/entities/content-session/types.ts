@@ -25,6 +25,9 @@ export type ContentAngle = {
   format: string       // "shorts", "blog", "newsletter", etc.
   title: string
   selected: boolean
+  workflow_name?: string   // LLM-recommended workflow
+  match_type?: 'matched' | 'generated' | 'none'
+  rationale?: string
 }
 
 export type LLMAnalysis = {
@@ -39,9 +42,10 @@ export type LLMAnalysis = {
 export type WorkflowResult = {
   workflow_name: string
   run_id: string
-  status: 'pending' | 'running' | 'success' | 'failed'
+  status: 'pending' | 'running' | 'success' | 'failed' | 'published' | 'rejected'
   output_url?: string
   completed_at?: string
+  channel_id?: string
 }
 
 export type ContentSession = {
