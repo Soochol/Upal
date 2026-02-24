@@ -6,7 +6,7 @@ import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
 import PipelineNewPage from '@/pages/pipelines/PipelineNew'
 import ConnectionsPage from '@/pages/connections'
-import { RunDetail } from '@/widgets/run-detail'
+import { RunViewer } from '@/pages/runs/RunViewer'
 import PublishedPage from '@/pages/Published'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
@@ -30,7 +30,7 @@ export function AppRouter() {
           <Route path="/" element={<ProductLandingPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/runs" element={<RunsPage />} />
-          <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/runs/:id" element={<RunViewer />} />
           <Route path="/connections" element={<ConnectionsPage />} />
 
           {/* Inbox (Unified Reviews) */}
