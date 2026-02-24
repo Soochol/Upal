@@ -68,3 +68,43 @@ func TestMapPipelineSources_TwitterFallback(t *testing.T) {
 		t.Errorf("expected twitter to fallback to social, got %q", result[0].collectSource.Type)
 	}
 }
+
+func TestConvertToSourceItems_Social(t *testing.T) {
+	data := []map[string]any{
+		{"title": "AI Topic", "url": "https://bsky.app/1", "content": "AI post", "fetched_from": "bluesky_trending"},
+		{"title": "#golang", "url": "https://mastodon.social/tags/golang", "fetched_from": "mastodon_trending_tag"},
+	}
+	items := convertToSourceItems("social", data)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0].Title != "AI Topic" {
+		t.Errorf("expected title='AI Topic', got %q", items[0].Title)
+	}
+	if items[0].URL != "https://bsky.app/1" {
+		t.Errorf("expected url, got %q", items[0].URL)
+	}
+	if items[0].Content != "AI post" {
+		t.Errorf("expected content='AI post', got %q", items[0].Content)
+	}
+	if items[0].FetchedFrom != "bluesky_trending" {
+		t.Errorf("expected fetched_from='bluesky_trending', got %q", items[0].FetchedFrom)
+	}
+	if items[1].Title != "#golang" {
+		t.Errorf("expected title='#golang', got %q", items[1].Title)
+	}
+}
+
+func TestConvertToSourceItems_Social_Nil(t *testing.T) {
+	items := convertToSourceItems("social", nil)
+	if items != nil {
+		t.Errorf("expected nil for nil data, got %v", items)
+	}
+}
+
+func TestConvertToSourceItems_Social_WrongType(t *testing.T) {
+	items := convertToSourceItems("social", "not a slice")
+	if items != nil {
+		t.Errorf("expected nil for wrong type, got %v", items)
+	}
+}

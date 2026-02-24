@@ -129,6 +129,29 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 	}
 }
 
+// RetryAnalysis re-runs LLM analysis for a session that is stuck in "analyzing"
+// state (e.g. due to server restart during analysis). It resolves the pipeline,
+// runs analysis, and always transitions the session to pending_review.
+func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) error {
+	session, err := c.contentSvc.GetSession(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("session not found: %w", err)
+	}
+	pipeline, err := c.pipelineRepo.Get(ctx, session.PipelineID)
+	if err != nil {
+		return fmt.Errorf("pipeline not found: %w", err)
+	}
+
+	go func() {
+		bgCtx := context.Background()
+		c.runAnalysis(bgCtx, pipeline, session)
+		if err := c.contentSvc.UpdateSessionStatus(bgCtx, session.ID, upal.SessionPendingReview); err != nil {
+			log.Printf("content_collector: retry-analyze failed to transition to pending_review: %v", err)
+		}
+	}()
+	return nil
+}
+
 // fetchAndRecord calls the appropriate fetcher for a source and records
 // the SourceFetch result. Returns the recorded SourceFetch (may have Error set).
 func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string, pipelineSrc upal.PipelineSource, src upal.CollectSource) *upal.SourceFetch {
@@ -215,6 +238,23 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 		result := make([]upal.SourceItem, 0, len(items))
 		for _, item := range items {
 			result = append(result, upal.SourceItem{Content: item})
+		}
+		return result
+
+	case "social":
+		// Social fetcher returns []map[string]any with title, url, content, fetched_from.
+		items, ok := data.([]map[string]any)
+		if !ok {
+			return nil
+		}
+		result := make([]upal.SourceItem, 0, len(items))
+		for _, item := range items {
+			result = append(result, upal.SourceItem{
+				Title:       stringVal(item, "title"),
+				URL:         stringVal(item, "url"),
+				Content:     stringVal(item, "content"),
+				FetchedFrom: stringVal(item, "fetched_from"),
+			})
 		}
 		return result
 	}
