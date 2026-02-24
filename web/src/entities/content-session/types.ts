@@ -56,4 +56,5 @@ export type ContentSession = {
   workflow_results?: WorkflowResult[]
   created_at: string
   updated_at?: string
+  archived_at?: string
 }

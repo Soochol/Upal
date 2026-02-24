@@ -6,10 +6,12 @@ const BASE = '/api/content-sessions'
 export async function fetchContentSessions(params?: {
   pipelineId?: string
   status?: string
+  archivedOnly?: boolean
 }): Promise<ContentSession[]> {
   const qs = new URLSearchParams()
   if (params?.pipelineId) qs.set('pipeline_id', params.pipelineId)
   if (params?.status) qs.set('status', params.status)
+  if (params?.archivedOnly) qs.set('archived_only', 'true')
   const query = qs.toString() ? `?${qs}` : ''
   return apiFetch<ContentSession[]>(`${BASE}${query}`)
 }
@@ -20,12 +22,34 @@ export async function fetchContentSession(id: string): Promise<ContentSession> {
 
 export async function approveSession(
   id: string,
-  _selectedAngles: string[],
+  selectedWorkflows: string[],
 ): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'approve' }),
+    body: JSON.stringify({ action: 'approve', selected_workflows: selectedWorkflows }),
+  })
+}
+
+export async function produceSession(
+  id: string,
+  workflows: string[],
+): Promise<{ session_id: string; workflows: string[]; status: string }> {
+  return apiFetch(`${BASE}/${encodeURIComponent(id)}/produce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workflows }),
+  })
+}
+
+export async function publishSession(
+  id: string,
+  runIds: string[],
+): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_ids: runIds }),
   })
 }
 
@@ -45,6 +69,24 @@ export async function updateSessionAnalysis(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
+  })
+}
+
+export async function archiveSession(id: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/archive`, {
+    method: 'POST',
+  })
+}
+
+export async function unarchiveSession(id: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/unarchive`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   })
 }
 
