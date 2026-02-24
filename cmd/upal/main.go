@@ -286,6 +286,7 @@ func serve() {
 		llmAnalysisRepo = repository.NewPersistentLLMAnalysisRepository(memLLMAnalysisRepo, database)
 		publishedRepo = repository.NewPersistentPublishedContentRepository(memPublishedRepo, database)
 		surgeRepo = repository.NewPersistentSurgeEventRepository(memSurgeRepo, database)
+		wfResultRepo = repository.NewPersistentWorkflowResultRepository(memWFResultRepo, database)
 	}
 
 	contentSvc := services.NewContentSessionService(
@@ -307,6 +308,7 @@ func serve() {
 			pipelineRepo,
 			resolver,
 			skillReg,
+			runHistorySvc,
 		)
 		srv.SetContentCollector(collector)
 		schedulerSvc.SetContentCollector(collector)

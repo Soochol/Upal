@@ -25,14 +25,15 @@ import (
 // (source fetching) with the ContentSessionService (recording) and WorkflowService
 // (production).
 type ContentCollector struct {
-	contentSvc   *ContentSessionService
-	collectExec  *CollectStageExecutor
-	workflowSvc  *WorkflowService
-	workflowRepo repository.WorkflowRepository
-	pipelineRepo repository.PipelineRepository
-	resolver     ports.LLMResolver
-	generator    ports.WorkflowGenerator
-	skills       skills.Provider
+	contentSvc    *ContentSessionService
+	collectExec   *CollectStageExecutor
+	workflowSvc   *WorkflowService
+	workflowRepo  repository.WorkflowRepository
+	pipelineRepo  repository.PipelineRepository
+	resolver      ports.LLMResolver
+	generator     ports.WorkflowGenerator
+	skills        skills.Provider
+	runHistorySvc ports.RunHistoryPort
 }
 
 // NewContentCollector creates a ContentCollector with all required dependencies.
@@ -44,15 +45,17 @@ func NewContentCollector(
 	pipelineRepo repository.PipelineRepository,
 	resolver ports.LLMResolver,
 	skills skills.Provider,
+	runHistorySvc ports.RunHistoryPort,
 ) *ContentCollector {
 	return &ContentCollector{
-		contentSvc:   contentSvc,
-		collectExec:  collectExec,
-		workflowSvc:  workflowSvc,
-		workflowRepo: workflowRepo,
-		pipelineRepo: pipelineRepo,
-		resolver:     resolver,
-		skills:       skills,
+		contentSvc:    contentSvc,
+		collectExec:   collectExec,
+		workflowSvc:   workflowSvc,
+		workflowRepo:  workflowRepo,
+		pipelineRepo:  pipelineRepo,
+		resolver:      resolver,
+		skills:        skills,
+		runHistorySvc: runHistorySvc,
 	}
 }
 
@@ -510,49 +513,110 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			wf, err := c.workflowRepo.Get(gCtx, req.Name)
 			if err != nil {
 				log.Printf("content_collector: workflow %q not found: %v", req.Name, err)
-				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				updateResult(i, func(r *upal.WorkflowResult) {
+					r.Status = upal.WFResultFailed
+					r.ErrorMessage = fmt.Sprintf("workflow not found: %v", err)
+				})
 				return nil
 			}
 
 			// Build inputs mapped to actual input node IDs.
 			inputs := buildProductionInputs(detail, wf)
 
+			// Create a RunRecord if history service is available.
+			var runRecordID string
+			if c.runHistorySvc != nil {
+				rec, startErr := c.runHistorySvc.StartRun(gCtx, req.Name, "pipeline", sessionID, inputs)
+				if startErr != nil {
+					log.Printf("content_collector: failed to start run record for %q: %v", req.Name, startErr)
+				} else {
+					runRecordID = rec.ID
+				}
+			}
+
 			// Run the workflow.
 			eventCh, resultCh, err := c.workflowSvc.Run(gCtx, wf, inputs)
 			if err != nil {
-				log.Printf("content_collector: failed to run workflow %q: %v", req.Name, err)
-				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				errMsg := fmt.Sprintf("failed to start workflow: %v", err)
+				log.Printf("content_collector: %s %q", errMsg, req.Name)
+				if c.runHistorySvc != nil && runRecordID != "" {
+					c.runHistorySvc.FailRun(gCtx, runRecordID, errMsg)
+				}
+				updateResult(i, func(r *upal.WorkflowResult) {
+					r.Status = upal.WFResultFailed
+					r.ErrorMessage = errMsg
+					r.RunID = runRecordID
+				})
 				return nil
 			}
 
-			// Drain event channel, capturing any errors.
+			// Drain event channel, tracking node runs and capturing errors.
 			var runErr string
+			var failedNodeID string
 			for evt := range eventCh {
-				if evt.Type == "error" {
+				if c.runHistorySvc != nil && runRecordID != "" {
+					trackNodeRunFromEvent(gCtx, c.runHistorySvc, runRecordID, evt)
+				}
+				if evt.Type == upal.EventError {
 					if errMsg, ok := evt.Payload["error"].(string); ok {
 						runErr = errMsg
+					}
+					if evt.NodeID != "" {
+						failedNodeID = evt.NodeID
 					}
 				}
 			}
 
 			if runErr != "" {
 				log.Printf("content_collector: workflow %q execution error: %s", req.Name, runErr)
-				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				if c.runHistorySvc != nil && runRecordID != "" {
+					c.runHistorySvc.FailRun(gCtx, runRecordID, runErr)
+					// If no failed node from events, check the RunRecord.
+					if failedNodeID == "" {
+						if rec, err := c.runHistorySvc.GetRun(gCtx, runRecordID); err == nil && rec != nil {
+							for _, nr := range rec.NodeRuns {
+								if nr.Status == upal.NodeRunError {
+									failedNodeID = nr.NodeID
+									break
+								}
+							}
+						}
+					}
+				}
+				updateResult(i, func(r *upal.WorkflowResult) {
+					r.Status = upal.WFResultFailed
+					r.RunID = runRecordID
+					r.ErrorMessage = runErr
+					r.FailedNodeID = failedNodeID
+				})
 				return nil
 			}
 
 			// Wait for result.
 			runResult, ok := <-resultCh
 			if !ok {
-				log.Printf("content_collector: workflow %q result channel closed unexpectedly", req.Name)
-				updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultFailed })
+				errMsg := "result channel closed unexpectedly"
+				log.Printf("content_collector: workflow %q %s", req.Name, errMsg)
+				if c.runHistorySvc != nil && runRecordID != "" {
+					c.runHistorySvc.FailRun(gCtx, runRecordID, errMsg)
+				}
+				updateResult(i, func(r *upal.WorkflowResult) {
+					r.Status = upal.WFResultFailed
+					r.RunID = runRecordID
+					r.ErrorMessage = errMsg
+				})
 				return nil
+			}
+
+			// Mark run as completed with outputs.
+			if c.runHistorySvc != nil && runRecordID != "" {
+				c.runHistorySvc.CompleteRun(gCtx, runRecordID, runResult.State)
 			}
 
 			now := time.Now()
 			updateResult(i, func(r *upal.WorkflowResult) {
 				r.Status = upal.WFResultSuccess
-				r.RunID = runResult.SessionID
+				r.RunID = runRecordID
 				r.CompletedAt = &now
 			})
 			return nil
@@ -795,4 +859,36 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 	}
 
 	return result
+}
+
+// trackNodeRunFromEvent records node-level execution status from workflow events.
+func trackNodeRunFromEvent(ctx context.Context, svc ports.RunHistoryPort, runID string, ev upal.WorkflowEvent) {
+	if ev.NodeID == "" {
+		return
+	}
+	now := time.Now()
+	switch ev.Type {
+	case upal.EventNodeStarted:
+		svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+			NodeID:    ev.NodeID,
+			Status:    upal.NodeRunRunning,
+			StartedAt: now,
+		})
+	case upal.EventNodeCompleted:
+		svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+			NodeID:      ev.NodeID,
+			Status:      upal.NodeRunCompleted,
+			StartedAt:   now,
+			CompletedAt: &now,
+		})
+	case upal.EventError:
+		if ev.NodeID != "" {
+			svc.UpdateNodeRun(ctx, runID, upal.NodeRunRecord{
+				NodeID:      ev.NodeID,
+				Status:      upal.NodeRunError,
+				StartedAt:   now,
+				CompletedAt: &now,
+			})
+		}
+	}
 }
