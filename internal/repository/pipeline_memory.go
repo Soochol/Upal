@@ -31,7 +31,7 @@ func (r *MemoryPipelineRepository) Create(ctx context.Context, p *upal.Pipeline)
 func (r *MemoryPipelineRepository) Get(ctx context.Context, id string) (*upal.Pipeline, error) {
 	p, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, fmt.Errorf("pipeline %q not found", id)
+		return nil, fmt.Errorf("pipeline %q: %w", id, ErrNotFound)
 	}
 	return p, err
 }
@@ -42,7 +42,7 @@ func (r *MemoryPipelineRepository) List(ctx context.Context) ([]*upal.Pipeline, 
 
 func (r *MemoryPipelineRepository) Update(ctx context.Context, p *upal.Pipeline) error {
 	if !r.store.Has(ctx, p.ID) {
-		return fmt.Errorf("pipeline %q not found", p.ID)
+		return fmt.Errorf("pipeline %q: %w", p.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, p)
 }
@@ -50,7 +50,7 @@ func (r *MemoryPipelineRepository) Update(ctx context.Context, p *upal.Pipeline)
 func (r *MemoryPipelineRepository) Delete(ctx context.Context, id string) error {
 	err := r.store.Delete(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return fmt.Errorf("pipeline %q not found", id)
+		return fmt.Errorf("pipeline %q: %w", id, ErrNotFound)
 	}
 	return err
 }
@@ -73,7 +73,7 @@ func (r *MemoryPipelineRunRepository) Create(ctx context.Context, run *upal.Pipe
 func (r *MemoryPipelineRunRepository) Get(ctx context.Context, id string) (*upal.PipelineRun, error) {
 	run, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, fmt.Errorf("pipeline run %q not found", id)
+		return nil, fmt.Errorf("pipeline run %q: %w", id, ErrNotFound)
 	}
 	return run, err
 }
@@ -86,7 +86,7 @@ func (r *MemoryPipelineRunRepository) ListByPipeline(ctx context.Context, pipeli
 
 func (r *MemoryPipelineRunRepository) Update(ctx context.Context, run *upal.PipelineRun) error {
 	if !r.store.Has(ctx, run.ID) {
-		return fmt.Errorf("pipeline run %q not found", run.ID)
+		return fmt.Errorf("pipeline run %q: %w", run.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, run)
 }

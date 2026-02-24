@@ -3,13 +3,9 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/soochol/upal/internal/upal"
 )
-
-// ErrNotFound is returned when a requested workflow does not exist.
-var ErrNotFound = errors.New("workflow not found")
 
 // WorkflowRepository abstracts workflow persistence so callers don't
 // need to know whether storage is in-memory, PostgreSQL, or a mix.

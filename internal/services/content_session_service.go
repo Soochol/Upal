@@ -162,6 +162,19 @@ func (s *ContentSessionService) UpdateAnalysis(ctx context.Context, sessionID st
 	return s.analyses.Update(ctx, analysis)
 }
 
+// UpdateAnalysisAngles updates the suggested angles of an existing analysis.
+func (s *ContentSessionService) UpdateAnalysisAngles(ctx context.Context, sessionID string, angles []upal.ContentAngle) error {
+	analysis, err := s.analyses.GetBySession(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("get analysis for session %s: %w", sessionID, err)
+	}
+	if analysis == nil {
+		return fmt.Errorf("no analysis found for session %s", sessionID)
+	}
+	analysis.SuggestedAngles = angles
+	return s.analyses.Update(ctx, analysis)
+}
+
 // --- PublishedContent ---
 
 func (s *ContentSessionService) RecordPublished(ctx context.Context, pc *upal.PublishedContent) error {
@@ -219,7 +232,7 @@ func (s *ContentSessionService) ArchiveSession(ctx context.Context, id string) e
 		return err
 	}
 	if sess.ArchivedAt != nil {
-		return fmt.Errorf("session %q is already archived", id)
+		return fmt.Errorf("session %q: %w", id, upal.ErrAlreadyArchived)
 	}
 	now := time.Now()
 	sess.ArchivedAt = &now
@@ -232,7 +245,7 @@ func (s *ContentSessionService) UnarchiveSession(ctx context.Context, id string)
 		return err
 	}
 	if sess.ArchivedAt == nil {
-		return fmt.Errorf("session %q is not archived", id)
+		return fmt.Errorf("session %q: %w", id, upal.ErrNotArchived)
 	}
 	sess.ArchivedAt = nil
 	return s.sessions.Update(ctx, sess)
@@ -244,7 +257,7 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 		return err
 	}
 	if sess.ArchivedAt == nil {
-		return fmt.Errorf("session %q must be archived before deletion", id)
+		return fmt.Errorf("session %q: %w", id, upal.ErrMustBeArchived)
 	}
 
 	// Clean up published_content (no FK cascade)
@@ -272,15 +285,20 @@ func (s *ContentSessionService) ListArchivedByPipeline(ctx context.Context, pipe
 // ListArchivedSessionDetails returns composed ContentSessionDetail records for
 // archived sessions belonging to a pipeline, sorted newest first.
 func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
-	sessions, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
+	archivedSessions, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt.Before(sessions[j].CreatedAt)
-	})
-	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
-	for i, sess := range sessions {
+
+	// Build session number lookup from ALL sessions (active + archived).
+	allSessions := s.allPipelineSessions(ctx, pipelineID)
+	numberOf := make(map[string]int, len(allSessions))
+	for i, ps := range allSessions {
+		numberOf[ps.ID] = i + 1
+	}
+
+	details := make([]*upal.ContentSessionDetail, 0, len(archivedSessions))
+	for _, sess := range archivedSessions {
 		sources, err := s.fetches.ListBySession(ctx, sess.ID)
 		if err != nil {
 			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
@@ -290,7 +308,7 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 		details = append(details, &upal.ContentSessionDetail{
 			ID:              sess.ID,
 			PipelineID:      sess.PipelineID,
-			SessionNumber:   i + 1,
+			SessionNumber:   numberOf[sess.ID],
 			Status:          sess.Status,
 			TriggerType:     sess.TriggerType,
 			SourceCount:     sess.SourceCount,
@@ -308,24 +326,43 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 	return details, nil
 }
 
+// allPipelineSessions returns active + archived sessions for a pipeline,
+// sorted by created_at ascending, so session numbers are stable.
+func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelineID string) []*upal.ContentSession {
+	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
+	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
+	all := append(active, archived...)
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].CreatedAt.Before(all[j].CreatedAt)
+	})
+	return all
+}
+
 // --- WorkflowResults (in-memory) ---
 
-// SetWorkflowResults stores workflow results for a session, replacing any existing results.
+// SetWorkflowResults stores a copy of workflow results for a session, replacing any existing results.
+// A defensive copy is made so callers can continue mutating the original slice without data races.
 func (s *ContentSessionService) SetWorkflowResults(_ context.Context, sessionID string, results []upal.WorkflowResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.workflowResults[sessionID] = results
+	cp := make([]upal.WorkflowResult, len(results))
+	copy(cp, results)
+	s.workflowResults[sessionID] = cp
 }
 
 // GetWorkflowResults retrieves workflow results for a session.
+// Returns a copy of the slice to avoid data races with concurrent producers.
 // Returns an empty slice (not nil) if no results are stored.
 func (s *ContentSessionService) GetWorkflowResults(_ context.Context, sessionID string) []upal.WorkflowResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if r, ok := s.workflowResults[sessionID]; ok {
-		return r
+	orig, ok := s.workflowResults[sessionID]
+	if !ok {
+		return []upal.WorkflowResult{}
 	}
-	return []upal.WorkflowResult{}
+	cp := make([]upal.WorkflowResult, len(orig))
+	copy(cp, orig)
+	return cp
 }
 
 // --- Session Detail (composed views) ---
@@ -346,19 +383,16 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 
 	wfResults := s.GetWorkflowResults(ctx, id)
 
-	// Compute session number: 1-based position among pipeline sessions sorted by created_at.
+	// Compute session number: 1-based position among ALL pipeline sessions
+	// (active + archived) sorted by created_at, so archived sessions keep
+	// their original number.
 	sessionNumber := 0
 	if sess.PipelineID != "" {
-		pipelineSessions, err := s.sessions.ListByPipeline(ctx, sess.PipelineID)
-		if err == nil {
-			sort.Slice(pipelineSessions, func(i, j int) bool {
-				return pipelineSessions[i].CreatedAt.Before(pipelineSessions[j].CreatedAt)
-			})
-			for i, ps := range pipelineSessions {
-				if ps.ID == id {
-					sessionNumber = i + 1
-					break
-				}
+		allSessions := s.allPipelineSessions(ctx, sess.PipelineID)
+		for i, ps := range allSessions {
+			if ps.ID == id {
+				sessionNumber = i + 1
+				break
 			}
 		}
 	}

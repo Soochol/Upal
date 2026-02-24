@@ -31,36 +31,52 @@ func (r *MemoryContentSessionRepository) Create(ctx context.Context, s *upal.Con
 func (r *MemoryContentSessionRepository) Get(ctx context.Context, id string) (*upal.ContentSession, error) {
 	s, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, fmt.Errorf("content session %q not found", id)
+		return nil, fmt.Errorf("content session %q: %w", id, ErrNotFound)
 	}
 	return s, err
 }
 
 func (r *MemoryContentSessionRepository) List(ctx context.Context) ([]*upal.ContentSession, error) {
-	return r.store.All(ctx)
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.ArchivedAt == nil
+	})
 }
 
 func (r *MemoryContentSessionRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID
+		return s.PipelineID == pipelineID && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status
+		return s.Status == status && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.Status == status
+		return s.PipelineID == pipelineID && s.Status == status && s.ArchivedAt == nil
 	})
+}
+
+func (r *MemoryContentSessionRepository) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.PipelineID == pipelineID && s.ArchivedAt != nil
+	})
+}
+
+func (r *MemoryContentSessionRepository) Delete(ctx context.Context, id string) error {
+	err := r.store.Delete(ctx, id)
+	if errors.Is(err, memstore.ErrNotFound) {
+		return fmt.Errorf("content session %q: %w", id, ErrNotFound)
+	}
+	return err
 }
 
 func (r *MemoryContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {
 	if !r.store.Has(ctx, s.ID) {
-		return fmt.Errorf("content session %q not found", s.ID)
+		return fmt.Errorf("content session %q: %w", s.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, s)
 }
@@ -111,7 +127,7 @@ func (r *MemoryLLMAnalysisRepository) GetBySession(ctx context.Context, sessionI
 		return nil, err
 	}
 	if len(all) == 0 {
-		return nil, fmt.Errorf("llm analysis for session %q not found", sessionID)
+		return nil, fmt.Errorf("llm analysis for session %q: %w", sessionID, ErrNotFound)
 	}
 	// Return most recently created (deterministic: latest CreatedAt wins).
 	latest := all[0]
@@ -125,7 +141,7 @@ func (r *MemoryLLMAnalysisRepository) GetBySession(ctx context.Context, sessionI
 
 func (r *MemoryLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAnalysis) error {
 	if !r.store.Has(ctx, a.ID) {
-		return fmt.Errorf("llm analysis %q not found", a.ID)
+		return fmt.Errorf("llm analysis %q: %w", a.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, a)
 }
@@ -162,6 +178,21 @@ func (r *MemoryPublishedContentRepository) ListByChannel(ctx context.Context, ch
 	})
 }
 
+func (r *MemoryPublishedContentRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	all, err := r.store.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, pc := range all {
+		if pc.SessionID == sessionID {
+			if err := r.store.Delete(ctx, pc.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // --- SurgeEvent ---
 
 type MemorySurgeEventRepository struct {
@@ -191,14 +222,14 @@ func (r *MemorySurgeEventRepository) ListActive(ctx context.Context) ([]*upal.Su
 func (r *MemorySurgeEventRepository) Get(ctx context.Context, id string) (*upal.SurgeEvent, error) {
 	se, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, fmt.Errorf("surge event %q not found", id)
+		return nil, fmt.Errorf("surge event %q: %w", id, ErrNotFound)
 	}
 	return se, err
 }
 
 func (r *MemorySurgeEventRepository) Update(ctx context.Context, se *upal.SurgeEvent) error {
 	if !r.store.Has(ctx, se.ID) {
-		return fmt.Errorf("surge event %q not found", se.ID)
+		return fmt.Errorf("surge event %q: %w", se.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, se)
 }

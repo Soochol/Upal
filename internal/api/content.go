@@ -3,10 +3,13 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
 )
 
@@ -108,7 +111,7 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -190,7 +193,7 @@ func (s *Server) patchSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -259,7 +262,7 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 
 	// Transition session to published.
 	if err := s.contentSvc.UpdateSessionStatus(ctx, id, upal.SessionPublished); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -331,7 +334,7 @@ func (s *Server) listSurges(w http.ResponseWriter, r *http.Request) {
 func (s *Server) dismissSurge(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.DismissSurge(r.Context(), id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -387,49 +390,87 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
 }
 
+// POST /api/content-sessions/{id}/generate-workflow
+// Body: {"angle_id": "angle-1"}
+// Generates a new workflow for an unmatched content angle using the Generator.
+func (s *Server) generateAngleWorkflow(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	var body struct {
+		AngleID string `json:"angle_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AngleID == "" {
+		http.Error(w, `{"error":"angle_id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if s.collector == nil {
+		http.Error(w, `{"error":"content collector not available"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	angle, err := s.collector.GenerateWorkflowForAngle(r.Context(), id, body.AngleID)
+	if err != nil {
+		log.Printf("generate-workflow: %v", err)
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(angle)
+}
+
 // POST /api/content-sessions/{id}/archive
 func (s *Server) archiveContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.ArchiveSession(r.Context(), id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if strings.Contains(err.Error(), "already archived") {
+		} else if errors.Is(err, upal.ErrAlreadyArchived) {
 			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
-	sess, _ := s.contentSvc.GetSession(r.Context(), id)
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	json.NewEncoder(w).Encode(detail)
 }
 
 // POST /api/content-sessions/{id}/unarchive
 func (s *Server) unarchiveContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.UnarchiveSession(r.Context(), id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if strings.Contains(err.Error(), "not archived") {
+		} else if errors.Is(err, upal.ErrNotArchived) {
 			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
-	sess, _ := s.contentSvc.GetSession(r.Context(), id)
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	json.NewEncoder(w).Encode(detail)
 }
 
 // DELETE /api/content-sessions/{id}
 func (s *Server) deleteContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.DeleteSession(r.Context(), id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if strings.Contains(err.Error(), "must be archived") {
+		} else if errors.Is(err, upal.ErrMustBeArchived) {
 			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
