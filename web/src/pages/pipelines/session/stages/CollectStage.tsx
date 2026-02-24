@@ -50,7 +50,7 @@ export function CollectStage({ session }: CollectStageProps) {
             </span>
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
-            {src.items.map((item, i) => (
+            {(src.items ?? []).map((item, i) => (
               <div
                 key={i}
                 className="flex items-center gap-3 px-4 py-2.5 border-b border-border last:border-b-0 hover:bg-muted/30 transition-colors"

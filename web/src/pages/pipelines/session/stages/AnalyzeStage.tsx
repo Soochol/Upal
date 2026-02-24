@@ -139,9 +139,9 @@ export function AnalyzeStage({
   useEffect(() => {
     if (analysis) {
       setEditedSummary(analysis.summary)
-      setEditedInsights([...analysis.insights])
+      setEditedInsights([...(analysis.insights ?? [])])
       const map: Record<string, boolean> = {}
-      for (const angle of analysis.angles) {
+      for (const angle of analysis.angles ?? []) {
         map[angle.id] = angle.selected
       }
       setSelectedAngles(map)
@@ -277,7 +277,7 @@ export function AnalyzeStage({
                   <div className="px-4 py-2.5 bg-muted/20 text-sm font-semibold text-foreground border-b border-border/50">
                     {src.label} &middot; <span className="text-muted-foreground">{src.count} items</span>
                   </div>
-                  {src.items.slice(0, 15).map((item, i) => (
+                  {(src.items ?? []).slice(0, 15).map((item, i) => (
                     <div
                       key={i}
                       className="px-4 py-2.5 border-b border-border/30 last:border-b-0"
@@ -285,9 +285,9 @@ export function AnalyzeStage({
                       <p className="text-sm text-muted-foreground line-clamp-2">{item.title}</p>
                     </div>
                   ))}
-                  {src.items.length > 15 && (
+                  {(src.items ?? []).length > 15 && (
                     <div className="px-4 py-2 text-sm font-medium text-primary">
-                      +{src.items.length - 15} more
+                      +{(src.items ?? []).length - 15} more
                     </div>
                   )}
                 </div>
