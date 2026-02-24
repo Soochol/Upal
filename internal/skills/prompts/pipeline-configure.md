@@ -91,8 +91,6 @@ Analysis model in `"provider/model"` format. Pick from the "Available models" li
   "workflows": [...],
   "model": "provider/model",
   "context": { ... },
-  "name": "new-pipeline-name",
-  "description": "새 설명",
   "explanation": "변경사항 요약"
 }
 ```

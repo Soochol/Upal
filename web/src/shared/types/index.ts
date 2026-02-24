@@ -78,12 +78,10 @@ export type ConfigurePipelineRequest = {
 
 export type ConfigurePipelineResponse = {
   sources?: PipelineSource[]
-  schedule?: string
+  schedule?: string | null
   workflows?: PipelineWorkflow[]
-  model?: string
+  model?: string | null
   context?: PipelineContext
-  name?: string
-  description?: string
   explanation: string
 }
 

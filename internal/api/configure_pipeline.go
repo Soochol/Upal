@@ -30,8 +30,6 @@ type ConfigurePipelineResponse struct {
 	Workflows   json.RawMessage `json:"workflows,omitempty"`
 	Model       *string         `json:"model,omitempty"`
 	Context     json.RawMessage `json:"context,omitempty"`
-	Name        *string         `json:"name,omitempty"`
-	Description *string         `json:"description,omitempty"`
 	Explanation string          `json:"explanation"`
 }
 
