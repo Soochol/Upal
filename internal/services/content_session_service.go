@@ -18,6 +18,12 @@ type ContentSessionService struct {
 	published       repository.PublishedContentRepository
 	surges          repository.SurgeEventRepository
 	workflowResults repository.WorkflowResultRepository
+	pipelineRepo    repository.PipelineRepository
+}
+
+// SetPipelineRepository configures the pipeline repo for resolving pipeline names.
+func (s *ContentSessionService) SetPipelineRepository(repo repository.PipelineRepository) {
+	s.pipelineRepo = repo
 }
 
 func NewContentSessionService(
@@ -286,6 +292,13 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 		return nil, err
 	}
 
+	var pipelineName string
+	if pipelineID != "" && s.pipelineRepo != nil {
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineName = p.Name
+		}
+	}
+
 	// Build session number lookup from ALL sessions (active + archived).
 	allSessions := s.allPipelineSessions(ctx, pipelineID)
 	numberOf := make(map[string]int, len(allSessions))
@@ -304,6 +317,7 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 		details = append(details, &upal.ContentSessionDetail{
 			ID:              sess.ID,
 			PipelineID:      sess.PipelineID,
+			PipelineName:    pipelineName,
 			SessionNumber:   numberOf[sess.ID],
 			Status:          sess.Status,
 			TriggerType:     sess.TriggerType,
@@ -380,7 +394,7 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 		}
 	}
 
-	return &upal.ContentSessionDetail{
+	detail := &upal.ContentSessionDetail{
 		ID:              sess.ID,
 		PipelineID:      sess.PipelineID,
 		SessionNumber:   sessionNumber,
@@ -393,7 +407,13 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 		CreatedAt:       sess.CreatedAt,
 		ReviewedAt:      sess.ReviewedAt,
 		ArchivedAt:      sess.ArchivedAt,
-	}, nil
+	}
+	if sess.PipelineID != "" && s.pipelineRepo != nil {
+		if p, err := s.pipelineRepo.Get(ctx, sess.PipelineID); err == nil {
+			detail.PipelineName = p.Name
+		}
+	}
+	return detail, nil
 }
 
 // ListSessionDetails returns composed ContentSessionDetail records for all
@@ -402,6 +422,13 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 	sessions, err := s.sessions.ListByPipeline(ctx, pipelineID)
 	if err != nil {
 		return nil, err
+	}
+
+	var pipelineName string
+	if pipelineID != "" && s.pipelineRepo != nil {
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineName = p.Name
+		}
 	}
 
 	// Sort ascending by created_at first to assign session numbers.
@@ -423,6 +450,7 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 		details = append(details, &upal.ContentSessionDetail{
 			ID:              sess.ID,
 			PipelineID:      sess.PipelineID,
+			PipelineName:    pipelineName,
 			SessionNumber:   i + 1, // 1-based
 			Status:          sess.Status,
 			TriggerType:     sess.TriggerType,

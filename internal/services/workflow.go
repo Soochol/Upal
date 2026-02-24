@@ -106,7 +106,7 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 
 	// 3. Create session with user inputs.
 	sessionID := fmt.Sprintf("session-%d", time.Now().UnixNano())
-	userID := "default"
+	userID := upal.UserIDFromContext(ctx)
 
 	inputState := make(map[string]any)
 	for k, v := range inputs {

@@ -291,6 +291,7 @@ func serve() {
 	contentSvc := services.NewContentSessionService(
 		contentSessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo, wfResultRepo,
 	)
+	contentSvc.SetPipelineRepository(pipelineRepo)
 	srv.SetContentSessionService(contentSvc)
 
 	srv.SetSkills(skillReg)
@@ -308,6 +309,7 @@ func serve() {
 			skillReg,
 		)
 		srv.SetContentCollector(collector)
+		schedulerSvc.SetContentCollector(collector)
 	}
 
 	// Configure natural language workflow generator if any provider is available.

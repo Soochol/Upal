@@ -61,6 +61,24 @@ func (c *ContentCollector) SetGenerator(g ports.WorkflowGenerator) {
 	c.generator = g
 }
 
+// CollectPipeline creates a session for the given pipeline and launches background
+// collection + analysis. Designed for scheduled/automated invocations.
+func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID string) error {
+	pipeline, err := c.pipelineRepo.Get(ctx, pipelineID)
+	if err != nil {
+		return fmt.Errorf("pipeline %s: %w", pipelineID, err)
+	}
+	sess := &upal.ContentSession{
+		PipelineID:  pipelineID,
+		TriggerType: "scheduled",
+	}
+	if err := c.contentSvc.CreateSession(ctx, sess); err != nil {
+		return fmt.Errorf("create session: %w", err)
+	}
+	go c.CollectAndAnalyze(context.Background(), pipeline, sess, false, 0)
+	return nil
+}
+
 // CollectAndAnalyze fetches content from pipeline sources, records the results,
 // runs LLM analysis on the collected data, and transitions the session to
 // pending_review. This is designed to run in a background goroutine.

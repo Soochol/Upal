@@ -31,8 +31,14 @@ type SchedulerService struct {
 	runHistorySvc  ports.RunHistoryPort
 	entryMap       map[string]cron.EntryID // schedule ID → cron entry
 	mu             sync.RWMutex
-	pipelineRunner ports.PipelineRunner
-	pipelineSvc    ports.PipelineRegistry
+	pipelineRunner     ports.PipelineRunner
+	pipelineSvc        ports.PipelineRegistry
+	contentCollector   ContentCollector
+}
+
+// ContentCollector is the interface for scheduled content pipeline dispatching.
+type ContentCollector interface {
+	CollectPipeline(ctx context.Context, pipelineID string) error
 }
 
 // SetPipelineRunner configures the pipeline runner for scheduled pipeline execution.
@@ -43,6 +49,11 @@ func (s *SchedulerService) SetPipelineRunner(runner ports.PipelineRunner) {
 // SetPipelineService configures the pipeline service for looking up pipelines.
 func (s *SchedulerService) SetPipelineService(svc ports.PipelineRegistry) {
 	s.pipelineSvc = svc
+}
+
+// SetContentCollector configures the content collector for scheduled content pipelines.
+func (s *SchedulerService) SetContentCollector(c ContentCollector) {
+	s.contentCollector = c
 }
 
 // NewSchedulerService creates a SchedulerService with all dependencies.
