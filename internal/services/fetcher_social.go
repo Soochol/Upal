@@ -69,6 +69,8 @@ func (f *socialFetcher) Fetch(ctx context.Context, src upal.CollectSource) (stri
 	if limit <= 0 {
 		limit = 20
 	}
+	// Per-category limit to avoid early sources starving later ones.
+	perCategoryLimit := max(limit/3, 5)
 
 	var sb strings.Builder
 	var allItems []map[string]any
@@ -82,13 +84,13 @@ func (f *socialFetcher) Fetch(ctx context.Context, src upal.CollectSource) (stri
 	}
 
 	// 3. Account feeds
+	// Routing: handles containing "@" (e.g. user@mastodon.social) → Mastodon,
+	// handles without "@" (e.g. alice.bsky.social) → Bluesky.
 	for _, acct := range src.Accounts {
 		if strings.Contains(acct, "@") {
-			// Contains "@" → Mastodon account
-			f.fetchMastodonAccount(ctx, acct, limit, &sb, &allItems)
+			f.fetchMastodonAccount(ctx, acct, perCategoryLimit, &sb, &allItems)
 		} else {
-			// No "@" → Bluesky account
-			f.fetchBlueskyAuthorFeed(ctx, acct, limit, &sb, &allItems)
+			f.fetchBlueskyAuthorFeed(ctx, acct, perCategoryLimit, &sb, &allItems)
 		}
 	}
 
