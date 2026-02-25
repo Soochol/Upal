@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Loader2, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
 import { updateSessionAnalysis, retryAnalyze } from '@/entities/content-session/api'
+import { useAutoSave, type SaveStatus } from '@/shared/hooks/useAutoSave'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
 import type { ContentSession } from '@/entities/content-session'
 
@@ -21,10 +21,8 @@ interface AnalyzeStageProps {
 // Auto-save status indicator
 // ---------------------------------------------------------------------------
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
-
 function SaveIndicator({ status }: { status: SaveStatus }) {
-  if (status === 'saving') {
+  if (status === 'waiting' || status === 'saving') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
@@ -98,6 +96,18 @@ export function AnalyzeStage({
   const [editedSummary, setEditedSummary] = useState(analysis?.summary ?? '')
   const [editedInsights, setEditedInsights] = useState<string[]>(analysis?.insights ?? [])
 
+  // ---- Auto-save via hook ----
+  const analysisData = useMemo(
+    () => ({ summary: editedSummary, insights: editedInsights }),
+    [editedSummary, editedInsights],
+  )
+
+  const { saveStatus, markClean } = useAutoSave({
+    data: analysisData,
+    onSave: async (d) => { await updateSessionAnalysis(session.id, d) },
+    delay: 1500,
+  })
+
   // Sync with prop changes (e.g. SSE updates)
   useEffect(() => {
     if (analysis) {
@@ -106,52 +116,20 @@ export function AnalyzeStage({
     }
   }, [analysis])
 
-  // ---- Auto-save with debounce ----
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const saveMutation = useMutation({
-    mutationFn: (data: { summary: string; insights: string[] }) =>
-      updateSessionAnalysis(session.id, data),
-    onSuccess: () => {
-      setSaveStatus('saved')
-      savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-    },
-    onError: () => {
-      setSaveStatus('error')
-    },
-  })
-
-  // Cleanup timers
+  // Mark clean after syncing so the hook doesn't re-save server data
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    if (analysis) {
+      markClean()
     }
-  }, [])
-
-  const debouncedSave = useCallback(
-    (summary: string, insights: string[]) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-      setSaveStatus('idle')
-      debounceRef.current = setTimeout(() => {
-        setSaveStatus('saving')
-        saveMutation.mutate({ summary, insights })
-      }, 1500)
-    },
-    [saveMutation],
-  )
+  }, [analysis, markClean])
 
   // ---- Handlers ----
   const handleSummaryInput = useCallback(
     (e: React.FormEvent<HTMLDivElement>) => {
       const text = e.currentTarget.textContent ?? ''
       setEditedSummary(text)
-      debouncedSave(text, editedInsights)
     },
-    [debouncedSave, editedInsights],
+    [],
   )
 
   const handleInsightInput = useCallback(
@@ -160,11 +138,10 @@ export function AnalyzeStage({
       setEditedInsights((prev) => {
         const next = [...prev]
         next[index] = text
-        debouncedSave(editedSummary, next)
         return next
       })
     },
-    [debouncedSave, editedSummary],
+    [],
   )
 
   // ---- Approve handler ----

@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
+import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
   fetchContentSession,
@@ -121,6 +122,35 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     setLocalName(session?.name ?? '')
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Auto-save ────────────────────────────────────────────────────────
+
+  const settingsData = useMemo(() => ({
+    sources: localSources,
+    schedule: localSchedule,
+    workflows: localWorkflows,
+    model: localModel,
+    context: localContext,
+  }), [localSources, localSchedule, localWorkflows, localModel, localContext])
+
+  const { markClean } = useAutoSave({
+    data: settingsData,
+    onSave: async (data) => {
+      await updateSessionSettings(sessionId, data)
+      queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+    },
+    delay: 2000,
+    saveOnUnmount: true,
+    onBeforeUnloadSave: (data) => {
+      fetch(`/api/content-sessions/${sessionId}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify(data),
+      })
+    },
+    onError: (err) => addToast(`Failed to save: ${err instanceof Error ? err.message : 'unknown error'}`),
+  })
+
   // Sync server -> local state when server data changes
   // (covers both session switch AND external updates like FloatingChat)
   useEffect(() => {
@@ -129,67 +159,8 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     setLocalWorkflows(effectiveWorkflows)
     setLocalModel(effectiveModel)
     setLocalContext(effectiveContext)
+    markClean()
   }, [serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Refs for latest values in effects
-  const localSourcesRef = useRef(localSources)
-  const localScheduleRef = useRef(localSchedule)
-  const localWorkflowsRef = useRef(localWorkflows)
-  const localModelRef = useRef(localModel)
-  const localContextRef = useRef(localContext)
-
-  useEffect(() => {
-    localSourcesRef.current = localSources
-    localScheduleRef.current = localSchedule
-    localWorkflowsRef.current = localWorkflows
-    localModelRef.current = localModel
-    localContextRef.current = localContext
-  })
-
-  const isDirty = useMemo(() => {
-    return (
-      JSON.stringify(localSources) !== JSON.stringify(effectiveSources) ||
-      localSchedule !== effectiveSchedule ||
-      JSON.stringify(localWorkflows) !== JSON.stringify(effectiveWorkflows) ||
-      localModel !== effectiveModel ||
-      JSON.stringify(localContext) !== JSON.stringify(effectiveContext)
-    )
-  }, [localSources, localSchedule, localWorkflows, localModel, localContext, effectiveSources, effectiveSchedule, effectiveWorkflows, effectiveModel, effectiveContext])
-
-  const isDirtyRef = useRef(isDirty)
-  useEffect(() => { isDirtyRef.current = isDirty })
-
-  // ─── Auto-save ────────────────────────────────────────────────────────
-
-  const doSave = async () => {
-    try {
-      await updateSessionSettings(sessionId, {
-        sources: localSourcesRef.current,
-        schedule: localScheduleRef.current,
-        workflows: localWorkflowsRef.current,
-        model: localModelRef.current,
-        context: localContextRef.current,
-      })
-      queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-    } catch (err) {
-      addToast(`Failed to save: ${err instanceof Error ? err.message : 'unknown error'}`)
-    }
-  }
-
-  const doSaveRef = useRef(doSave)
-  useEffect(() => { doSaveRef.current = doSave })
-
-  // Debounced auto-save (800ms)
-  useEffect(() => {
-    if (!isDirty) return
-    const timer = setTimeout(() => { void doSaveRef.current() }, 800)
-    return () => clearTimeout(timer)
-  }, [localSources, localSchedule, localWorkflows, localModel, localContext, isDirty])
-
-  // Save on unmount if dirty
-  useEffect(() => {
-    return () => { if (isDirtyRef.current) void doSaveRef.current() }
-  }, [])
 
   // ─── Start session (collect) ──────────────────────────────────────────
 

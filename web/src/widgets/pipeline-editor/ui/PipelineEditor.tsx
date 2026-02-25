@@ -1,11 +1,12 @@
 // web/src/widgets/pipeline-editor/ui/PipelineEditor.tsx
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { StageCard } from './StageCard'
 import { listWorkflows, loadWorkflow, deserializeWorkflow, useWorkflowStore } from '@/entities/workflow'
 import { listConnections } from '@/shared/api'
+import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import type { Pipeline, Stage, StageConfig } from '@/shared/types'
 
 type Props = {
@@ -28,16 +29,14 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
   const [draft, setDraft] = useState<Pipeline>({ ...pipeline })
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const navigate = useNavigate()
 
-  const draftRef = useRef(draft)
-  const onSaveRef = useRef(onSave)
-  const initialRef = useRef(JSON.stringify(pipeline))
-  const isFirstRender = useRef(true)
-
-  draftRef.current = draft
-  onSaveRef.current = onSave
+  const { saveStatus } = useAutoSave({
+    data: draft,
+    onSave,
+    delay: 800,
+    saveOnUnmount: true,
+  })
 
   const { data: workflows = [] } = useQuery({
     queryKey: ['workflows'],
@@ -49,30 +48,6 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
     queryKey: ['connections'],
     queryFn: listConnections,
   })
-
-  // Auto-save on change (debounced)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    if (JSON.stringify(draft) === initialRef.current) return
-
-    setSaveStatus('saving')
-    const timer = setTimeout(() => {
-      onSaveRef.current(draft).then(() => {
-        initialRef.current = JSON.stringify(draft)
-        setSaveStatus('saved')
-      }).catch(() => setSaveStatus('idle'))
-    }, 800)
-    return () => clearTimeout(timer)
-  }, [draft])
-
-  // Save on unmount (page leave)
-  useEffect(() => {
-    return () => {
-      if (JSON.stringify(draftRef.current) !== initialRef.current) {
-        void onSaveRef.current(draftRef.current)
-      }
-    }
-  }, [])
 
   const handleOpenWorkflow = async (name: string) => {
     try {
@@ -148,7 +123,7 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
           />
         </div>
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {saveStatus === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
+          {(saveStatus === 'waiting' || saveStatus === 'saving') && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
           {saveStatus === 'saved' && <><Check className="h-3 w-3 text-success" />Saved</>}
         </span>
       </div>

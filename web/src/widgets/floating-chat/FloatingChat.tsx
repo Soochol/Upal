@@ -260,8 +260,13 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
           'hover:scale-105 active:scale-95',
         )}
       >
+        {isLoading && !isOpen && (
+          <span className="absolute inset-0 rounded-full animate-ping bg-primary/30" />
+        )}
         {isOpen ? (
           <X className="h-5 w-5" />
+        ) : isLoading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
           <MessageSquare className="h-5 w-5" />
         )}
