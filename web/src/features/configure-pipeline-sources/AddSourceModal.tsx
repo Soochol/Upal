@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import type { PipelineSource, PipelineSourceType } from '@/shared/types'
+import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
 
 type SourceTypeDef = {
   type: PipelineSourceType
