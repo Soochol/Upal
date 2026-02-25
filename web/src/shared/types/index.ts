@@ -224,7 +224,7 @@ export type ContentSessionStatus =
   | 'published'
   | 'error'
 
-export type SourceType = 'static' | 'signal'
+export type SourceType = 'static' | 'signal' | 'research'
 
 // --- Pipeline ---
 
@@ -241,7 +241,7 @@ export type PipelineSourceType =
 export type PipelineSource = {
   id: string
   type: PipelineSourceType
-  source_type: 'static' | 'signal'
+  source_type: 'static' | 'signal' | 'research'
   label: string
   // type-specific config
   url?: string             // rss, http, scrape
