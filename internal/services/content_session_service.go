@@ -9,7 +9,10 @@ import (
 
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.ContentSessionPort = (*ContentSessionService)(nil)
 
 // ContentSessionService manages content collection sessions and related records.
 type ContentSessionService struct {

@@ -42,7 +42,7 @@ type Server struct {
 	runPublisher         *runpub.RunPublisher
 	pipelineSvc          ports.PipelineServicePort
 	pipelineRunner       ports.PipelineRunner
-	contentSvc           *services.ContentSessionService
+	contentSvc           ports.ContentSessionPort
 	collector            *services.ContentCollector
 	llmResolver          ports.LLMResolver
 	publishChannelRepo   repository.PublishChannelRepository
@@ -269,7 +269,7 @@ func (s *Server) SetPipelineRunner(runner ports.PipelineRunner) {
 }
 
 // SetContentSessionService configures the content session management service.
-func (s *Server) SetContentSessionService(svc *services.ContentSessionService) {
+func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) {
 	s.contentSvc = svc
 }
 
