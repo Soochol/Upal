@@ -8,7 +8,6 @@ import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
 import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialBriefForm'
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { WorkflowPicker } from './WorkflowPicker'
-import { PipelineChatEditor } from '@/features/configure-pipeline/ui/PipelineChatEditor'
 import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/shared/types'
 
 const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
@@ -22,11 +21,9 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 ]
 
 export function PipelineSettingsPanel({
-  pipelineId,
   sources, schedule, context, workflows, model, channels,
   onSourcesChange, onScheduleChange, onContextSave, onWorkflowsChange, onModelChange, autoSaveStatus,
 }: {
-  pipelineId: string
   sources: PipelineSource[]
   schedule: string
   context: PipelineContext | undefined
@@ -264,23 +261,6 @@ export function PipelineSettingsPanel({
             <EditorialBriefForm initialContext={context} onSave={onContextSave} autoSave />
           )}
         </section>
-      </div>
-
-      {/* AI Assistant — pinned to bottom */}
-      <div className="border-t border-border bg-background/80 backdrop-blur-sm">
-        <PipelineChatEditor
-          pipelineId={pipelineId}
-          currentSources={sources}
-          currentSchedule={schedule}
-          currentWorkflows={workflows}
-          currentModel={model}
-          currentContext={context}
-          onSourcesChange={onSourcesChange}
-          onScheduleChange={onScheduleChange}
-          onWorkflowsChange={onWorkflowsChange}
-          onModelChange={onModelChange}
-          onContextSave={onContextSave}
-        />
       </div>
 
       {showAddModal && (

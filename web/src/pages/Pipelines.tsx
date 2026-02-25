@@ -11,6 +11,7 @@ import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipel
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
 import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
+import { FloatingChat } from '@/widgets/floating-chat/FloatingChat'
 
 // ─── New Session modal ──────────────────────────────────────────────────────
 
@@ -249,6 +250,12 @@ export default function PipelinesPage() {
           onClose={() => setShowNewSession(false)}
         />
       )}
+
+      {/* Floating AI Assistant */}
+      <FloatingChat
+        pipelineId={selectedPipelineId ?? undefined}
+        sessionId={selectedSessionId ?? undefined}
+      />
     </MainLayout>
   )
 }
