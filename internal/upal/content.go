@@ -44,6 +44,14 @@ type ContentSession struct {
 
 // --- SourceFetch ---
 
+// ResearchProgress tracks live progress for research source collection.
+type ResearchProgress struct {
+	CurrentStep   int    `json:"current_step"`
+	MaxSteps      int    `json:"max_steps"`
+	CurrentQuery  string `json:"current_query,omitempty"`
+	FindingsCount int    `json:"findings_count"`
+}
+
 // SourceItem is a single piece of content collected from a source.
 type SourceItem struct {
 	Title       string `json:"title"`
@@ -56,15 +64,16 @@ type SourceItem struct {
 
 // SourceFetch records the raw result of one source tool invocation in a session.
 type SourceFetch struct {
-	ID         string       `json:"id"`
-	SessionID  string       `json:"session_id"`
-	ToolName   string       `json:"tool"`                  // frontend expects "tool"
-	SourceType string       `json:"source_type"`           // "static" | "signal"
-	Label      string       `json:"label,omitempty"`       // display name for UI
-	Count      int          `json:"count"`                 // number of items
-	RawItems   []SourceItem `json:"items,omitempty"`       // frontend expects "items"
-	Error      *string      `json:"error,omitempty"`       // non-nil means this source failed
-	FetchedAt  time.Time    `json:"fetched_at"`
+	ID         string             `json:"id"`
+	SessionID  string             `json:"session_id"`
+	ToolName   string             `json:"tool"`                  // frontend expects "tool"
+	SourceType string             `json:"source_type"`           // "static" | "signal"
+	Label      string             `json:"label,omitempty"`       // display name for UI
+	Count      int                `json:"count"`                 // number of items
+	RawItems   []SourceItem       `json:"items,omitempty"`       // frontend expects "items"
+	Progress   *ResearchProgress  `json:"progress,omitempty"`    // live research progress (deep mode)
+	Error      *string            `json:"error,omitempty"`       // non-nil means this source failed
+	FetchedAt  time.Time          `json:"fetched_at"`
 }
 
 // --- LLMAnalysis ---

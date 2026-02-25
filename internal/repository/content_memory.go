@@ -110,6 +110,10 @@ func (r *MemorySourceFetchRepository) Create(ctx context.Context, sf *upal.Sourc
 	return r.store.Set(ctx, sf)
 }
 
+func (r *MemorySourceFetchRepository) Update(ctx context.Context, sf *upal.SourceFetch) error {
+	return r.store.Set(ctx, sf)
+}
+
 func (r *MemorySourceFetchRepository) ListBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {
 	return r.store.Filter(ctx, func(sf *upal.SourceFetch) bool {
 		return sf.SessionID == sessionID

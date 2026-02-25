@@ -240,10 +240,18 @@ func (d *DB) CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error 
 	if err != nil {
 		return fmt.Errorf("marshal raw_items: %w", err)
 	}
+	var progressParam any
+	if sf.Progress != nil {
+		b, e := json.Marshal(sf.Progress)
+		if e != nil {
+			return fmt.Errorf("marshal progress: %w", e)
+		}
+		progressParam = b
+	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO source_fetches (id, session_id, tool_name, source_type, label, item_count, raw_items, error, fetched_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		sf.ID, sf.SessionID, sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, sf.FetchedAt,
+		`INSERT INTO source_fetches (id, session_id, tool_name, source_type, label, item_count, raw_items, error, progress, fetched_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		sf.ID, sf.SessionID, sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, progressParam, sf.FetchedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert source_fetch: %w", err)
@@ -251,9 +259,37 @@ func (d *DB) CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error 
 	return nil
 }
 
+func (d *DB) UpdateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error {
+	itemsJSON, err := json.Marshal(sf.RawItems)
+	if err != nil {
+		return fmt.Errorf("marshal raw_items: %w", err)
+	}
+	var progressParam any
+	if sf.Progress != nil {
+		b, e := json.Marshal(sf.Progress)
+		if e != nil {
+			return fmt.Errorf("marshal progress: %w", e)
+		}
+		progressParam = b
+	}
+	res, err := d.Pool.ExecContext(ctx,
+		`UPDATE source_fetches SET tool_name = $1, source_type = $2, label = $3, item_count = $4, raw_items = $5, error = $6, progress = $7
+		 WHERE id = $8`,
+		sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, progressParam, sf.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update source_fetch: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("source_fetch %q not found", sf.ID)
+	}
+	return nil
+}
+
 func (d *DB) ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, session_id, tool_name, source_type, COALESCE(label, ''), COALESCE(item_count, 0), raw_items, error, fetched_at
+		`SELECT id, session_id, tool_name, source_type, COALESCE(label, ''), COALESCE(item_count, 0), raw_items, error, progress, fetched_at
 		 FROM source_fetches WHERE session_id = $1 ORDER BY fetched_at ASC`,
 		sessionID,
 	)
@@ -264,12 +300,16 @@ func (d *DB) ListSourceFetchesBySession(ctx context.Context, sessionID string) (
 	var result []*upal.SourceFetch
 	for rows.Next() {
 		var sf upal.SourceFetch
-		var itemsJSON []byte
-		if err := rows.Scan(&sf.ID, &sf.SessionID, &sf.ToolName, &sf.SourceType, &sf.Label, &sf.Count, &itemsJSON, &sf.Error, &sf.FetchedAt); err != nil {
+		var itemsJSON, progressJSON []byte
+		if err := rows.Scan(&sf.ID, &sf.SessionID, &sf.ToolName, &sf.SourceType, &sf.Label, &sf.Count, &itemsJSON, &sf.Error, &progressJSON, &sf.FetchedAt); err != nil {
 			return nil, fmt.Errorf("scan source_fetch: %w", err)
 		}
 		if err := json.Unmarshal(itemsJSON, &sf.RawItems); err != nil {
 			return nil, fmt.Errorf("unmarshal raw_items: %w", err)
+		}
+		if len(progressJSON) > 0 {
+			sf.Progress = &upal.ResearchProgress{}
+			_ = json.Unmarshal(progressJSON, sf.Progress)
 		}
 		// Recover count from items if DB column was not populated.
 		if sf.Count == 0 && len(sf.RawItems) > 0 {

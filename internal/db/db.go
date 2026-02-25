@@ -202,6 +202,7 @@ CREATE TABLE IF NOT EXISTS source_fetches (
 CREATE INDEX IF NOT EXISTS idx_source_fetches_session_id ON source_fetches(session_id);
 ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
 ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS progress JSONB;
 
 CREATE TABLE IF NOT EXISTS llm_analyses (
     id               TEXT PRIMARY KEY,

@@ -296,6 +296,10 @@ func (s *ContentSessionService) RecordSourceFetch(ctx context.Context, sf *upal.
 	return s.fetches.Create(ctx, sf)
 }
 
+func (s *ContentSessionService) UpdateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error {
+	return s.fetches.Update(ctx, sf)
+}
+
 func (s *ContentSessionService) ListSourceFetches(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {
 	return s.fetches.ListBySession(ctx, sessionID)
 }

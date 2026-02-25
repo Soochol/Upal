@@ -23,6 +23,7 @@ type ContentDB interface {
 	ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	DeleteContentSession(ctx context.Context, id string) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
+	UpdateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
 	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
 	GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
@@ -165,6 +166,14 @@ func (r *PersistentSourceFetchRepository) Create(ctx context.Context, sf *upal.S
 	_ = r.mem.Create(ctx, sf)
 	if err := r.db.CreateSourceFetch(ctx, sf); err != nil {
 		return fmt.Errorf("db create source_fetch: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentSourceFetchRepository) Update(ctx context.Context, sf *upal.SourceFetch) error {
+	_ = r.mem.Update(ctx, sf)
+	if err := r.db.UpdateSourceFetch(ctx, sf); err != nil {
+		return fmt.Errorf("db update source_fetch: %w", err)
 	}
 	return nil
 }

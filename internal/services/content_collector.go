@@ -197,6 +197,10 @@ func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) 
 
 // fetchAndRecord calls the appropriate fetcher for a source and records
 // the SourceFetch result. Returns the recorded SourceFetch (may have Error set).
+//
+// For research sources, the SourceFetch is created before fetching starts so
+// the frontend can see it immediately. A progress callback updates the record
+// during deep research, and a final update writes the completed results.
 func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string, pipelineSrc upal.PipelineSource, src upal.CollectSource) *upal.SourceFetch {
 	sf := &upal.SourceFetch{
 		SessionID:  sessionID,
@@ -215,12 +219,34 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		return sf
 	}
 
+	// For research sources: pre-record the SourceFetch so it's visible to
+	// the frontend immediately, and wire up a progress callback.
+	isResearch := src.Type == "research"
+	if isResearch {
+		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
+			log.Printf("content_collector: failed to pre-record research source fetch: %v", err)
+		}
+		if rf, ok := fetcher.(*researchFetcher); ok {
+			rf.SetProgressFn(func(p upal.ResearchProgress) {
+				sf.Progress = &p
+				_ = c.contentSvc.UpdateSourceFetch(ctx, sf)
+			})
+		}
+	}
+
 	text, data, err := fetcher.Fetch(ctx, src)
 	if err != nil {
 		errMsg := err.Error()
 		sf.Error = &errMsg
-		if recErr := c.contentSvc.RecordSourceFetch(ctx, sf); recErr != nil {
-			log.Printf("content_collector: failed to record source fetch error: %v", recErr)
+		sf.Progress = nil // clear progress on error
+		if isResearch {
+			if updateErr := c.contentSvc.UpdateSourceFetch(ctx, sf); updateErr != nil {
+				log.Printf("content_collector: failed to update source fetch error: %v", updateErr)
+			}
+		} else {
+			if recErr := c.contentSvc.RecordSourceFetch(ctx, sf); recErr != nil {
+				log.Printf("content_collector: failed to record source fetch error: %v", recErr)
+			}
 		}
 		return sf
 	}
@@ -228,10 +254,17 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 	// Convert fetcher data to SourceItems.
 	sf.RawItems = convertToSourceItems(src.Type, data)
 	sf.Count = len(sf.RawItems)
+	sf.Progress = nil // clear progress on completion
 	_ = text // text is used for prompt building via ListSourceFetches
 
-	if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
-		log.Printf("content_collector: failed to record source fetch: %v", err)
+	if isResearch {
+		if err := c.contentSvc.UpdateSourceFetch(ctx, sf); err != nil {
+			log.Printf("content_collector: failed to update completed research source fetch: %v", err)
+		}
+	} else {
+		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
+			log.Printf("content_collector: failed to record source fetch: %v", err)
+		}
 	}
 	return sf
 }

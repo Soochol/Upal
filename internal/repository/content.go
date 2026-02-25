@@ -24,6 +24,7 @@ type ContentSessionRepository interface {
 // SourceFetchRepository manages SourceFetch persistence.
 type SourceFetchRepository interface {
 	Create(ctx context.Context, sf *upal.SourceFetch) error
+	Update(ctx context.Context, sf *upal.SourceFetch) error
 	ListBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
 }
 

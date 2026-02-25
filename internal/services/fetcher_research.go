@@ -16,12 +16,22 @@ import (
 	"google.golang.org/genai"
 )
 
+// ResearchProgressFn is called during research to report live progress.
+type ResearchProgressFn func(progress upal.ResearchProgress)
+
 // researchFetcher uses an LLM with web_search and get_webpage tools to
 // research a topic. It supports two modes: "light" (single search pass) and
 // "deep" (multi-round investigation loop).
 type researchFetcher struct {
-	resolver ports.LLMResolver
-	skills   skills.Provider
+	resolver   ports.LLMResolver
+	skills     skills.Provider
+	progressFn ResearchProgressFn
+}
+
+// SetProgressFn sets an optional callback that receives live progress updates
+// during deep research. Safe to call before Fetch.
+func (f *researchFetcher) SetProgressFn(fn ResearchProgressFn) {
+	f.progressFn = fn
 }
 
 // NewResearchFetcher creates a researchFetcher that drives an LLM through a
@@ -123,6 +133,7 @@ func (f *researchFetcher) runResearch(
 	// generous headroom on total loop iterations.
 	maxLoopTurns := max(maxSearches*3, 6)
 	searchCount := 0
+	findingsCount := 0
 
 	for turn := 0; turn < maxLoopTurns; turn++ {
 		req := &adkmodel.LLMRequest{
@@ -161,10 +172,27 @@ func (f *researchFetcher) runResearch(
 		// Count web_search calls. The LLM provider handles web_search
 		// natively so we don't execute it ourselves, but we still track
 		// how many times the model invoked it.
+		lastQuery := ""
 		for _, fc := range toolCalls {
 			if fc.Name == "web_search" || fc.Name == "google_search" {
 				searchCount++
+				if q, ok := fc.Args["query"].(string); ok {
+					lastQuery = q
+				}
 			}
+			if fc.Name == "get_webpage" {
+				findingsCount++
+			}
+		}
+
+		// Report progress to the callback if set.
+		if f.progressFn != nil && searchCount > 0 {
+			f.progressFn(upal.ResearchProgress{
+				CurrentStep:   searchCount,
+				MaxSteps:      maxSearches,
+				CurrentQuery:  lastQuery,
+				FindingsCount: findingsCount,
+			})
 		}
 
 		// Execute tool calls and append results.
