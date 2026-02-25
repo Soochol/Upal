@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
 
@@ -168,7 +167,7 @@ func (s *Server) streamRunEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeSSEEvent writes a single event as an SSE frame with the seq as the id.
-func writeSSEEvent(w http.ResponseWriter, ev services.EventRecord) {
+func writeSSEEvent(w http.ResponseWriter, ev upal.EventRecord) {
 	data, _ := json.Marshal(ev.Payload)
 	fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.Seq, ev.Type, data)
 }

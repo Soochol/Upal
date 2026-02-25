@@ -8,6 +8,12 @@ type WorkflowEvent struct {
 	Payload map[string]any `json:"payload"`
 }
 
+// EventRecord is a sequenced workflow event stored in the per-run buffer.
+type EventRecord struct {
+	WorkflowEvent
+	Seq int `json:"seq"`
+}
+
 // RunResult contains the final state after a workflow execution completes.
 type RunResult struct {
 	SessionID string

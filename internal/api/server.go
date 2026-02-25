@@ -37,8 +37,8 @@ type Server struct {
 	a2aBaseURL           string
 	retryExecutor        ports.RetryExecutor
 	connectionSvc        ports.ConnectionPort
-	executionReg         *services.ExecutionRegistry
-	runManager           *services.RunManager
+	executionReg         ports.ExecutionRegistryPort
+	runManager           ports.RunManagerPort
 	runPublisher         *runpub.RunPublisher
 	pipelineSvc          ports.PipelineServicePort
 	pipelineRunner       ports.PipelineRunner
@@ -244,12 +244,12 @@ func (s *Server) SetPublishChannelRepo(repo repository.PublishChannelRepository)
 }
 
 // SetExecutionRegistry configures the execution registry for pause/resume.
-func (s *Server) SetExecutionRegistry(reg *services.ExecutionRegistry) {
+func (s *Server) SetExecutionRegistry(reg ports.ExecutionRegistryPort) {
 	s.executionReg = reg
 }
 
 // SetRunManager configures the run manager for background execution.
-func (s *Server) SetRunManager(rm *services.RunManager) {
+func (s *Server) SetRunManager(rm ports.RunManagerPort) {
 	s.runManager = rm
 }
 

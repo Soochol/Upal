@@ -5,19 +5,16 @@ import (
 	"time"
 
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
 
-// EventRecord is a timestamped workflow event stored in the per-run buffer.
-type EventRecord struct {
-	upal.WorkflowEvent
-	Seq int `json:"seq"`
-}
+var _ ports.RunManagerPort = (*RunManager)(nil)
 
 // runEntry holds the in-memory state for a single run: buffered events,
 // completion status, and subscriber notification channels.
 type runEntry struct {
 	mu          sync.RWMutex
-	events      []EventRecord
+	events      []upal.EventRecord
 	done        bool
 	donePayload map[string]any // final "done" payload (status, session_id, state, run_id)
 	subs        []chan struct{} // closed-and-replaced on each new event (fan-out wakeup)
@@ -26,12 +23,12 @@ type runEntry struct {
 
 // snapshot returns a copy of events from startSeq onward, registers a
 // subscriber notification channel, and reports the run's done state.
-func (e *runEntry) snapshot(startSeq int) (events []EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any) {
+func (e *runEntry) snapshot(startSeq int) (events []upal.EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if startSeq < len(e.events) {
-		events = make([]EventRecord, len(e.events)-startSeq)
+		events = make([]upal.EventRecord, len(e.events)-startSeq)
 		copy(events, e.events[startSeq:])
 	}
 
@@ -75,7 +72,7 @@ func (rm *RunManager) Register(runID string) {
 }
 
 // Append adds an event to the run's buffer and notifies all subscribers.
-func (rm *RunManager) Append(runID string, ev EventRecord) {
+func (rm *RunManager) Append(runID string, ev upal.EventRecord) {
 	rm.mu.RLock()
 	entry, ok := rm.runs[runID]
 	rm.mu.RUnlock()
@@ -129,7 +126,7 @@ func (rm *RunManager) Fail(runID string, errMsg string) {
 // Subscribe returns all buffered events from startSeq onward, a notification
 // channel that is closed when new events arrive, and the run's done state.
 // Returns found=false if the runID is not tracked.
-func (rm *RunManager) Subscribe(runID string, startSeq int) (events []EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any, found bool) {
+func (rm *RunManager) Subscribe(runID string, startSeq int) (events []upal.EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any, found bool) {
 	rm.mu.RLock()
 	entry, ok := rm.runs[runID]
 	rm.mu.RUnlock()

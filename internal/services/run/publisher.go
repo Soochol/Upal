@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 	"github.com/soochol/upal/internal/upal/ports"
 )
@@ -15,17 +14,17 @@ import (
 // It owns the background execution loop and event publishing logic.
 type RunPublisher struct {
 	workflowExec  ports.WorkflowExecutor
-	runManager    *services.RunManager
+	runManager    ports.RunManagerPort
 	runHistorySvc ports.RunHistoryPort
-	executionReg  *services.ExecutionRegistry
+	executionReg  ports.ExecutionRegistryPort
 }
 
 // NewRunPublisher creates a RunPublisher that drives background workflow executions.
 func NewRunPublisher(
 	workflowExec ports.WorkflowExecutor,
-	runManager *services.RunManager,
+	runManager ports.RunManagerPort,
 	runHistorySvc ports.RunHistoryPort,
-	executionReg *services.ExecutionRegistry,
+	executionReg ports.ExecutionRegistryPort,
 ) *RunPublisher {
 	return &RunPublisher{
 		workflowExec:  workflowExec,
@@ -59,7 +58,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 		if ev.Type == upal.EventError {
 			errMsg := fmt.Sprintf("%v", ev.Payload["error"])
 			slog.Error("background run error", "run_id", runID, "err", errMsg)
-			p.runManager.Append(runID, services.EventRecord{
+			p.runManager.Append(runID, upal.EventRecord{
 				WorkflowEvent: ev,
 			})
 			if p.runHistorySvc != nil {
@@ -79,7 +78,7 @@ func (p *RunPublisher) Launch(ctx context.Context, runID string, wf *upal.Workfl
 			ev.Payload["completed_at"] = time.Now().UnixMilli()
 		}
 
-		p.runManager.Append(runID, services.EventRecord{
+		p.runManager.Append(runID, upal.EventRecord{
 			WorkflowEvent: ev,
 		})
 

@@ -4,7 +4,10 @@ import (
 	"sync"
 
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 )
+
+var _ ports.ExecutionRegistryPort = (*ExecutionRegistry)(nil)
 
 // ExecutionRegistry tracks active workflow executions.
 type ExecutionRegistry struct {
