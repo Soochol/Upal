@@ -1,6 +1,5 @@
 import { Play, Trash2, Clock, Zap, RefreshCw, GitBranch, PauseCircle, Loader2, Rss } from 'lucide-react'
 import type { Pipeline } from '@/entities/pipeline'
-import { humanReadableCron } from '@/shared/lib/cron'
 
 const stageTypeConfig: Record<string, { icon: typeof GitBranch; color: string }> = {
   workflow: { icon: Play, color: 'var(--info)' },
@@ -21,7 +20,6 @@ type Props = {
 }
 
 export function PipelineCard({ pipeline, onClick, onStart, onCollect, onDelete, isCollecting }: Props) {
-  const hasContentMeta = (pipeline.sources && pipeline.sources.length > 0) || !!pipeline.schedule
   const pendingCount = pipeline.pending_session_count ?? 0
 
   return (
@@ -124,23 +122,6 @@ export function PipelineCard({ pipeline, onClick, onStart, onCollect, onDelete, 
           <span className="text-[10px] text-muted-foreground/50 landing-body tabular-nums">
             {pipeline.stages.length} stage{pipeline.stages.length !== 1 ? 's' : ''}
           </span>
-
-          {/* Content pipeline metadata */}
-          {hasContentMeta && (
-            <>
-              {pipeline.schedule && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/50">
-                  <Clock className="h-2.5 w-2.5" />
-                  {humanReadableCron(pipeline.schedule)}
-                </span>
-              )}
-              {(pipeline.sources?.length ?? 0) > 0 && (
-                <span className="text-[10px] text-muted-foreground/50">
-                  {pipeline.sources!.length} source{pipeline.sources!.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </>
-          )}
 
           {/* Pending review badge */}
           {pendingCount > 0 && (

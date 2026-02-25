@@ -9,12 +9,14 @@ export async function fetchContentSessions(params?: {
   status?: string
   archivedOnly?: boolean
   includeArchived?: boolean
+  templateOnly?: boolean
 }): Promise<ContentSession[]> {
   const qs = new URLSearchParams()
   if (params?.pipelineId) qs.set('pipeline_id', params.pipelineId)
   if (params?.status) qs.set('status', params.status)
   if (params?.archivedOnly) qs.set('archived_only', 'true')
   if (params?.includeArchived) qs.set('include_archived', 'true')
+  if (params?.templateOnly) qs.set('template_only', 'true')
   const query = qs.toString() ? `?${qs}` : ''
   return apiFetch<ContentSession[]>(`${BASE}${query}`)
 }
@@ -115,6 +117,23 @@ export async function archiveSession(id: string): Promise<ContentSession> {
 export async function unarchiveSession(id: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/unarchive`, {
     method: 'POST',
+  })
+}
+
+export async function createDraftSession(data: {
+  pipeline_id: string
+  name?: string
+  is_template?: boolean
+  sources?: PipelineSource[]
+  schedule?: string
+  model?: string
+  workflows?: PipelineWorkflow[]
+  context?: PipelineContext
+}): Promise<ContentSession> {
+  return apiFetch<ContentSession>(BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   })
 }
 

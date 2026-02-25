@@ -45,12 +45,6 @@ export type Pipeline = {
   description?: string
   stages: Stage[]
   thumbnail_svg?: string
-  // Content pipeline extensions
-  sources?: PipelineSource[]
-  workflows?: PipelineWorkflow[]
-  context?: PipelineContext
-  schedule?: string          // cron expression
-  model?: string              // "provider/model" format, empty = system default
   last_collected_at?: string
   pending_session_count?: number
   created_at: string

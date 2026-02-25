@@ -9,6 +9,7 @@ import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialB
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
 import { createPipeline, generatePipelineBundle } from '@/entities/pipeline'
+import { createDraftSession } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { WorkflowPicker } from './WorkflowPicker'
 import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/entities/pipeline'
@@ -106,15 +107,20 @@ export default function PipelineNewPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: () => createPipeline({
-      name,
-      description,
-      stages: [],
-      sources,
-      context,
-      schedule,
-      workflows,
-    }),
+    mutationFn: async () => {
+      const pipeline = await createPipeline({ name, description, stages: [] })
+      // Create a template session with the wizard settings
+      await createDraftSession({
+        pipeline_id: pipeline.id,
+        name: `${name} Template`,
+        is_template: true,
+        sources,
+        context,
+        schedule,
+        workflows,
+      })
+      return pipeline
+    },
     onSuccess: (pipeline) => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       navigate(`/pipelines?p=${pipeline.id}`)
@@ -128,11 +134,12 @@ export default function PipelineNewPage() {
       setIsGenerating(true)
       try {
         const bundle = await generatePipelineBundle("Generate a standard news curation pipeline")
-        if (bundle.pipeline.name) setName(bundle.pipeline.name)
-        if (bundle.pipeline.description) setDescription(bundle.pipeline.description)
-        if (bundle.pipeline.context) setContext(bundle.pipeline.context)
-        if (bundle.pipeline.sources) setSources(bundle.pipeline.sources)
-        if (bundle.pipeline.schedule) setSchedule(bundle.pipeline.schedule)
+        const generated = bundle.pipeline as Record<string, any>
+        if (generated.name) setName(generated.name)
+        if (generated.description) setDescription(generated.description)
+        if (generated.context) setContext(generated.context)
+        if (generated.sources) setSources(generated.sources)
+        if (generated.schedule) setSchedule(generated.schedule)
         if (bundle.workflows && bundle.workflows.length > 0) {
           // Add generated workflows if returned
           const mapped = bundle.workflows.map((w: any) => ({ workflow_name: w.name, auto_select: true }))

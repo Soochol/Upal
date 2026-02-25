@@ -38,9 +38,9 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
             if (!sessionId || !pipelineId) return
             setIsApproving(true)
             try {
-                // Build workflow→channel mapping from pipeline config
+                // Build workflow→channel mapping from session config
                 const channelMap: Record<string, string> = {}
-                for (const pw of pipeline?.workflows ?? []) {
+                for (const pw of session?.session_workflows ?? []) {
                     if (pw.channel_id) channelMap[pw.workflow_name] = pw.channel_id
                 }
                 await approveSession(sessionId, selectedWorkflows, channelMap)
@@ -51,7 +51,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                 setIsApproving(false)
             }
         },
-        [sessionId, pipelineId, pipeline, approveSession, queryClient, navigate],
+        [sessionId, pipelineId, session, approveSession, queryClient, navigate],
     )
 
     const handleReject = useCallback(async () => {

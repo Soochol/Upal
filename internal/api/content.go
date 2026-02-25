@@ -25,10 +25,13 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	// When pipeline_id is provided, return composed detail views.
 	if pipelineID != "" {
 		archivedOnly := r.URL.Query().Get("archived_only") == "true"
+		templateOnly := r.URL.Query().Get("template_only") == "true"
 
 		var details []*upal.ContentSessionDetail
 		var err error
-		if archivedOnly {
+		if templateOnly {
+			details, err = s.contentSvc.ListTemplateDetailsByPipeline(ctx, pipelineID)
+		} else if archivedOnly {
 			details, err = s.contentSvc.ListArchivedSessionDetails(ctx, pipelineID)
 		} else {
 			details, err = s.contentSvc.ListSessionDetailsByPipelineAndStatus(ctx, pipelineID, upal.ContentSessionStatus(statusStr))
@@ -443,8 +446,14 @@ func (s *Server) createSessionFromSurge(w http.ResponseWriter, r *http.Request) 
 // Creates a new draft session for a pipeline.
 func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		PipelineID string `json:"pipeline_id"`
-		Name       string `json:"name"`
+		PipelineID string                  `json:"pipeline_id"`
+		Name       string                  `json:"name"`
+		IsTemplate bool                    `json:"is_template"`
+		Sources    []upal.PipelineSource   `json:"sources,omitempty"`
+		Schedule   string                  `json:"schedule,omitempty"`
+		Model      string                  `json:"model,omitempty"`
+		Workflows  []upal.PipelineWorkflow `json:"workflows,omitempty"`
+		Context    *upal.PipelineContext   `json:"context,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -458,6 +467,12 @@ func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 	sess := &upal.ContentSession{
 		PipelineID:  body.PipelineID,
 		Name:        body.Name,
+		IsTemplate:  body.IsTemplate,
+		Sources:     body.Sources,
+		Schedule:    body.Schedule,
+		Model:       body.Model,
+		Workflows:   body.Workflows,
+		Context:     body.Context,
 		Status:      upal.SessionDraft,
 		TriggerType: "manual",
 	}

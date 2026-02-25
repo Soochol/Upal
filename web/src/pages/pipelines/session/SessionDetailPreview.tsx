@@ -73,9 +73,9 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
             if (!sessionId || !pipelineId) return
             setIsApproving(true)
             try {
-                // Build workflow→channel mapping from pipeline config
+                // Build workflow→channel mapping from session config
                 const channelMap: Record<string, string> = {}
-                for (const pw of pipeline?.workflows ?? []) {
+                for (const pw of session?.session_workflows ?? []) {
                     if (pw.channel_id) channelMap[pw.workflow_name] = pw.channel_id
                 }
                 await approveSession(sessionId, selectedWorkflows, channelMap)
@@ -85,7 +85,7 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
                 setIsApproving(false)
             }
         },
-        [sessionId, pipelineId, pipeline, approveSession, queryClient],
+        [sessionId, pipelineId, session, approveSession, queryClient],
     )
 
     const handleReject = useCallback(async () => {
@@ -119,10 +119,11 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
         if (!session || !pipeline) return
         const angles = session.analysis?.angles?.filter(a => a.selected && a.workflow_name) ?? []
         if (angles.length === 0) return
+        const sessionWfs = session.session_workflows ?? []
         const workflows = angles.map(a => ({
             name: a.workflow_name!,
-            ...(pipeline.workflows?.find(pw => pw.workflow_name === a.workflow_name)?.channel_id
-                ? { channel_id: pipeline.workflows.find(pw => pw.workflow_name === a.workflow_name)!.channel_id }
+            ...(sessionWfs.find(pw => pw.workflow_name === a.workflow_name)?.channel_id
+                ? { channel_id: sessionWfs.find(pw => pw.workflow_name === a.workflow_name)!.channel_id }
                 : {}),
         }))
         await produceSession(sessionId, workflows)

@@ -2,10 +2,9 @@ import { useState, useRef, createRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Search, Plus, GitBranch, Rss, Sparkles, Clock, Loader2, Pencil,
+  Search, Plus, GitBranch, Rss, Sparkles, Loader2, Pencil,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { humanReadableCron } from '@/shared/lib/cron'
 import { EditableName } from '@/shared/ui/EditableName'
 import type { EditableNameHandle } from '@/shared/ui/EditableName'
 import type { Pipeline } from '@/entities/pipeline'
@@ -14,7 +13,7 @@ import { updatePipeline } from '@/entities/pipeline/api'
 type PipelineTab = 'all' | 'content'
 
 function isContentPipeline(p: Pipeline) {
-  return (p.sources && p.sources.length > 0) || !!p.schedule || !!p.context
+  return (p.stages ?? []).some(s => s.type === 'collect')
 }
 
 interface PipelineSidebarProps {
@@ -203,21 +202,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading }: 
                 )}
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
                   <span>{(p.stages ?? []).length} stages</span>
-                  {p.schedule && (
-                    <>
-                      <span className="text-muted-foreground/30">·</span>
-                      <span className="inline-flex items-center gap-0.5">
-                        <Clock className="w-2.5 h-2.5" />
-                        {humanReadableCron(p.schedule)}
-                      </span>
-                    </>
-                  )}
-                  {(p.sources?.length ?? 0) > 0 && (
-                    <>
-                      <span className="text-muted-foreground/30">·</span>
-                      <span>{p.sources!.length} sources</span>
-                    </>
-                  )}
                 </div>
               </button>
             )

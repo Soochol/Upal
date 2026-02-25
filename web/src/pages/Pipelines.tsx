@@ -8,7 +8,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
-import { fetchPipelines, fetchPipeline, updatePipeline, collectPipeline } from '@/entities/pipeline'
+import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipeline'
+import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
@@ -16,7 +17,7 @@ import { SessionDetailPreview } from '@/pages/pipelines/session/SessionDetailPre
 import { PipelineSettingsPanel } from '@/pages/pipelines/PipelineSettingsPanel'
 import { useUIStore } from '@/entities/ui'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
-import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/entities/pipeline'
+import type { PipelineSource, PipelineWorkflow } from '@/entities/pipeline'
 
 // ─── New Session modal ──────────────────────────────────────────────────────
 
@@ -124,6 +125,14 @@ export default function PipelinesPage() {
     queryFn: fetchPublishChannels,
   })
 
+  // Fetch template session for the selected pipeline (holds settings)
+  const { data: templateSessions = [] } = useQuery({
+    queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }],
+    queryFn: () => fetchContentSessions({ pipelineId: selectedPipelineId!, templateOnly: true }),
+    enabled: !!selectedPipelineId,
+  })
+  const templateSession = templateSessions[0] ?? null
+
   const collectMutation = useMutation({
     mutationFn: (config?: { isTest: boolean; limit: number }) =>
       collectPipeline(selectedPipelineId!, config),
@@ -133,13 +142,7 @@ export default function PipelinesPage() {
     },
   })
 
-  const updateContextMutation = useMutation({
-    mutationFn: (ctx: PipelineContext) =>
-      updatePipeline(selectedPipelineId!, { ...selectedPipeline!, context: ctx }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline', selectedPipelineId] }),
-  })
-
-  // ─── Local settings state + auto-save ─────────────────────────────────
+  // ─── Local settings state + auto-save (reads from template session) ───
 
   const [localSources, setLocalSources] = useState<PipelineSource[]>([])
   const [localSchedule, setLocalSchedule] = useState('')
@@ -147,25 +150,25 @@ export default function PipelinesPage() {
   const [localModel, setLocalModel] = useState('')
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
-  // Sync server → local state when switching pipelines
+  // Sync server → local state when template session changes
   useEffect(() => {
-    if (selectedPipeline) {
-      setLocalSources(selectedPipeline.sources ?? []) // eslint-disable-line react-hooks/set-state-in-effect
-      setLocalSchedule(selectedPipeline.schedule ?? '')
-      setLocalWorkflows(selectedPipeline.workflows ?? [])
-      setLocalModel(selectedPipeline.model ?? '')
+    if (templateSession) {
+      setLocalSources(templateSession.session_sources ?? []) // eslint-disable-line react-hooks/set-state-in-effect
+      setLocalSchedule(templateSession.schedule ?? '')
+      setLocalWorkflows(templateSession.session_workflows ?? [])
+      setLocalModel(templateSession.model ?? '')
     }
-  }, [selectedPipeline?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [templateSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refs to read latest values in effects/cleanup without stale closures
-  const pipelineRef = useRef(selectedPipeline)
+  const templateRef = useRef(templateSession)
   const localSourcesRef = useRef(localSources)
   const localScheduleRef = useRef(localSchedule)
   const localWorkflowsRef = useRef(localWorkflows)
   const localModelRef = useRef(localModel)
 
   useEffect(() => {
-    pipelineRef.current = selectedPipeline
+    templateRef.current = templateSession
     localSourcesRef.current = localSources
     localScheduleRef.current = localSchedule
     localWorkflowsRef.current = localWorkflows
@@ -173,36 +176,35 @@ export default function PipelinesPage() {
   })
 
   const isDirty = useMemo(() => {
-    if (!selectedPipeline) return false
+    if (!templateSession) return false
     return (
-      JSON.stringify(localSources) !== JSON.stringify(selectedPipeline.sources ?? []) ||
-      localSchedule !== (selectedPipeline.schedule ?? '') ||
-      JSON.stringify(localWorkflows) !== JSON.stringify(selectedPipeline.workflows ?? []) ||
-      localModel !== (selectedPipeline.model ?? '')
+      JSON.stringify(localSources) !== JSON.stringify(templateSession.session_sources ?? []) ||
+      localSchedule !== (templateSession.schedule ?? '') ||
+      JSON.stringify(localWorkflows) !== JSON.stringify(templateSession.session_workflows ?? []) ||
+      localModel !== (templateSession.model ?? '')
     )
-  }, [localSources, localSchedule, localWorkflows, localModel, selectedPipeline])
+  }, [localSources, localSchedule, localWorkflows, localModel, templateSession])
 
   const isDirtyRef = useRef(isDirty)
   useEffect(() => { isDirtyRef.current = isDirty })
 
   const doSave = async () => {
-    const p = pipelineRef.current
-    if (!p) return
+    const tmpl = templateRef.current
+    if (!tmpl) return
     setAutoSaveStatus('saving')
     try {
-      await updatePipeline(selectedPipelineId!, {
-        ...p,
+      await updateSessionSettings(tmpl.id, {
         sources: localSourcesRef.current,
         schedule: localScheduleRef.current,
         workflows: localWorkflowsRef.current,
         model: localModelRef.current,
       })
-      queryClient.invalidateQueries({ queryKey: ['pipeline', selectedPipelineId] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
       setAutoSaveStatus('saved')
       setTimeout(() => setAutoSaveStatus('idle'), 2000)
     } catch (err) {
       setAutoSaveStatus('idle')
-      addToast(`Failed to save pipeline settings: ${err instanceof Error ? err.message : 'unknown error'}`)
+      addToast(`Failed to save session settings: ${err instanceof Error ? err.message : 'unknown error'}`)
     }
   }
 
@@ -377,13 +379,17 @@ export default function PipelinesPage() {
                         pipelineId={selectedPipelineId}
                         sources={localSources}
                         schedule={localSchedule}
-                        context={selectedPipeline?.context}
+                        context={templateSession?.context}
                         workflows={localWorkflows}
                         model={localModel}
                         channels={channels}
                         onSourcesChange={setLocalSources}
                         onScheduleChange={setLocalSchedule}
-                        onContextSave={async (ctx) => { await updateContextMutation.mutateAsync(ctx) }}
+                        onContextSave={async (ctx) => {
+                          if (!templateSession) return
+                          await updateSessionSettings(templateSession.id, { context: ctx })
+                          queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
+                        }}
                         onWorkflowsChange={setLocalWorkflows}
                         onModelChange={setLocalModel}
                         autoSaveStatus={autoSaveStatus}

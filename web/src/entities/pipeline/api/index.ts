@@ -1,5 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { Pipeline, PipelineRun, PipelineSource, PipelineContext } from '../types'
+import type { Pipeline, PipelineRun } from '../types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
 const API_BASE = '/api'
@@ -69,23 +69,6 @@ export async function collectPipeline(id: string, config?: { isTest?: boolean, l
   )
 }
 
-// Content pipeline: update sources (merges into full pipeline PUT)
-export async function updatePipelineSources(
-  id: string,
-  sources: PipelineSource[],
-): Promise<Pipeline> {
-  const pipeline = await fetchPipeline(id)
-  return updatePipeline(id, { ...pipeline, sources })
-}
-
-// Content pipeline: update editorial brief (merges into full pipeline PUT)
-export async function updatePipelineContext(
-  id: string,
-  context: PipelineContext,
-): Promise<Pipeline> {
-  const pipeline = await fetchPipeline(id)
-  return updatePipeline(id, { ...pipeline, context })
-}
 
 export type PipelineBundle = {
   pipeline: Omit<Pipeline, 'id' | 'created_at' | 'updated_at'>
