@@ -76,6 +76,12 @@ export type ConfigurePipelineRequest = {
   current_context?: PipelineContext
 }
 
+export type CreatedWorkflowInfo = {
+  name: string
+  status: 'success' | 'failed' | 'exists'
+  error?: string
+}
+
 export type ConfigurePipelineResponse = {
   sources?: PipelineSource[]
   schedule?: string | null
@@ -83,6 +89,7 @@ export type ConfigurePipelineResponse = {
   model?: string | null
   context?: PipelineContext
   explanation: string
+  created_workflows?: CreatedWorkflowInfo[]
 }
 
 // --- Run History ---

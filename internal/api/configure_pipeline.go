@@ -26,12 +26,35 @@ type ConfigurePipelineRequest struct {
 }
 
 type ConfigurePipelineResponse struct {
-	Sources     json.RawMessage `json:"sources,omitempty"`
-	Schedule    *string         `json:"schedule,omitempty"`
-	Workflows   json.RawMessage `json:"workflows,omitempty"`
-	Model       *string         `json:"model,omitempty"`
-	Context     json.RawMessage `json:"context,omitempty"`
-	Explanation string          `json:"explanation"`
+	Sources          json.RawMessage      `json:"sources,omitempty"`
+	Schedule         *string              `json:"schedule,omitempty"`
+	Workflows        json.RawMessage      `json:"workflows,omitempty"`
+	Model            *string              `json:"model,omitempty"`
+	Context          json.RawMessage      `json:"context,omitempty"`
+	Explanation      string               `json:"explanation"`
+	CreatedWorkflows []CreatedWorkflowInfo `json:"created_workflows,omitempty"`
+}
+
+// configureLLMResponse is the internal struct for parsing LLM output (includes create_workflows).
+type configureLLMResponse struct {
+	Sources         json.RawMessage     `json:"sources,omitempty"`
+	Schedule        *string             `json:"schedule,omitempty"`
+	Workflows       json.RawMessage     `json:"workflows,omitempty"`
+	Model           *string             `json:"model,omitempty"`
+	Context         json.RawMessage     `json:"context,omitempty"`
+	Explanation     string              `json:"explanation"`
+	CreateWorkflows []CreateWorkflowSpec `json:"create_workflows,omitempty"`
+}
+
+type CreateWorkflowSpec struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+type CreatedWorkflowInfo struct {
+	Name   string `json:"name"`
+	Status string `json:"status"` // "success" or "failed"
+	Error  string `json:"error,omitempty"`
 }
 
 func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
@@ -155,12 +178,97 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var configResp ConfigurePipelineResponse
-	if err := json.NewDecoder(strings.NewReader(content)).Decode(&configResp); err != nil {
+	var llmResp configureLLMResponse
+	if err := json.NewDecoder(strings.NewReader(content)).Decode(&llmResp); err != nil {
 		http.Error(w, fmt.Sprintf("failed to parse LLM response: %v\nraw: %s", err, content), http.StatusInternalServerError)
 		return
 	}
 
+	// Generate requested workflows (limit to 3)
+	const maxCreateWorkflows = 3
+	specs := llmResp.CreateWorkflows
+	if len(specs) > maxCreateWorkflows {
+		specs = specs[:maxCreateWorkflows]
+	}
+
+	var created []CreatedWorkflowInfo
+	failedNames := map[string]bool{}
+	for _, spec := range specs {
+		if spec.Name == "" || spec.Description == "" {
+			continue
+		}
+		// Skip if workflow already exists
+		if s.repo != nil {
+			if _, err := s.repo.Get(r.Context(), spec.Name); err == nil {
+				created = append(created, CreatedWorkflowInfo{Name: spec.Name, Status: "exists"})
+				continue
+			}
+		}
+		wf, err := s.generator.GenerateWorkflow(r.Context(), spec.Description)
+		if err != nil {
+			failedNames[spec.Name] = true
+			created = append(created, CreatedWorkflowInfo{Name: spec.Name, Status: "failed", Error: err.Error()})
+			continue
+		}
+		wf.Name = spec.Name
+		if s.repo != nil {
+			if err := s.repo.Create(r.Context(), wf); err != nil {
+				failedNames[spec.Name] = true
+				created = append(created, CreatedWorkflowInfo{Name: spec.Name, Status: "failed", Error: err.Error()})
+				continue
+			}
+		}
+		created = append(created, CreatedWorkflowInfo{Name: spec.Name, Status: "success"})
+	}
+
+	// Filter out failed workflow references so the session doesn't reference non-existent workflows
+	workflows := llmResp.Workflows
+	if len(failedNames) > 0 {
+		workflows = filterFailedWorkflows(llmResp.Workflows, failedNames)
+	}
+
+	configResp := ConfigurePipelineResponse{
+		Sources:          llmResp.Sources,
+		Schedule:         llmResp.Schedule,
+		Workflows:        workflows,
+		Model:            llmResp.Model,
+		Context:          llmResp.Context,
+		Explanation:      llmResp.Explanation,
+		CreatedWorkflows: created,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(configResp)
+}
+
+// filterFailedWorkflows removes workflow references whose names are in the failed set.
+func filterFailedWorkflows(raw json.RawMessage, failed map[string]bool) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var wfs []struct {
+		WorkflowName string `json:"workflow_name"`
+	}
+	if err := json.Unmarshal(raw, &wfs); err != nil {
+		return raw
+	}
+
+	var kept []json.RawMessage
+	var all []json.RawMessage
+	if err := json.Unmarshal(raw, &all); err != nil {
+		return raw
+	}
+	for i, wf := range wfs {
+		if !failed[wf.WorkflowName] {
+			kept = append(kept, all[i])
+		}
+	}
+	if len(kept) == len(all) {
+		return raw
+	}
+	out, err := json.Marshal(kept)
+	if err != nil {
+		return raw
+	}
+	return out
 }
