@@ -108,17 +108,22 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
 		wfResults := s.GetWorkflowResults(ctx, sess.ID)
 		details = append(details, &upal.ContentSessionDetail{
-			ID:              sess.ID,
-			PipelineID:      sess.PipelineID,
-			PipelineName:    lookupPipelineName(sess.PipelineID),
-			Status:          sess.Status,
-			TriggerType:     sess.TriggerType,
-			SourceCount:     sess.SourceCount,
-			Analysis:        analysis,
-			WorkflowResults: wfResults,
-			CreatedAt:       sess.CreatedAt,
-			ReviewedAt:      sess.ReviewedAt,
-			ArchivedAt:      sess.ArchivedAt,
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			PipelineName:     lookupPipelineName(sess.PipelineID),
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
 		})
 	}
 	return details, nil
@@ -151,17 +156,22 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
 		wfResults := s.GetWorkflowResults(ctx, sess.ID)
 		details = append(details, &upal.ContentSessionDetail{
-			ID:              sess.ID,
-			PipelineID:      sess.PipelineID,
-			PipelineName:    lookupPipelineName(sess.PipelineID),
-			Status:          sess.Status,
-			TriggerType:     sess.TriggerType,
-			SourceCount:     sess.SourceCount,
-			Analysis:        analysis,
-			WorkflowResults: wfResults,
-			CreatedAt:       sess.CreatedAt,
-			ReviewedAt:      sess.ReviewedAt,
-			ArchivedAt:      sess.ArchivedAt,
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			PipelineName:     lookupPipelineName(sess.PipelineID),
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
 		})
 	}
 	return details, nil
@@ -169,6 +179,29 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 
 func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
+}
+
+// SessionSettings holds the configuration fields that can be updated on a session.
+type SessionSettings struct {
+	Sources   []upal.PipelineSource
+	Schedule  string
+	Model     string
+	Workflows []upal.PipelineWorkflow
+	Context   *upal.PipelineContext
+}
+
+// UpdateSessionSettings overwrites the configuration fields of a session.
+func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings SessionSettings) error {
+	sess, err := s.sessions.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	sess.Sources = settings.Sources
+	sess.Schedule = settings.Schedule
+	sess.Model = settings.Model
+	sess.Workflows = settings.Workflows
+	sess.Context = settings.Context
+	return s.sessions.Update(ctx, sess)
 }
 
 func (s *ContentSessionService) UpdateSessionStatus(ctx context.Context, id string, status upal.ContentSessionStatus) error {
@@ -264,6 +297,30 @@ func (s *ContentSessionService) UpdateAnalysisAngles(ctx context.Context, sessio
 		return fmt.Errorf("no analysis found for session %s", sessionID)
 	}
 	analysis.SuggestedAngles = angles
+	return s.analyses.Update(ctx, analysis)
+}
+
+// UpdateAngleWorkflow updates the workflow_name and match_type of a single angle by ID.
+func (s *ContentSessionService) UpdateAngleWorkflow(ctx context.Context, sessionID, angleID, workflowName string) error {
+	analysis, err := s.analyses.GetBySession(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("get analysis for session %s: %w", sessionID, err)
+	}
+	if analysis == nil {
+		return fmt.Errorf("no analysis found for session %s", sessionID)
+	}
+	found := false
+	for i := range analysis.SuggestedAngles {
+		if analysis.SuggestedAngles[i].ID == angleID {
+			analysis.SuggestedAngles[i].WorkflowName = workflowName
+			analysis.SuggestedAngles[i].MatchType = "manual"
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("angle %s not found in session %s", angleID, sessionID)
+	}
 	return s.analyses.Update(ctx, analysis)
 }
 
@@ -403,19 +460,24 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
 		wfResults := s.GetWorkflowResults(ctx, sess.ID)
 		details = append(details, &upal.ContentSessionDetail{
-			ID:              sess.ID,
-			PipelineID:      sess.PipelineID,
-			PipelineName:    pipelineName,
-			SessionNumber:   numberOf[sess.ID],
-			Status:          sess.Status,
-			TriggerType:     sess.TriggerType,
-			SourceCount:     sess.SourceCount,
-			Sources:         sources,
-			Analysis:        analysis,
-			WorkflowResults: wfResults,
-			CreatedAt:       sess.CreatedAt,
-			ReviewedAt:      sess.ReviewedAt,
-			ArchivedAt:      sess.ArchivedAt,
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			PipelineName:     pipelineName,
+			SessionNumber:    numberOf[sess.ID],
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Sources:          sources,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
 		})
 	}
 	sort.Slice(details, func(i, j int) bool {
@@ -483,18 +545,23 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 	}
 
 	detail := &upal.ContentSessionDetail{
-		ID:              sess.ID,
-		PipelineID:      sess.PipelineID,
-		SessionNumber:   sessionNumber,
-		Status:          sess.Status,
-		TriggerType:     sess.TriggerType,
-		SourceCount:     sess.SourceCount,
-		Sources:         sources,
-		Analysis:        analysis,
-		WorkflowResults: wfResults,
-		CreatedAt:       sess.CreatedAt,
-		ReviewedAt:      sess.ReviewedAt,
-		ArchivedAt:      sess.ArchivedAt,
+		ID:               sess.ID,
+		PipelineID:       sess.PipelineID,
+		SessionNumber:    sessionNumber,
+		Status:           sess.Status,
+		TriggerType:      sess.TriggerType,
+		SourceCount:      sess.SourceCount,
+		SessionSources:   sess.Sources,
+		Schedule:         sess.Schedule,
+		Model:            sess.Model,
+		SessionWorkflows: sess.Workflows,
+		SessionContext:   sess.Context,
+		Sources:          sources,
+		Analysis:         analysis,
+		WorkflowResults:  wfResults,
+		CreatedAt:        sess.CreatedAt,
+		ReviewedAt:       sess.ReviewedAt,
+		ArchivedAt:       sess.ArchivedAt,
 	}
 	if sess.PipelineID != "" && s.pipelineRepo != nil {
 		if p, err := s.pipelineRepo.Get(ctx, sess.PipelineID); err == nil {
@@ -536,19 +603,24 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 		wfResults := s.GetWorkflowResults(ctx, sess.ID)
 
 		details = append(details, &upal.ContentSessionDetail{
-			ID:              sess.ID,
-			PipelineID:      sess.PipelineID,
-			PipelineName:    pipelineName,
-			SessionNumber:   i + 1, // 1-based
-			Status:          sess.Status,
-			TriggerType:     sess.TriggerType,
-			SourceCount:     sess.SourceCount,
-			Sources:         sources,
-			Analysis:        analysis,
-			WorkflowResults: wfResults,
-			CreatedAt:       sess.CreatedAt,
-			ReviewedAt:      sess.ReviewedAt,
-			ArchivedAt:      sess.ArchivedAt,
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			PipelineName:     pipelineName,
+			SessionNumber:    i + 1, // 1-based
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Sources:          sources,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
 		})
 	}
 

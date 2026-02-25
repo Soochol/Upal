@@ -138,6 +138,41 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sess)
 }
 
+// PATCH /api/content-sessions/{id}/settings
+func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Sources   []upal.PipelineSource   `json:"sources,omitempty"`
+		Schedule  string                  `json:"schedule,omitempty"`
+		Model     string                  `json:"model,omitempty"`
+		Workflows []upal.PipelineWorkflow `json:"workflows,omitempty"`
+		Context   *upal.PipelineContext   `json:"context,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	settings := services.SessionSettings{
+		Sources:   body.Sources,
+		Schedule:  body.Schedule,
+		Model:     body.Model,
+		Workflows: body.Workflows,
+		Context:   body.Context,
+	}
+	if err := s.contentSvc.UpdateSessionSettings(r.Context(), id, settings); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	detail, _ := s.contentSvc.GetSessionDetail(r.Context(), id)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
 // POST /api/content-sessions/{id}/produce
 // Body: {"workflows": [{"name": "blog", "channel_id": "youtube"}, ...]}
 // Validates the session exists and launches background workflow production.
@@ -217,20 +252,34 @@ func (s *Server) listSessionSources(w http.ResponseWriter, r *http.Request) {
 func (s *Server) patchSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Summary  string   `json:"summary"`
-		Insights []string `json:"insights"`
+		Summary      string   `json:"summary"`
+		Insights     []string `json:"insights"`
+		AngleID      string   `json:"angle_id,omitempty"`
+		WorkflowName string   `json:"workflow_name,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	if body.Summary != "" || body.Insights != nil {
+		if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
 		}
-		return
+	}
+	if body.AngleID != "" && body.WorkflowName != "" {
+		if err := s.contentSvc.UpdateAngleWorkflow(r.Context(), id, body.AngleID, body.WorkflowName); err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
 	}
 	analysis, _ := s.contentSvc.GetAnalysis(r.Context(), id)
 	w.Header().Set("Content-Type", "application/json")
@@ -473,6 +522,11 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	sess := &upal.ContentSession{
 		PipelineID:  id,
 		TriggerType: "manual",
+		Sources:     pipeline.Sources,
+		Schedule:    pipeline.Schedule,
+		Model:       pipeline.Model,
+		Workflows:   pipeline.Workflows,
+		Context:     pipeline.Context,
 	}
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -481,12 +535,50 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 
 	// Launch background collection if collector is wired.
 	if s.collector != nil {
-		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
+		go s.collector.CollectAndAnalyze(context.Background(), sess, body.IsTest, body.Limit)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
+}
+
+// POST /api/content-sessions/{id}/collect
+func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	session, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+
+	var body struct {
+		IsTest bool `json:"isTest"`
+		Limit  int  `json:"limit"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	// Create a child execution session with copied settings.
+	execSess := &upal.ContentSession{
+		PipelineID:  session.PipelineID,
+		TriggerType: "manual",
+		Sources:     session.Sources,
+		Model:       session.Model,
+		Workflows:   session.Workflows,
+		Context:     session.Context,
+	}
+	if err := s.contentSvc.CreateSession(r.Context(), execSess); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if s.collector != nil {
+		go s.collector.CollectAndAnalyze(context.Background(), execSess, body.IsTest, body.Limit)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{"session_id": execSess.ID})
 }
 
 // POST /api/content-sessions/{id}/retry-analyze

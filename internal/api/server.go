@@ -122,6 +122,8 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/{id}", s.deleteContentSession)
 				r.Post("/{id}/archive", s.archiveContentSession)
 				r.Post("/{id}/unarchive", s.unarchiveContentSession)
+				r.Patch("/{id}/settings", s.patchSessionSettings)
+				r.Post("/{id}/collect", s.collectSession)
 				r.Post("/{id}/produce", s.produceContentSession)
 				r.Post("/{id}/retry-analyze", s.retryAnalyze)
 				r.Post("/{id}/generate-workflow", s.generateAngleWorkflow)
