@@ -114,7 +114,6 @@ export function PipelineSettingsPanel({
             <div className="space-y-4">
               {sources.length === 0 ? (
                 <div className="py-4 text-center rounded-xl border border-dashed border-border">
-                  <p className="text-xs text-muted-foreground mb-2">No sources configured.</p>
                   <button
                     onClick={() => setShowAddModal(true)}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"

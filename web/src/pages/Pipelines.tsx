@@ -101,9 +101,9 @@ export default function PipelinesPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const { size: rightPanelWidth, handleMouseDown: onRightPanelDrag } = useResizeDrag({
     direction: 'horizontal',
-    min: 260,
-    max: 700,
-    initial: 320,
+    min: 520,
+    max: 1400,
+    initial: 640,
   })
 
   // ─── Data fetching ─────────────────────────────────────────────────────
@@ -252,9 +252,6 @@ export default function PipelinesPage() {
     setIsSidebarOpen(v => !v)
   }, [])
 
-  const openSettings = useCallback(() => {
-    setIsSidebarOpen(true)
-  }, [])
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -276,7 +273,6 @@ export default function PipelinesPage() {
             selectedId={selectedPipelineId}
             onSelect={selectPipeline}
             isLoading={isLoading}
-            onSettingsOpen={openSettings}
           />
         </div>
 

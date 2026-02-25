@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Search, Loader2, Archive, ArchiveRestore, Trash2,
+  Search, Loader2, Archive, ArchiveRestore, Trash2, FileText,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
-import { fetchContentSessions, archiveSession, unarchiveSession, deleteSession } from '@/entities/content-session/api'
+import { EditableName } from '@/shared/ui/EditableName'
+import { fetchContentSessions, archiveSession, unarchiveSession, deleteSession, updateSessionSettings } from '@/entities/content-session/api'
 
 // ─── Status dot ──────────────────────────────────────────────────────────────
 
@@ -91,6 +92,14 @@ export function SessionListPanel({
     },
   })
 
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
+    },
+  })
+
   // ─── Derived data ────────────────────────────────────────────────────────
 
   const filterCounts = useMemo(() => {
@@ -109,7 +118,8 @@ export function SessionListPanel({
     .filter(s => {
       if (!search) return true
       const q = search.toLowerCase()
-      return `session ${s.session_number}`.includes(q) ||
+      const displayName = s.name || `Session ${s.session_number}`
+      return displayName.toLowerCase().includes(q) ||
         s.analysis?.summary?.toLowerCase().includes(q) ||
         s.status.includes(q)
     })
@@ -195,9 +205,13 @@ export function SessionListPanel({
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[s.status] ?? 'bg-muted')} />
-                    <span className={cn('text-sm font-semibold truncate', isSelected ? 'text-primary' : 'text-foreground')}>
-                      Session {s.session_number}
-                    </span>
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                    <EditableName
+                      value={s.name || `Session ${s.session_number}`}
+                      placeholder={`Session ${s.session_number}`}
+                      onSave={(name) => renameMutation.mutate({ id: s.id, name })}
+                      className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
+                    />
                   </div>
                   <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">
                     {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
