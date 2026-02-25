@@ -745,8 +745,6 @@ func (s *Server) deleteContentSession(w http.ResponseWriter, r *http.Request) {
 	if err := s.contentSvc.DeleteSession(r.Context(), id); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if errors.Is(err, upal.ErrMustBeArchived) {
-			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

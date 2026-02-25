@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -449,8 +450,10 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 		return err
 	}
 
-	// Clean up workflow results
-	_ = s.workflowResults.DeleteBySession(ctx, id)
+	// Clean up workflow results (best-effort — session already deleted)
+	if err := s.workflowResults.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("failed to clean up workflow results", "session_id", id, "err", err)
+	}
 
 	return nil
 }
