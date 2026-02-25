@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useWorkflowStore, serializeWorkflow } from '@/entities/workflow'
 import { useExecutionStore, startRun, connectToRunEvents } from '@/entities/run'
-import type { RunEvent } from '@/shared/types'
+import type { RunEvent } from '@/entities/run'
 import { runEventBus } from './eventBus'
 
 // sessionStorage helpers

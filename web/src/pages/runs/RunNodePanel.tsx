@@ -1,20 +1,21 @@
-import type { Node } from '@xyflow/react'
+import { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react'
+import type { Node, Edge } from '@xyflow/react'
 import type { NodeData } from '@/entities/workflow'
-import type { RunRecord, NodeRunRecord } from '@/shared/types'
+import { useWorkflowStore } from '@/entities/workflow'
+import { useExecutionStore } from '@/entities/run'
+import type { RunRecord, NodeRunRecord } from '@/entities/run'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
+import { getNodeDefinition } from '@/entities/node'
+import type { NodeType } from '@/entities/node'
+import { TemplateText } from '@/shared/ui/TemplateText'
+import { NodeOutputViewer } from '@/widgets/right-panel/ui/console/NodeOutputViewer'
+import { resolveFormat, type OutputFormatDef } from '@/shared/lib/outputFormats'
 import {
-  FileText, AlertTriangle, Info,
-  CheckCircle2, XCircle, Clock, Loader2, Timer, X,
+  Settings2, Terminal, Eye, X,
+  CheckCircle2, XCircle, Loader2,
+  ChevronDown, SkipForward, Pause,
 } from 'lucide-react'
-
-const nodeStatusConfig: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  idle:      { icon: Clock,        color: 'text-muted-foreground', label: 'Idle' },
-  running:   { icon: Loader2,      color: 'text-info',             label: 'Running' },
-  completed: { icon: CheckCircle2, color: 'text-success',          label: 'Completed' },
-  error:     { icon: XCircle,      color: 'text-destructive',      label: 'Error' },
-  waiting:   { icon: Timer,        color: 'text-warning',          label: 'Waiting' },
-  skipped:   { icon: XCircle,      color: 'text-muted-foreground', label: 'Skipped' },
-}
+import { cn } from '@/shared/lib/utils'
 
 type Props = {
   selectedNode: Node<NodeData> | null
@@ -22,18 +23,56 @@ type Props = {
   onClose: () => void
 }
 
-function formatDuration(startedAt?: string, completedAt?: string): string {
-  if (!startedAt) return '-'
-  const start = new Date(startedAt).getTime()
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
-  const ms = end - start
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+// ── Topological sort ──
+
+type SortedEntry = { node: Node<NodeData>; inDegree: number }
+
+function sortAllNodesTopologically(nodes: Node<NodeData>[], edges: Edge[]): SortedEntry[] {
+  const regularNodes = nodes.filter((n) => n.type !== 'groupNode')
+  const inDegreeMap = new Map<string, number>()
+  const adj = new Map<string, string[]>()
+
+  for (const node of regularNodes) {
+    inDegreeMap.set(node.id, 0)
+    adj.set(node.id, [])
+  }
+  for (const edge of edges) {
+    if (adj.has(edge.source)) {
+      adj.get(edge.source)!.push(edge.target)
+      inDegreeMap.set(edge.target, (inDegreeMap.get(edge.target) ?? 0) + 1)
+    }
+  }
+
+  const tempDeg = new Map(inDegreeMap)
+  const queue: string[] = []
+  for (const [id, deg] of tempDeg) {
+    if (deg === 0) queue.push(id)
+  }
+  const sorted: string[] = []
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    sorted.push(id)
+    for (const next of adj.get(id) ?? []) {
+      const d = (tempDeg.get(next) ?? 1) - 1
+      tempDeg.set(next, d)
+      if (d === 0) queue.push(next)
+    }
+  }
+
+  const nodeMap = new Map(regularNodes.map((n) => [n.id, n]))
+  return sorted
+    .filter((id) => nodeMap.has(id))
+    .map((id) => ({ node: nodeMap.get(id)!, inDegree: inDegreeMap.get(id) ?? 0 }))
 }
 
-function formatTime(iso?: string): string {
-  if (!iso) return '-'
-  return new Date(iso).toLocaleString()
+// ── Node status helpers ──
+
+function StatusIcon({ status }: { status: string }) {
+  if (status === 'running') return <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+  if (status === 'error')   return <XCircle className="h-3 w-3 text-destructive" />
+  if (status === 'skipped') return <SkipForward className="h-3 w-3 text-muted-foreground/40" />
+  if (status === 'waiting') return <Pause className="h-3 w-3 text-warning" />
+  return null
 }
 
 function formatOutput(value: unknown): string {
@@ -42,116 +81,425 @@ function formatOutput(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-export function RunNodePanel({ selectedNode, run, onClose }: Props) {
-  if (!selectedNode) return null
+// ── NodeStepCard (for Console) ──
 
-  const nodeId = selectedNode.id
-  const nodeRun: NodeRunRecord | undefined = run.node_runs?.find(
-    (nr) => nr.node_id === nodeId,
+function NodeStepCard({ node, status, output, isSelected }: {
+  node: Node<NodeData>
+  status: string
+  output: string | null
+  isSelected: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const autoExpandedRef = useRef<string | null>(null)
+
+  const nodeType = node.data.nodeType as 'input' | 'agent' | 'output' | 'asset'
+  let def
+  try { def = getNodeDefinition(nodeType) } catch { return null }
+  const Icon = def.icon
+  const cssVar = def.cssVar
+  const isCompleted = status === 'completed'
+
+  useEffect(() => {
+    if (isCompleted && output) {
+      const key = output
+      if (autoExpandedRef.current !== key) {
+        autoExpandedRef.current = key
+        setExpanded(true)
+      }
+    }
+  }, [isCompleted, output])
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-border/50 overflow-hidden transition-all',
+        status === 'running' && 'shadow-sm',
+        isSelected && 'ring-1 ring-primary/60',
+      )}
+      style={{ borderLeftWidth: '3px', borderLeftColor: cssVar }}
+    >
+      <div
+        className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none"
+        style={{ background: `color-mix(in oklch, ${cssVar} 8%, transparent)` }}
+        onClick={() => setExpanded((p) => !p)}
+      >
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 text-muted-foreground/40 transition-transform shrink-0',
+            expanded && 'rotate-180',
+          )}
+        />
+        <span style={{ color: cssVar }} className="shrink-0 flex">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-xs font-medium flex-1 truncate leading-tight">
+          {node.data.label}
+        </span>
+        {isCompleted ? (
+          <CheckCircle2 className="h-3 w-3 shrink-0" style={{ color: cssVar }} />
+        ) : (
+          <StatusIcon status={status} />
+        )}
+      </div>
+
+      {expanded && (
+        <div className="border-t border-border/30">
+          {output ? (
+            <NodeOutputViewer output={output} />
+          ) : status === 'running' ? (
+            <div className="px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Running…
+            </div>
+          ) : (
+            <p className="px-3 py-2 text-xs text-muted-foreground/50">No output yet.</p>
+          )}
+        </div>
+      )}
+    </div>
   )
-  const nodeStatus = nodeRun?.status ?? 'idle'
-  const cfg = nodeStatusConfig[nodeStatus] ?? nodeStatusConfig.idle
-  const StatusIcon = cfg.icon
-  const hasError = !!nodeRun?.error
-  const output = run.outputs?.[nodeId]
-  const wasExecuted = !!nodeRun
+}
+
+// ── RunConsole tab ──
+
+function RunConsole({ run, selectedNodeId }: { run: RunRecord; selectedNodeId: string | null }) {
+  const nodes = useWorkflowStore((s) => s.nodes)
+  const edges = useWorkflowStore((s) => s.edges)
+  const liveStatuses = useExecutionStore((s) => s.nodeStatuses)
+
+  const sortedNodes = useMemo(() => sortAllNodesTopologically(nodes, edges), [nodes, edges])
+
+  const renderableNodes = useMemo(
+    () => sortedNodes.filter(({ node }) => {
+      try { getNodeDefinition(node.data.nodeType as 'input' | 'agent' | 'output' | 'asset'); return true }
+      catch { return false }
+    }),
+    [sortedNodes],
+  )
+
+  // Merge run.outputs with run.node_runs for output
+  const nodeRunMap = useMemo(() => {
+    const map = new Map<string, NodeRunRecord>()
+    for (const nr of run.node_runs ?? []) map.set(nr.node_id, nr)
+    return map
+  }, [run.node_runs])
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center px-3 py-1.5 border-b border-border shrink-0">
+        <span className="text-xs font-medium text-muted-foreground">Steps</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        {renderableNodes.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-1 py-2">No nodes.</p>
+        ) : (
+          renderableNodes.map(({ node }) => {
+            const nr = nodeRunMap.get(node.id)
+            // Prefer live status from execution store (SSE), fallback to run record
+            const status = liveStatuses[node.id] ?? nr?.status ?? 'idle'
+            const output = run.outputs?.[node.id]
+            return (
+              <NodeStepCard
+                key={node.id}
+                node={node}
+                status={status}
+                output={output != null ? formatOutput(output) : null}
+                isSelected={selectedNodeId === node.id}
+              />
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── RunPreview tab ──
+
+function useLazyResultView(format: OutputFormatDef) {
+  return useMemo(() => lazy(format.ResultView), [format])
+}
+
+function RunPreview({ run }: { run: RunRecord }) {
+  const nodes = useWorkflowStore((s) => s.nodes)
+
+  const outputNode = useMemo(
+    () => nodes.find((n) => n.data.nodeType === 'output'),
+    [nodes],
+  )
+
+  const outputFormat = outputNode?.data.config.output_format as string | undefined
+  const outputNodeId = outputNode?.id
+
+  // Find primary output content
+  const primaryContent = useMemo(() => {
+    if (!run.outputs) return null
+
+    // Try output node first
+    if (outputNodeId) {
+      const v = run.outputs[outputNodeId]
+      if (typeof v === 'string' && v.trim()) return v
+    }
+
+    // Check __output__ map
+    const outputMap = run.outputs['__output__']
+    if (outputMap && typeof outputMap === 'object' && outputNodeId) {
+      const v = (outputMap as Record<string, unknown>)[outputNodeId]
+      if (typeof v === 'string' && v.trim()) return v
+    }
+
+    // Fallback: first string output
+    for (const [, v] of Object.entries(run.outputs)) {
+      if (typeof v === 'string' && v.trim()) return v
+    }
+    return null
+  }, [run.outputs, outputNodeId])
+
+  const format = primaryContent ? resolveFormat(outputFormat, primaryContent) : null
+  const isLive = run.status === 'running' || run.status === 'pending'
+
+  if (!primaryContent) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center">
+        {isLive ? (
+          <>
+            <div className="relative h-12 w-12">
+              <div className="absolute inset-0 rounded-full border-2 border-primary/15 border-t-primary animate-spin" />
+            </div>
+            <p className="text-xs text-muted-foreground">Processing…</p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">No output available</p>
+        )}
+      </div>
+    )
+  }
+
+  if (!format) return null
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <FormatResultView format={format} content={primaryContent} workflowName={run.workflow_name} />
+    </div>
+  )
+}
+
+function FormatResultView({ format, content, workflowName }: {
+  format: OutputFormatDef
+  content: string
+  workflowName: string
+}) {
+  const LazyView = useLazyResultView(format)
+  return (
+    <Suspense fallback={<div className="p-3 text-xs text-muted-foreground">Loading…</div>}>
+      <LazyView content={content} workflowName={workflowName} />
+    </Suspense>
+  )
+}
+
+// ── RunProperties tab ──
+
+const fieldBoxClass = "text-xs rounded-md border border-input bg-transparent px-3 py-2 whitespace-pre-wrap break-words select-text"
+
+function str(v: unknown): string | null {
+  return typeof v === 'string' && v ? v : null
+}
+
+function RunProperties({ node }: { node: Node<NodeData> }) {
+  const config = node.data.config
+  const nodeType = node.data.nodeType as string
+
+  let def
+  try { def = getNodeDefinition(nodeType as NodeType) } catch { /* unknown type */ }
+  const Icon = def?.icon
+
+  const model = str(config.model)
+  const outputFormat = str(config.output_format)
+  const tools = Array.isArray(config.tools) ? (config.tools as string[]) : null
+  const prompt = str(config.prompt)
+  const systemPrompt = str(config.system_prompt)
+  const outputTpl = str(config.output)
+  const value = str(config.value)
+  const tool = str(config.tool)
+  const input = str(config.input)
+  const assetId = str(config.asset_id)
+  const extract = config.output_extract as { mode?: string; key?: string; tag?: string } | undefined
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
+        {Icon && (
+          <div className={cn('h-6 w-6 rounded-md flex items-center justify-center shrink-0', def?.accent)}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        )}
+        <span className="flex-1 min-w-0 text-sm font-semibold truncate">{node.data.label}</span>
+        <span className="text-[10px] text-muted-foreground capitalize">{nodeType}</span>
+      </div>
+
+      {/* Fields */}
+      <div className="p-3 flex flex-col gap-3">
+        {model && (
+          <PropField label="Model">
+            <code className="text-xs font-mono text-foreground">{model}</code>
+          </PropField>
+        )}
+
+        {outputFormat && (
+          <PropField label="Output Format">
+            <span className="text-xs capitalize">{outputFormat}</span>
+          </PropField>
+        )}
+
+        {tools && tools.length > 0 && (
+          <PropField label="Tools">
+            <div className="flex flex-wrap gap-1">
+              {tools.map((t) => (
+                <span key={t} className="px-1.5 py-0.5 rounded text-[10px] bg-muted text-muted-foreground border border-border">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </PropField>
+        )}
+
+        {prompt && (
+          <PropField label="Prompt">
+            <div className={cn(fieldBoxClass, 'max-h-60 overflow-y-auto')}>
+              <TemplateText text={prompt} />
+            </div>
+          </PropField>
+        )}
+
+        {systemPrompt && (
+          <PropField label="System Prompt">
+            <div className={cn(fieldBoxClass, 'max-h-40 overflow-y-auto')}>
+              <TemplateText text={systemPrompt} />
+            </div>
+          </PropField>
+        )}
+
+        {outputTpl && (
+          <PropField label="Output Template">
+            <div className={cn(fieldBoxClass, 'max-h-40 overflow-y-auto')}>
+              <TemplateText text={outputTpl} />
+            </div>
+          </PropField>
+        )}
+
+        {value && (
+          <PropField label="Value">
+            <div className={cn(fieldBoxClass, 'max-h-40 overflow-y-auto')}>
+              {value}
+            </div>
+          </PropField>
+        )}
+
+        {extract?.mode && (
+          <PropField label="Output Extraction">
+            <span className="text-xs text-muted-foreground">
+              {extract.mode === 'json'
+                ? `JSON key: ${extract.key ?? ''}`
+                : extract.mode === 'tagged'
+                  ? `XML tag: <${extract.tag ?? ''}>`
+                  : 'None'}
+            </span>
+          </PropField>
+        )}
+
+        {tool && (
+          <PropField label="Tool">
+            <code className="text-xs font-mono">{tool}</code>
+          </PropField>
+        )}
+        {input && (
+          <PropField label="Input">
+            <div className={cn(fieldBoxClass, 'max-h-40 overflow-y-auto')}>
+              <TemplateText text={input} />
+            </div>
+          </PropField>
+        )}
+
+        {assetId && (
+          <PropField label="Asset ID">
+            <code className="text-xs font-mono text-muted-foreground">{assetId}</code>
+          </PropField>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PropField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+// ── Main Panel ──
+
+const tabTriggerClass = "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 flex items-center gap-1.5 text-xs font-medium"
+
+export function RunNodePanel({ selectedNode, run, onClose }: Props) {
+  const [activeTab, setActiveTab] = useState('console')
+  const prevNodeIdRef = useRef<string | null>(null)
+
+  // Auto-switch to Properties when a node is selected
+  useEffect(() => {
+    if (selectedNode && selectedNode.id !== prevNodeIdRef.current) {
+      setActiveTab('properties')
+    }
+    prevNodeIdRef.current = selectedNode?.id ?? null
+  }, [selectedNode])
 
   return (
     <div className="h-full flex flex-col bg-background border-l border-border">
-      {/* Node header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2 min-w-0">
-          <StatusIcon
-            size={16}
-            className={`shrink-0 ${cfg.color} ${nodeStatus === 'running' ? 'animate-spin' : ''}`}
-          />
-          <span className="text-sm font-medium text-foreground truncate">
-            {selectedNode.data.label}
-          </span>
-          <span className={`text-xs ${cfg.color}`}>{cfg.label}</span>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <X size={14} />
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <Tabs
-        defaultValue="output"
-        className="flex-1 flex flex-col min-h-0"
-        onValueChange={(value) => {
-          // On Output tab, deselecting the node (via close) collapses the panel
-          if (value === 'output') {
-            // nothing — collapse is handled by onClose
-          }
-        }}
-      >
-        <TabsList variant="line" className="px-4 pt-2 shrink-0">
-          <TabsTrigger value="output" className="gap-1 text-xs">
-            <FileText size={14} /> Output
-          </TabsTrigger>
-          {hasError && (
-            <TabsTrigger value="error" className="gap-1 text-xs">
-              <AlertTriangle size={14} /> Error
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center border-b border-border px-1">
+          <TabsList className="h-10 bg-transparent p-0 gap-0 flex-1">
+            <TabsTrigger value="properties" className={tabTriggerClass}>
+              <Settings2 className="h-3.5 w-3.5 shrink-0" />
+              Properties
             </TabsTrigger>
-          )}
-          <TabsTrigger value="info" className="gap-1 text-xs">
-            <Info size={14} /> Info
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {/* Output tab */}
-          <TabsContent value="output" className="px-4 py-3">
-            {!wasExecuted ? (
-              <p className="text-sm text-muted-foreground">Node was not executed</p>
-            ) : output ? (
-              <pre className="text-xs text-foreground bg-muted p-3 rounded font-mono whitespace-pre-wrap break-words overflow-auto max-h-[60vh]">
-                {formatOutput(output)}
-              </pre>
-            ) : (
-              <p className="text-sm text-muted-foreground">No output</p>
-            )}
-          </TabsContent>
-
-          {/* Error tab */}
-          {hasError && (
-            <TabsContent value="error" className="px-4 py-3">
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                <p className="text-sm text-destructive font-mono whitespace-pre-wrap break-words">
-                  {nodeRun!.error}
-                </p>
-              </div>
-            </TabsContent>
-          )}
-
-          {/* Info tab */}
-          <TabsContent value="info" className="px-4 py-3">
-            <div className="space-y-3">
-              {[
-                { label: 'Node ID', value: nodeId, mono: true },
-                { label: 'Type', value: selectedNode.data.nodeType, capitalize: true },
-                { label: 'Status', value: cfg.label },
-                { label: 'Started', value: formatTime(nodeRun?.started_at) },
-                { label: 'Completed', value: formatTime(nodeRun?.completed_at) },
-                { label: 'Duration', value: formatDuration(nodeRun?.started_at, nodeRun?.completed_at), mono: true },
-                { label: 'Retries', value: String(nodeRun?.retry_count ?? 0), mono: true },
-              ].map((item) => (
-                <div key={item.label} className="flex items-start justify-between gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">{item.label}</span>
-                  <span
-                    className={`text-xs text-foreground text-right ${item.mono ? 'font-mono' : ''} ${item.capitalize ? 'capitalize' : ''}`}
-                  >
-                    {item.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
+            <TabsTrigger value="console" className={tabTriggerClass}>
+              <Terminal className="h-3.5 w-3.5 shrink-0" />
+              Console
+            </TabsTrigger>
+            <TabsTrigger value="preview" className={tabTriggerClass}>
+              <Eye className="h-3.5 w-3.5 shrink-0" />
+              Preview
+            </TabsTrigger>
+          </TabsList>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer shrink-0 mr-1"
+            title="Close Panel"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
+
+        <TabsContent value="properties" className="flex-1 min-h-0 flex flex-col mt-0">
+          {selectedNode && selectedNode.type !== 'groupNode' ? (
+            <RunProperties node={selectedNode} />
+          ) : (
+            <div className="flex items-center justify-center h-32 text-xs text-muted-foreground p-3">
+              Select a node to view its properties.
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="console" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <RunConsole run={run} selectedNodeId={selectedNode?.id ?? null} />
+        </TabsContent>
+
+        <TabsContent value="preview" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <RunPreview run={run} />
+        </TabsContent>
       </Tabs>
     </div>
   )

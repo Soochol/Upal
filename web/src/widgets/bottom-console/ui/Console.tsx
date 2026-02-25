@@ -14,7 +14,7 @@ import {
 } from '@/shared/lib/eventFormatting'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import { useCopyToClipboard } from '@/shared/lib/useCopyToClipboard'
-import type { RunEvent, NodeCompletedEvent, NodeStartedEvent } from '@/shared/types'
+import type { RunEvent, NodeCompletedEvent, NodeStartedEvent } from '@/entities/run'
 
 const DEFAULT_HEIGHT = 160
 const MIN_HEIGHT = 80

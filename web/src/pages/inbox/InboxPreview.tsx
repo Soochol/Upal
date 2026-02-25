@@ -33,30 +33,38 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
     const [isApproving, setIsApproving] = useState(false)
     const [isRejecting, setIsRejecting] = useState(false)
 
-    const handleApprove = useCallback(async () => {
-        if (!sessionId) return
-        setIsApproving(true)
-        try {
-            await approveSession(sessionId)
-            await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-            await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-            navigate('/publish-inbox')
-        } finally {
-            setIsApproving(false)
-        }
-    }, [sessionId, approveSession, queryClient, navigate])
+    const handleApprove = useCallback(
+        async (selectedWorkflows: string[]) => {
+            if (!sessionId || !pipelineId) return
+            setIsApproving(true)
+            try {
+                // Build workflow→channel mapping from pipeline config
+                const channelMap: Record<string, string> = {}
+                for (const pw of pipeline?.workflows ?? []) {
+                    if (pw.channel_id) channelMap[pw.workflow_name] = pw.channel_id
+                }
+                await approveSession(sessionId, selectedWorkflows, channelMap)
+                await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+                await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
+                navigate('/publish-inbox')
+            } finally {
+                setIsApproving(false)
+            }
+        },
+        [sessionId, pipelineId, pipeline, approveSession, queryClient, navigate],
+    )
 
     const handleReject = useCallback(async () => {
-        if (!sessionId) return
+        if (!sessionId || !pipelineId) return
         setIsRejecting(true)
         try {
             await rejectSession(sessionId)
             await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-            await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
+            await queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] }) // Refresh inbox list immediately
         } finally {
             setIsRejecting(false)
         }
-    }, [sessionId, rejectSession, queryClient])
+    }, [sessionId, pipelineId, rejectSession, queryClient])
 
     if (sessionLoading || pipelineLoading || !session || !pipeline) {
         return (
@@ -77,7 +85,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                     {pipeline.name}
                 </Link>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                    Session {session.session_number ? `#${session.session_number}` : session.id.slice(0, 8)}
+                    {session.name || `Session #${session.session_number || session.id.slice(0, 8)}`}
                 </h1>
             </div>
             <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8">

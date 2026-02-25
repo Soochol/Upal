@@ -59,7 +59,7 @@ export function InboxSidebar({ sessions, selectedId, onSelect }: InboxSidebarPro
                                         {session.pipeline_name || 'Unknown Pipeline'}
                                     </span>
                                     <span className="font-medium text-sm truncate mt-0.5 text-foreground leading-tight">
-                                        Session {session.session_number ? `#${session.session_number}` : session.id.slice(0, 8)}
+                                        {session.name || `Session #${session.session_number || session.id.slice(0, 8)}`}
                                     </span>
                                 </div>
                                 <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5 font-medium bg-muted/50 px-1.5 py-0.5 rounded">

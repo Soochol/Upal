@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { fetchRun } from '@/entities/run'
-import type { RunRecord } from '@/shared/types'
+import type { RunRecord } from '@/entities/run'
 import { usePolling } from '@/shared/lib/usePolling'
 import { NodeTimeline } from './NodeTimeline'
 import { NodeDetail } from './NodeDetail'

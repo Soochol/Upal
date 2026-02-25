@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { fetchContentSession, publishSession, rejectWorkflowResult } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import type { WorkflowResult } from '@/entities/content-session/types'
@@ -74,7 +75,7 @@ export function PublishInboxPreview({ sessionId }: Props) {
                 {/* Header */}
                 <div className="mb-6">
                     <h2 className="text-lg font-bold tracking-tight">
-                        {session.pipeline_name || 'Pipeline'} — Session #{session.session_number || session.id.slice(0, 8)}
+                        {session.pipeline_name || 'Pipeline'} — {session.name || `Session #${session.session_number || session.id.slice(0, 8)}`}
                     </h2>
                     <p className={`text-sm mt-1 ${session.status === 'error' && results.length === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {results.length === 0
@@ -123,8 +124,10 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
     onPublish: () => void
     onReject: () => void
 }) {
+    const navigate = useNavigate()
     const isTerminal = result.status === 'published' || result.status === 'rejected' || result.status === 'failed'
     const isActionable = result.status === 'success'
+    const hasValidRun = result.run_id && result.run_id.startsWith('run-')
 
     const statusConfig: Record<string, { bg: string; text: string; badge: string; icon: typeof CheckCircle2; label: string }> = {
         success: { bg: 'border-info/30 bg-info/5', text: 'text-info', badge: 'bg-info/10', icon: Clock, label: 'Awaiting Review' },
@@ -138,8 +141,15 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
     const config = statusConfig[result.status] || statusConfig.pending
     const StatusIcon = config.icon
 
+    const handleCardClick = () => {
+        if (hasValidRun) navigate(`/runs/${result.run_id}`)
+    }
+
     return (
-        <div className={`rounded-xl border ${config.bg} transition-all ${isTerminal ? 'opacity-60' : ''}`}>
+        <div
+            className={`rounded-xl border ${config.bg} transition-all ${isTerminal ? 'opacity-60' : ''} ${hasValidRun ? 'cursor-pointer hover:border-primary/40 hover:shadow-sm' : ''}`}
+            onClick={handleCardClick}
+        >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-border/30">
                 <div className="flex items-center gap-3">
@@ -162,19 +172,13 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
             <div className="px-5 py-4">
                 {result.run_id && (
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        {result.run_id.startsWith('run-') ? (
-                            <a href={`/runs/${result.run_id}`}
-                                className="text-primary underline decoration-primary/30 hover:decoration-primary transition-colors">
-                                Run: {result.run_id.slice(0, 12)}
-                            </a>
-                        ) : (
-                            <span>Run: {result.run_id.slice(0, 12)}</span>
-                        )}
+                        <span>Run: {result.run_id.slice(0, 12)}</span>
                         {result.completed_at && (
                             <span>Completed: {new Date(result.completed_at).toLocaleString()}</span>
                         )}
                         {result.output_url && (
                             <a href={result.output_url} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
                                 className="flex items-center gap-1 text-primary hover:underline">
                                 <ExternalLink className="h-3 w-3" /> Preview
                             </a>
@@ -203,7 +207,7 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
             {isActionable && (
                 <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border/30">
                     <button
-                        onClick={onReject}
+                        onClick={(e) => { e.stopPropagation(); onReject() }}
                         disabled={isRejecting}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium
                             text-muted-foreground hover:text-destructive hover:bg-destructive/10
@@ -213,7 +217,7 @@ function WorkflowResultCard({ result, channel, isPublishing, isRejecting, onPubl
                         Reject
                     </button>
                     <button
-                        onClick={onPublish}
+                        onClick={(e) => { e.stopPropagation(); onPublish() }}
                         disabled={isPublishing}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium
                             bg-success text-success-foreground hover:bg-success/90

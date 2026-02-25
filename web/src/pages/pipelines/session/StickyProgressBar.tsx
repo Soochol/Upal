@@ -135,11 +135,9 @@ export function StickyProgressBar({ session, className }: StickyProgressBarProps
 
       {/* Meta line */}
       <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        {session.session_number != null && (
-          <span className="font-medium text-foreground">
-            Session #{session.session_number}
-          </span>
-        )}
+        <span className="font-medium text-foreground">
+          {session.name || `Session #${session.session_number ?? '—'}`}
+        </span>
         <span className="text-border">|</span>
         <StatusBadge status={session.status} />
         {session.analysis?.score != null && (

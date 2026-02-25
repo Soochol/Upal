@@ -1,5 +1,5 @@
 import { Suspense, lazy, useMemo } from 'react'
-import type { RunEvent } from '@/shared/types'
+import type { RunEvent } from '@/entities/run'
 import { ScrollArea } from '@/shared/ui/scroll-area'
 import { useWorkflowStore } from '@/entities/workflow'
 import { resolveFormat, type OutputFormatDef } from '@/shared/lib/outputFormats'

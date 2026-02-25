@@ -7,8 +7,8 @@ import { useExecutionStore } from '@/entities/run'
 import { useWorkflowStore, deserializeWorkflow } from '@/entities/workflow'
 import type { NodeData } from '@/entities/workflow'
 import { useUIStore } from '@/entities/ui/model/store'
-import type { RunRecord, RunEvent } from '@/shared/types'
-import { Header } from '@/shared/ui/Header'
+import type { RunRecord, RunEvent } from '@/entities/run'
+import { MainLayout } from '@/app/layout'
 import { Canvas } from '@/widgets/workflow-canvas/ui/Canvas'
 import { RunNodePanel } from './RunNodePanel'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
@@ -43,7 +43,7 @@ export function RunViewer() {
   const [run, setRun] = useState<RunRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isPanelOpen, setIsPanelOpen] = useState(true)
 
   const selectedNodeId = useUIStore((s) => s.selectedNodeId)
   const selectNode = useUIStore((s) => s.selectNode)
@@ -167,24 +167,22 @@ export function RunViewer() {
   // Loading state
   if (loading) {
     return (
-      <div className="h-screen flex flex-col bg-background">
-        <Header />
+      <MainLayout>
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="animate-spin text-muted-foreground" size={32} />
         </div>
-      </div>
+      </MainLayout>
     )
   }
 
   // Not found
   if (!run) {
     return (
-      <div className="h-screen flex flex-col bg-background">
-        <Header />
+      <MainLayout>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">{error ?? 'Run not found'}</p>
         </div>
-      </div>
+      </MainLayout>
     )
   }
 
@@ -197,71 +195,69 @@ export function RunViewer() {
     ? nodes.find((n) => n.id === selectedNodeId)
     : undefined
 
+  const headerContent = (
+    <div className="flex items-center gap-2">
+      {/* Back button */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <ArrowLeft size={14} />
+        Back
+      </button>
+
+      {/* Run ID */}
+      <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded font-mono">
+        {run.id.length > 12 ? `${run.id.slice(0, 12)}...` : run.id}
+      </code>
+
+      {/* Status badge */}
+      <div className="flex items-center gap-1.5">
+        <StatusIcon
+          size={16}
+          className={`${cfg.color} ${run.status === 'running' ? 'animate-spin' : ''}`}
+        />
+        <span className={`text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
+      </div>
+
+      {isLive && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-info/10 text-info animate-pulse">
+          live
+        </span>
+      )}
+
+      {/* Workflow name */}
+      <span className="text-xs text-muted-foreground">
+        {run.workflow_name}
+      </span>
+
+      {/* Duration */}
+      <span className="text-xs text-muted-foreground font-mono">
+        {formatDuration(run)}
+      </span>
+
+      {/* Open Workflow */}
+      <Link
+        to={`/workflows?w=${encodeURIComponent(run.workflow_name)}`}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <ExternalLink size={12} />
+        Open Workflow
+      </Link>
+
+      {/* Panel toggle */}
+      <button
+        onClick={() => setIsPanelOpen((v) => !v)}
+        className="p-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        title="Toggle Panel"
+      >
+        {isPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+      </button>
+    </div>
+  )
+
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      <Header
-        actions={
-          <div className="flex items-center gap-2">
-            {/* Back button */}
-            <button
-              onClick={() => navigate('/runs')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <ArrowLeft size={14} />
-              Back
-            </button>
-
-            {/* Run ID */}
-            <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded font-mono">
-              {run.id.length > 12 ? `${run.id.slice(0, 12)}...` : run.id}
-            </code>
-
-            {/* Status badge */}
-            <div className="flex items-center gap-1.5">
-              <StatusIcon
-                size={16}
-                className={`${cfg.color} ${run.status === 'running' ? 'animate-spin' : ''}`}
-              />
-              <span className={`text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
-            </div>
-
-            {isLive && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-info/10 text-info animate-pulse">
-                live
-              </span>
-            )}
-
-            {/* Workflow name */}
-            <span className="text-xs text-muted-foreground">
-              {run.workflow_name}
-            </span>
-
-            {/* Duration */}
-            <span className="text-xs text-muted-foreground font-mono">
-              {formatDuration(run)}
-            </span>
-
-            {/* Open Workflow */}
-            <Link
-              to={`/workflows?w=${encodeURIComponent(run.workflow_name)}`}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <ExternalLink size={12} />
-              Open Workflow
-            </Link>
-
-            {/* Panel toggle */}
-            <button
-              onClick={() => setIsPanelOpen((v) => !v)}
-              className="p-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Toggle Panel"
-            >
-              {isPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-            </button>
-          </div>
-        }
-      />
-
+    <MainLayout headerContent={headerContent}>
       {/* Canvas + Panel */}
       <div className="flex-1 min-h-0 overflow-hidden flex">
         {/* Canvas area */}
@@ -285,7 +281,7 @@ export function RunViewer() {
         </div>
 
         {/* Right panel */}
-        {isPanelOpen && selectedNode && (
+        {isPanelOpen && (
           <div className="hidden md:contents">
             <div
               onMouseDown={onPanelDrag}
@@ -296,7 +292,7 @@ export function RunViewer() {
               style={{ width: panelWidth }}
             >
               <RunNodePanel
-                selectedNode={selectedNode}
+                selectedNode={selectedNode ?? null}
                 run={run}
                 onClose={() => {
                   selectNode(null)
@@ -307,6 +303,6 @@ export function RunViewer() {
           </div>
         )}
       </div>
-    </div>
+    </MainLayout>
   )
 }

@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
-import type { NodeRunRecord } from '@/shared/types'
+import type { NodeRunRecord } from '@/entities/run'
 
 type Props = {
   nodeRun: NodeRunRecord

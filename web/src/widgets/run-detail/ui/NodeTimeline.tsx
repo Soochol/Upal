@@ -1,4 +1,4 @@
-import type { NodeRunRecord } from '@/shared/types'
+import type { NodeRunRecord } from '@/entities/run'
 import { TimelineNode } from './TimelineNode'
 
 type Props = {

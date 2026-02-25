@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { NodeRunRecord, RunRecord } from '@/shared/types'
+import type { NodeRunRecord, RunRecord } from '@/entities/run'
 import { ContentViewer } from '@/shared/ui/ContentViewer'
 
 type Props = {

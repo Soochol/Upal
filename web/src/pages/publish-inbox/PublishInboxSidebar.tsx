@@ -56,7 +56,7 @@ export function PublishInboxSidebar({ sessions, selectedId, onSelect }: Props) {
                                 </span>
                             </div>
                             <p className="text-sm font-medium text-foreground truncate">
-                                Session #{s.session_number || s.id.slice(0, 8)}
+                                {s.name || `Session #${s.session_number || s.id.slice(0, 8)}`}
                             </p>
                             <div className="flex items-center gap-2 mt-1.5">
                                 {totalCount === 0 ? (

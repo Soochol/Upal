@@ -1,29 +1,15 @@
-import { useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWorkflowStore, serializeWorkflow, saveWorkflow, suggestWorkflowName } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
-import { useAutoSave as useGenericAutoSave } from '@/shared/hooks/useAutoSave'
 
-export type { SaveStatus } from '@/shared/hooks/useAutoSave'
+const DEBOUNCE_MS = 2000
 
-// ---------------------------------------------------------------------------
-// Canvas snapshot type (only the fields relevant for dirty-tracking)
-// ---------------------------------------------------------------------------
+export type SaveStatus = 'idle' | 'waiting' | 'saving' | 'saved' | 'error'
 
-type CanvasSnapshot = {
-  nodes: { id: string; data: unknown; position: unknown }[]
-  edges: unknown[]
-  workflowName: string
-}
-
-function snapshotEqual(a: CanvasSnapshot, b: CanvasSnapshot): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
-// ---------------------------------------------------------------------------
-// flushSave — imperative save, reads directly from Zustand stores.
-// Kept as a standalone function so callers outside React can use it.
-// ---------------------------------------------------------------------------
-
+/**
+ * Save the current canvas state to the backend immediately.
+ * Reads directly from Zustand stores — safe to call outside React components.
+ */
 async function flushSave(): Promise<void> {
   if (useWorkflowStore.getState().isTemplate) return
   const { nodes, edges, workflowName, originalName, setWorkflowName, setOriginalName } =
@@ -45,35 +31,93 @@ async function flushSave(): Promise<void> {
   const wf = serializeWorkflow(name, nodes, edges)
   await saveWorkflow(wf, originalName || undefined)
 
+  // After successful save, sync originalName to current name
   if (originalName !== name) {
     setOriginalName(name)
   }
 }
 
-// ---------------------------------------------------------------------------
-// useAutoSave — wraps the generic hook with canvas-specific selectors
-// ---------------------------------------------------------------------------
-
 export function useAutoSave() {
-  const nodes = useWorkflowStore(s => s.nodes)
-  const edges = useWorkflowStore(s => s.edges)
-  const workflowName = useWorkflowStore(s => s.workflowName)
-  const isTemplate = useWorkflowStore(s => s.isTemplate)
-  const isRunning = useExecutionStore(s => s.isRunning)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingRef = useRef(false)
+  const lastSnapshotRef = useRef('')
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const data: CanvasSnapshot = useMemo(() => ({
-    nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })),
-    edges,
-    workflowName,
-  }), [nodes, edges, workflowName])
+  const performSave = useCallback(async () => {
+    // Clear any pending "Saved" dismiss timer
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
 
-  const { saveStatus, saveNow, markClean } = useGenericAutoSave({
-    data,
-    onSave: async () => { await flushSave() },
-    delay: 2000,
-    isEqual: snapshotEqual,
-    enabled: !isTemplate && !isRunning && nodes.length > 0,
-  })
+    const { nodes, edges, workflowName } = useWorkflowStore.getState()
+    const { isRunning } = useExecutionStore.getState()
+
+    // Don't save during execution or with empty canvas
+    if (isRunning || nodes.length === 0) return
+
+    // Snapshot check: skip if nothing changed
+    const snapshot = JSON.stringify({ nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })), edges, workflowName })
+    if (snapshot === lastSnapshotRef.current) return
+
+    if (isSavingRef.current) return
+    isSavingRef.current = true
+    setSaveStatus('saving')
+
+    try {
+      await flushSave()
+
+      lastSnapshotRef.current = snapshot
+      setSaveStatus('saved')
+      // Auto-dismiss "Saved" after 2 seconds
+      savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+    } catch {
+      setSaveStatus('error')
+    } finally {
+      isSavingRef.current = false
+    }
+  }, [])
+
+  const debouncedSave = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setSaveStatus('waiting')
+    timerRef.current = setTimeout(performSave, DEBOUNCE_MS)
+  }, [performSave])
+
+  // Immediate save (for Ctrl+S) — returns promise so callers can await
+  const saveNow = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    return performSave()
+  }, [performSave])
+
+  useEffect(() => {
+    const unsub = useWorkflowStore.subscribe(
+      (state, prevState) => {
+        if (
+          state.nodes !== prevState.nodes ||
+          state.edges !== prevState.edges ||
+          state.workflowName !== prevState.workflowName
+        ) {
+          debouncedSave()
+        }
+      },
+    )
+    return () => {
+      unsub()
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [debouncedSave])
+
+  // Mark current store state as "clean" — prevents auto-save from treating
+  // a freshly-loaded workflow as a pending change.
+  const markClean = useCallback(() => {
+    const { nodes, edges, workflowName } = useWorkflowStore.getState()
+    lastSnapshotRef.current = JSON.stringify({
+      nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })),
+      edges,
+      workflowName,
+    })
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setSaveStatus('idle')
+  }, [])
 
   return { saveStatus, saveNow, markClean }
 }

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { NodeOutputViewer } from './console/NodeOutputViewer'
-import type { NodeCompletedEvent } from '@/shared/types'
+import type { NodeCompletedEvent } from '@/entities/run'
 import type { NodeRunStatus } from '@/entities/run'
 
 // ── Topological sort of ALL non-group nodes ──────────────────────────────────

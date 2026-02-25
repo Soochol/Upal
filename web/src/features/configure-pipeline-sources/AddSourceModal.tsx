@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
+import type { PipelineSource, PipelineSourceType } from '@/shared/types'
 
 type SourceTypeDef = {
   type: PipelineSourceType
@@ -13,13 +13,13 @@ type SourceTypeDef = {
   accentText: string      // tailwind color class for icon fg
 }
 
-export const STATIC_SOURCES: SourceTypeDef[] = [
+const STATIC_SOURCES: SourceTypeDef[] = [
   { type: 'rss',  source_type: 'static', label: 'RSS Feed',      description: 'RSS/Atom feed URLs',       icon: <Rss className="h-4 w-4" />,   accent: 'bg-warning/12', accentText: 'text-warning' },
   { type: 'hn',   source_type: 'static', label: 'Hacker News',   description: 'Top HN stories',           icon: <Flame className="h-4 w-4" />, accent: 'bg-[oklch(0.75_0.15_50)]/12', accentText: 'text-[oklch(0.65_0.15_50)]' },
   { type: 'http', source_type: 'static', label: 'HTTP Endpoint',  description: 'Custom HTTP API',          icon: <Globe className="h-4 w-4" />, accent: 'bg-muted', accentText: 'text-muted-foreground' },
 ]
 
-export const SIGNAL_SOURCES: SourceTypeDef[] = [
+const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'reddit',        source_type: 'signal', label: 'Reddit',         description: 'Subreddit hot posts',        icon: <MessageCircle className="h-4 w-4" />, accent: 'bg-[oklch(0.7_0.15_25)]/12', accentText: 'text-[oklch(0.6_0.15_25)]' },
   { type: 'google_trends', source_type: 'signal', label: 'Google Trends',  description: 'Keyword search spikes',      icon: <TrendingUp className="h-4 w-4" />,    accent: 'bg-info/12', accentText: 'text-info' },
   { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
@@ -27,7 +27,6 @@ export const SIGNAL_SOURCES: SourceTypeDef[] = [
 
 
 type Props = {
-  editSource?: PipelineSource
   onAdd: (source: PipelineSource) => void
   onClose: () => void
 }
@@ -36,13 +35,10 @@ function generateId() {
   return `src-${crypto.randomUUID()}`
 }
 
-export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
-  const editTypeDef = editSource
-    ? [...STATIC_SOURCES, ...SIGNAL_SOURCES].find(s => s.type === editSource.type) ?? null
-    : null
-  const [step, setStep] = useState<'select' | 'config'>(editSource ? 'config' : 'select')
-  const [selectedType, setSelectedType] = useState<SourceTypeDef | null>(editTypeDef)
-  const [draft, setDraft] = useState<Partial<PipelineSource>>(editSource ?? {})
+export function AddSourceModal({ onAdd, onClose }: Props) {
+  const [step, setStep] = useState<'select' | 'config'>('select')
+  const [selectedType, setSelectedType] = useState<SourceTypeDef | null>(null)
+  const [draft, setDraft] = useState<Partial<PipelineSource>>({})
 
   const handleSelectType = (typeDef: SourceTypeDef) => {
     setSelectedType(typeDef)
@@ -70,7 +66,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold">
-            {step === 'select' ? 'Add Source' : editSource ? `Edit ${selectedType?.label}` : `Configure ${selectedType?.label}`}
+            {step === 'select' ? 'Add Source' : `Configure ${selectedType?.label}`}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
@@ -262,7 +258,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
               className="px-4 py-2 rounded-xl text-sm font-medium bg-foreground text-background
                 hover:opacity-90 transition-opacity cursor-pointer"
             >
-              {editSource ? 'Save' : 'Add source'}
+              Add source
             </button>
           </div>
         )}
