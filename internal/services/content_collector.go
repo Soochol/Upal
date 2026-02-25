@@ -220,18 +220,19 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 	}
 
 	// For research sources: pre-record the SourceFetch so it's visible to
-	// the frontend immediately, and wire up a progress callback.
+	// the frontend immediately, and create a dedicated fetcher instance to
+	// avoid data races on the shared fetcher's progressFn.
 	isResearch := src.Type == "research"
 	if isResearch {
 		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
 			log.Printf("content_collector: failed to pre-record research source fetch: %v", err)
 		}
-		if rf, ok := fetcher.(*researchFetcher); ok {
-			rf.SetProgressFn(func(p upal.ResearchProgress) {
-				sf.Progress = &p
-				_ = c.contentSvc.UpdateSourceFetch(ctx, sf)
-			})
-		}
+		rf := NewResearchFetcher(c.resolver, c.skills)
+		rf.SetProgressFn(func(p upal.ResearchProgress) {
+			sf.Progress = &p
+			_ = c.contentSvc.UpdateSourceFetch(ctx, sf)
+		})
+		fetcher = rf
 	}
 
 	text, data, err := fetcher.Fetch(ctx, src)

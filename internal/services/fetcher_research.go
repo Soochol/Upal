@@ -65,7 +65,7 @@ func (f *researchFetcher) Fetch(ctx context.Context, src upal.CollectSource) (st
 
 	switch depth {
 	case "light":
-		return f.runResearch(ctx, src, llm, modelName, 1, 30*time.Second)
+		return f.runResearch(ctx, src, llm, modelName, 3, 30*time.Second)
 	case "deep":
 		maxSearches := src.MaxSearches
 		if maxSearches <= 0 {
@@ -134,6 +134,7 @@ func (f *researchFetcher) runResearch(
 	maxLoopTurns := max(maxSearches*3, 6)
 	searchCount := 0
 	findingsCount := 0
+	budgetMsgSent := false
 
 	for turn := 0; turn < maxLoopTurns; turn++ {
 		req := &adkmodel.LLMRequest{
@@ -197,11 +198,13 @@ func (f *researchFetcher) runResearch(
 
 		// Execute tool calls and append results.
 		contents = append(contents, resp.Content)
-		toolResults := executeResearchToolCalls(ctx, toolCalls, webpageTool)
-		contents = append(contents, toolResults)
+		if toolResults := executeResearchToolCalls(ctx, toolCalls, webpageTool); toolResults != nil {
+			contents = append(contents, toolResults)
+		}
 
-		// If we've exhausted the search budget, ask the LLM to wrap up.
-		if searchCount >= maxSearches {
+		// If we've exhausted the search budget, ask the LLM to wrap up (once).
+		if searchCount >= maxSearches && !budgetMsgSent {
+			budgetMsgSent = true
 			contents = append(contents, &genai.Content{
 				Role:  genai.RoleUser,
 				Parts: []*genai.Part{genai.NewPartFromText("You have used all available search queries. Please synthesize your findings into a final report now.")},
@@ -278,8 +281,9 @@ func parseResearchSources(text string) []map[string]any {
 		}
 		seen[url] = true
 		sources = append(sources, map[string]any{
-			"title": m[1],
-			"url":   url,
+			"title":   m[1],
+			"url":     url,
+			"summary": m[1], // use link text as summary; convertToSourceItems maps this to Content
 		})
 	}
 	return sources
@@ -318,9 +322,8 @@ func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, 
 		})
 	}
 	if len(parts) == 0 {
-		// All calls were native -- return an empty content so the loop
-		// can continue without appending a nil content.
-		return &genai.Content{Role: genai.RoleUser, Parts: []*genai.Part{}}
+		// All calls were native — no FunctionResponse needed; return nil.
+		return nil
 	}
 	return &genai.Content{
 		Role:  genai.RoleUser,
