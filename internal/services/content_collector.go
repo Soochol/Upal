@@ -88,6 +88,39 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 	return nil
 }
 
+// CollectFromTemplate creates a child instance from a session template and
+// launches background collection + analysis.
+func (c *ContentCollector) CollectFromTemplate(ctx context.Context, templateID string) error {
+	template, err := c.contentSvc.GetSession(ctx, templateID)
+	if err != nil {
+		return fmt.Errorf("template %s: %w", templateID, err)
+	}
+	if !template.IsTemplate {
+		return fmt.Errorf("session %s is not a template", templateID)
+	}
+
+	instanceName := template.Name
+	if instanceName != "" {
+		instanceName += " — " + time.Now().Format("01/02 15:04")
+	}
+	sess := &upal.ContentSession{
+		PipelineID:      template.PipelineID,
+		Name:            instanceName,
+		TriggerType:     "schedule",
+		IsTemplate:      false,
+		ParentSessionID: template.ID,
+		Sources:         template.Sources,
+		Model:           template.Model,
+		Workflows:       template.Workflows,
+		Context:         template.Context,
+	}
+	if err := c.contentSvc.CreateSession(ctx, sess); err != nil {
+		return fmt.Errorf("create instance: %w", err)
+	}
+	go c.CollectAndAnalyze(context.Background(), sess, false, 0)
+	return nil
+}
+
 // CollectAndAnalyze fetches content from session sources, records the results,
 // runs LLM analysis on the collected data, and transitions the session to
 // pending_review. This is designed to run in a background goroutine.
