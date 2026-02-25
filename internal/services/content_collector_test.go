@@ -108,3 +108,72 @@ func TestConvertToSourceItems_Social_WrongType(t *testing.T) {
 		t.Errorf("expected nil for wrong type, got %v", items)
 	}
 }
+
+func TestMapPipelineSources_Research(t *testing.T) {
+	sources := []upal.PipelineSource{{
+		Type:  "research",
+		Topic: "EV market trends",
+		Depth: "deep",
+	}}
+	result := mapPipelineSources(sources, "anthropic/claude-sonnet", false, 0)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 mapped source, got %d", len(result))
+	}
+	cs := result[0].collectSource
+	if cs.Type != "research" {
+		t.Errorf("expected type=research, got %q", cs.Type)
+	}
+	if cs.Topic != "EV market trends" {
+		t.Errorf("expected topic='EV market trends', got %q", cs.Topic)
+	}
+	if cs.Depth != "deep" {
+		t.Errorf("expected depth=deep, got %q", cs.Depth)
+	}
+	if cs.Model != "anthropic/claude-sonnet" {
+		t.Errorf("expected model='anthropic/claude-sonnet', got %q", cs.Model)
+	}
+}
+
+func TestMapPipelineSources_ResearchDefaultDepth(t *testing.T) {
+	sources := []upal.PipelineSource{{
+		Type:  "research",
+		Topic: "test topic",
+	}}
+	result := mapPipelineSources(sources, "", false, 0)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 mapped source, got %d", len(result))
+	}
+	if result[0].collectSource.Depth != "light" {
+		t.Errorf("expected default depth=light, got %q", result[0].collectSource.Depth)
+	}
+}
+
+func TestConvertToSourceItems_Research(t *testing.T) {
+	data := []map[string]any{
+		{"title": "EV Report", "url": "https://example.com", "summary": "Market growing"},
+		{"title": "Battery Tech", "url": "https://example.com/battery", "summary": "New advances"},
+	}
+	items := convertToSourceItems("research", data)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0].Title != "EV Report" {
+		t.Errorf("expected title='EV Report', got %q", items[0].Title)
+	}
+	if items[0].URL != "https://example.com" {
+		t.Errorf("expected url='https://example.com', got %q", items[0].URL)
+	}
+	if items[0].Content != "Market growing" {
+		t.Errorf("expected content='Market growing', got %q", items[0].Content)
+	}
+	if items[1].Title != "Battery Tech" {
+		t.Errorf("expected title='Battery Tech', got %q", items[1].Title)
+	}
+}
+
+func TestConvertToSourceItems_ResearchNilData(t *testing.T) {
+	items := convertToSourceItems("research", nil)
+	if items != nil {
+		t.Errorf("expected nil for nil data, got %v", items)
+	}
+}
