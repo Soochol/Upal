@@ -53,10 +53,13 @@ export type WorkflowResult = {
 export type ContentSession = {
   id: string
   pipeline_id: string
+  name?: string
   pipeline_name?: string
   session_number?: number
   trigger_type: 'schedule' | 'manual' | 'surge'
   status: ContentSessionStatus
+  is_template?: boolean
+  parent_session_id?: string
   // Session-level settings
   session_sources?: PipelineSource[]
   schedule?: string

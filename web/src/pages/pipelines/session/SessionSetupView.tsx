@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Clock, Loader2, CloudUpload, Play,
+  Plus, Trash2, Loader2, CloudUpload, Play, Pencil, ChevronDown, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
-import { SourceTypeBadge } from '@/shared/ui/SourceTypeBadge'
-import { EditorialBriefForm } from '@/features/define-editorial-brief/EditorialBriefForm'
+import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
@@ -33,6 +32,13 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
   { label: 'Weekly (Mon 09:00)', cron: '0 9 * * 1' },
   { label: 'Monthly (1st 09:00)', cron: '0 9 1 * *' },
 ]
+
+const LANGUAGE_OPTIONS = ['Korean', 'English', 'Japanese', 'Chinese']
+
+const DEFAULT_CONTEXT: PipelineContext = {
+  purpose: '', target_audience: '', tone_style: '',
+  focus_keywords: [], exclude_keywords: [], language: 'Korean',
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -83,12 +89,16 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const [localSchedule, setLocalSchedule] = useState('')
   const [localWorkflows, setLocalWorkflows] = useState<PipelineWorkflow[]>([])
   const [localModel, setLocalModel] = useState('')
+  const [localContext, setLocalContext] = useState<PipelineContext>(DEFAULT_CONTEXT)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [localName, setLocalName] = useState('')
+  const [editingField, setEditingField] = useState<string | null>(null)
 
-  // Determine effective values: session-level overrides, fallback to pipeline defaults
+  // Effective values: session-level overrides, fallback to pipeline defaults
   const effectiveSources = useMemo(
     () => session?.session_sources ?? pipeline?.sources ?? [],
     [session?.session_sources, pipeline?.sources],
@@ -99,26 +109,33 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     [session?.session_workflows, pipeline?.workflows],
   )
   const effectiveModel = session?.model ?? pipeline?.model ?? ''
+  const effectiveContext = session?.context ?? pipeline?.context ?? DEFAULT_CONTEXT
 
   // Sync server -> local state when session changes
   useEffect(() => {
-    setLocalSources(effectiveSources) // eslint-disable-line react-hooks/set-state-in-effect
+    setLocalSources(effectiveSources)        // eslint-disable-line react-hooks/set-state-in-effect
     setLocalSchedule(effectiveSchedule)
     setLocalWorkflows(effectiveWorkflows)
     setLocalModel(effectiveModel)
+    setLocalContext(effectiveContext)
+    setLocalName(session?.name ?? '')
+    setIsEditingName(false)
+    setEditingField(null)
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Refs to read latest values in effects without stale closures
+  // Refs for latest values in effects
   const localSourcesRef = useRef(localSources)
   const localScheduleRef = useRef(localSchedule)
   const localWorkflowsRef = useRef(localWorkflows)
   const localModelRef = useRef(localModel)
+  const localContextRef = useRef(localContext)
 
   useEffect(() => {
     localSourcesRef.current = localSources
     localScheduleRef.current = localSchedule
     localWorkflowsRef.current = localWorkflows
     localModelRef.current = localModel
+    localContextRef.current = localContext
   })
 
   const isDirty = useMemo(() => {
@@ -126,9 +143,10 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
       JSON.stringify(localSources) !== JSON.stringify(effectiveSources) ||
       localSchedule !== effectiveSchedule ||
       JSON.stringify(localWorkflows) !== JSON.stringify(effectiveWorkflows) ||
-      localModel !== effectiveModel
+      localModel !== effectiveModel ||
+      JSON.stringify(localContext) !== JSON.stringify(effectiveContext)
     )
-  }, [localSources, localSchedule, localWorkflows, localModel, effectiveSources, effectiveSchedule, effectiveWorkflows, effectiveModel])
+  }, [localSources, localSchedule, localWorkflows, localModel, localContext, effectiveSources, effectiveSchedule, effectiveWorkflows, effectiveModel, effectiveContext])
 
   const isDirtyRef = useRef(isDirty)
   useEffect(() => { isDirtyRef.current = isDirty })
@@ -143,38 +161,45 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
         schedule: localScheduleRef.current,
         workflows: localWorkflowsRef.current,
         model: localModelRef.current,
+        context: localContextRef.current,
       })
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       setAutoSaveStatus('saved')
       setTimeout(() => setAutoSaveStatus('idle'), 2000)
     } catch (err) {
       setAutoSaveStatus('idle')
-      addToast(`Failed to save session settings: ${err instanceof Error ? err.message : 'unknown error'}`)
+      addToast(`Failed to save: ${err instanceof Error ? err.message : 'unknown error'}`)
     }
   }
 
   const doSaveRef = useRef(doSave)
   useEffect(() => { doSaveRef.current = doSave })
 
-  // Debounced auto-save on change (800ms)
+  // Debounced auto-save (800ms)
   useEffect(() => {
     if (!isDirty) return
     const timer = setTimeout(() => { void doSaveRef.current() }, 800)
     return () => clearTimeout(timer)
-  }, [localSources, localSchedule, localWorkflows, localModel, isDirty])
+  }, [localSources, localSchedule, localWorkflows, localModel, localContext, isDirty])
 
   // Save on unmount if dirty
   useEffect(() => {
-    return () => {
-      if (isDirtyRef.current) void doSaveRef.current()
-    }
+    return () => { if (isDirtyRef.current) void doSaveRef.current() }
   }, [])
 
-  // ─── Context save (editorial brief) ───────────────────────────────────
+  // ─── Save name ──────────────────────────────────────────────────────
 
-  const handleContextSave = async (ctx: PipelineContext) => {
-    await updateSessionSettings(sessionId, { context: ctx })
+  const handleNameSave = async () => {
+    const trimmed = localName.trim()
+    if (!trimmed || trimmed === session?.name) {
+      setLocalName(session?.name ?? '')
+      setIsEditingName(false)
+      return
+    }
+    await updateSessionSettings(sessionId, { name: trimmed })
     queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    setIsEditingName(false)
   }
 
   // ─── Start session (collect) ──────────────────────────────────────────
@@ -182,6 +207,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const collectMutation = useMutation({
     mutationFn: () => collectSession(sessionId),
     onSuccess: () => {
+      addToast('수집을 시작했습니다. Inbox에서 결과를 확인하세요.')
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
     },
@@ -189,235 +215,377 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
   const isDraft = session?.status === 'draft'
 
+  // ─── Derived ──────────────────────────────────────────────────────────
+
+  const signalCount = localSources.filter(s => s.source_type === 'signal').length
+  const staticCount = localSources.filter(s => s.source_type === 'static').length
+  const isPreset = SCHEDULE_PRESETS.some(p => p.cron === localSchedule)
+  const modelShort = localModel ? localModel.split('/').pop() : ''
+
   // ─── Render ───────────────────────────────────────────────────────────
 
   if (!session) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
-      {/* Save status indicator */}
-      <div className="px-6 py-2 border-b border-border/50 bg-background/80 backdrop-blur-sm flex items-center justify-between shrink-0">
-        <span className="text-xs text-muted-foreground">
-          Session #{session.session_number ?? '—'}
-        </span>
-        <div className="h-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* ── Header ── */}
+      <div className="px-6 py-3 border-b border-border/40 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {isEditingName ? (
+            <input
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSave()
+                if (e.key === 'Escape') { setLocalName(session?.name ?? ''); setIsEditingName(false) }
+              }}
+              autoFocus
+              className="text-sm font-medium bg-transparent border-b border-foreground/20 outline-none py-0.5 min-w-0 flex-1"
+            />
+          ) : (
+            <button
+              onClick={() => { setLocalName(session?.name ?? ''); setIsEditingName(true) }}
+              className="group flex items-center gap-1.5 min-w-0 cursor-pointer"
+              title="Rename session"
+            >
+              <span className="text-sm font-medium truncate">
+                {session.name || `Session #${session.session_number ?? '\u2014'}`}
+              </span>
+              <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            </button>
+          )}
+        </div>
+        <div className="h-4 shrink-0">
           {autoSaveStatus === 'saving' && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />Saving...
+            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground animate-in fade-in">
+              <Loader2 className="h-3 w-3 animate-spin" />Saving
             </span>
           )}
           {autoSaveStatus === 'saved' && (
-            <span className="flex items-center gap-1 text-xs text-success">
+            <span className="flex items-center gap-1.5 text-[11px] text-success animate-in fade-in">
               <CloudUpload className="h-3 w-3" />Saved
             </span>
           )}
         </div>
       </div>
 
-      {/* Scrollable sections */}
+      {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+        <div className="max-w-2xl mx-auto px-6 py-6">
 
-          {/* ── Section 1: Sources & Schedule ── */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
-              Sources &amp; Schedule
-            </h3>
-            <div className="rounded-xl border border-border/50 bg-card/50 p-5 space-y-4">
-              {localSources.length === 0 ? (
-                <div className="py-6 text-center rounded-xl border border-dashed border-border">
-                  <p className="text-sm text-muted-foreground mb-3">No sources configured.</p>
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add source
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    {localSources.map((src, i) => (
-                      <div key={src.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0">
-                        <SourceTypeBadge type={src.source_type} />
-                        <span className="text-sm font-medium flex-1 truncate">{src.label}</span>
-                        <button
-                          onClick={() => setLocalSources(localSources.filter((_, j) => j !== i))}
-                          className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" /> Add source
-                  </button>
-                </>
-              )}
+          {/* ════ SOURCES ════ */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-baseline gap-2.5">
+                <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Sources
+                </h3>
+                {localSources.length > 0 && (
+                  <span className="text-[11px] text-muted-foreground/50">
+                    {signalCount > 0 && `${signalCount} signal${signalCount !== 1 ? 's' : ''}`}
+                    {signalCount > 0 && staticCount > 0 && ' \u00b7 '}
+                    {staticCount > 0 && `${staticCount} static`}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <Plus className="h-3 w-3" /> Add
+              </button>
+            </div>
 
-              {/* Schedule */}
-              <div className="pt-2 border-t border-border/50">
-                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                  <Clock className="h-3 w-3" />Schedule
-                </label>
-                <select
-                  value={SCHEDULE_PRESETS.some(p => p.cron === localSchedule) ? localSchedule : '__custom__'}
-                  onChange={(e) => setLocalSchedule(e.target.value === '__custom__' ? '' : e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            {localSources.length === 0 ? (
+              <div className="border-t border-border/40 py-10 text-center">
+                <p className="text-[13px] text-muted-foreground/50 mb-4">No sources configured</p>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg
+                    bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  <option value="" disabled>Select schedule...</option>
-                  {SCHEDULE_PRESETS.map(p => <option key={p.cron} value={p.cron}>{p.label}</option>)}
-                  <option value="__custom__">Custom cron...</option>
-                </select>
+                  <Plus className="h-3 w-3" /> Add source
+                </button>
+              </div>
+            ) : (
+              <div className="border-t border-border/40">
+                {localSources.map((src, i) => (
+                  <div
+                    key={src.id}
+                    className="group flex items-center gap-3 py-2 -mx-2 px-2 rounded-md
+                      hover:bg-muted/40 transition-colors"
+                  >
+                    <div
+                      className={cn(
+                        'w-1.5 h-1.5 rounded-full shrink-0',
+                        src.source_type === 'signal'
+                          ? 'bg-primary shadow-[0_0_4px_var(--color-primary)]'
+                          : 'bg-muted-foreground/30',
+                      )}
+                    />
+                    <span className="text-[13px] flex-1 truncate">{src.label}</span>
+                    <span className="text-[10px] text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {src.source_type}
+                    </span>
+                    <button
+                      onClick={() => setLocalSources(localSources.filter((_, j) => j !== i))}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive
+                        transition-all cursor-pointer p-0.5"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ════ SCHEDULE ════ */}
+          <section className="mb-8">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Schedule
+            </h3>
+            <div className="border-t border-border/40">
+              {/* Frequency */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">Frequency</span>
+                <div className="relative flex-1">
+                  <select
+                    value={isPreset ? localSchedule : '__custom__'}
+                    onChange={(e) => setLocalSchedule(e.target.value === '__custom__' ? '' : e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none cursor-pointer
+                      appearance-none [-webkit-appearance:none] pr-5"
+                  >
+                    <option value="" disabled>Select...</option>
+                    {SCHEDULE_PRESETS.map(p => <option key={p.cron} value={p.cron}>{p.label}</option>)}
+                    <option value="__custom__">Custom cron</option>
+                  </select>
+                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
+                </div>
+              </div>
+              {/* Cron expression */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">Cron</span>
                 <input
                   type="text"
                   value={localSchedule}
                   onChange={(e) => setLocalSchedule(e.target.value)}
                   placeholder="0 */6 * * *"
-                  readOnly={SCHEDULE_PRESETS.some(p => p.cron === localSchedule)}
+                  readOnly={isPreset}
                   className={cn(
-                    'w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground mt-2',
-                    SCHEDULE_PRESETS.some(p => p.cron === localSchedule) && 'text-muted-foreground',
+                    'flex-1 bg-transparent text-sm font-mono outline-none placeholder:text-muted-foreground/30',
+                    isPreset && 'text-muted-foreground cursor-default',
                   )}
                 />
               </div>
             </div>
           </section>
 
-          {/* ── Section 2: Editorial Brief ── */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
+          {/* ════ EDITORIAL BRIEF ════ */}
+          <section className="mb-8">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Editorial Brief
             </h3>
-            <div className="rounded-xl border border-border/50 bg-card/50 p-5">
-              <EditorialBriefForm
-                initialContext={session.context ?? pipeline?.context}
-                onSave={handleContextSave}
-                autoSave
+            <div className="border-t border-border/40">
+              <InlineTextField
+                label="Purpose"
+                value={localContext.purpose}
+                onChange={(v) => setLocalContext({ ...localContext, purpose: v })}
+                placeholder="Topic and goal of this pipeline..."
+                multiline
+                editing={editingField === 'purpose'}
+                onStartEdit={() => setEditingField('purpose')}
+                onEndEdit={() => setEditingField(null)}
               />
-            </div>
-          </section>
-
-          {/* ── Section 3: Analysis Model ── */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
-              Analysis Model
-            </h3>
-            <div className="rounded-xl border border-border/50 bg-card/50 p-5 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Model used for content analysis. Leave empty for system default.
-              </p>
-              <ModelSelector
-                key={localModel || '__default__'}
-                value={localModel}
-                onChange={setLocalModel}
-                placeholder="System Default"
+              <InlineTextField
+                label="Audience"
+                value={localContext.target_audience}
+                onChange={(v) => setLocalContext({ ...localContext, target_audience: v })}
+                placeholder="Target audience..."
+                editing={editingField === 'audience'}
+                onStartEdit={() => setEditingField('audience')}
+                onEndEdit={() => setEditingField(null)}
               />
-              {localModel && (
-                <button
-                  onClick={() => setLocalModel('')}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                >
-                  Reset to default
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* ── Section 4: Workflows ── */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">
-              Workflows
-            </h3>
-            <div className="rounded-xl border border-border/50 bg-card/50 p-5 space-y-4">
-              {localWorkflows.length === 0 ? (
-                <div className="py-6 text-center rounded-xl border border-dashed border-border">
-                  <p className="text-sm text-muted-foreground mb-3">No workflows configured.</p>
-                  <button
-                    onClick={() => setShowWorkflowPicker(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add workflow
-                  </button>
+              <InlineTextField
+                label="Tone"
+                value={localContext.tone_style}
+                onChange={(v) => setLocalContext({ ...localContext, tone_style: v })}
+                placeholder="Tone and style..."
+                editing={editingField === 'tone'}
+                onStartEdit={() => setEditingField('tone')}
+                onEndEdit={() => setEditingField(null)}
+              />
+              {/* Focus keywords */}
+              <div className="flex items-start py-2.5 -mx-2 px-2">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground pt-1.5">Focus</span>
+                <div className="flex-1 min-w-0">
+                  <KeywordTagInput
+                    keywords={localContext.focus_keywords ?? []}
+                    onChange={(kws) => setLocalContext({ ...localContext, focus_keywords: kws })}
+                    placeholder="Add focus keywords..."
+                    className="border-0 bg-transparent px-0 py-0 min-h-[28px] rounded-none"
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-border overflow-hidden">
+              </div>
+              {/* Exclude keywords */}
+              <div className="flex items-start py-2.5 -mx-2 px-2">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground pt-1.5">Exclude</span>
+                <div className="flex-1 min-w-0">
+                  <KeywordTagInput
+                    keywords={localContext.exclude_keywords ?? []}
+                    onChange={(kws) => setLocalContext({ ...localContext, exclude_keywords: kws })}
+                    placeholder="Add exclude keywords..."
+                    className="border-0 bg-transparent px-0 py-0 min-h-[28px] rounded-none"
+                  />
+                </div>
+              </div>
+              {/* Language */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">Language</span>
+                <div className="relative flex-1">
+                  <select
+                    value={localContext.language}
+                    onChange={(e) => setLocalContext({ ...localContext, language: e.target.value })}
+                    className="w-full bg-transparent text-sm outline-none cursor-pointer
+                      appearance-none [-webkit-appearance:none] pr-5"
+                  >
+                    {LANGUAGE_OPTIONS.map((lang) => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ════ PROCESSING ════ */}
+          <section className="mb-8">
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Processing
+            </h3>
+            <div className="border-t border-border/40">
+              {/* Model */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">Model</span>
+                <div className="flex-1 min-w-0">
+                  <ModelSelector
+                    key={localModel || '__default__'}
+                    value={localModel}
+                    onChange={setLocalModel}
+                    placeholder="System Default"
+                  />
+                </div>
+                {localModel && (
+                  <button
+                    onClick={() => setLocalModel('')}
+                    className="ml-2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+                    title="Reset to default"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Workflows */}
+              <div className="py-2.5 -mx-2 px-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-24 shrink-0 text-xs text-muted-foreground">Workflows</span>
+                  {localWorkflows.length > 0 && (
+                    <button
+                      onClick={() => setShowWorkflowPicker(true)}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" /> Add
+                    </button>
+                  )}
+                </div>
+
+                {localWorkflows.length === 0 ? (
+                  <div className="ml-24 py-3">
+                    <button
+                      onClick={() => setShowWorkflowPicker(true)}
+                      className="text-[11px] text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      + Add workflow
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ml-24 mt-1.5 space-y-0.5">
                     {localWorkflows.map((wf, i) => (
-                      <div key={wf.workflow_name} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0">
+                      <div key={wf.workflow_name} className="group flex items-center gap-2 py-1">
                         <a
                           href={`/workflows?w=${encodeURIComponent(wf.workflow_name)}`}
-                          className="text-sm font-medium flex-1 truncate hover:text-primary hover:underline transition-colors"
+                          className="text-[13px] flex-1 truncate hover:text-primary transition-colors"
                         >
                           {wf.label || wf.workflow_name}
                         </a>
                         {channels.length > 0 && (
-                          <select
-                            value={wf.channel_id || ''}
-                            onChange={(e) => {
-                              const updated = [...localWorkflows]
-                              updated[i] = { ...updated[i], channel_id: e.target.value || undefined }
-                              setLocalWorkflows(updated)
-                            }}
-                            className="w-32 rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                          >
-                            <option value="">No channel</option>
-                            {channels.map(ch => (
-                              <option key={ch.id} value={ch.id}>{ch.name}</option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <select
+                              value={wf.channel_id || ''}
+                              onChange={(e) => {
+                                const updated = [...localWorkflows]
+                                updated[i] = { ...updated[i], channel_id: e.target.value || undefined }
+                                setLocalWorkflows(updated)
+                              }}
+                              className="bg-transparent text-[11px] text-muted-foreground outline-none cursor-pointer
+                                appearance-none [-webkit-appearance:none] pr-4"
+                            >
+                              <option value="">No channel</option>
+                              {channels.map(ch => (
+                                <option key={ch.id} value={ch.id}>{ch.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground/40 pointer-events-none" />
+                          </div>
                         )}
                         <button
                           onClick={() => setLocalWorkflows(localWorkflows.filter((_, j) => j !== i))}
-                          className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive
+                            transition-all cursor-pointer p-0.5"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
                     ))}
                   </div>
-                  <button
-                    onClick={() => setShowWorkflowPicker(true)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" /> Add workflow
-                  </button>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </section>
 
         </div>
       </div>
 
-      {/* ── Sticky bottom: Start Session ── */}
+      {/* ── Sticky footer: Start Session ── */}
       {isDraft && (
-        <div className="shrink-0 px-6 py-4 border-t border-border bg-background/80 backdrop-blur-sm">
-          <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="shrink-0 px-6 py-3 border-t border-border/40 bg-background/80 backdrop-blur-sm">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               {localSources.length === 0
-                ? 'Add at least one source to start collection.'
-                : `${localSources.length} source${localSources.length !== 1 ? 's' : ''} configured`}
+                ? 'Add at least one source to start.'
+                : `${localSources.length} source${localSources.length !== 1 ? 's' : ''}${modelShort ? ` \u00b7 ${modelShort}` : ''}`}
             </p>
             <button
               onClick={() => collectMutation.mutate()}
               disabled={localSources.length === 0 || collectMutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed shadow-md"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                bg-foreground text-background hover:opacity-90 transition-opacity
+                disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             >
               {collectMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Starting...</>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Starting...</>
               ) : (
-                <><Play className="h-4 w-4" />Start Session</>
+                <><Play className="h-3.5 w-3.5" />Start Session</>
               )}
             </button>
           </div>
@@ -438,6 +606,78 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
           onClose={() => setShowWorkflowPicker(false)}
         />
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// InlineTextField — property row with click-to-edit
+// ---------------------------------------------------------------------------
+
+function InlineTextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  multiline,
+  editing,
+  onStartEdit,
+  onEndEdit,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  multiline?: boolean
+  editing: boolean
+  onStartEdit: () => void
+  onEndEdit: () => void
+}) {
+  const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing && ref.current) {
+      ref.current.focus()
+      const len = ref.current.value.length
+      ref.current.setSelectionRange(len, len)
+    }
+  }, [editing])
+
+  if (editing) {
+    const sharedProps = {
+      ref,
+      value,
+      onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => onChange(e.target.value),
+      onBlur: onEndEdit,
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') onEndEdit()
+        if (e.key === 'Enter' && !multiline) onEndEdit()
+      },
+      placeholder,
+      className: 'flex-1 bg-transparent text-sm outline-none resize-none placeholder:text-muted-foreground/30',
+    }
+
+    return (
+      <div className="flex items-start py-2.5 -mx-2 px-2 bg-muted/30 rounded-md">
+        <span className="w-24 shrink-0 text-xs text-muted-foreground pt-0.5">{label}</span>
+        {multiline ? <textarea rows={3} {...sharedProps} /> : <input type="text" {...sharedProps} />}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30
+        transition-colors cursor-pointer group"
+      onClick={onStartEdit}
+    >
+      <span className="w-24 shrink-0 text-xs text-muted-foreground">{label}</span>
+      {value ? (
+        <span className="text-sm flex-1 truncate">{value}</span>
+      ) : (
+        <span className="text-sm flex-1 text-muted-foreground/30 italic">{placeholder}</span>
+      )}
+      <Pencil className="h-3 w-3 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
     </div>
   )
 }
