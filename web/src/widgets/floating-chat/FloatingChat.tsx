@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageSquare, X } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { fetchPipeline, updatePipeline } from '@/entities/pipeline'
+import { fetchContentSession, updateSessionSettings } from '@/entities/content-session/api'
 import { PipelineChatEditor } from '@/features/configure-pipeline/ui/PipelineChatEditor'
 import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
 
@@ -11,64 +11,64 @@ interface FloatingChatProps {
   sessionId?: string
 }
 
-export function FloatingChat({ pipelineId }: FloatingChatProps) {
+export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
 
-  const { data: pipeline } = useQuery({
-    queryKey: ['pipeline', pipelineId],
-    queryFn: () => fetchPipeline(pipelineId!),
-    enabled: !!pipelineId && isOpen,
+  const { data: session } = useQuery({
+    queryKey: ['content-session', sessionId],
+    queryFn: () => fetchContentSession(sessionId!),
+    enabled: !!sessionId && isOpen,
   })
 
   const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['pipeline', pipelineId] })
-    queryClient.invalidateQueries({ queryKey: ['pipelines'] })
-  }, [queryClient, pipelineId])
+    queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+  }, [queryClient, sessionId, pipelineId])
 
   const handleSourcesChange = useCallback(
     (sources: PipelineSource[]) => {
-      if (!pipelineId || !pipeline) return
-      updatePipeline(pipelineId, { ...pipeline, sources }).then(invalidate)
+      if (!sessionId) return
+      updateSessionSettings(sessionId, { sources }).then(invalidate)
     },
-    [pipelineId, pipeline, invalidate],
+    [sessionId, invalidate],
   )
 
   const handleScheduleChange = useCallback(
     (schedule: string) => {
-      if (!pipelineId || !pipeline) return
-      updatePipeline(pipelineId, { ...pipeline, schedule }).then(invalidate)
+      if (!sessionId) return
+      updateSessionSettings(sessionId, { schedule }).then(invalidate)
     },
-    [pipelineId, pipeline, invalidate],
+    [sessionId, invalidate],
   )
 
   const handleWorkflowsChange = useCallback(
     (workflows: PipelineWorkflow[]) => {
-      if (!pipelineId || !pipeline) return
-      updatePipeline(pipelineId, { ...pipeline, workflows }).then(invalidate)
+      if (!sessionId) return
+      updateSessionSettings(sessionId, { workflows }).then(invalidate)
     },
-    [pipelineId, pipeline, invalidate],
+    [sessionId, invalidate],
   )
 
   const handleModelChange = useCallback(
     (model: string) => {
-      if (!pipelineId || !pipeline) return
-      updatePipeline(pipelineId, { ...pipeline, model }).then(invalidate)
+      if (!sessionId) return
+      updateSessionSettings(sessionId, { model }).then(invalidate)
     },
-    [pipelineId, pipeline, invalidate],
+    [sessionId, invalidate],
   )
 
   const handleContextSave = useCallback(
     async (ctx: PipelineContext) => {
-      if (!pipelineId || !pipeline) return
-      await updatePipeline(pipelineId, { ...pipeline, context: ctx })
+      if (!sessionId) return
+      await updateSessionSettings(sessionId, { context: ctx })
       invalidate()
     },
-    [pipelineId, pipeline, invalidate],
+    [sessionId, invalidate],
   )
 
-  // Don't render if there's no pipeline selected
-  if (!pipelineId) return null
+  // Don't render if there's no session selected
+  if (!sessionId) return null
 
   return (
     <>
@@ -97,14 +97,14 @@ export function FloatingChat({ pipelineId }: FloatingChatProps) {
 
         {/* Chat body */}
         <div className="flex-1 overflow-y-auto">
-          {pipeline ? (
+          {session ? (
             <PipelineChatEditor
-              pipelineId={pipelineId}
-              currentSources={pipeline.sources ?? []}
-              currentSchedule={pipeline.schedule ?? ''}
-              currentWorkflows={pipeline.workflows ?? []}
-              currentModel={pipeline.model ?? ''}
-              currentContext={pipeline.context}
+              pipelineId={pipelineId ?? session.pipeline_id}
+              currentSources={session.session_sources ?? []}
+              currentSchedule={session.schedule ?? ''}
+              currentWorkflows={session.session_workflows ?? []}
+              currentModel={session.model ?? ''}
+              currentContext={session.context}
               onSourcesChange={handleSourcesChange}
               onScheduleChange={handleScheduleChange}
               onWorkflowsChange={handleWorkflowsChange}

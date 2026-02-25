@@ -117,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 		if s.contentSvc != nil {
 			r.Route("/content-sessions", func(r chi.Router) {
 				r.Get("/", s.listContentSessions)
+				r.Post("/", s.createDraftSession)
 				r.Get("/{id}", s.getContentSession)
 				r.Patch("/{id}", s.patchContentSession)
 				r.Delete("/{id}", s.deleteContentSession)

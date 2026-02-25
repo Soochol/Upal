@@ -69,7 +69,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
   },
 
   approveSession: async (id) => {
-    const updated = await approveSession(id, [])
+    const updated = await approveSession(id)
     set((state) => {
       const sessions = state.sessions.map((s) => (s.id === id ? updated : s))
       return {

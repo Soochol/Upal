@@ -206,6 +206,7 @@ export type RunEvent =
 // --- Content Session ---
 
 export type ContentSessionStatus =
+  | 'draft'
   | 'collecting'
   | 'analyzing'
   | 'pending_review'
@@ -226,6 +227,7 @@ export type PipelineSourceType =
   | 'google_trends'
   | 'social'
   | 'http'
+  | 'scrape'
 
 export type PipelineSource = {
   id: string
@@ -233,12 +235,15 @@ export type PipelineSource = {
   source_type: 'static' | 'signal'
   label: string
   // type-specific config
-  url?: string             // rss, http
+  url?: string             // rss, http, scrape
   subreddit?: string       // reddit
   min_score?: number       // reddit, hn
   keywords?: string[]      // google_trends, social
   accounts?: string[]      // social: follow account handles
   geo?: string             // google_trends: country code
+  selector?: string        // scrape: CSS selector
+  attribute?: string       // scrape: HTML attribute to extract
+  scrape_limit?: number    // scrape: max elements
   limit?: number
 }
 

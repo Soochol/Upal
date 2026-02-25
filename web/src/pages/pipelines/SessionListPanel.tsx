@@ -10,6 +10,7 @@ import { fetchContentSessions, archiveSession, unarchiveSession, deleteSession }
 // ─── Status dot ──────────────────────────────────────────────────────────────
 
 const STATUS_DOT: Record<string, string> = {
+  draft: 'bg-muted-foreground/60',
   pending_review: 'bg-warning',
   approved: 'bg-success',
   producing: 'bg-info',
@@ -208,7 +209,7 @@ export function SessionListPanel({
                     {s.analysis.summary}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground/50 italic">Processing...</p>
+                  <p className="text-xs text-muted-foreground/50 italic">{s.status === 'draft' ? 'Configuring...' : 'Processing...'}</p>
                 )}
                 <div className="flex items-center gap-2 mt-2">
                   <StatusBadge status={s.status} />

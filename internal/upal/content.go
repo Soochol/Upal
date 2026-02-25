@@ -8,6 +8,7 @@ import "time"
 type ContentSessionStatus string
 
 const (
+	SessionDraft         ContentSessionStatus = "draft"
 	SessionCollecting    ContentSessionStatus = "collecting"
 	SessionAnalyzing     ContentSessionStatus = "analyzing"
 	SessionPendingReview ContentSessionStatus = "pending_review"

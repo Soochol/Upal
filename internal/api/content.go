@@ -14,6 +14,32 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
+// POST /api/content-sessions
+// Body: {"pipeline_id": "...", "trigger_type": "manual"}
+// Creates a draft session that the user can configure before starting collection.
+func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PipelineID string `json:"pipeline_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PipelineID == "" {
+		http.Error(w, "pipeline_id is required", http.StatusBadRequest)
+		return
+	}
+	sess := &upal.ContentSession{
+		PipelineID:  body.PipelineID,
+		Status:      upal.SessionDraft,
+		TriggerType: "manual",
+	}
+	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	detail, _ := s.contentSvc.GetSessionDetail(r.Context(), sess.ID)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(detail)
+}
+
 // GET /api/content-sessions
 // Query params: pipeline_id=X, status=pending_review
 // When pipeline_id is provided, returns composed ContentSessionDetail records.
@@ -146,9 +172,9 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	sess, _ := s.contentSvc.GetSession(ctx, id)
+	detail, _ := s.contentSvc.GetSessionDetail(ctx, id)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	json.NewEncoder(w).Encode(detail)
 }
 
 // PATCH /api/content-sessions/{id}/settings
@@ -156,7 +182,7 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		Sources   []upal.PipelineSource   `json:"sources,omitempty"`
-		Schedule  string                  `json:"schedule,omitempty"`
+		Schedule  *string                 `json:"schedule,omitempty"`
 		Model     string                  `json:"model,omitempty"`
 		Workflows []upal.PipelineWorkflow `json:"workflows,omitempty"`
 		Context   *upal.PipelineContext   `json:"context,omitempty"`
@@ -168,10 +194,16 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 
 	settings := services.SessionSettings{
 		Sources:   body.Sources,
-		Schedule:  body.Schedule,
 		Model:     body.Model,
 		Workflows: body.Workflows,
 		Context:   body.Context,
+	}
+	if body.Schedule != nil {
+		if *body.Schedule == "" {
+			settings.ClearSchedule = true
+		} else {
+			settings.Schedule = *body.Schedule
+		}
 	}
 	if err := s.contentSvc.UpdateSessionSettings(r.Context(), id, settings); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -557,6 +589,8 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/content-sessions/{id}/collect
+// For draft sessions: transitions to collecting and runs in-place.
+// For non-draft sessions: creates a child execution session with copied settings.
 func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	session, err := s.contentSvc.GetSession(r.Context(), id)
@@ -571,7 +605,21 @@ func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
-	// Create a child execution session with copied settings.
+	// Draft sessions run collection in-place (first run).
+	if session.Status == upal.SessionDraft {
+		if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionCollecting); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if s.collector != nil {
+			go s.collector.CollectAndAnalyze(context.Background(), session, body.IsTest, body.Limit)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"session_id": session.ID})
+		return
+	}
+
+	// Non-draft: create a child execution session with copied settings.
 	execSess := &upal.ContentSession{
 		PipelineID:  session.PipelineID,
 		TriggerType: "manual",

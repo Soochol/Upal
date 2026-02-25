@@ -187,7 +187,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     },
   })
 
-  const hasStarted = session?.sources && session.sources.length > 0
+  const isDraft = session?.status === 'draft'
 
   // ─── Render ───────────────────────────────────────────────────────────
 
@@ -401,7 +401,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
       </div>
 
       {/* ── Sticky bottom: Start Session ── */}
-      {!hasStarted && (
+      {isDraft && (
         <div className="shrink-0 px-6 py-4 border-t border-border bg-background/80 backdrop-blur-sm">
           <div className="max-w-3xl mx-auto flex items-center justify-between">
             <p className="text-xs text-muted-foreground">

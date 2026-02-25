@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
-import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipeline'
+import { fetchPipelines, fetchPipeline } from '@/entities/pipeline'
+import { createDraftSession } from '@/entities/content-session/api'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
 import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
@@ -88,15 +89,12 @@ export default function PipelinesPage() {
     enabled: !!selectedPipelineId,
   })
 
-  const collectMutation = useMutation({
-    mutationFn: () => collectPipeline(selectedPipelineId!),
-    onSuccess: (data) => {
+  const createSessionMutation = useMutation({
+    mutationFn: () => createDraftSession(selectedPipelineId!),
+    onSuccess: (session) => {
       setShowNewSession(false)
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId }] })
-      // Auto-select the newly created session
-      if (data?.session_id) {
-        selectSession(data.session_id)
-      }
+      selectSession(session.id)
     },
   })
 
@@ -245,8 +243,8 @@ export default function PipelinesPage() {
       {/* New Session Modal */}
       {showNewSession && selectedPipelineId && (
         <NewSessionModal
-          isPending={collectMutation.isPending}
-          onConfirm={() => collectMutation.mutate()}
+          isPending={createSessionMutation.isPending}
+          onConfirm={() => createSessionMutation.mutate()}
           onClose={() => setShowNewSession(false)}
         />
       )}

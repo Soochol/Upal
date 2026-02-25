@@ -183,24 +183,39 @@ func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Cont
 
 // SessionSettings holds the configuration fields that can be updated on a session.
 type SessionSettings struct {
-	Sources   []upal.PipelineSource
-	Schedule  string
-	Model     string
-	Workflows []upal.PipelineWorkflow
-	Context   *upal.PipelineContext
+	Sources       []upal.PipelineSource
+	Schedule      string
+	ClearSchedule bool
+	Model         string
+	Workflows     []upal.PipelineWorkflow
+	Context       *upal.PipelineContext
 }
 
-// UpdateSessionSettings overwrites the configuration fields of a session.
+// UpdateSessionSettings conditionally updates session configuration fields.
+// Only non-zero fields are applied so that partial saves don't destroy data.
 func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings SessionSettings) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	sess.Sources = settings.Sources
-	sess.Schedule = settings.Schedule
-	sess.Model = settings.Model
-	sess.Workflows = settings.Workflows
-	sess.Context = settings.Context
+	if settings.Sources != nil {
+		sess.Sources = settings.Sources
+	}
+	if settings.Schedule != "" {
+		sess.Schedule = settings.Schedule
+	}
+	if settings.ClearSchedule {
+		sess.Schedule = ""
+	}
+	if settings.Model != "" {
+		sess.Model = settings.Model
+	}
+	if settings.Workflows != nil {
+		sess.Workflows = settings.Workflows
+	}
+	if settings.Context != nil {
+		sess.Context = settings.Context
+	}
 	return s.sessions.Update(ctx, sess)
 }
 
