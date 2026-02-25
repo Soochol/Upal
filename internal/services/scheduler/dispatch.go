@@ -30,8 +30,8 @@ func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 			return
 		}
 
-		// Content pipelines (with sources) go through the content collector lifecycle.
-		if len(pipeline.Sources) > 0 && s.contentCollector != nil {
+		// Content pipelines go through the content collector lifecycle.
+		if s.contentCollector != nil {
 			if err := s.contentCollector.CollectPipeline(ctx, schedule.PipelineID); err != nil {
 				slog.Error("scheduler: content pipeline collection failed",
 					"schedule", schedule.ID, "pipeline", schedule.PipelineID, "err", err)

@@ -624,9 +624,23 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Find active template session to copy settings from.
+	templates, tErr := s.contentSvc.ListTemplatesByPipeline(r.Context(), id)
+	if tErr != nil || len(templates) == 0 {
+		http.Error(w, "no template session found for this pipeline", http.StatusBadRequest)
+		return
+	}
+	tmpl := templates[0]
+
 	sess := &upal.ContentSession{
-		PipelineID:  id,
-		TriggerType: "manual",
+		PipelineID:      id,
+		TriggerType:     "manual",
+		ParentSessionID: tmpl.ID,
+		Sources:         tmpl.Sources,
+		Schedule:        tmpl.Schedule,
+		Model:           tmpl.Model,
+		Workflows:       tmpl.Workflows,
+		Context:         tmpl.Context,
 	}
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

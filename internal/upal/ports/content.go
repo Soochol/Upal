@@ -29,6 +29,9 @@ type ContentSessionPort interface {
 	ListSessionDetailsByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error)
 	ListSessionDetailsByStatusIncludeArchived(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error)
 
+	// --- Template Sessions ---
+	ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
+
 	// --- Archive / Unarchive / Delete ---
 	ArchiveSession(ctx context.Context, id string) error
 	UnarchiveSession(ctx context.Context, id string) error
