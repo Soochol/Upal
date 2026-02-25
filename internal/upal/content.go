@@ -162,6 +162,7 @@ type ContentSessionDetail struct {
 	SourceCount      int                  `json:"source_count"`
 	IsTemplate       bool                 `json:"is_template"`
 	ParentSessionID  string               `json:"parent_session_id,omitempty"`
+	ScheduleID       string               `json:"schedule_id,omitempty"`
 	// Session-level settings
 	SessionSources   []PipelineSource     `json:"session_sources,omitempty"`
 	Schedule         string               `json:"schedule,omitempty"`

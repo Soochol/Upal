@@ -173,6 +173,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
     },
+    onError: (err) => addToast(`활성화 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`),
   })
 
   const deactivateMutation = useMutation({
@@ -182,6 +183,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
     },
+    onError: (err) => addToast(`비활성화 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`),
   })
 
   const isDraft = session?.status === 'draft'

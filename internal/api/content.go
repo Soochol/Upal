@@ -752,3 +752,86 @@ func (s *Server) deleteContentSession(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// POST /api/content-sessions/{id}/activate
+func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	session, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if !session.IsTemplate {
+		http.Error(w, "only templates can be activated", http.StatusBadRequest)
+		return
+	}
+	if session.Schedule == "" {
+		http.Error(w, "schedule is required to activate", http.StatusBadRequest)
+		return
+	}
+	if session.Status == upal.SessionActive {
+		http.Error(w, "session is already active", http.StatusConflict)
+		return
+	}
+
+	// Register cron schedule.
+	sched := &upal.Schedule{
+		SessionID: session.ID,
+		CronExpr:  session.Schedule,
+		Enabled:   true,
+		Timezone:  "UTC",
+	}
+	if err := s.schedulerSvc.AddSchedule(r.Context(), sched); err != nil {
+		http.Error(w, "failed to register schedule: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Update session: store schedule_id and transition to active.
+	session.ScheduleID = sched.ID
+	session.Status = upal.SessionActive
+	if err := s.contentSvc.UpdateSession(r.Context(), session); err != nil {
+		// Clean up orphaned schedule record.
+		_ = s.schedulerSvc.RemoveSchedule(r.Context(), sched.ID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Trigger immediate first collection.
+	if s.collector != nil {
+		go s.collector.CollectFromTemplate(context.Background(), session.ID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"status": "active", "schedule_id": sched.ID})
+}
+
+// POST /api/content-sessions/{id}/deactivate
+func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	session, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if session.Status != upal.SessionActive {
+		http.Error(w, "session is not active", http.StatusBadRequest)
+		return
+	}
+
+	// Remove cron schedule.
+	if session.ScheduleID != "" {
+		if err := s.schedulerSvc.RemoveSchedule(r.Context(), session.ScheduleID); err != nil {
+			log.Printf("warn: failed to remove schedule %s: %v", session.ScheduleID, err)
+		}
+	}
+
+	session.ScheduleID = ""
+	session.Status = upal.SessionDraft
+	if err := s.contentSvc.UpdateSession(r.Context(), session); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"status": "draft"})
+}

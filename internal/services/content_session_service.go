@@ -123,6 +123,7 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 			SourceCount:      sess.SourceCount,
 			IsTemplate:       sess.IsTemplate,
 			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -174,6 +175,7 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 			SourceCount:      sess.SourceCount,
 			IsTemplate:       sess.IsTemplate,
 			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -212,8 +214,8 @@ func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id st
 	if err != nil {
 		return err
 	}
-	if sess.Status != upal.SessionDraft {
-		return fmt.Errorf("session %q: settings can only be changed in draft status", id)
+	if sess.Status != upal.SessionDraft && sess.Status != upal.SessionActive {
+		return fmt.Errorf("session %q: settings can only be changed in draft or active status", id)
 	}
 	if settings.Name != "" {
 		sess.Name = settings.Name
@@ -236,6 +238,10 @@ func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id st
 	if settings.Context != nil {
 		sess.Context = settings.Context
 	}
+	return s.sessions.Update(ctx, sess)
+}
+
+func (s *ContentSessionService) UpdateSession(ctx context.Context, sess *upal.ContentSession) error {
 	return s.sessions.Update(ctx, sess)
 }
 
@@ -503,6 +509,7 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 			SourceCount:      sess.SourceCount,
 			IsTemplate:       sess.IsTemplate,
 			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -592,6 +599,7 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 		SourceCount:      sess.SourceCount,
 		IsTemplate:       sess.IsTemplate,
 		ParentSessionID:  sess.ParentSessionID,
+		ScheduleID:       sess.ScheduleID,
 		SessionSources:   sess.Sources,
 		Schedule:         sess.Schedule,
 		Model:            sess.Model,
@@ -654,6 +662,7 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 			SourceCount:      sess.SourceCount,
 			IsTemplate:       sess.IsTemplate,
 			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -721,6 +730,7 @@ func (s *ContentSessionService) ListTemplateDetailsByPipeline(ctx context.Contex
 			SourceCount:      sess.SourceCount,
 			IsTemplate:       sess.IsTemplate,
 			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,

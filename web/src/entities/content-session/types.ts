@@ -60,6 +60,7 @@ export type ContentSession = {
   status: ContentSessionStatus
   is_template?: boolean
   parent_session_id?: string
+  schedule_id?: string
   // Session-level settings
   session_sources?: PipelineSource[]
   schedule?: string
