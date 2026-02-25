@@ -36,7 +36,7 @@ type Server struct {
 	skills               skills.Provider
 	a2aBaseURL           string
 	retryExecutor        ports.RetryExecutor
-	connectionSvc        *services.ConnectionService
+	connectionSvc        ports.ConnectionPort
 	executionReg         *services.ExecutionRegistry
 	runManager           *services.RunManager
 	runPublisher         *runpub.RunPublisher
@@ -125,6 +125,8 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Patch("/{id}/settings", s.patchSessionSettings)
 				r.Post("/{id}/collect", s.collectSession)
+				r.Post("/{id}/activate", s.activateSession)
+				r.Post("/{id}/deactivate", s.deactivateSession)
 				r.Post("/{id}/produce", s.produceContentSession)
 				r.Post("/{id}/retry-analyze", s.retryAnalyze)
 				r.Post("/{id}/generate-workflow", s.generateAngleWorkflow)
@@ -232,7 +234,7 @@ func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) {
 }
 
 // SetConnectionService configures the connection management service.
-func (s *Server) SetConnectionService(svc *services.ConnectionService) {
+func (s *Server) SetConnectionService(svc ports.ConnectionPort) {
 	s.connectionSvc = svc
 }
 
