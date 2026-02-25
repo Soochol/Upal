@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS session_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS triggers (
     id             TEXT PRIMARY KEY,
@@ -251,4 +252,14 @@ CREATE TABLE IF NOT EXISTS workflow_results (
 
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS parent_session_id TEXT NOT NULL DEFAULT '';
+
+-- Migrate: existing draft sessions become templates
+UPDATE content_sessions SET is_template = true WHERE status = 'draft' AND is_template = false;
+
+-- Session-level settings (sources, schedule, model, workflows, context)
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS session_sources JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS schedule TEXT NOT NULL DEFAULT '';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS session_workflows JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS context JSONB;
 `

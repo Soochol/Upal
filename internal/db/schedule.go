@@ -19,9 +19,9 @@ func (d *DB) CreateSchedule(ctx context.Context, s *upal.Schedule) error {
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO schedules (id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		s.ID, s.WorkflowName, s.PipelineID, s.CronExpr, inputsJSON,
+		`INSERT INTO schedules (id, workflow_name, pipeline_id, session_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		s.ID, s.WorkflowName, s.PipelineID, s.SessionID, s.CronExpr, inputsJSON,
 		s.Enabled, s.Timezone, retryParam,
 		s.NextRunAt, s.LastRunAt, s.CreatedAt, s.UpdatedAt,
 	)
@@ -37,9 +37,9 @@ func (d *DB) GetSchedule(ctx context.Context, id string) (*upal.Schedule, error)
 	var inputsJSON, retryJSON []byte
 
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
+		`SELECT id, workflow_name, pipeline_id, session_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
 		 FROM schedules WHERE id = $1`, id,
-	).Scan(&s.ID, &s.WorkflowName, &s.PipelineID, &s.CronExpr, &inputsJSON,
+	).Scan(&s.ID, &s.WorkflowName, &s.PipelineID, &s.SessionID, &s.CronExpr, &inputsJSON,
 		&s.Enabled, &s.Timezone, &retryJSON,
 		&s.NextRunAt, &s.LastRunAt, &s.CreatedAt, &s.UpdatedAt,
 	)
@@ -67,9 +67,9 @@ func (d *DB) UpdateSchedule(ctx context.Context, s *upal.Schedule) error {
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
-		`UPDATE schedules SET workflow_name = $1, pipeline_id = $2, cron_expr = $3, inputs = $4, enabled = $5, timezone = $6, retry_policy = $7, next_run_at = $8, last_run_at = $9, updated_at = $10
-		 WHERE id = $11`,
-		s.WorkflowName, s.PipelineID, s.CronExpr, inputsJSON,
+		`UPDATE schedules SET workflow_name = $1, pipeline_id = $2, session_id = $3, cron_expr = $4, inputs = $5, enabled = $6, timezone = $7, retry_policy = $8, next_run_at = $9, last_run_at = $10, updated_at = $11
+		 WHERE id = $12`,
+		s.WorkflowName, s.PipelineID, s.SessionID, s.CronExpr, inputsJSON,
 		s.Enabled, s.Timezone, retryParam,
 		s.NextRunAt, s.LastRunAt, s.UpdatedAt, s.ID,
 	)
@@ -91,7 +91,7 @@ func (d *DB) DeleteSchedule(ctx context.Context, id string) error {
 // ListSchedules returns all schedules.
 func (d *DB) ListSchedules(ctx context.Context) ([]*upal.Schedule, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
+		`SELECT id, workflow_name, pipeline_id, session_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
 		 FROM schedules ORDER BY created_at DESC`,
 	)
 	if err != nil {
@@ -105,7 +105,7 @@ func (d *DB) ListSchedules(ctx context.Context) ([]*upal.Schedule, error) {
 // ListDueSchedules returns enabled schedules whose next_run_at is at or before now.
 func (d *DB) ListDueSchedules(ctx context.Context, now time.Time) ([]*upal.Schedule, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
+		`SELECT id, workflow_name, pipeline_id, session_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
 		 FROM schedules WHERE enabled = true AND next_run_at <= $1`, now,
 	)
 	if err != nil {
@@ -119,7 +119,7 @@ func (d *DB) ListDueSchedules(ctx context.Context, now time.Time) ([]*upal.Sched
 // ListSchedulesByPipeline returns all schedules associated with a pipeline.
 func (d *DB) ListSchedulesByPipeline(ctx context.Context, pipelineID string) ([]*upal.Schedule, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
+		`SELECT id, workflow_name, pipeline_id, session_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
 		 FROM schedules WHERE pipeline_id = $1 ORDER BY created_at DESC`, pipelineID,
 	)
 	if err != nil {
@@ -136,7 +136,7 @@ func scanSchedules(rows *sql.Rows) ([]*upal.Schedule, error) {
 		s := &upal.Schedule{}
 		var inputsJSON, retryJSON []byte
 
-		if err := rows.Scan(&s.ID, &s.WorkflowName, &s.PipelineID, &s.CronExpr, &inputsJSON,
+		if err := rows.Scan(&s.ID, &s.WorkflowName, &s.PipelineID, &s.SessionID, &s.CronExpr, &inputsJSON,
 			&s.Enabled, &s.Timezone, &retryJSON,
 			&s.NextRunAt, &s.LastRunAt, &s.CreatedAt, &s.UpdatedAt,
 		); err != nil {

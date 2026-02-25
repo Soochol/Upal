@@ -107,6 +107,7 @@ type Schedule struct {
 	ID           string         `json:"id"`
 	WorkflowName string         `json:"workflow_name,omitempty"`
 	PipelineID   string         `json:"pipeline_id,omitempty"`
+	SessionID    string         `json:"session_id,omitempty"`
 	CronExpr     string         `json:"cron_expr"`
 	Inputs       map[string]any `json:"inputs,omitempty"`
 	Enabled      bool           `json:"enabled"`
