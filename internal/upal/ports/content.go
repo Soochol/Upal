@@ -23,6 +23,7 @@ type ContentSessionPort interface {
 	GetSessionDetail(ctx context.Context, id string) (*upal.ContentSessionDetail, error)
 	ListSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error)
 	ListArchivedSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error)
+	ListSessionDetailsByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error)
 	ListTemplateDetailsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error)
 	ListSessionDetailsByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error)
 	ListSessionDetailsByStatusIncludeArchived(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error)

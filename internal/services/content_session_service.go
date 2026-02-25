@@ -692,6 +692,28 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 	return details, nil
 }
 
+// ListSessionDetailsByPipelineAndStatus returns composed session details for a
+// pipeline, optionally filtered by status. If status is empty, all sessions
+// are returned (equivalent to ListSessionDetails).
+func (s *ContentSessionService) ListSessionDetailsByPipelineAndStatus(
+	ctx context.Context, pipelineID string, status upal.ContentSessionStatus,
+) ([]*upal.ContentSessionDetail, error) {
+	details, err := s.ListSessionDetails(ctx, pipelineID)
+	if err != nil {
+		return nil, err
+	}
+	if status == "" {
+		return details, nil
+	}
+	filtered := make([]*upal.ContentSessionDetail, 0, len(details))
+	for _, d := range details {
+		if d.Status == status {
+			filtered = append(filtered, d)
+		}
+	}
+	return filtered, nil
+}
+
 // --- Template Sessions ---
 
 // ListTemplatesByPipeline returns template sessions belonging to a pipeline.
