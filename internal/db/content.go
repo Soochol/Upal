@@ -12,7 +12,7 @@ import (
 // --- ContentSession ---
 
 // sessionCols is the shared column list for content_sessions queries.
-const sessionCols = `id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id,
+const sessionCols = `id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, schedule_id,
 	session_sources, schedule, model, session_workflows, context,
 	created_at, reviewed_at, archived_at`
 
@@ -22,7 +22,7 @@ func scanSession(scanner interface{ Scan(dest ...any) error }) (*upal.ContentSes
 	var status string
 	var sourcesJSON, workflowsJSON, contextJSON []byte
 	if err := scanner.Scan(
-		&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID,
+		&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.ScheduleID,
 		&sourcesJSON, &s.Schedule, &s.Model, &workflowsJSON, &contextJSON,
 		&s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt,
 	); err != nil {
@@ -79,11 +79,11 @@ func (d *DB) CreateContentSession(ctx context.Context, s *upal.ContentSession) e
 		return err
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO content_sessions (id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id,
+		`INSERT INTO content_sessions (id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, schedule_id,
 		 session_sources, schedule, model, session_workflows, context,
 		 created_at, reviewed_at, archived_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-		s.ID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount, s.IsTemplate, s.ParentSessionID,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+		s.ID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount, s.IsTemplate, s.ParentSessionID, s.ScheduleID,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxParam,
 		s.CreatedAt, s.ReviewedAt, s.ArchivedAt,
 	)
@@ -136,10 +136,10 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 		return err
 	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE content_sessions SET name = $1, status = $2, source_count = $3, is_template = $4, parent_session_id = $5,
-		 session_sources = $6, schedule = $7, model = $8, session_workflows = $9, context = $10,
-		 reviewed_at = $11, archived_at = $12 WHERE id = $13`,
-		s.Name, string(s.Status), s.SourceCount, s.IsTemplate, s.ParentSessionID,
+		`UPDATE content_sessions SET name = $1, status = $2, source_count = $3, is_template = $4, parent_session_id = $5, schedule_id = $6,
+		 session_sources = $7, schedule = $8, model = $9, session_workflows = $10, context = $11,
+		 reviewed_at = $12, archived_at = $13 WHERE id = $14`,
+		s.Name, string(s.Status), s.SourceCount, s.IsTemplate, s.ParentSessionID, s.ScheduleID,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxParam,
 		s.ReviewedAt, s.ArchivedAt, s.ID,
 	)

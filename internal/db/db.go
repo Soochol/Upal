@@ -252,6 +252,7 @@ CREATE TABLE IF NOT EXISTS workflow_results (
 
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS parent_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS schedule_id TEXT NOT NULL DEFAULT '';
 
 -- Migrate: existing draft sessions become templates
 UPDATE content_sessions SET is_template = true WHERE status = 'draft' AND is_template = false;

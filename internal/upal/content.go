@@ -9,6 +9,7 @@ type ContentSessionStatus string
 
 const (
 	SessionDraft         ContentSessionStatus = "draft"
+	SessionActive        ContentSessionStatus = "active"
 	SessionCollecting    ContentSessionStatus = "collecting"
 	SessionAnalyzing     ContentSessionStatus = "analyzing"
 	SessionPendingReview ContentSessionStatus = "pending_review"
@@ -29,6 +30,7 @@ type ContentSession struct {
 	SourceCount     int    `json:"source_count"`                // total raw items collected
 	IsTemplate      bool   `json:"is_template"`                 // true = reusable config template
 	ParentSessionID string `json:"parent_session_id,omitempty"` // template this instance was created from
+	ScheduleID      string `json:"schedule_id,omitempty"`
 	// Session-level settings (moved from Pipeline)
 	Sources   []PipelineSource   `json:"session_sources,omitempty"`
 	Schedule  string             `json:"schedule,omitempty"`
