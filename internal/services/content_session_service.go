@@ -59,6 +59,11 @@ func (s *ContentSessionService) CreateSession(ctx context.Context, sess *upal.Co
 	if sess.TriggerType == "" {
 		sess.TriggerType = "manual"
 	}
+	// Auto-generate a default name when not provided (e.g. scheduled/surge sessions).
+	if sess.Name == "" {
+		allSessions := s.allPipelineSessions(ctx, sess.PipelineID)
+		sess.Name = fmt.Sprintf("Session %d", len(allSessions)+1)
+	}
 	sess.CreatedAt = time.Now()
 	return s.sessions.Create(ctx, sess)
 }
@@ -110,10 +115,13 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 		details = append(details, &upal.ContentSessionDetail{
 			ID:               sess.ID,
 			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
 			PipelineName:     lookupPipelineName(sess.PipelineID),
 			Status:           sess.Status,
 			TriggerType:      sess.TriggerType,
 			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -158,10 +166,13 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 		details = append(details, &upal.ContentSessionDetail{
 			ID:               sess.ID,
 			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
 			PipelineName:     lookupPipelineName(sess.PipelineID),
 			Status:           sess.Status,
 			TriggerType:      sess.TriggerType,
 			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -183,6 +194,7 @@ func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Cont
 
 // SessionSettings holds the configuration fields that can be updated on a session.
 type SessionSettings struct {
+	Name          string
 	Sources       []upal.PipelineSource
 	Schedule      string
 	ClearSchedule bool
@@ -193,10 +205,17 @@ type SessionSettings struct {
 
 // UpdateSessionSettings conditionally updates session configuration fields.
 // Only non-zero fields are applied so that partial saves don't destroy data.
+// Settings can only be changed while the session is in draft status.
 func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings SessionSettings) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
 		return err
+	}
+	if sess.Status != upal.SessionDraft {
+		return fmt.Errorf("session %q: settings can only be changed in draft status", id)
+	}
+	if settings.Name != "" {
+		sess.Name = settings.Name
 	}
 	if settings.Sources != nil {
 		sess.Sources = settings.Sources
@@ -477,11 +496,14 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 		details = append(details, &upal.ContentSessionDetail{
 			ID:               sess.ID,
 			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
 			PipelineName:     pipelineName,
 			SessionNumber:    numberOf[sess.ID],
 			Status:           sess.Status,
 			TriggerType:      sess.TriggerType,
 			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -562,10 +584,13 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 	detail := &upal.ContentSessionDetail{
 		ID:               sess.ID,
 		PipelineID:       sess.PipelineID,
+		Name:             sess.Name,
 		SessionNumber:    sessionNumber,
 		Status:           sess.Status,
 		TriggerType:      sess.TriggerType,
 		SourceCount:      sess.SourceCount,
+		IsTemplate:       sess.IsTemplate,
+		ParentSessionID:  sess.ParentSessionID,
 		SessionSources:   sess.Sources,
 		Schedule:         sess.Schedule,
 		Model:            sess.Model,
@@ -620,11 +645,14 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 		details = append(details, &upal.ContentSessionDetail{
 			ID:               sess.ID,
 			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
 			PipelineName:     pipelineName,
 			SessionNumber:    i + 1, // 1-based
 			Status:           sess.Status,
 			TriggerType:      sess.TriggerType,
 			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
 			SessionSources:   sess.Sources,
 			Schedule:         sess.Schedule,
 			Model:            sess.Model,
@@ -640,6 +668,72 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 	}
 
 	// Reverse to descending (newest first) for the API response.
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].CreatedAt.After(details[j].CreatedAt)
+	})
+
+	return details, nil
+}
+
+// --- Template Sessions ---
+
+// ListTemplatesByPipeline returns template sessions belonging to a pipeline.
+func (s *ContentSessionService) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	return s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
+}
+
+// ListTemplateDetailsByPipeline returns composed ContentSessionDetail records
+// for template sessions belonging to a pipeline, sorted newest first.
+func (s *ContentSessionService) ListTemplateDetailsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
+	sessions, err := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pipelineName string
+	if pipelineID != "" && s.pipelineRepo != nil {
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineName = p.Name
+		}
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].CreatedAt.Before(sessions[j].CreatedAt)
+	})
+
+	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
+	for i, sess := range sessions {
+		sources, err := s.fetches.ListBySession(ctx, sess.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
+		}
+		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
+		wfResults := s.GetWorkflowResults(ctx, sess.ID)
+		details = append(details, &upal.ContentSessionDetail{
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
+			PipelineName:     pipelineName,
+			SessionNumber:    i + 1,
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Sources:          sources,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
+		})
+	}
+
 	sort.Slice(details, func(i, j int) bool {
 		return details[i].CreatedAt.After(details[j].CreatedAt)
 	})
