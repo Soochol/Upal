@@ -20,15 +20,22 @@ import (
 func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PipelineID string `json:"pipeline_id"`
+		Name       string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PipelineID == "" {
 		http.Error(w, "pipeline_id is required", http.StatusBadRequest)
 		return
 	}
+	if _, err := s.pipelineSvc.Get(r.Context(), body.PipelineID); err != nil {
+		http.Error(w, "pipeline not found", http.StatusNotFound)
+		return
+	}
 	sess := &upal.ContentSession{
 		PipelineID:  body.PipelineID,
+		Name:        body.Name,
 		Status:      upal.SessionDraft,
 		TriggerType: "manual",
+		IsTemplate:  true,
 	}
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -51,11 +58,14 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	// When pipeline_id is provided, return composed detail views.
 	if pipelineID != "" {
 		archivedOnly := r.URL.Query().Get("archived_only") == "true"
+		templatesOnly := r.URL.Query().Get("templates") != "false" // default true for pipeline queries
 
 		var details []*upal.ContentSessionDetail
 		var err error
 		if archivedOnly {
 			details, err = s.contentSvc.ListArchivedSessionDetails(ctx, pipelineID)
+		} else if templatesOnly {
+			details, err = s.contentSvc.ListTemplateDetailsByPipeline(ctx, pipelineID)
 		} else {
 			details, err = s.contentSvc.ListSessionDetails(ctx, pipelineID)
 		}
@@ -181,6 +191,7 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
+		Name      string                  `json:"name,omitempty"`
 		Sources   []upal.PipelineSource   `json:"sources,omitempty"`
 		Schedule  *string                 `json:"schedule,omitempty"`
 		Model     string                  `json:"model,omitempty"`
@@ -193,6 +204,7 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings := services.SessionSettings{
+		Name:      body.Name,
 		Sources:   body.Sources,
 		Model:     body.Model,
 		Workflows: body.Workflows,
@@ -567,6 +579,7 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	sess := &upal.ContentSession{
 		PipelineID:  id,
 		TriggerType: "manual",
+		IsTemplate:  false,
 		Sources:     pipeline.Sources,
 		Schedule:    pipeline.Schedule,
 		Model:       pipeline.Model,
@@ -589,8 +602,7 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/content-sessions/{id}/collect
-// For draft sessions: transitions to collecting and runs in-place.
-// For non-draft sessions: creates a child execution session with copied settings.
+// Always creates a new child instance from the given template/session and runs collection on it.
 func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	session, err := s.contentSvc.GetSession(r.Context(), id)
@@ -605,28 +617,17 @@ func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
-	// Draft sessions run collection in-place (first run).
-	if session.Status == upal.SessionDraft {
-		if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionCollecting); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if s.collector != nil {
-			go s.collector.CollectAndAnalyze(context.Background(), session, body.IsTest, body.Limit)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"session_id": session.ID})
-		return
-	}
-
-	// Non-draft: create a child execution session with copied settings.
+	// Always create a new instance from this template/session.
 	execSess := &upal.ContentSession{
-		PipelineID:  session.PipelineID,
-		TriggerType: "manual",
-		Sources:     session.Sources,
-		Model:       session.Model,
-		Workflows:   session.Workflows,
-		Context:     session.Context,
+		PipelineID:      session.PipelineID,
+		Name:            session.Name,
+		TriggerType:     "manual",
+		IsTemplate:      false,
+		ParentSessionID: session.ID,
+		Sources:         session.Sources,
+		Model:           session.Model,
+		Workflows:       session.Workflows,
+		Context:         session.Context,
 	}
 	if err := s.contentSvc.CreateSession(r.Context(), execSess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

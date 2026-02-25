@@ -74,6 +74,7 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 	sess := &upal.ContentSession{
 		PipelineID:  pipelineID,
 		TriggerType: "scheduled",
+		IsTemplate:  false,
 		Sources:     pipeline.Sources,
 		Schedule:    pipeline.Schedule,
 		Model:       pipeline.Model,
