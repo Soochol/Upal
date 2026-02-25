@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Search, Plus, Loader2, Check } from 'lucide-react'
-import { apiFetch } from '@/shared/api/client'
+import { listWorkflows } from '@/entities/workflow'
 import type { PipelineWorkflow } from '@/entities/pipeline'
 
 type WorkflowListItem = {
@@ -35,7 +35,7 @@ export function WorkflowPicker(props: WorkflowPickerProps) {
 
   const { data: workflows = [], isLoading } = useQuery<WorkflowListItem[]>({
     queryKey: ['workflows'],
-    queryFn: () => apiFetch<WorkflowListItem[]>('/api/workflows'),
+    queryFn: () => listWorkflows() as Promise<WorkflowListItem[]>,
   })
 
   const isSelectMode = props.mode === 'select'
