@@ -296,12 +296,14 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <Plus className="h-3 w-3" /> Add
-              </button>
+              {localSources.length > 0 && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3 w-3" /> Add
+                </button>
+              )}
             </div>
 
             {localSources.length === 0 ? (
