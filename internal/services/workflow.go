@@ -63,7 +63,8 @@ func (s *WorkflowService) Lookup(ctx context.Context, name string) (*upal.Workfl
 	return s.repo.Get(ctx, name)
 }
 
-// Validate checks that all agent nodes have a valid model configured.
+// Validate checks that all agent nodes have a valid model configured
+// and that all tool nodes reference registered tools.
 func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 	for _, n := range wf.Nodes {
 		if n.Type != upal.NodeTypeAgent {
@@ -79,6 +80,24 @@ func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 		}
 		if _, _, err := s.llmResolver.Resolve(modelID); err != nil {
 			return fmt.Errorf("node %q: %w", n.ID, err)
+		}
+	}
+
+	// Tool validation: every tool-type node must reference a registered tool.
+	if s.toolReg != nil {
+		for _, n := range wf.Nodes {
+			if n.Type != upal.NodeTypeTool {
+				continue
+			}
+			toolName, _ := n.Config["tool"].(string)
+			if toolName == "" {
+				return fmt.Errorf("tool node %q: missing required config field \"tool\"", n.ID)
+			}
+			_, isCustom := s.toolReg.Get(toolName)
+			isNative := s.toolReg.IsNative(toolName)
+			if !isCustom && !isNative {
+				return fmt.Errorf("tool node %q: unknown tool %q", n.ID, toolName)
+			}
 		}
 	}
 	return nil
