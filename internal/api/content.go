@@ -119,6 +119,19 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 	switch body.Action {
 	case "approve":
 		err = s.contentSvc.ApproveSession(ctx, id)
+		if err == nil && s.collector != nil {
+			// Auto-produce using session's pre-configured workflows.
+			if sess, e := s.contentSvc.GetSession(ctx, id); e == nil && len(sess.Workflows) > 0 {
+				var requests []services.WorkflowRequest
+				for _, pw := range sess.Workflows {
+					requests = append(requests, services.WorkflowRequest{
+						Name:      pw.WorkflowName,
+						ChannelID: pw.ChannelID,
+					})
+				}
+				go s.collector.ProduceWorkflows(context.Background(), id, requests)
+			}
+		}
 	case "reject":
 		err = s.contentSvc.RejectSession(ctx, id)
 	default:
