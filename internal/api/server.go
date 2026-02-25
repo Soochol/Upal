@@ -40,7 +40,7 @@ type Server struct {
 	executionReg         *services.ExecutionRegistry
 	runManager           *services.RunManager
 	runPublisher         *runpub.RunPublisher
-	pipelineSvc          *services.PipelineService
+	pipelineSvc          ports.PipelineServicePort
 	pipelineRunner       ports.PipelineRunner
 	contentSvc           *services.ContentSessionService
 	collector            *services.ContentCollector
@@ -259,7 +259,7 @@ func (s *Server) SetRunPublisher(pub *runpub.RunPublisher) {
 }
 
 // SetPipelineService configures the pipeline management service.
-func (s *Server) SetPipelineService(svc *services.PipelineService) {
+func (s *Server) SetPipelineService(svc ports.PipelineServicePort) {
 	s.pipelineSvc = svc
 }
 

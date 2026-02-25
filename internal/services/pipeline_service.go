@@ -13,6 +13,7 @@ import (
 )
 
 var _ ports.PipelineRegistry = (*PipelineService)(nil)
+var _ ports.PipelineServicePort = (*PipelineService)(nil)
 
 type PipelineService struct {
 	repo         repository.PipelineRepository
@@ -81,6 +82,11 @@ func (s *PipelineService) Update(ctx context.Context, p *upal.Pipeline) error {
 }
 
 func (s *PipelineService) Delete(ctx context.Context, id string) error {
+	if s.schedulerSvc != nil {
+		if err := s.schedulerSvc.RemovePipelineSchedules(ctx, id); err != nil {
+			slog.Warn("pipeline schedule cleanup failed", "pipeline", id, "err", err)
+		}
+	}
 	return s.repo.Delete(ctx, id)
 }
 

@@ -75,10 +75,6 @@ func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deletePipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	// Clean up associated cron jobs before deleting.
-	if s.schedulerSvc != nil {
-		_ = s.schedulerSvc.RemovePipelineSchedules(r.Context(), id)
-	}
 	if err := s.pipelineSvc.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
