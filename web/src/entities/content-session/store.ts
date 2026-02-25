@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ContentSession, ContentSessionStatus } from './types'
-import { fetchContentSessions, approveSession, rejectSession, produceSession } from './api'
+import { fetchContentSessions, approveSession, rejectSession } from './api'
 
 export interface ContentSessionFilters {
   status?: ContentSessionStatus
@@ -17,7 +17,7 @@ interface ContentSessionStore {
   fetchSessions: () => Promise<void>
   // Fetches badge counts (pending_review + approved) — safe for sidebar polling
   syncBadgeCounts: () => Promise<void>
-  approveSession: (id: string, selectedAngles: string[], channelMap?: Record<string, string>) => Promise<void>
+  approveSession: (id: string) => Promise<void>
   rejectSession: (id: string, reason?: string) => Promise<void>
 
   // Derived
@@ -68,8 +68,8 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
     }
   },
 
-  approveSession: async (id, selectedAngles, channelMap) => {
-    const updated = await approveSession(id, selectedAngles)
+  approveSession: async (id) => {
+    const updated = await approveSession(id, [])
     set((state) => {
       const sessions = state.sessions.map((s) => (s.id === id ? updated : s))
       return {
@@ -78,16 +78,7 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
         publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
       }
     })
-    // Chain: trigger production with the selected workflows
-    if (selectedAngles.length > 0) {
-      const workflowRequests = selectedAngles.map(name => ({
-        name,
-        ...(channelMap?.[name] ? { channel_id: channelMap[name] } : {}),
-      }))
-      await produceSession(id, workflowRequests).catch((err) => {
-        console.error('Failed to trigger production:', err)
-      })
-    }
+    // No manual produce call — backend auto-triggers on approve
   },
 
   rejectSession: async (id, reason) => {

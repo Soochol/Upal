@@ -68,25 +68,17 @@ export function SessionDetailPreview({ pipelineId, sessionId }: Props) {
     const [isPublishing, setIsPublishing] = useState(false)
 
     // ----- Actions -----
-    const handleApprove = useCallback(
-        async (selectedWorkflows: string[]) => {
-            if (!sessionId || !pipelineId) return
-            setIsApproving(true)
-            try {
-                // Build workflow→channel mapping from pipeline config
-                const channelMap: Record<string, string> = {}
-                for (const pw of pipeline?.workflows ?? []) {
-                    if (pw.channel_id) channelMap[pw.workflow_name] = pw.channel_id
-                }
-                await approveSession(sessionId, selectedWorkflows, channelMap)
-                await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-            } finally {
-                setIsApproving(false)
-            }
-        },
-        [sessionId, pipelineId, pipeline, approveSession, queryClient],
-    )
+    const handleApprove = useCallback(async () => {
+        if (!sessionId || !pipelineId) return
+        setIsApproving(true)
+        try {
+            await approveSession(sessionId)
+            await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+            await queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+        } finally {
+            setIsApproving(false)
+        }
+    }, [sessionId, pipelineId, approveSession, queryClient])
 
     const handleReject = useCallback(async () => {
         if (!sessionId || !pipelineId) return

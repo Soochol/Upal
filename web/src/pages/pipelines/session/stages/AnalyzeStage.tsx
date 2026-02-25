@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, CheckCircle, XCircle, CheckSquare, Square, AlertTriangle, Sparkles, ExternalLink, RotateCcw } from 'lucide-react'
-import { updateSessionAnalysis, generateAngleWorkflow, retryAnalyze } from '@/entities/content-session/api'
+import { useMutation } from '@tanstack/react-query'
+import { Loader2, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
+import { updateSessionAnalysis, retryAnalyze } from '@/entities/content-session/api'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
-import type { ContentSession, ContentAngle } from '@/entities/content-session'
+import type { ContentSession } from '@/entities/content-session'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -11,7 +11,7 @@ import type { ContentSession, ContentAngle } from '@/entities/content-session'
 
 interface AnalyzeStageProps {
   session: ContentSession
-  onApprove: (selectedWorkflows: string[]) => void
+  onApprove: () => void
   onReject: () => void
   isApproving: boolean
   isRejecting: boolean
@@ -80,35 +80,6 @@ function ScoreBar({ score, collected, selected }: { score: number; collected: nu
 }
 
 // ---------------------------------------------------------------------------
-// Match type badge
-// ---------------------------------------------------------------------------
-
-function MatchBadge({ matchType }: { matchType?: string }) {
-  if (matchType === 'matched') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-success/10 text-success border border-success/20 shrink-0 select-none">
-        <CheckCircle className="h-2.5 w-2.5" />
-        AI Matched
-      </span>
-    )
-  }
-  if (matchType === 'generated') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-info/10 text-info border border-info/20 shrink-0 select-none">
-        <Sparkles className="h-2.5 w-2.5" />
-        Auto-Generated
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-warning/10 text-warning border border-warning/20 shrink-0 select-none">
-      <AlertTriangle className="h-2.5 w-2.5" />
-      No Workflow
-    </span>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -122,29 +93,16 @@ export function AnalyzeStage({
   const analysis = session.analysis
   const sources = session.sources ?? []
   const isPendingReview = session.status === 'pending_review'
-  const queryClient = useQueryClient()
 
   // ---- Editable state ----
   const [editedSummary, setEditedSummary] = useState(analysis?.summary ?? '')
   const [editedInsights, setEditedInsights] = useState<string[]>(analysis?.insights ?? [])
-  const [selectedAngles, setSelectedAngles] = useState<Record<string, boolean>>(() => {
-    const map: Record<string, boolean> = {}
-    for (const angle of analysis?.angles ?? []) {
-      map[angle.id] = angle.selected
-    }
-    return map
-  })
 
   // Sync with prop changes (e.g. SSE updates)
   useEffect(() => {
     if (analysis) {
       setEditedSummary(analysis.summary)
       setEditedInsights([...(analysis.insights ?? [])])
-      const map: Record<string, boolean> = {}
-      for (const angle of analysis.angles ?? []) {
-        map[angle.id] = angle.selected
-      }
-      setSelectedAngles(map)
     }
   }, [analysis])
 
@@ -209,35 +167,10 @@ export function AnalyzeStage({
     [debouncedSave, editedSummary],
   )
 
-  const toggleAngle = useCallback((angleId: string) => {
-    setSelectedAngles((prev) => ({ ...prev, [angleId]: !prev[angleId] }))
-  }, [])
-
-  // ---- Generate workflow for unmatched angle ----
-  const [generatingAngles, setGeneratingAngles] = useState<Record<string, boolean>>({})
-
-  const handleGenerateWorkflow = useCallback(async (angleId: string) => {
-    setGeneratingAngles((prev) => ({ ...prev, [angleId]: true }))
-    try {
-      await generateAngleWorkflow(session.id, angleId)
-      queryClient.invalidateQueries({ queryKey: ['content-session', session.id] })
-    } catch (err) {
-      console.error('Failed to generate workflow:', err)
-    } finally {
-      setGeneratingAngles((prev) => ({ ...prev, [angleId]: false }))
-    }
-  }, [session.id, queryClient])
-
-  // ---- Approve handler: use LLM-matched workflow_name directly ----
+  // ---- Approve handler ----
   const handleApprove = useCallback(() => {
-    const angles = analysis?.angles ?? []
-    const selected = angles.filter((a) => selectedAngles[a.id])
-    const workflowNames = selected
-      .filter((a) => a.workflow_name)
-      .map((a) => a.workflow_name!)
-    if (workflowNames.length === 0) return
-    onApprove(workflowNames)
-  }, [analysis, selectedAngles, onApprove])
+    onApprove()
+  }, [onApprove])
 
   // ---- Retry analysis for stuck sessions ----
   const [isRetrying, setIsRetrying] = useState(false)
@@ -245,45 +178,46 @@ export function AnalyzeStage({
     setIsRetrying(true)
     try {
       await retryAnalyze(session.id)
-      queryClient.invalidateQueries({ queryKey: ['content-session', session.id] })
     } catch (err) {
       console.error('Failed to retry analysis:', err)
     } finally {
       setIsRetrying(false)
     }
-  }, [session.id, queryClient])
+  }, [session.id])
 
   // ---- Early return if no analysis ----
   if (!analysis) {
     const isAnalyzing = session.status === 'analyzing'
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Analyzing sources...
-        </div>
-        {isAnalyzing && (
-          <button
-            onClick={handleRetryAnalyze}
-            disabled={isRetrying}
-            className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg text-xs font-medium
-              border border-border bg-muted/50 hover:bg-muted transition-colors cursor-pointer
-              disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isRetrying ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <RotateCcw className="h-3 w-3" />
-            )}
-            Retry Analysis
-          </button>
+        {isAnalyzing ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Analyzing sources...
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-destructive">
+            <XCircle className="h-3.5 w-3.5" />
+            Analysis failed. Please retry.
+          </div>
         )}
+        <button
+          onClick={handleRetryAnalyze}
+          disabled={isRetrying}
+          className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg text-xs font-medium
+            border border-border bg-muted/50 hover:bg-muted transition-colors cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isRetrying ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3 w-3" />
+          )}
+          Retry Analysis
+        </button>
       </div>
     )
   }
-
-  const angles: ContentAngle[] = analysis.angles ?? []
-  const anySelected = angles.some((a) => selectedAngles[a.id] && a.workflow_name)
 
   return (
     <div className="space-y-6">
@@ -377,95 +311,9 @@ export function AnalyzeStage({
         </div>
       </div>
 
-      {/* Section 3: Workflow selection */}
-      {angles.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Recommended Workflows
-          </h4>
-          <div className="grid grid-cols-1 gap-2">
-            {angles.map((angle) => {
-              const checked = !!selectedAngles[angle.id]
-              const matchType = angle.match_type ?? 'none'
-              const hasWorkflow = !!angle.workflow_name
-
-              return (
-                <div
-                  key={angle.id}
-                  className={`flex flex-col gap-2 rounded-xl border px-4 py-3 transition-colors
-                    ${checked
-                      ? 'border-success/40 bg-success/5'
-                      : 'border-border bg-background'}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => isPendingReview && toggleAngle(angle.id)}
-                      disabled={!isPendingReview}
-                      className={`mt-0.5 shrink-0 transition-opacity cursor-pointer ${!isPendingReview ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'}`}
-                    >
-                      {checked
-                        ? <CheckSquare className="h-4 w-4 text-success" />
-                        : <Square className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-sm font-medium truncate">{angle.title}</div>
-                        <MatchBadge matchType={matchType} />
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {angle.format}
-                        {hasWorkflow && (
-                          <><span className="mx-1 opacity-50">&middot;</span><span className="text-foreground/70">{angle.workflow_name}</span></>
-                        )}
-                      </div>
-                      {angle.rationale && (
-                        <div className="text-sm text-muted-foreground/70 mt-0.5 italic">{angle.rationale}</div>
-                      )}
-                    </div>
-                    {hasWorkflow && (
-                      <a
-                        href={`/workflows?w=${encodeURIComponent(angle.workflow_name!)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors mt-0.5"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Workflow
-                      </a>
-                    )}
-                  </div>
-
-                  {matchType === 'none' && isPendingReview && (
-                    <div className="pl-7 pt-1 animate-in fade-in">
-                      <button
-                        onClick={() => handleGenerateWorkflow(angle.id)}
-                        disabled={generatingAngles[angle.id]}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold
-                          bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer
-                          disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {generatingAngles[angle.id] ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3" />
-                        )}
-                        Generate Workflow
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Section 4: Inline Approval Actions */}
+      {/* Section 3: Inline Approval Actions */}
       {isPendingReview && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
-          <span className="text-sm text-muted-foreground">
-            {anySelected ? `${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length} workflow${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length > 1 ? 's' : ''} selected` : 'Select workflows above to proceed'}
-          </span>
+        <div className="flex items-center justify-end gap-4 rounded-xl border border-border bg-card p-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -483,7 +331,7 @@ export function AnalyzeStage({
             <button
               type="button"
               onClick={handleApprove}
-              disabled={isApproving || isRejecting || !anySelected}
+              disabled={isApproving || isRejecting}
               className="inline-flex items-center gap-2 rounded-xl bg-success px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-success/20 hover:bg-success/90 hover:shadow-xl hover:shadow-success/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isApproving ? (
@@ -491,7 +339,7 @@ export function AnalyzeStage({
               ) : (
                 <CheckCircle className="h-4 w-4" />
               )}
-              Approve{anySelected ? ` (${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length})` : ''}
+              Approve
             </button>
           </div>
         </div>
