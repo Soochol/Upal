@@ -3,22 +3,17 @@ package upal
 import "time"
 
 // Pipeline orchestrates a sequence of Stages (workflows, approvals, schedules).
+// Settings (sources, schedule, model, workflows, context) live on ContentSession.
 type Pipeline struct {
-	ID           string           `json:"id"`
-	Name         string           `json:"name"`
-	Description  string           `json:"description,omitempty"`
-	Stages       []Stage          `json:"stages"`
-	Context      *PipelineContext `json:"context,omitempty"`
-	Sources      []PipelineSource   `json:"sources,omitempty"`
-	Workflows    []PipelineWorkflow `json:"workflows,omitempty"`
-	ThumbnailSVG string             `json:"thumbnail_svg,omitempty"`
-	// Content pipeline fields
-	Schedule             string     `json:"schedule,omitempty"`               // cron expression for content collection
-	Model                string     `json:"model,omitempty"`                  // "provider/model" format, empty = system default
-	LastCollectedAt      *time.Time `json:"last_collected_at,omitempty"`      // set after each successful collect
-	PendingSessionCount  int        `json:"pending_session_count,omitempty"`  // count of pending_review sessions
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	ID                  string     `json:"id"`
+	Name                string     `json:"name"`
+	Description         string     `json:"description,omitempty"`
+	Stages              []Stage    `json:"stages"`
+	ThumbnailSVG        string     `json:"thumbnail_svg,omitempty"`
+	LastCollectedAt     *time.Time `json:"last_collected_at,omitempty"`
+	PendingSessionCount int        `json:"pending_session_count,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 // Stage is a single step in a Pipeline.
