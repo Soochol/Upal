@@ -25,7 +25,13 @@ type ContentSession struct {
 	Status      ContentSessionStatus `json:"status"`
 	TriggerType string               `json:"trigger_type"` // "schedule" | "manual" | "surge"
 	SourceCount int                  `json:"source_count"` // total raw items collected
-	CreatedAt   time.Time            `json:"created_at"`
+	// Session-level settings (moved from Pipeline)
+	Sources   []PipelineSource   `json:"session_sources,omitempty"`
+	Schedule  string             `json:"schedule,omitempty"`
+	Model     string             `json:"model,omitempty"`
+	Workflows []PipelineWorkflow `json:"session_workflows,omitempty"`
+	Context   *PipelineContext   `json:"context,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
 	ReviewedAt  *time.Time           `json:"reviewed_at,omitempty"`
 	ArchivedAt  *time.Time           `json:"archived_at,omitempty"`
 }
@@ -65,7 +71,7 @@ type ContentAngle struct {
 	Rationale    string `json:"rationale,omitempty"`
 	Selected     bool   `json:"selected"`
 	WorkflowName string `json:"workflow_name,omitempty"`   // LLM-recommended workflow
-	MatchType    string `json:"match_type,omitempty"`      // "matched" | "generated" | "none"
+	MatchType    string `json:"match_type,omitempty"`      // "matched" | "generated" | "manual" | "none"
 }
 
 // LLMAnalysis stores the synthesized result of the LLM's analysis step.
@@ -146,8 +152,15 @@ type ContentSessionDetail struct {
 	SessionNumber   int                  `json:"session_number,omitempty"`
 	Status          ContentSessionStatus `json:"status"`
 	TriggerType     string               `json:"trigger_type"`
-	SourceCount     int                  `json:"source_count"`
-	Sources         []*SourceFetch       `json:"sources,omitempty"`
+	SourceCount      int                  `json:"source_count"`
+	// Session-level settings
+	SessionSources   []PipelineSource     `json:"session_sources,omitempty"`
+	Schedule         string               `json:"schedule,omitempty"`
+	Model            string               `json:"model,omitempty"`
+	SessionWorkflows []PipelineWorkflow   `json:"session_workflows,omitempty"`
+	SessionContext   *PipelineContext      `json:"context,omitempty"`
+	// Related data (fetched)
+	Sources          []*SourceFetch       `json:"sources,omitempty"`
 	Analysis        *LLMAnalysis         `json:"analysis,omitempty"`
 	WorkflowResults []WorkflowResult     `json:"workflow_results,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
