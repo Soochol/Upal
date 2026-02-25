@@ -137,19 +137,8 @@ export type SchedulerStats = {
   concurrency?: { active_runs: number; global_max: number; per_workflow: number }
 }
 
-// --- Content Session ---
-
-export type ContentSessionStatus =
-  | 'collecting'
-  | 'analyzing'
-  | 'pending_review'
-  | 'approved'
-  | 'rejected'
-  | 'producing'
-  | 'published'
-  | 'error'
-
-export type SourceType = 'static' | 'signal'
+// --- Content Session (re-exported from entity) ---
+export type { ContentSessionStatus, SourceType } from '@/entities/content-session'
 
 // --- Pipeline (re-exported from entity) ---
 export type {
@@ -159,27 +148,5 @@ export type {
 } from '@/entities/pipeline/types'
 
 
-export type ConnectionType = 'telegram' | 'slack' | 'http' | 'smtp'
-
-// Connection as returned by API (secrets masked)
-export type Connection = {
-  id: string
-  name: string
-  type: ConnectionType
-  host?: string
-  port?: number
-  login?: string
-  extras?: Record<string, string>
-}
-
-// Connection payload for create/update (includes secrets)
-export type ConnectionCreate = {
-  name: string
-  type: ConnectionType
-  host?: string
-  port?: number
-  login?: string
-  password?: string
-  token?: string
-  extras?: Record<string, string>
-}
+// --- Connection (re-exported from entity) ---
+export type { ConnectionType, Connection, ConnectionCreate } from '@/entities/connection'

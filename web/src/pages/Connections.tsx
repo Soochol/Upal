@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Trash2, Link2, X } from 'lucide-react'
 import { MainLayout } from '@/app/layout'
-import { listConnections, createConnection, deleteConnection } from '@/shared/api'
-import type { ConnectionCreate, ConnectionType } from '@/shared/types'
+import { listConnections, createConnection, deleteConnection } from '@/entities/connection'
+import type { ConnectionCreate, ConnectionType } from '@/entities/connection'
 
 const typeLabels: Record<ConnectionType, string> = {
   telegram: 'Telegram',

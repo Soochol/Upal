@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { StageCard } from './StageCard'
 import { listWorkflows, loadWorkflow, deserializeWorkflow, useWorkflowStore } from '@/entities/workflow'
-import { listConnections } from '@/shared/api'
+import { listConnections } from '@/entities/connection'
 import type { Pipeline, Stage, StageConfig } from '@/entities/pipeline'
 
 type Props = {

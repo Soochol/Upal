@@ -1,5 +1,5 @@
-import { apiFetch } from './client'
-import type { Connection, ConnectionCreate } from '../types'
+import { apiFetch } from '@/shared/api/client'
+import type { Connection, ConnectionCreate } from './types'
 
 export async function listConnections(): Promise<Connection[]> {
   return apiFetch<Connection[]>('/api/connections')
