@@ -147,6 +147,69 @@ func TestMemoryContentSessionRepo_ArchiveFiltering(t *testing.T) {
 	}
 }
 
+func TestMemoryContentSessionRepo_TemplateFiltering(t *testing.T) {
+	repo := NewMemoryContentSessionRepository()
+	ctx := context.Background()
+	now := time.Now()
+
+	template := &upal.ContentSession{
+		ID: "csess-tmpl", PipelineID: "pipe-1",
+		Status: upal.SessionDraft, IsTemplate: true, CreatedAt: now,
+	}
+	instance := &upal.ContentSession{
+		ID: "csess-inst", PipelineID: "pipe-1",
+		Status: upal.SessionCollecting, ParentSessionID: "csess-tmpl", CreatedAt: now,
+	}
+
+	repo.Create(ctx, template)
+	repo.Create(ctx, instance)
+
+	// ListByPipeline excludes templates
+	byPipeline, _ := repo.ListByPipeline(ctx, "pipe-1")
+	if len(byPipeline) != 1 {
+		t.Errorf("ListByPipeline: expected 1 instance, got %d", len(byPipeline))
+	}
+	if byPipeline[0].ID != "csess-inst" {
+		t.Errorf("ListByPipeline: expected instance, got %q", byPipeline[0].ID)
+	}
+
+	// ListTemplatesByPipeline returns only templates
+	templates, _ := repo.ListTemplatesByPipeline(ctx, "pipe-1")
+	if len(templates) != 1 {
+		t.Errorf("ListTemplatesByPipeline: expected 1 template, got %d", len(templates))
+	}
+	if templates[0].ID != "csess-tmpl" {
+		t.Errorf("ListTemplatesByPipeline: expected template, got %q", templates[0].ID)
+	}
+
+	// ListByStatus excludes templates
+	byStatus, _ := repo.ListByStatus(ctx, upal.SessionDraft)
+	if len(byStatus) != 0 {
+		t.Errorf("ListByStatus(draft): expected 0 (template excluded), got %d", len(byStatus))
+	}
+
+	// ListByPipelineAndStatus excludes templates
+	byBoth, _ := repo.ListByPipelineAndStatus(ctx, "pipe-1", upal.SessionCollecting)
+	if len(byBoth) != 1 {
+		t.Errorf("ListByPipelineAndStatus: expected 1 instance, got %d", len(byBoth))
+	}
+
+	// ListAllByStatus excludes templates
+	allByStatus, _ := repo.ListAllByStatus(ctx, upal.SessionDraft)
+	if len(allByStatus) != 0 {
+		t.Errorf("ListAllByStatus(draft): expected 0 (template excluded), got %d", len(allByStatus))
+	}
+
+	// List excludes templates
+	all, _ := repo.List(ctx)
+	if len(all) != 1 {
+		t.Errorf("List: expected 1 instance, got %d", len(all))
+	}
+	if all[0].ID != "csess-inst" {
+		t.Errorf("List: expected instance, got %q", all[0].ID)
+	}
+}
+
 func TestMemoryContentSessionRepo_Delete(t *testing.T) {
 	repo := NewMemoryContentSessionRepository()
 	ctx := context.Background()

@@ -43,7 +43,7 @@ func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSes
 func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
-		 FROM content_sessions WHERE archived_at IS NULL ORDER BY created_at DESC`,
+		 FROM content_sessions WHERE is_template = false AND archived_at IS NULL ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions: %w", err)

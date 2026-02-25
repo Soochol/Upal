@@ -523,8 +523,10 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 	return details, nil
 }
 
-// allPipelineSessions returns active + archived sessions for a pipeline,
+// allPipelineSessions returns active + archived instance sessions for a pipeline,
 // sorted by created_at ascending, so session numbers are stable.
+// Templates are excluded (ListByPipeline filters !IsTemplate) because session
+// numbers only apply to execution instances, not reusable templates.
 func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelineID string) []*upal.ContentSession {
 	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
 	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)

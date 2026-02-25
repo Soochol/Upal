@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/repository"
@@ -618,9 +619,14 @@ func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
 	// Always create a new instance from this template/session.
+	// Append timestamp to distinguish instances from the parent template.
+	instanceName := session.Name
+	if instanceName != "" {
+		instanceName += " — " + time.Now().Format("01/02 15:04")
+	}
 	execSess := &upal.ContentSession{
 		PipelineID:      session.PipelineID,
-		Name:            session.Name,
+		Name:            instanceName,
 		TriggerType:     "manual",
 		IsTemplate:      false,
 		ParentSessionID: session.ID,

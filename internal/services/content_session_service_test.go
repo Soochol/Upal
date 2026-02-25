@@ -218,6 +218,62 @@ func TestContentSessionService_UnarchiveNotArchived(t *testing.T) {
 	}
 }
 
+func TestContentSessionService_TemplateInstanceSeparation(t *testing.T) {
+	svc := newTestContentSvc()
+	ctx := context.Background()
+
+	// Create a template session
+	tmpl := &upal.ContentSession{
+		PipelineID: "pipe-1", TriggerType: "manual",
+		IsTemplate: true, Status: upal.SessionDraft,
+	}
+	if err := svc.CreateSession(ctx, tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+
+	// Create an instance session (like collectSession would)
+	inst := &upal.ContentSession{
+		PipelineID: "pipe-1", TriggerType: "manual",
+		ParentSessionID: tmpl.ID,
+	}
+	if err := svc.CreateSession(ctx, inst); err != nil {
+		t.Fatalf("create instance: %v", err)
+	}
+
+	// ListSessionsByPipeline (instances) excludes templates
+	instances, err := svc.ListSessionsByPipeline(ctx, "pipe-1")
+	if err != nil {
+		t.Fatalf("list instances: %v", err)
+	}
+	if len(instances) != 1 {
+		t.Errorf("expected 1 instance, got %d", len(instances))
+	}
+	if instances[0].ID == tmpl.ID {
+		t.Error("ListSessionsByPipeline should not return templates")
+	}
+
+	// ListTemplatesByPipeline returns only templates
+	templates, err := svc.ListTemplatesByPipeline(ctx, "pipe-1")
+	if err != nil {
+		t.Fatalf("list templates: %v", err)
+	}
+	if len(templates) != 1 {
+		t.Errorf("expected 1 template, got %d", len(templates))
+	}
+	if templates[0].ID != tmpl.ID {
+		t.Errorf("expected template ID %q, got %q", tmpl.ID, templates[0].ID)
+	}
+
+	// Instance should have ParentSessionID set
+	got, _ := svc.GetSession(ctx, inst.ID)
+	if got.ParentSessionID != tmpl.ID {
+		t.Errorf("expected ParentSessionID %q, got %q", tmpl.ID, got.ParentSessionID)
+	}
+	if got.IsTemplate {
+		t.Error("instance should not be a template")
+	}
+}
+
 func TestContentSessionService_CreateValidation(t *testing.T) {
 	svc := newTestContentSvc()
 	ctx := context.Background()

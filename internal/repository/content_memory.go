@@ -39,7 +39,7 @@ func (r *MemoryContentSessionRepository) Get(ctx context.Context, id string) (*u
 
 func (r *MemoryContentSessionRepository) List(ctx context.Context) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.ArchivedAt == nil
+		return !s.IsTemplate && s.ArchivedAt == nil
 	})
 }
 
