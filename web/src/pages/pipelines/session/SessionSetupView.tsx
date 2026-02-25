@@ -6,7 +6,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
+import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
   fetchContentSession,
@@ -38,6 +38,10 @@ const DEFAULT_CONTEXT: PipelineContext = {
   purpose: '', target_audience: '', tone_style: '',
   focus_keywords: [], exclude_keywords: [], language: 'Korean',
 }
+
+const SOURCE_TYPE_MAP = Object.fromEntries(
+  [...STATIC_SOURCES, ...SIGNAL_SOURCES].map(s => [s.type, s]),
+)
 
 // ---------------------------------------------------------------------------
 // Props
@@ -88,6 +92,8 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const [editingSourceIndex, setEditingSourceIndex] = useState<number | null>(null)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [localName, setLocalName] = useState('')
 
   // Effective values: session-level values only (no pipeline fallback for templates)
   const effectiveSources = useMemo(
@@ -102,15 +108,28 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const effectiveModel = session?.model ?? ''
   const effectiveContext = session?.context ?? DEFAULT_CONTEXT
 
-  // Sync server -> local state when session changes
+  // Fingerprint of server-side data — changes when refetch brings new values
+  const serverFingerprint = JSON.stringify([
+    session?.session_sources, session?.schedule,
+    session?.session_workflows, session?.model, session?.context,
+  ])
+
+  // Reset editing UI on session switch
+  useEffect(() => {
+    setEditingField(null)
+    setIsEditingName(false)
+    setLocalName(session?.name ?? '')
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync server -> local state when server data changes
+  // (covers both session switch AND external updates like FloatingChat)
   useEffect(() => {
     setLocalSources(effectiveSources)        // eslint-disable-line react-hooks/set-state-in-effect
     setLocalSchedule(effectiveSchedule)
     setLocalWorkflows(effectiveWorkflows)
     setLocalModel(effectiveModel)
     setLocalContext(effectiveContext)
-    setEditingField(null)
-  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refs for latest values in effects
   const localSourcesRef = useRef(localSources)
@@ -185,6 +204,21 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
   const isDraft = session?.status === 'draft'
 
+  const handleNameSave = async () => {
+    setIsEditingName(false)
+    const trimmed = localName.trim()
+    if (!trimmed || trimmed === session?.name) return
+    try {
+      await updateSessionSettings(sessionId, { name: trimmed })
+      queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    } catch (err) {
+      addToast(`Failed to rename: ${err instanceof Error ? err.message : 'unknown error'}`)
+    }
+  }
+
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
   // ─── Derived ──────────────────────────────────────────────────────────
 
   const signalCount = localSources.filter(s => s.source_type === 'signal').length
@@ -207,9 +241,29 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
       {/* ── Header ── */}
       <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10 shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            {session.name || `Session #${session.session_number ?? '\u2014'}`}
-          </h2>
+          {isEditingName ? (
+            <input
+              ref={nameInputRef}
+              autoFocus
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSave()
+                if (e.key === 'Escape') { setLocalName(session.name ?? ''); setIsEditingName(false) }
+              }}
+              className="text-base font-semibold bg-transparent outline-none border-b border-primary/50 py-0.5 min-w-0 flex-1 mr-3"
+            />
+          ) : (
+            <h2
+              className="text-base font-semibold cursor-pointer hover:text-primary transition-colors group flex items-center gap-1.5"
+              onClick={() => { setLocalName(session.name ?? ''); setIsEditingName(true) }}
+            >
+              {session.name || `Session #${session.session_number ?? '\u2014'}`}
+              <Pencil className="h-3 w-3 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </h2>
+          )}
           {isDraft && (
             <button
               onClick={() => collectMutation.mutate()}
@@ -236,11 +290,11 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
           <section className="mb-8">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-baseline gap-2.5">
-                <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   Sources
                 </h3>
                 {localSources.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground/50">
+                  <span className="text-xs text-muted-foreground/50">
                     {signalCount > 0 && `${signalCount} signal${signalCount !== 1 ? 's' : ''}`}
                     {signalCount > 0 && staticCount > 0 && ' \u00b7 '}
                     {staticCount > 0 && `${staticCount} static`}
@@ -250,9 +304,9 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               {localSources.length > 0 && (
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
-                  <Plus className="h-3 w-3" /> Add
+                  <Plus className="h-3 w-3" /> Add source
                 </button>
               )}
             </div>
@@ -269,23 +323,31 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               </div>
             ) : (
               <div className="border-t border-border/40">
-                {localSources.map((src, i) => (
+                {localSources.map((src, i) => {
+                  const typeDef = SOURCE_TYPE_MAP[src.type]
+                  return (
                   <div
                     key={src.id}
                     className="group flex items-center gap-3 py-2 -mx-2 px-2 rounded-md
                       hover:bg-muted/40 transition-colors cursor-pointer"
                     onClick={() => setEditingSourceIndex(i)}
                   >
-                    <div
-                      className={cn(
-                        'w-1.5 h-1.5 rounded-full shrink-0',
-                        src.source_type === 'signal'
-                          ? 'bg-primary shadow-[0_0_4px_var(--color-primary)]'
-                          : 'bg-muted-foreground/30',
-                      )}
-                    />
-                    <span className="text-[13px] flex-1 truncate">{src.label}</span>
-                    <span className="text-[10px] text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {typeDef ? (
+                      <div className={`w-6 h-6 rounded-md ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5`}>
+                        {typeDef.icon}
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full shrink-0',
+                          src.source_type === 'signal'
+                            ? 'bg-primary shadow-[0_0_4px_var(--color-primary)]'
+                            : 'bg-muted-foreground/30',
+                        )}
+                      />
+                    )}
+                    <span className="text-sm flex-1 truncate">{src.label}</span>
+                    <span className="text-xs text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
                       {src.source_type}
                     </span>
                     <button
@@ -296,20 +358,21 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>
 
           {/* ════ SCHEDULE ════ */}
           <section className="mb-8">
-            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Schedule
             </h3>
             <div className="border-t border-border/40">
               {/* Frequency */}
               <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">Frequency</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Frequency</span>
                 <div className="relative flex-1">
                   <select
                     value={isPreset ? localSchedule : '__custom__'}
@@ -326,7 +389,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               </div>
               {/* Cron expression */}
               <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">Cron</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Cron</span>
                 <input
                   type="text"
                   value={localSchedule}
@@ -344,7 +407,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
           {/* ════ EDITORIAL BRIEF ════ */}
           <section className="mb-8">
-            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Editorial Brief
             </h3>
             <div className="border-t border-border/40">
@@ -378,7 +441,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               />
               {/* Focus keywords */}
               <div className="flex items-start py-2.5 -mx-2 px-2">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground pt-1.5">Focus</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-1.5">Focus</span>
                 <div className="flex-1 min-w-0">
                   <KeywordTagInput
                     keywords={localContext.focus_keywords ?? []}
@@ -390,7 +453,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               </div>
               {/* Exclude keywords */}
               <div className="flex items-start py-2.5 -mx-2 px-2">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground pt-1.5">Exclude</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-1.5">Exclude</span>
                 <div className="flex-1 min-w-0">
                   <KeywordTagInput
                     keywords={localContext.exclude_keywords ?? []}
@@ -402,7 +465,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               </div>
               {/* Language */}
               <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">Language</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Language</span>
                 <div className="relative flex-1">
                   <select
                     value={localContext.language}
@@ -422,13 +485,13 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
           {/* ════ PROCESSING ════ */}
           <section className="mb-8">
-            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Processing
             </h3>
             <div className="border-t border-border/40">
               {/* Model */}
               <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">Analysis Model</span>
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Analysis Model</span>
                 <div className="flex-1 min-w-0">
                   <ModelSelector
                     key={localModel || '__default__'}
@@ -451,11 +514,11 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               {/* Workflows */}
               <div className="py-2.5 -mx-2 px-2">
                 <div className="flex items-center justify-between">
-                  <span className="w-24 shrink-0 text-xs text-muted-foreground">Workflows</span>
+                  <span className="w-28 shrink-0 text-sm text-muted-foreground">Workflows</span>
                   {localWorkflows.length > 0 && (
                     <button
                       onClick={() => setShowWorkflowPicker(true)}
-                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >
                       <Plus className="h-3 w-3" /> Add
                     </button>
@@ -463,21 +526,21 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                 </div>
 
                 {localWorkflows.length === 0 ? (
-                  <div className="ml-24 py-3">
+                  <div className="ml-28 py-3">
                     <button
                       onClick={() => setShowWorkflowPicker(true)}
-                      className="text-[11px] text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+                      className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
                     >
                       + Add workflow
                     </button>
                   </div>
                 ) : (
-                  <div className="ml-24 mt-1.5 space-y-0.5">
+                  <div className="ml-28 mt-1.5 space-y-0.5">
                     {localWorkflows.map((wf, i) => (
                       <div key={wf.workflow_name} className="group flex items-center gap-2 py-1">
                         <a
                           href={`/workflows?w=${encodeURIComponent(wf.workflow_name)}`}
-                          className="text-[13px] flex-1 truncate hover:text-primary transition-colors"
+                          className="text-sm flex-1 truncate hover:text-primary transition-colors"
                         >
                           {wf.label || wf.workflow_name}
                         </a>
@@ -490,7 +553,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                                 updated[i] = { ...updated[i], channel_id: e.target.value || undefined }
                                 setLocalWorkflows(updated)
                               }}
-                              className="bg-transparent text-[11px] text-muted-foreground outline-none cursor-pointer
+                              className="bg-transparent text-xs text-muted-foreground outline-none cursor-pointer
                                 appearance-none [-webkit-appearance:none] pr-4"
                             >
                               <option value="">No channel</option>
@@ -597,7 +660,7 @@ function InlineTextField({
 
     return (
       <div className="flex items-start py-2.5 -mx-2 px-2 bg-muted/30 rounded-md">
-        <span className="w-24 shrink-0 text-xs text-muted-foreground pt-0.5">{label}</span>
+        <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">{label}</span>
         {multiline ? <textarea rows={3} {...sharedProps} /> : <input type="text" {...sharedProps} />}
       </div>
     )
@@ -609,7 +672,7 @@ function InlineTextField({
         transition-colors cursor-pointer group"
       onClick={onStartEdit}
     >
-      <span className="w-24 shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="w-28 shrink-0 text-sm text-muted-foreground">{label}</span>
       {value ? (
         <span className="text-sm flex-1 truncate">{value}</span>
       ) : (

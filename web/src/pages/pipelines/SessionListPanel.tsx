@@ -1,14 +1,27 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Search, Plus, Loader2, Trash2,
+  Search, Plus, Loader2, Trash2, FileText, Pencil,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
-import { fetchContentSessions, deleteSession } from '@/entities/content-session/api'
+import { fetchContentSessions, deleteSession, updateSessionSettings } from '@/entities/content-session/api'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { useUIStore } from '@/entities/ui'
 import type { ContentSession } from '@/entities/content-session'
+import type { ContentSessionStatus } from '@/shared/types'
+
+const STATUS_DOT_COLOR: Record<ContentSessionStatus, string> = {
+  draft:          'bg-muted-foreground/50',
+  collecting:     'bg-info',
+  analyzing:      'bg-info',
+  pending_review: 'bg-warning',
+  approved:       'bg-success',
+  rejected:       'bg-destructive',
+  producing:      'bg-primary',
+  published:      'bg-success',
+  error:          'bg-destructive',
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -33,6 +46,8 @@ export function SessionListPanel({
   const addToast = useUIStore((s) => s.addToast)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ContentSession | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteSession(id),
@@ -45,6 +60,29 @@ export function SessionListPanel({
       addToast(`Failed to delete session: ${err instanceof Error ? err.message : 'unknown error'}`)
     },
   })
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      setEditingId(null)
+    },
+    onError: (err) => {
+      addToast(`Failed to rename: ${err instanceof Error ? err.message : 'unknown error'}`)
+    },
+  })
+
+  const startRename = (s: ContentSession) => {
+    setEditingId(s.id)
+    setEditName(s.name || `Session #${s.session_number}`)
+  }
+
+  const commitRename = (id: string, originalName: string) => {
+    const trimmed = editName.trim()
+    setEditingId(null)
+    if (!trimmed || trimmed === originalName) return
+    renameMutation.mutate({ id, name: trimmed })
+  }
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
@@ -105,7 +143,7 @@ export function SessionListPanel({
       </div>
 
       {/* Session list */}
-      <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto w-full p-3 space-y-1.5">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -122,36 +160,75 @@ export function SessionListPanel({
                 key={s.id}
                 onClick={() => onSelectSession(s.id)}
                 className={cn(
-                  'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border',
+                  'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border min-h-[84px]',
                   isSelected
-                    ? 'bg-primary/5 border-primary/20 shadow-sm'
-                    : 'bg-transparent border-transparent hover:bg-muted/50',
+                    ? 'bg-primary/5 border-primary/40 shadow-sm ring-1 ring-primary/20'
+                    : 'bg-card border-border/60 hover:border-primary/40 hover:bg-muted/50',
                 )}
               >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className={cn('text-sm font-semibold truncate', isSelected ? 'text-primary' : 'text-foreground')}>
-                      {s.name || `Session #${s.session_number}`}
-                    </span>
+                <div className="flex items-start gap-2.5">
+                  {/* Icon with status dot */}
+                  <div className="relative shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-lg bg-card border border-border/50 flex items-center justify-center">
+                      <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                    </div>
+                    <span className={cn(
+                      'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card',
+                      STATUS_DOT_COLOR[s.status] ?? 'bg-muted-foreground/50',
+                    )} />
                   </div>
-                  <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">
-                    {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
-                    className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
-                    title="Delete session"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      {editingId === s.id ? (
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onBlur={() => commitRename(s.id, s.name || `Session #${s.session_number}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename(s.id, s.name || `Session #${s.session_number}`)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={cn('text-sm font-semibold bg-transparent outline-none border-b border-primary/50 min-w-0 flex-1', isSelected ? 'text-primary' : 'text-foreground')}
+                        />
+                      ) : (
+                        <span
+                          className={cn('text-sm font-semibold truncate', isSelected ? 'text-primary' : 'text-foreground')}
+                          onDoubleClick={(e) => { e.stopPropagation(); startRename(s) }}
+                        >
+                          {s.name || `Session #${s.session_number}`}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-muted-foreground/60 whitespace-nowrap">
+                          {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startRename(s) }}
+                          className="p-0.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+                          title="Rename session"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
+                          className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+                          title="Delete session"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    {s.analysis?.summary && (
+                      <p className={cn('text-sm line-clamp-2', isSelected ? 'text-foreground/80' : 'text-muted-foreground')}>
+                        {s.analysis.summary}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {s.analysis?.summary ? (
-                  <p className={cn('text-sm line-clamp-2', isSelected ? 'text-foreground/80' : 'text-muted-foreground')}>
-                    {s.analysis.summary}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground/50 italic">No description</p>
-                )}
               </button>
             )
           })

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Search, Plus, GitBranch, Rss, Sparkles, Clock, Loader2, Settings, Trash2,
+  Search, Plus, Layers, Rss, Sparkles, Clock, Loader2, Trash2, Pencil,
 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/shared/lib/utils'
 import { humanReadableCron } from '@/shared/lib/cron'
-import { deletePipeline } from '@/entities/pipeline'
+import { deletePipeline, updatePipeline } from '@/entities/pipeline'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import { useUIStore } from '@/entities/ui'
 import type { Pipeline } from '@/shared/types'
@@ -20,15 +20,16 @@ interface PipelineSidebarProps {
   selectedId: string | null
   onSelect: (id: string) => void
   isLoading: boolean
-  onSettingsOpen?: () => void
   onDelete?: (id: string) => void
 }
 
-export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, onSettingsOpen, onDelete }: PipelineSidebarProps) {
+export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, onDelete }: PipelineSidebarProps) {
   const queryClient = useQueryClient()
   const addToast = useUIStore((s) => s.addToast)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deletePipeline(id),
@@ -41,6 +42,29 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
       addToast(`Failed to delete pipeline: ${err instanceof Error ? err.message : 'unknown error'}`)
     },
   })
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => updatePipeline(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+      setEditingId(null)
+    },
+    onError: (err) => {
+      addToast(`Failed to rename: ${err instanceof Error ? err.message : 'unknown error'}`)
+    },
+  })
+
+  const startRename = (p: Pipeline) => {
+    setEditingId(p.id)
+    setEditName(p.name)
+  }
+
+  const commitRename = (id: string, originalName: string) => {
+    const trimmed = editName.trim()
+    setEditingId(null)
+    if (!trimmed || trimmed === originalName) return
+    renameMutation.mutate({ id, name: trimmed })
+  }
 
   const filtered = pipelines.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
@@ -88,7 +112,7 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
             // Global empty state
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 gap-4 text-center pt-16">
               <div className="w-14 h-14 rounded-2xl bg-muted/20 flex items-center justify-center">
-                <GitBranch className="w-6 h-6 opacity-30" />
+                <Layers className="w-6 h-6 opacity-30" />
               </div>
               <div>
                 <p className="font-medium text-foreground">No pipelines yet</p>
@@ -128,7 +152,7 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
                 key={p.id}
                 onClick={() => onSelect(p.id)}
                 className={cn(
-                  'group w-full text-left p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-1.5',
+                  'group w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-1.5 min-h-[84px]',
                   isSelected
                     ? 'bg-primary/5 border-primary/40 shadow-sm ring-1 ring-primary/20'
                     : 'bg-card border-border/60 hover:border-primary/40 hover:bg-muted/50',
@@ -139,9 +163,29 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
                     <div className="w-7 h-7 rounded-lg bg-card border border-white/5 flex items-center justify-center shrink-0">
                       {isContent
                         ? <Rss className="w-3.5 h-3.5 text-purple-400" />
-                        : <GitBranch className="w-3.5 h-3.5 text-blue-400" />}
+                        : <Layers className="w-3.5 h-3.5 text-blue-400" />}
                     </div>
-                    <span className="text-sm font-semibold truncate">{p.name}</span>
+                    {editingId === p.id ? (
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onBlur={() => commitRename(p.id, p.name)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRename(p.id, p.name)
+                          if (e.key === 'Escape') setEditingId(null)
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-sm font-semibold bg-transparent outline-none border-b border-primary/50 min-w-0 flex-1"
+                      />
+                    ) : (
+                      <span
+                        className="text-sm font-semibold truncate"
+                        onDoubleClick={(e) => { e.stopPropagation(); startRename(p) }}
+                      >
+                        {p.name}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {pendingCount > 0 && (
@@ -150,11 +194,11 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
                       </span>
                     )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); onSelect(p.id); onSettingsOpen?.() }}
+                      onClick={(e) => { e.stopPropagation(); startRename(p) }}
                       className="p-1 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                      title="Settings"
+                      title="Rename pipeline"
                     >
-                      <Settings className="h-3.5 w-3.5" />
+                      <Pencil className="h-3 w-3" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }}
