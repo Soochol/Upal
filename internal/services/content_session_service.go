@@ -435,12 +435,8 @@ func (s *ContentSessionService) UnarchiveSession(ctx context.Context, id string)
 }
 
 func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) error {
-	sess, err := s.sessions.Get(ctx, id)
-	if err != nil {
+	if _, err := s.sessions.Get(ctx, id); err != nil {
 		return err
-	}
-	if sess.ArchivedAt == nil {
-		return fmt.Errorf("session %q: %w", id, upal.ErrMustBeArchived)
 	}
 
 	// Clean up published_content (no FK cascade)

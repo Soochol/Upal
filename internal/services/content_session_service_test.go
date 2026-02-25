@@ -165,27 +165,20 @@ func TestContentSessionService_ArchiveAndUnarchive(t *testing.T) {
 	}
 }
 
-func TestContentSessionService_DeleteRequiresArchived(t *testing.T) {
+func TestContentSessionService_Delete(t *testing.T) {
 	svc := newTestContentSvc()
 	ctx := context.Background()
 
 	s := &upal.ContentSession{PipelineID: "pipe-1", TriggerType: "manual"}
 	svc.CreateSession(ctx, s)
 
-	// Delete without archiving should fail
-	err := svc.DeleteSession(ctx, s.ID)
-	if err == nil {
-		t.Error("expected error when deleting non-archived session")
-	}
-
-	// Archive then delete should succeed
-	svc.ArchiveSession(ctx, s.ID)
+	// Delete without archiving should succeed now
 	if err := svc.DeleteSession(ctx, s.ID); err != nil {
-		t.Fatalf("delete archived session: %v", err)
+		t.Fatalf("delete session: %v", err)
 	}
 
 	// Session should no longer exist
-	_, err = svc.GetSession(ctx, s.ID)
+	_, err := svc.GetSession(ctx, s.ID)
 	if err == nil {
 		t.Error("expected error when getting deleted session")
 	}
