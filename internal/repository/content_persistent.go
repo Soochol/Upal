@@ -20,6 +20,7 @@ type ContentDB interface {
 	ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error)
 	UpdateContentSession(ctx context.Context, s *upal.ContentSession) error
 	ListArchivedContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
+	ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	DeleteContentSession(ctx context.Context, id string) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
@@ -123,6 +124,15 @@ func (r *PersistentContentSessionRepository) ListArchivedByPipeline(ctx context.
 	}
 	slog.Warn("db list archived content_sessions failed, falling back to in-memory", "err", err)
 	return r.mem.ListArchivedByPipeline(ctx, pipelineID)
+}
+
+func (r *PersistentContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	sessions, err := r.db.ListTemplateContentSessionsByPipeline(ctx, pipelineID)
+	if err == nil {
+		return sessions, nil
+	}
+	slog.Warn("db list template content_sessions failed, falling back to in-memory", "err", err)
+	return r.mem.ListTemplatesByPipeline(ctx, pipelineID)
 }
 
 func (r *PersistentContentSessionRepository) Update(ctx context.Context, s *upal.ContentSession) error {

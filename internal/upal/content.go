@@ -23,9 +23,12 @@ const (
 type ContentSession struct {
 	ID          string               `json:"id"`
 	PipelineID  string               `json:"pipeline_id"`
+	Name        string               `json:"name"`
 	Status      ContentSessionStatus `json:"status"`
 	TriggerType string               `json:"trigger_type"` // "schedule" | "manual" | "surge"
-	SourceCount int                  `json:"source_count"` // total raw items collected
+	SourceCount     int    `json:"source_count"`                // total raw items collected
+	IsTemplate      bool   `json:"is_template"`                 // true = reusable config template
+	ParentSessionID string `json:"parent_session_id,omitempty"` // template this instance was created from
 	// Session-level settings (moved from Pipeline)
 	Sources   []PipelineSource   `json:"session_sources,omitempty"`
 	Schedule  string             `json:"schedule,omitempty"`
@@ -149,11 +152,14 @@ type WorkflowResult struct {
 type ContentSessionDetail struct {
 	ID              string               `json:"id"`
 	PipelineID      string               `json:"pipeline_id"`
+	Name            string               `json:"name"`
 	PipelineName    string               `json:"pipeline_name,omitempty"`
 	SessionNumber   int                  `json:"session_number,omitempty"`
 	Status          ContentSessionStatus `json:"status"`
 	TriggerType     string               `json:"trigger_type"`
 	SourceCount      int                  `json:"source_count"`
+	IsTemplate       bool                 `json:"is_template"`
+	ParentSessionID  string               `json:"parent_session_id,omitempty"`
 	// Session-level settings
 	SessionSources   []PipelineSource     `json:"session_sources,omitempty"`
 	Schedule         string               `json:"schedule,omitempty"`

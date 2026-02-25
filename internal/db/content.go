@@ -13,9 +13,9 @@ import (
 
 func (d *DB) CreateContentSession(ctx context.Context, s *upal.ContentSession) error {
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO content_sessions (id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		s.ID, s.PipelineID, string(s.Status), s.TriggerType, s.SourceCount, s.CreatedAt, s.ReviewedAt, s.ArchivedAt,
+		`INSERT INTO content_sessions (id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		s.ID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount, s.IsTemplate, s.ParentSessionID, s.CreatedAt, s.ReviewedAt, s.ArchivedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert content_session: %w", err)
@@ -27,9 +27,9 @@ func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSes
 	var s upal.ContentSession
 	var status string
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
 		 FROM content_sessions WHERE id = $1`, id,
-	).Scan(&s.ID, &s.PipelineID, &status, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt)
+	).Scan(&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("content session %q not found", id)
 	}
@@ -42,7 +42,7 @@ func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSes
 
 func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
 		 FROM content_sessions WHERE archived_at IS NULL ORDER BY created_at DESC`,
 	)
 	if err != nil {
@@ -53,7 +53,7 @@ func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, e
 	for rows.Next() {
 		var s upal.ContentSession
 		var status string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &status, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(status)
@@ -64,8 +64,8 @@ func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, e
 
 func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
-		 FROM content_sessions WHERE pipeline_id = $1 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE pipeline_id = $1 AND is_template = false AND archived_at IS NULL ORDER BY created_at DESC`,
 		pipelineID,
 	)
 	if err != nil {
@@ -76,7 +76,7 @@ func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID strin
 	for rows.Next() {
 		var s upal.ContentSession
 		var status string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &status, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(status)
@@ -87,8 +87,8 @@ func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID strin
 
 func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) error {
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE content_sessions SET status = $1, source_count = $2, reviewed_at = $3, archived_at = $4 WHERE id = $5`,
-		string(s.Status), s.SourceCount, s.ReviewedAt, s.ArchivedAt, s.ID,
+		`UPDATE content_sessions SET name = $1, status = $2, source_count = $3, is_template = $4, parent_session_id = $5, reviewed_at = $6, archived_at = $7 WHERE id = $8`,
+		s.Name, string(s.Status), s.SourceCount, s.IsTemplate, s.ParentSessionID, s.ReviewedAt, s.ArchivedAt, s.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update content_session: %w", err)
@@ -102,8 +102,8 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 
 func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
-		 FROM content_sessions WHERE status = $1 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE status = $1 AND is_template = false AND archived_at IS NULL ORDER BY created_at DESC`,
 		status,
 	)
 	if err != nil {
@@ -114,7 +114,7 @@ func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]
 	for rows.Next() {
 		var s upal.ContentSession
 		var st string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &st, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(st)
@@ -125,8 +125,8 @@ func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]
 
 func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
-		 FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE status = $1 AND is_template = false ORDER BY created_at DESC`,
 		status,
 	)
 	if err != nil {
@@ -137,7 +137,7 @@ func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) 
 	for rows.Next() {
 		var s upal.ContentSession
 		var st string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &st, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(st)
@@ -148,8 +148,8 @@ func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) 
 
 func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
-		 FROM content_sessions WHERE pipeline_id = $1 AND status = $2 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE pipeline_id = $1 AND status = $2 AND is_template = false AND archived_at IS NULL ORDER BY created_at DESC`,
 		pipelineID, status,
 	)
 	if err != nil {
@@ -160,7 +160,7 @@ func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelin
 	for rows.Next() {
 		var s upal.ContentSession
 		var st string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &st, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &st, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(st)
@@ -171,7 +171,7 @@ func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelin
 
 func (d *DB) ListArchivedContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, pipeline_id, status, trigger_type, source_count, created_at, reviewed_at, archived_at
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
 		 FROM content_sessions WHERE pipeline_id = $1 AND archived_at IS NOT NULL ORDER BY archived_at DESC`,
 		pipelineID,
 	)
@@ -183,7 +183,30 @@ func (d *DB) ListArchivedContentSessionsByPipeline(ctx context.Context, pipeline
 	for rows.Next() {
 		var s upal.ContentSession
 		var status string
-		if err := rows.Scan(&s.ID, &s.PipelineID, &status, &s.TriggerType, &s.SourceCount, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
+			return nil, fmt.Errorf("scan content_session: %w", err)
+		}
+		s.Status = upal.ContentSessionStatus(status)
+		result = append(result, &s)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	rows, err := d.Pool.QueryContext(ctx,
+		`SELECT id, pipeline_id, name, status, trigger_type, source_count, is_template, parent_session_id, created_at, reviewed_at, archived_at
+		 FROM content_sessions WHERE pipeline_id = $1 AND is_template = true AND archived_at IS NULL ORDER BY created_at DESC`,
+		pipelineID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list template content_sessions: %w", err)
+	}
+	defer rows.Close()
+	var result []*upal.ContentSession
+	for rows.Next() {
+		var s upal.ContentSession
+		var status string
+		if err := rows.Scan(&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount, &s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt); err != nil {
 			return nil, fmt.Errorf("scan content_session: %w", err)
 		}
 		s.Status = upal.ContentSessionStatus(status)

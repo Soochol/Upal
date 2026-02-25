@@ -45,31 +45,37 @@ func (r *MemoryContentSessionRepository) List(ctx context.Context) ([]*upal.Cont
 
 func (r *MemoryContentSessionRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID && !s.IsTemplate && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status && s.ArchivedAt == nil
+		return s.Status == status && !s.IsTemplate && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status
+		return s.Status == status && !s.IsTemplate
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.Status == status && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID && s.Status == status && !s.IsTemplate && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
 		return s.PipelineID == pipelineID && s.ArchivedAt != nil
+	})
+}
+
+func (r *MemoryContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.PipelineID == pipelineID && s.IsTemplate && s.ArchivedAt == nil
 	})
 }
 
