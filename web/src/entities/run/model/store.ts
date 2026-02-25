@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { RunEvent } from '@/shared/types'
-import { startRun as apiStartRun, connectToRunEvents } from '@/shared/api'
+import type { RunEvent } from '../types'
+import { startRun as apiStartRun, connectToRunEvents } from '../api/index'
 import type { WorkflowDefinition } from '@/entities/workflow'
 
 export type NodeRunStatus = 'idle' | 'running' | 'completed' | 'error' | 'waiting' | 'skipped'

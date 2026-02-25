@@ -1,5 +1,5 @@
 import { API_BASE, apiFetch } from '@/shared/api/client'
-import type { RunRecord, RunListResponse, RunEvent, ToolCall, TokenUsage } from '@/shared/types'
+import type { RunRecord, RunListResponse, RunEvent, ToolCall, TokenUsage } from '../types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
 export async function fetchRuns(limit = 20, offset = 0, status = ''): Promise<RunListResponse> {
