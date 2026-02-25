@@ -262,6 +262,7 @@ func serve() {
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("trigger"))
 	srv.SetPipelineService(pipelineSvc)
 	srv.SetPipelineRunner(pipelineRunner)
+	pipelineSvc.SetSchedulerService(schedulerSvc)
 	schedulerSvc.SetPipelineRunner(pipelineRunner)
 	schedulerSvc.SetPipelineService(pipelineSvc)
 
@@ -312,6 +313,7 @@ func serve() {
 		)
 		srv.SetContentCollector(collector)
 		schedulerSvc.SetContentCollector(collector)
+		schedulerSvc.SetContentSessionCollector(collector)
 	}
 
 	// Configure natural language workflow generator if any provider is available.

@@ -28,12 +28,6 @@ func (s *Server) createPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Sync schedule stages: register cron jobs and fill in schedule_id.
-	if s.schedulerSvc != nil {
-		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
-			_ = s.pipelineSvc.Update(r.Context(), &p)
-		}
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(p)
@@ -74,12 +68,6 @@ func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 	if err := s.pipelineSvc.Update(r.Context(), &p); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	// Sync schedule stages: register cron jobs and fill in schedule_id.
-	if s.schedulerSvc != nil {
-		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
-			_ = s.pipelineSvc.Update(r.Context(), &p)
-		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
