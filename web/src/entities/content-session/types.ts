@@ -1,6 +1,9 @@
 // ContentSession entity types
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 
 export type ContentSessionStatus =
+  | 'draft'
+  | 'active'
   | 'collecting'
   | 'analyzing'
   | 'pending_review'
@@ -62,14 +65,27 @@ export type WorkflowResult = {
 export type ContentSession = {
   id: string
   pipeline_id: string
+  name?: string
   pipeline_name?: string
   session_number?: number
   trigger_type: 'schedule' | 'manual' | 'surge'
   status: ContentSessionStatus
+  is_template?: boolean
+  parent_session_id?: string
+  schedule_id?: string
+  source_count?: number
+  // Session-level settings (override pipeline defaults)
+  session_sources?: PipelineSource[]
+  schedule?: string
+  model?: string
+  session_workflows?: PipelineWorkflow[]
+  context?: PipelineContext
+  // Composed data
   sources?: SourceFetch[]
   analysis?: LLMAnalysis
   workflow_results?: WorkflowResult[]
   created_at: string
   updated_at?: string
+  reviewed_at?: string
   archived_at?: string
 }
