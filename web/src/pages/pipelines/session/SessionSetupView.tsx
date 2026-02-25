@@ -18,7 +18,7 @@ import {
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { useUIStore } from '@/entities/ui'
 import type { ContentSession } from '@/entities/content-session'
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 
 // ---------------------------------------------------------------------------
 // Constants

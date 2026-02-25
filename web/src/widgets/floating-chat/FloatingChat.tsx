@@ -4,7 +4,8 @@ import { MessageSquare, X, SendHorizontal, Loader2, Check, AlertCircle, Sparkles
 import { cn } from '@/shared/lib/utils'
 import { fetchContentSession, updateSessionSettings } from '@/entities/content-session/api'
 import { configurePipeline } from '@/features/configure-pipeline/api'
-import type { PipelineSource, PipelineWorkflow, PipelineContext, CreatedWorkflowInfo } from '@/shared/types'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
+import type { CreatedWorkflowInfo } from '@/shared/types'
 
 type ChatMessage = {
   role: 'user' | 'assistant'

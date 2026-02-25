@@ -1,5 +1,5 @@
 import { Play, Trash2, Clock, Zap, RefreshCw, GitBranch, PauseCircle, Loader2, Rss } from 'lucide-react'
-import type { Pipeline } from '@/shared/types'
+import type { Pipeline } from '@/entities/pipeline'
 import { humanReadableCron } from '@/shared/lib/cron'
 
 const stageTypeConfig: Record<string, { icon: typeof GitBranch; color: string }> = {

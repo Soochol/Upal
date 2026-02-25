@@ -1,7 +1,7 @@
 import { ConfigureChat } from '@/shared/ui/ConfigureChat'
 import type { ChatMessage } from '@/shared/ui/ConfigureChat'
 import { configurePipeline } from '../api'
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 
 type PipelineChatEditorProps = {
   pipelineId: string

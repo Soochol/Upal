@@ -1,6 +1,6 @@
 import { apiFetch } from '@/shared/api/client'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 import type { ContentSession, ContentAngle, LLMAnalysis } from './types'
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
 
 const BASE = '/api/content-sessions'
 
@@ -19,23 +19,18 @@ export async function fetchContentSessions(params?: {
   return apiFetch<ContentSession[]>(`${BASE}${query}`)
 }
 
-export async function createDraftSession(pipelineId: string, name?: string): Promise<ContentSession> {
-  return apiFetch<ContentSession>(BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pipeline_id: pipelineId, name }),
-  })
-}
-
 export async function fetchContentSession(id: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`)
 }
 
-export async function approveSession(id: string): Promise<ContentSession> {
+export async function approveSession(
+  id: string,
+  selectedWorkflows: string[],
+): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'approve' }),
+    body: JSON.stringify({ action: 'approve', selected_workflows: selectedWorkflows }),
   })
 }
 
@@ -91,18 +86,6 @@ export async function updateSessionAnalysis(
   })
 }
 
-export async function updateAngleWorkflow(
-  id: string,
-  angleId: string,
-  workflowName: string,
-): Promise<LLMAnalysis> {
-  return apiFetch<LLMAnalysis>(`${BASE}/${encodeURIComponent(id)}/analysis`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ angle_id: angleId, workflow_name: workflowName }),
-  })
-}
-
 export async function generateAngleWorkflow(
   sessionId: string,
   angleId: string,
@@ -141,17 +124,29 @@ export async function deleteSession(id: string): Promise<void> {
   })
 }
 
-export async function updateSessionSettings(
-  id: string,
-  settings: {
-    name?: string
-    sources?: PipelineSource[]
-    schedule?: string
-    model?: string
-    workflows?: PipelineWorkflow[]
-    context?: PipelineContext
-  },
-): Promise<ContentSession> {
+export async function createDraftSession(pipelineId: string, data?: {
+  name?: string
+  sources?: PipelineSource[]
+  schedule?: string
+  model?: string
+  workflows?: PipelineWorkflow[]
+  context?: PipelineContext
+}): Promise<ContentSession> {
+  return apiFetch<ContentSession>(BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pipeline_id: pipelineId, ...data }),
+  })
+}
+
+export async function updateSessionSettings(id: string, settings: {
+  name?: string
+  sources?: PipelineSource[]
+  schedule?: string
+  workflows?: PipelineWorkflow[]
+  model?: string
+  context?: PipelineContext
+}): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -159,23 +154,22 @@ export async function updateSessionSettings(
   })
 }
 
-export async function collectSession(
-  id: string,
-  config?: { isTest?: boolean; limit?: number },
-): Promise<{ session_id: string }> {
-  return apiFetch(`${BASE}/${encodeURIComponent(id)}/collect`, {
+export async function activateSession(id: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/activate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config ?? {}),
   })
 }
 
-export async function activateSession(id: string): Promise<{ status: string; schedule_id: string }> {
-  return apiFetch(`${BASE}/${encodeURIComponent(id)}/activate`, { method: 'POST' })
+export async function deactivateSession(id: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+  })
 }
 
-export async function deactivateSession(id: string): Promise<{ status: string }> {
-  return apiFetch(`${BASE}/${encodeURIComponent(id)}/deactivate`, { method: 'POST' })
+export async function collectSession(id: string): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/collect`, {
+    method: 'POST',
+  })
 }
 
 export type SessionEvent =

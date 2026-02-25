@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle2, XCircle, Loader2, PauseCircle, Clock } from 'lucide-react'
 import { fetchPipelineRuns, approvePipelineRun, rejectPipelineRun } from '@/entities/pipeline'
-import type { Pipeline, PipelineRun } from '@/shared/types'
+import type { Pipeline, PipelineRun } from '@/entities/pipeline'
 
 type Props = {
   pipeline: Pipeline

@@ -3,7 +3,7 @@ import {
   ArrowLeft, CheckCircle2, XCircle, Loader2, PauseCircle,
   Clock, Play, Zap, RefreshCw, GitBranch, Bell, Download,
 } from 'lucide-react'
-import type { Pipeline, PipelineRun, StageResult } from '@/shared/types'
+import type { Pipeline, PipelineRun, StageResult } from '@/entities/pipeline'
 import { ContentViewer } from '@/shared/ui/ContentViewer'
 
 // ─── Status/type config (mirrors StageCard) ────────────────────────────────

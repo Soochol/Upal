@@ -1,7 +1,8 @@
 // web/src/widgets/pipeline-editor/ui/StageCard.tsx
 import { useState, useRef, useEffect } from 'react'
 import { Trash2, GripVertical, ExternalLink, Play, PauseCircle, Clock, Zap, RefreshCw, GitBranch, Copy, Check, Bell, Download, Plus } from 'lucide-react'
-import type { Stage, Connection, CollectSource } from '@/shared/types'
+import type { Stage, CollectSource } from '@/entities/pipeline'
+import type { Connection } from '@/shared/types'
 import { createTrigger, deleteTrigger } from '@/shared/api'
 import { loadWorkflow } from '@/entities/workflow'
 import type { WorkflowDefinition } from '@/entities/workflow'

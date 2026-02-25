@@ -1,21 +1,36 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X, Search, Plus, Loader2 } from 'lucide-react'
+import { X, Search, Plus, Loader2, Check } from 'lucide-react'
 import { apiFetch } from '@/shared/api/client'
-import type { PipelineWorkflow } from '@/shared/types'
+import type { PipelineWorkflow } from '@/entities/pipeline'
 
 type WorkflowListItem = {
   name: string
   description?: string
 }
 
-interface WorkflowPickerProps {
+// --- Mode A: pipeline add (legacy) ---
+interface AddModeProps {
+  mode?: 'add'
   existingWorkflows: PipelineWorkflow[]
   onAdd: (workflow: PipelineWorkflow) => void
   onClose: () => void
+  title?: string
 }
 
-export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPickerProps) {
+// --- Mode B: simple select (returns name only) ---
+interface SelectModeProps {
+  mode: 'select'
+  currentWorkflow?: string
+  onSelect: (workflowName: string) => void
+  onClose: () => void
+  title?: string
+}
+
+type WorkflowPickerProps = AddModeProps | SelectModeProps
+
+export function WorkflowPicker(props: WorkflowPickerProps) {
+  const { onClose, title } = props
   const [search, setSearch] = useState('')
 
   const { data: workflows = [], isLoading } = useQuery<WorkflowListItem[]>({
@@ -23,14 +38,28 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
     queryFn: () => apiFetch<WorkflowListItem[]>('/api/workflows'),
   })
 
-  const existingNames = new Set(existingWorkflows.map(w => w.workflow_name))
+  const isSelectMode = props.mode === 'select'
+  const existingNames = !isSelectMode
+    ? new Set((props as AddModeProps).existingWorkflows.map(ew => ew.workflow_name))
+    : undefined
 
   const filtered = workflows.filter(w => {
-    if (existingNames.has(w.name)) return false
+    if (existingNames?.has(w.name)) return false
     if (!search) return true
     return w.name.toLowerCase().includes(search.toLowerCase()) ||
       w.description?.toLowerCase().includes(search.toLowerCase())
   })
+
+  const handleClick = (w: WorkflowListItem) => {
+    if (isSelectMode) {
+      (props as SelectModeProps).onSelect(w.name)
+    } else {
+      (props as AddModeProps).onAdd({ workflow_name: w.name, auto_select: true })
+    }
+    onClose()
+  }
+
+  const currentWorkflow = isSelectMode ? (props as SelectModeProps).currentWorkflow : undefined
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -38,7 +67,7 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Add Workflow</h2>
+          <h2 className="text-sm font-semibold">{title ?? (isSelectMode ? 'Select Workflow' : 'Add Workflow')}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
           </button>
@@ -60,7 +89,6 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
           </div>
           <button
             onClick={() => {
-              // Contextual routing: pass current path so Workflows page can bounce back
               const returnTo = encodeURIComponent(window.location.pathname)
               window.open(`/workflows?returnTo=${returnTo}`, '_blank')
             }}
@@ -83,25 +111,30 @@ export function WorkflowPicker({ existingWorkflows, onAdd, onClose }: WorkflowPi
               {search ? 'No matching workflows.' : 'No workflows available.'}
             </p>
           ) : (
-            filtered.map(w => (
-              <button
-                key={w.name}
-                onClick={() => {
-                  onAdd({ workflow_name: w.name, auto_select: true })
-                  onClose()
-                }}
-                className="w-full flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0
-                  hover:bg-muted/30 transition-colors text-left cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium">{w.name}</span>
-                  {w.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{w.description}</p>
+            filtered.map(w => {
+              const isCurrent = currentWorkflow === w.name
+              return (
+                <button
+                  key={w.name}
+                  onClick={() => handleClick(w)}
+                  className={`w-full flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0
+                    hover:bg-muted/30 transition-colors text-left cursor-pointer
+                    ${isCurrent ? 'bg-success/5' : ''}`}
+                >
+                  {isCurrent ? (
+                    <Check className="h-3.5 w-3.5 text-success shrink-0" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   )}
-                </div>
-              </button>
-            ))
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-sm font-medium ${isCurrent ? 'text-success' : ''}`}>{w.name}</span>
+                    {w.description && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{w.description}</p>
+                    )}
+                  </div>
+                </button>
+              )
+            })
           )}
         </div>
       </div>

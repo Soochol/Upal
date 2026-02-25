@@ -1,6 +1,7 @@
 // ContentSession entity types
 // ContentSessionStatus and SourceType live in shared/types to avoid FSD violations
-import type { ContentSessionStatus, SourceType, PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
+import type { ContentSessionStatus, SourceType } from '@/shared/types'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 export type { ContentSessionStatus, SourceType }
 
 export type SourceItem = {
@@ -26,7 +27,7 @@ export type ContentAngle = {
   title: string
   selected: boolean
   workflow_name?: string   // LLM-recommended workflow
-  match_type?: 'matched' | 'generated' | 'manual' | 'none'
+  match_type?: 'matched' | 'generated' | 'none'
   rationale?: string
 }
 
@@ -61,17 +62,19 @@ export type ContentSession = {
   is_template?: boolean
   parent_session_id?: string
   schedule_id?: string
-  // Session-level settings
+  source_count?: number
+  // Session-level settings (override pipeline defaults)
   session_sources?: PipelineSource[]
   schedule?: string
   model?: string
   session_workflows?: PipelineWorkflow[]
   context?: PipelineContext
-  // Related data (fetched)
+  // Composed data
   sources?: SourceFetch[]
   analysis?: LLMAnalysis
   workflow_results?: WorkflowResult[]
   created_at: string
   updated_at?: string
+  reviewed_at?: string
   archived_at?: string
 }
