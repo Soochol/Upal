@@ -214,6 +214,7 @@ export type RunEvent =
 
 export type ContentSessionStatus =
   | 'draft'
+  | 'active'
   | 'collecting'
   | 'analyzing'
   | 'pending_review'

@@ -13,6 +13,7 @@ import type { ContentSessionStatus } from '@/shared/types'
 
 const STATUS_DOT_COLOR: Record<ContentSessionStatus, string> = {
   draft:          'bg-muted-foreground/50',
+  active:         'bg-success animate-active-pulse',
   collecting:     'bg-info',
   analyzing:      'bg-info',
   pending_review: 'bg-warning',
@@ -155,6 +156,7 @@ export function SessionListPanel({
         ) : (
           filteredSessions.map((s) => {
             const isSelected = selectedSessionId === s.id
+            const isActive = s.status === 'active'
             return (
               <button
                 key={s.id}
@@ -163,7 +165,9 @@ export function SessionListPanel({
                   'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border min-h-[84px]',
                   isSelected
                     ? 'bg-primary/5 border-primary/40 shadow-sm ring-1 ring-primary/20'
-                    : 'bg-card border-border/60 hover:border-primary/40 hover:bg-muted/50',
+                    : isActive
+                      ? 'bg-card border-success/30 shadow-[0_0_8px_oklch(var(--success)/0.15)] hover:border-success/50'
+                      : 'bg-card border-border/60 hover:border-primary/40 hover:bg-muted/50',
                 )}
               >
                 <div className="flex items-start gap-2.5">
@@ -203,9 +207,6 @@ export function SessionListPanel({
                         </span>
                       )}
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs text-muted-foreground/60 whitespace-nowrap">
-                          {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                        </span>
                         <button
                           onClick={(e) => { e.stopPropagation(); startRename(s) }}
                           className="p-0.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"

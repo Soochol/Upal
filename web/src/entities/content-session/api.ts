@@ -19,11 +19,11 @@ export async function fetchContentSessions(params?: {
   return apiFetch<ContentSession[]>(`${BASE}${query}`)
 }
 
-export async function createDraftSession(pipelineId: string): Promise<ContentSession> {
+export async function createDraftSession(pipelineId: string, name?: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pipeline_id: pipelineId }),
+    body: JSON.stringify({ pipeline_id: pipelineId, name }),
   })
 }
 
@@ -144,6 +144,7 @@ export async function deleteSession(id: string): Promise<void> {
 export async function updateSessionSettings(
   id: string,
   settings: {
+    name?: string
     sources?: PipelineSource[]
     schedule?: string
     model?: string
@@ -167,6 +168,14 @@ export async function collectSession(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config ?? {}),
   })
+}
+
+export async function activateSession(id: string): Promise<{ status: string; schedule_id: string }> {
+  return apiFetch(`${BASE}/${encodeURIComponent(id)}/activate`, { method: 'POST' })
+}
+
+export async function deactivateSession(id: string): Promise<{ status: string }> {
+  return apiFetch(`${BASE}/${encodeURIComponent(id)}/deactivate`, { method: 'POST' })
 }
 
 export type SessionEvent =

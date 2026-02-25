@@ -6,6 +6,7 @@ const STATUS_CONFIG: Record<
   { label: string; className: string }
 > = {
   draft:          { label: "Draft",         className: "bg-muted/15 text-muted-foreground border-border" },
+  active:         { label: "Active",        className: "bg-success/15 text-success border-success/20" },
   collecting:     { label: "Collecting",    className: "bg-info/15 text-info border-info/20" },
   analyzing:      { label: "Analyzing",    className: "bg-info/15 text-info border-info/20" },
   pending_review: { label: "Pending",       className: "bg-warning/15 text-warning border-warning/20" },

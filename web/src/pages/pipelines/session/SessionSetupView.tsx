@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Square,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -12,7 +12,8 @@ import { WorkflowPicker } from '../WorkflowPicker'
 import {
   fetchContentSession,
   updateSessionSettings,
-  collectSession,
+  activateSession,
+  deactivateSession,
 } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { useUIStore } from '@/entities/ui'
@@ -163,18 +164,28 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     markClean()
   }, [serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Start session (collect) ──────────────────────────────────────────
+  // ─── Activate / Deactivate ───────────────────────────────────────────
 
-  const collectMutation = useMutation({
-    mutationFn: () => collectSession(sessionId),
+  const activateMutation = useMutation({
+    mutationFn: () => activateSession(sessionId),
     onSuccess: () => {
-      addToast('수집을 시작했습니다. Inbox에서 결과를 확인하세요.')
+      addToast('세션이 활성화되었습니다. 스케줄에 따라 수집이 진행됩니다.')
+      queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    },
+  })
+
+  const deactivateMutation = useMutation({
+    mutationFn: () => deactivateSession(sessionId),
+    onSuccess: () => {
+      addToast('세션이 비활성화되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
     },
   })
 
   const isDraft = session?.status === 'draft'
+  const isActive = session?.status === 'active'
 
   const handleNameSave = async () => {
     setIsEditingName(false)
@@ -236,16 +247,24 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               <Pencil className="h-3 w-3 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
             </h2>
           )}
-          {isDraft && (
+          {(isDraft || isActive) && (
             <button
-              onClick={() => collectMutation.mutate()}
-              disabled={localSources.length === 0 || collectMutation.isPending}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                bg-foreground text-background hover:opacity-90 transition-opacity
-                disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed shrink-0"
+              onClick={() => isActive ? deactivateMutation.mutate() : activateMutation.mutate()}
+              disabled={
+                (isDraft && (localSources.length === 0 || !localSchedule)) ||
+                activateMutation.isPending || deactivateMutation.isPending
+              }
+              className={cn(
+                'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-opacity disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed shrink-0',
+                isActive
+                  ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                  : 'bg-foreground text-background hover:opacity-90',
+              )}
             >
-              {collectMutation.isPending ? (
-                <><Loader2 className="h-3 w-3 animate-spin" />Starting...</>
+              {activateMutation.isPending || deactivateMutation.isPending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" />{isActive ? 'Stopping...' : 'Starting...'}</>
+              ) : isActive ? (
+                <><Square className="h-3 w-3" />Stop Session</>
               ) : (
                 <><Play className="h-3 w-3" />Start Session</>
               )}
