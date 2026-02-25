@@ -196,6 +196,15 @@ export default function PipelinesPage() {
                   selectedSessionId={selectedSessionId}
                   onSelectSession={selectSession}
                   onNewSession={() => setShowNewSession(true)}
+                  onDeleteSession={(id) => {
+                    if (selectedSessionId === id) {
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev)
+                        next.delete('s')
+                        return next
+                      })
+                    }
+                  }}
                   className={cn(
                     'w-full md:w-[300px] 2xl:w-[340px] shrink-0 md:border-r border-border bg-sidebar/30',
                     mobileLevel === 'sessions' ? 'flex' : 'hidden md:flex',

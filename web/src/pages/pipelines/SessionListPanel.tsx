@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Search, Plus, Loader2,
+  Search, Plus, Loader2, Trash2,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 
-import { fetchContentSessions } from '@/entities/content-session/api'
+import { fetchContentSessions, deleteSession } from '@/entities/content-session/api'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
+import type { ContentSession } from '@/entities/content-session'
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -14,6 +16,7 @@ interface SessionListPanelProps {
   selectedSessionId: string | null
   onSelectSession: (id: string) => void
   onNewSession?: () => void
+  onDeleteSession?: (id: string) => void
   className?: string
 }
 
@@ -22,9 +25,21 @@ export function SessionListPanel({
   selectedSessionId,
   onSelectSession,
   onNewSession,
+  onDeleteSession,
   className,
 }: SessionListPanelProps) {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<ContentSession | null>(null)
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSession(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      setDeleteTarget(null)
+      onDeleteSession?.(id)
+    },
+  })
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
@@ -117,6 +132,13 @@ export function SessionListPanel({
                   <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">
                     {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
+                    className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer shrink-0"
+                    title="Delete session"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
                 {s.analysis?.summary ? (
                   <p className={cn('text-sm line-clamp-2', isSelected ? 'text-foreground/80' : 'text-muted-foreground')}>
@@ -130,6 +152,15 @@ export function SessionListPanel({
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="Delete session"
+        description={`"${deleteTarget?.name || `Session #${deleteTarget?.session_number}`}" will be permanently deleted.`}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
     </div>
   )
 }
