@@ -25,9 +25,9 @@ import (
 // (source fetching) with the ContentSessionService (recording) and WorkflowService
 // (production).
 type ContentCollector struct {
-	contentSvc    *ContentSessionService
+	contentSvc    ports.ContentSessionPort
 	collectExec   *CollectStageExecutor
-	workflowSvc   *WorkflowService
+	workflowSvc   ports.WorkflowExecutor
 	workflowRepo  repository.WorkflowRepository
 	pipelineRepo  repository.PipelineRepository
 	resolver      ports.LLMResolver
@@ -38,18 +38,15 @@ type ContentCollector struct {
 
 // NewContentCollector creates a ContentCollector with all required dependencies.
 func NewContentCollector(
-	contentSvc *ContentSessionService,
+	contentSvc ports.ContentSessionPort,
 	collectExec *CollectStageExecutor,
-	workflowSvc *WorkflowService,
+	workflowSvc ports.WorkflowExecutor,
 	workflowRepo repository.WorkflowRepository,
 	pipelineRepo repository.PipelineRepository,
 	resolver ports.LLMResolver,
 	skills skills.Provider,
 	runHistorySvc ports.RunHistoryPort,
 ) *ContentCollector {
-	// Register fetchers that need LLM deps here (not in NewCollectStageExecutor).
-	collectExec.RegisterFetcher(NewResearchFetcher(resolver, skills))
-
 	return &ContentCollector{
 		contentSvc:    contentSvc,
 		collectExec:   collectExec,
@@ -77,65 +74,26 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 	sess := &upal.ContentSession{
 		PipelineID:  pipelineID,
 		TriggerType: "scheduled",
-		IsTemplate:  false,
-		Sources:     pipeline.Sources,
-		Schedule:    pipeline.Schedule,
-		Model:       pipeline.Model,
-		Workflows:   pipeline.Workflows,
-		Context:     pipeline.Context,
 	}
 	if err := c.contentSvc.CreateSession(ctx, sess); err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
-	go c.CollectAndAnalyze(context.Background(), sess, false, 0)
+	go c.CollectAndAnalyze(context.Background(), pipeline, sess, false, 0)
 	return nil
 }
 
-// CollectFromTemplate creates a child instance from a session template and
-// launches background collection + analysis.
-func (c *ContentCollector) CollectFromTemplate(ctx context.Context, templateID string) error {
-	template, err := c.contentSvc.GetSession(ctx, templateID)
-	if err != nil {
-		return fmt.Errorf("template %s: %w", templateID, err)
-	}
-	if !template.IsTemplate {
-		return fmt.Errorf("session %s is not a template", templateID)
-	}
-
-	instanceName := template.Name
-	if instanceName != "" {
-		instanceName += " — " + time.Now().Format("01/02 15:04")
-	}
-	sess := &upal.ContentSession{
-		PipelineID:      template.PipelineID,
-		Name:            instanceName,
-		TriggerType:     "schedule",
-		IsTemplate:      false,
-		ParentSessionID: template.ID,
-		Sources:         template.Sources,
-		Model:           template.Model,
-		Workflows:       template.Workflows,
-		Context:         template.Context,
-	}
-	if err := c.contentSvc.CreateSession(ctx, sess); err != nil {
-		return fmt.Errorf("create instance: %w", err)
-	}
-	go c.CollectAndAnalyze(context.Background(), sess, false, 0)
-	return nil
-}
-
-// CollectAndAnalyze fetches content from session sources, records the results,
+// CollectAndAnalyze fetches content from pipeline sources, records the results,
 // runs LLM analysis on the collected data, and transitions the session to
 // pending_review. This is designed to run in a background goroutine.
 //
 // If isTest is true, each source's item limit is overridden with the provided
 // limit value for faster iteration.
-func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, session *upal.ContentSession, isTest bool, limit int) {
-	// Map session sources to collect sources.
-	sources := mapPipelineSources(session.Sources, session.Model, isTest, limit)
+func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession, isTest bool, limit int) {
+	// Map pipeline sources to collect sources.
+	sources := mapPipelineSources(pipeline.Sources, isTest, limit)
 
 	if len(sources) == 0 {
-		log.Printf("content_collector: no fetchable sources for session %s", session.ID)
+		log.Printf("content_collector: no fetchable sources for pipeline %s", pipeline.ID)
 		if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionPendingReview); err != nil {
 			log.Printf("content_collector: failed to update session status: %v", err)
 		}
@@ -145,7 +103,7 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, session *upal.
 	// Fetch each source and record results.
 	totalItems := 0
 	for _, mapped := range sources {
-		pipelineSrc := session.Sources[mapped.pipelineIndex]
+		pipelineSrc := pipeline.Sources[mapped.pipelineIndex]
 		sf := c.fetchAndRecord(ctx, session.ID, pipelineSrc, mapped.collectSource)
 		if sf != nil && sf.Error == nil {
 			totalItems += len(sf.RawItems)
@@ -162,7 +120,7 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, session *upal.
 
 	// Run LLM analysis if we collected any items.
 	if totalItems > 0 {
-		c.runAnalysis(ctx, session)
+		c.runAnalysis(ctx, pipeline, session)
 	}
 
 	// Transition to pending_review regardless of analysis outcome.
@@ -172,22 +130,21 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, session *upal.
 }
 
 // RetryAnalysis re-runs LLM analysis for a session that is stuck in "analyzing"
-// state (e.g. due to server restart during analysis). It uses the session's own
-// settings, runs analysis, and always transitions the session to pending_review.
+// state (e.g. due to server restart during analysis). It resolves the pipeline,
+// runs analysis, and always transitions the session to pending_review.
 func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) error {
 	session, err := c.contentSvc.GetSession(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("session not found: %w", err)
 	}
-
-	// Reset to analyzing so the frontend sees immediate feedback.
-	if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionAnalyzing); err != nil {
-		return fmt.Errorf("failed to transition to analyzing: %w", err)
+	pipeline, err := c.pipelineRepo.Get(ctx, session.PipelineID)
+	if err != nil {
+		return fmt.Errorf("pipeline not found: %w", err)
 	}
 
 	go func() {
 		bgCtx := context.Background()
-		c.runAnalysis(bgCtx, session)
+		c.runAnalysis(bgCtx, pipeline, session)
 		if err := c.contentSvc.UpdateSessionStatus(bgCtx, session.ID, upal.SessionPendingReview); err != nil {
 			log.Printf("content_collector: retry-analyze failed to transition to pending_review: %v", err)
 		}
@@ -197,10 +154,6 @@ func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) 
 
 // fetchAndRecord calls the appropriate fetcher for a source and records
 // the SourceFetch result. Returns the recorded SourceFetch (may have Error set).
-//
-// For research sources, the SourceFetch is created before fetching starts so
-// the frontend can see it immediately. A progress callback updates the record
-// during deep research, and a final update writes the completed results.
 func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string, pipelineSrc upal.PipelineSource, src upal.CollectSource) *upal.SourceFetch {
 	sf := &upal.SourceFetch{
 		SessionID:  sessionID,
@@ -219,35 +172,12 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		return sf
 	}
 
-	// For research sources: pre-record the SourceFetch so it's visible to
-	// the frontend immediately, and create a dedicated fetcher instance to
-	// avoid data races on the shared fetcher's progressFn.
-	isResearch := src.Type == "research"
-	if isResearch {
-		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
-			log.Printf("content_collector: failed to pre-record research source fetch: %v", err)
-		}
-		rf := NewResearchFetcher(c.resolver, c.skills)
-		rf.SetProgressFn(func(p upal.ResearchProgress) {
-			sf.Progress = &p
-			_ = c.contentSvc.UpdateSourceFetch(ctx, sf)
-		})
-		fetcher = rf
-	}
-
 	text, data, err := fetcher.Fetch(ctx, src)
 	if err != nil {
 		errMsg := err.Error()
 		sf.Error = &errMsg
-		sf.Progress = nil // clear progress on error
-		if isResearch {
-			if updateErr := c.contentSvc.UpdateSourceFetch(ctx, sf); updateErr != nil {
-				log.Printf("content_collector: failed to update source fetch error: %v", updateErr)
-			}
-		} else {
-			if recErr := c.contentSvc.RecordSourceFetch(ctx, sf); recErr != nil {
-				log.Printf("content_collector: failed to record source fetch error: %v", recErr)
-			}
+		if recErr := c.contentSvc.RecordSourceFetch(ctx, sf); recErr != nil {
+			log.Printf("content_collector: failed to record source fetch error: %v", recErr)
 		}
 		return sf
 	}
@@ -255,17 +185,10 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 	// Convert fetcher data to SourceItems.
 	sf.RawItems = convertToSourceItems(src.Type, data)
 	sf.Count = len(sf.RawItems)
-	sf.Progress = nil // clear progress on completion
 	_ = text // text is used for prompt building via ListSourceFetches
 
-	if isResearch {
-		if err := c.contentSvc.UpdateSourceFetch(ctx, sf); err != nil {
-			log.Printf("content_collector: failed to update completed research source fetch: %v", err)
-		}
-	} else {
-		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
-			log.Printf("content_collector: failed to record source fetch: %v", err)
-		}
+	if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
+		log.Printf("content_collector: failed to record source fetch: %v", err)
 	}
 	return sf
 }
@@ -334,22 +257,6 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 			})
 		}
 		return result
-
-	case "research":
-		// Research fetcher returns []map[string]any with title, url, summary.
-		items, ok := data.([]map[string]any)
-		if !ok {
-			return nil
-		}
-		result := make([]upal.SourceItem, 0, len(items))
-		for _, item := range items {
-			result = append(result, upal.SourceItem{
-				Title:   stringVal(item, "title"),
-				URL:     stringVal(item, "url"),
-				Content: stringVal(item, "summary"),
-			})
-		}
-		return result
 	}
 
 	return nil
@@ -367,7 +274,7 @@ func stringVal(m map[string]any, key string) string {
 
 // runAnalysis calls the LLM to analyze collected source data and records
 // the analysis result. Errors are logged but do not block session progression.
-func (c *ContentCollector) runAnalysis(ctx context.Context, session *upal.ContentSession) {
+func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession) {
 	fetches, err := c.contentSvc.ListSourceFetches(ctx, session.ID)
 	if err != nil {
 		log.Printf("content_collector: failed to list source fetches for analysis: %v", err)
@@ -381,13 +288,13 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, session *upal.Conten
 		allWorkflows = nil // non-fatal
 	}
 
-	llm, modelName, err := c.resolver.Resolve(session.Model)
+	llm, modelName, err := c.resolver.Resolve(pipeline.Model)
 	if err != nil {
-		log.Printf("content_collector: failed to resolve model %q: %v", session.Model, err)
+		log.Printf("content_collector: failed to resolve model %q: %v", pipeline.Model, err)
 		return
 	}
 
-	systemPrompt, userPrompt := buildAnalysisPrompt(c.skills.GetPrompt("content-analyze"), session.Context, session.Workflows, fetches, allWorkflows)
+	systemPrompt, userPrompt := buildAnalysisPrompt(c.skills.GetPrompt("content-analyze"), pipeline, fetches, allWorkflows)
 
 	req := &adkmodel.LLMRequest{
 		Model: modelName,
@@ -490,37 +397,41 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, session *upal.Conten
 }
 
 // buildAnalysisPrompt constructs system and user prompts for the LLM analysis step.
-func buildAnalysisPrompt(systemPromptBase string, pipelineContext *upal.PipelineContext, sessionWorkflows []upal.PipelineWorkflow, fetches []*upal.SourceFetch, workflows []*upal.WorkflowDefinition) (systemPrompt, userPrompt string) {
+func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, fetches []*upal.SourceFetch, workflows []*upal.WorkflowDefinition) (systemPrompt, userPrompt string) {
 	systemPrompt = systemPromptBase
 
 	var b strings.Builder
 	b.WriteString("## Pipeline Context\n")
-	if pipelineContext != nil {
-		if pipelineContext.Purpose != "" {
-			fmt.Fprintf(&b, "Purpose: %s\n", pipelineContext.Purpose)
+	if pipeline.Context != nil {
+		ctx := pipeline.Context
+		if ctx.Purpose != "" {
+			fmt.Fprintf(&b, "Purpose: %s\n", ctx.Purpose)
 		}
-		if pipelineContext.TargetAudience != "" {
-			fmt.Fprintf(&b, "Target audience: %s\n", pipelineContext.TargetAudience)
+		if ctx.TargetAudience != "" {
+			fmt.Fprintf(&b, "Target audience: %s\n", ctx.TargetAudience)
 		}
-		if pipelineContext.ToneStyle != "" {
-			fmt.Fprintf(&b, "Tone/style: %s\n", pipelineContext.ToneStyle)
+		if ctx.ToneStyle != "" {
+			fmt.Fprintf(&b, "Tone/style: %s\n", ctx.ToneStyle)
 		}
-		if len(pipelineContext.FocusKeywords) > 0 {
-			fmt.Fprintf(&b, "Focus keywords: %s\n", strings.Join(pipelineContext.FocusKeywords, ", "))
+		if len(ctx.FocusKeywords) > 0 {
+			fmt.Fprintf(&b, "Focus keywords: %s\n", strings.Join(ctx.FocusKeywords, ", "))
 		}
-		if len(pipelineContext.ExcludeKeywords) > 0 {
-			fmt.Fprintf(&b, "Exclude keywords: %s\n", strings.Join(pipelineContext.ExcludeKeywords, ", "))
+		if len(ctx.ExcludeKeywords) > 0 {
+			fmt.Fprintf(&b, "Exclude keywords: %s\n", strings.Join(ctx.ExcludeKeywords, ", "))
 		}
-		if pipelineContext.ContentGoals != "" {
-			fmt.Fprintf(&b, "Content goals: %s\n", pipelineContext.ContentGoals)
+		if ctx.ContentGoals != "" {
+			fmt.Fprintf(&b, "Content goals: %s\n", ctx.ContentGoals)
 		}
 	} else {
-		b.WriteString("(No editorial context provided)\n")
+		fmt.Fprintf(&b, "Pipeline: %s\n", pipeline.Name)
+		if pipeline.Description != "" {
+			fmt.Fprintf(&b, "Description: %s\n", pipeline.Description)
+		}
 	}
 
-	if len(sessionWorkflows) > 0 {
+	if len(pipeline.Workflows) > 0 {
 		b.WriteString("\n## Pipeline's Preferred Workflows\n")
-		for _, pw := range sessionWorkflows {
+		for _, pw := range pipeline.Workflows {
 			fmt.Fprintf(&b, "- %s", pw.WorkflowName)
 			if pw.Label != "" {
 				fmt.Fprintf(&b, " (%s)", pw.Label)
@@ -800,29 +711,35 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 
 	angle := &analysis.SuggestedAngles[targetIdx]
 
-	// Build a description enriched with session context.
+	// Build a description enriched with pipeline context.
 	var desc strings.Builder
 	fmt.Fprintf(&desc, "Create a %s content production workflow that takes collected source material as input and produces a polished %s.\nTarget headline: %q\n",
 		angle.Format, angle.Format, angle.Headline)
 
-	// Inject editorial brief from the session's own context.
+	// Inject pipeline editorial brief so the generated workflow reflects the user's intent.
 	session, err := c.contentSvc.GetSession(ctx, sessionID)
-	if err == nil && session != nil && session.Context != nil {
-		pctx := session.Context
-		if pctx.Purpose != "" {
-			fmt.Fprintf(&desc, "Purpose: %s\n", pctx.Purpose)
-		}
-		if pctx.TargetAudience != "" {
-			fmt.Fprintf(&desc, "Target audience: %s\n", pctx.TargetAudience)
-		}
-		if pctx.ToneStyle != "" {
-			fmt.Fprintf(&desc, "Tone/style: %s\n", pctx.ToneStyle)
-		}
-		if pctx.ContentGoals != "" {
-			fmt.Fprintf(&desc, "Content goals: %s\n", pctx.ContentGoals)
-		}
-		if pctx.Language != "" {
-			fmt.Fprintf(&desc, "Output language: %s\n", pctx.Language)
+	if err == nil && session != nil {
+		if pipeline, pErr := c.pipelineRepo.Get(ctx, session.PipelineID); pErr == nil && pipeline != nil {
+			if pipeline.Context != nil {
+				pctx := pipeline.Context
+				if pctx.Purpose != "" {
+					fmt.Fprintf(&desc, "Purpose: %s\n", pctx.Purpose)
+				}
+				if pctx.TargetAudience != "" {
+					fmt.Fprintf(&desc, "Target audience: %s\n", pctx.TargetAudience)
+				}
+				if pctx.ToneStyle != "" {
+					fmt.Fprintf(&desc, "Tone/style: %s\n", pctx.ToneStyle)
+				}
+				if pctx.ContentGoals != "" {
+					fmt.Fprintf(&desc, "Content goals: %s\n", pctx.ContentGoals)
+				}
+				if pctx.Language != "" {
+					fmt.Fprintf(&desc, "Output language: %s\n", pctx.Language)
+				}
+			} else if pipeline.Description != "" {
+				fmt.Fprintf(&desc, "Pipeline context: %s\n", pipeline.Description)
+			}
 		}
 	}
 
@@ -924,7 +841,7 @@ type mappedSource struct {
 // mapPipelineSources converts pipeline sources to collect sources using the
 // documented mapping rules. Sources with unsupported types are skipped with
 // a log warning.
-func mapPipelineSources(sources []upal.PipelineSource, defaultModel string, isTest bool, limit int) []mappedSource {
+func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) []mappedSource {
 	var result []mappedSource
 
 	for i, ps := range sources {
@@ -976,15 +893,6 @@ func mapPipelineSources(sources []upal.PipelineSource, defaultModel string, isTe
 			cs.Keywords = ps.Keywords
 			cs.Accounts = ps.Accounts
 			cs.Limit = ps.Limit
-
-		case "research":
-			cs.Type = "research"
-			cs.Topic = ps.Topic
-			cs.Depth = ps.Depth
-			if cs.Depth == "" {
-				cs.Depth = "light"
-			}
-			cs.Model = defaultModel
 
 		default:
 			log.Printf("content_collector: skipping unknown source type %q (source %s)", ps.Type, ps.ID)
