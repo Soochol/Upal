@@ -1,5 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { Pipeline, PipelineRun, PipelineSource, PipelineContext } from '@/shared/types'
+import type { Pipeline, PipelineRun, PipelineSource, PipelineContext } from '../types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
 const API_BASE = '/api'

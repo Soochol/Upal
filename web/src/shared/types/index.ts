@@ -1,3 +1,5 @@
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline/types'
+
 // --- Model & Tool Discovery ---
 
 export type OptionChoice = {
@@ -76,12 +78,6 @@ export type ConfigurePipelineRequest = {
   current_context?: PipelineContext
 }
 
-export type CreatedWorkflowInfo = {
-  name: string
-  status: 'success' | 'failed' | 'exists'
-  error?: string
-}
-
 export type ConfigurePipelineResponse = {
   sources?: PipelineSource[]
   schedule?: string | null
@@ -89,7 +85,6 @@ export type ConfigurePipelineResponse = {
   model?: string | null
   context?: PipelineContext
   explanation: string
-  created_workflows?: CreatedWorkflowInfo[]
 }
 
 // --- Run History ---
@@ -213,8 +208,6 @@ export type RunEvent =
 // --- Content Session ---
 
 export type ContentSessionStatus =
-  | 'draft'
-  | 'active'
   | 'collecting'
   | 'analyzing'
   | 'pending_review'
@@ -224,155 +217,14 @@ export type ContentSessionStatus =
   | 'published'
   | 'error'
 
-export type SourceType = 'static' | 'signal' | 'research'
+export type SourceType = 'static' | 'signal'
 
-// --- Pipeline ---
-
-export type PipelineSourceType =
-  | 'rss'
-  | 'hn'
-  | 'reddit'
-  | 'google_trends'
-  | 'social'
-  | 'http'
-  | 'scrape'
-  | 'research'
-
-export type PipelineSource = {
-  id: string
-  type: PipelineSourceType
-  source_type: 'static' | 'signal' | 'research'
-  label: string
-  // type-specific config
-  url?: string             // rss, http, scrape
-  subreddit?: string       // reddit
-  min_score?: number       // reddit, hn
-  keywords?: string[]      // google_trends, social
-  accounts?: string[]      // social: follow account handles
-  geo?: string             // google_trends: country code
-  selector?: string        // scrape: CSS selector
-  attribute?: string       // scrape: HTML attribute to extract
-  scrape_limit?: number    // scrape: max elements
-  limit?: number
-  topic?: string           // research: subject to investigate
-  depth?: string           // research: "light" | "deep"
-}
-
-export type PipelineContext = {
-  purpose: string
-  target_audience: string
-  tone_style: string
-  focus_keywords: string[]
-  exclude_keywords: string[]
-  language: string
-}
-
-export type PipelineWorkflow = {
-  workflow_name: string
-  label?: string
-  auto_select?: boolean
-  channel_id?: string
-}
-
-export type Pipeline = {
-  id: string
-  name: string
-  description?: string
-  stages: Stage[]
-  thumbnail_svg?: string
-  // Content pipeline extensions
-  sources?: PipelineSource[]
-  workflows?: PipelineWorkflow[]
-  context?: PipelineContext
-  schedule?: string          // cron expression
-  model?: string              // "provider/model" format, empty = system default
-  last_collected_at?: string
-  pending_session_count?: number
-  created_at: string
-  updated_at: string
-}
-
-export type Stage = {
-  id: string
-  name: string
-  type: 'workflow' | 'approval' | 'notification' | 'schedule' | 'trigger' | 'transform' | 'collect'
-  config: StageConfig
-  depends_on?: string[]
-}
-
-export type CollectSource = {
-  id: string
-  type: 'rss' | 'http' | 'scrape' | 'research'
-  url: string
-  limit?: number
-  method?: string
-  headers?: Record<string, string>
-  body?: string
-  selector?: string
-  attribute?: string
-  scrape_limit?: number
-  topic?: string            // research: subject to investigate
-  depth?: string            // research: "light" | "deep"
-  max_searches?: number     // research: max search iterations for deep
-  model?: string            // research: LLM model ID
-}
-
-export type StageConfig = {
-  workflow_name?: string
-  input_mapping?: Record<string, string>
-  message?: string
-  connection_id?: string
-  subject?: string
-  timeout?: number
-  cron?: string
-  timezone?: string
-  schedule_id?: string
-  trigger_id?: string
-  expression?: string
-  sources?: CollectSource[]
-}
-
-export type PipelineRun = {
-  id: string
-  pipeline_id: string
-  status: 'pending' | 'running' | 'waiting' | 'completed' | 'failed'
-  current_stage?: string
-  stage_results?: Record<string, StageResult>
-  started_at: string
-  completed_at?: string
-}
-
-export type StageResult = {
-  stage_id: string
-  status: 'pending' | 'running' | 'waiting' | 'completed' | 'skipped' | 'failed'
-  output?: Record<string, unknown>
-  error?: string
-  started_at: string
-  completed_at?: string
-}
-
-// --- Multi-Workflow Session (Phase 6 Architecture) ---
-
-export type SessionStage = 'collect' | 'analyze' | 'workflow' | 'publish'
-export type SessionStatus = 'pending' | 'running' | 'pending_approval' | 'completed' | 'failed' | 'cancelled'
-
-export type PipelineSession = {
-  id: string
-  pipeline_id: string
-  status: SessionStatus
-  current_stage: SessionStage
-
-  // Data Context throughout the session stages
-  source_data?: Record<string, unknown>[]         // Stage 1: Collect
-  analyzed_data?: Record<string, unknown>         // Stage 2: Analyze
-  injected_context?: Record<string, unknown>      // User-overriden context/secrets
-  workflow_runs?: Record<string, string>          // Stage 3: map of ContentType -> RunRecord ID
-  publish_results?: Record<string, unknown>       // Stage 4: Execution/Post URLs
-
-  error?: string
-  created_at: string
-  updated_at: string
-}
+// --- Pipeline (re-exported from entity) ---
+export type {
+  PipelineSourceType, PipelineSource, PipelineContext, PipelineWorkflow,
+  Pipeline, Stage, CollectSource, StageConfig, PipelineRun, StageResult,
+  SessionStage, SessionStatus, PipelineSession,
+} from '@/entities/pipeline/types'
 
 
 export type ConnectionType = 'telegram' | 'slack' | 'http' | 'smtp'
