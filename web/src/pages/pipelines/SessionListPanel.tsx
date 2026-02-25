@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/utils'
 
 import { fetchContentSessions, deleteSession } from '@/entities/content-session/api'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
+import { useUIStore } from '@/entities/ui'
 import type { ContentSession } from '@/entities/content-session'
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ export function SessionListPanel({
   className,
 }: SessionListPanelProps) {
   const queryClient = useQueryClient()
+  const addToast = useUIStore((s) => s.addToast)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ContentSession | null>(null)
 
@@ -38,6 +40,9 @@ export function SessionListPanel({
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
       setDeleteTarget(null)
       onDeleteSession?.(id)
+    },
+    onError: (err) => {
+      addToast(`Failed to delete session: ${err instanceof Error ? err.message : 'unknown error'}`)
     },
   })
 

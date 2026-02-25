@@ -8,6 +8,7 @@ import { cn } from '@/shared/lib/utils'
 import { humanReadableCron } from '@/shared/lib/cron'
 import { deletePipeline } from '@/entities/pipeline'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
+import { useUIStore } from '@/entities/ui'
 import type { Pipeline } from '@/shared/types'
 
 function isContentPipeline(p: Pipeline) {
@@ -25,6 +26,7 @@ interface PipelineSidebarProps {
 
 export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, onSettingsOpen, onDelete }: PipelineSidebarProps) {
   const queryClient = useQueryClient()
+  const addToast = useUIStore((s) => s.addToast)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null)
 
@@ -34,6 +36,9 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
       queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       setDeleteTarget(null)
       onDelete?.(id)
+    },
+    onError: (err) => {
+      addToast(`Failed to delete pipeline: ${err instanceof Error ? err.message : 'unknown error'}`)
     },
   })
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, CloudUpload, Play, Pencil, ChevronDown, RotateCcw,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -14,7 +14,6 @@ import {
   collectSession,
 } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
-import { fetchPipeline } from '@/entities/pipeline'
 import { useUIStore } from '@/entities/ui'
 import type { ContentSession } from '@/entities/content-session'
 import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
@@ -72,11 +71,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     },
   })
 
-  const { data: pipeline } = useQuery({
-    queryKey: ['pipeline', pipelineId],
-    queryFn: () => fetchPipeline(pipelineId),
-    enabled: !!pipelineId,
-  })
 
   const { data: channels = [] } = useQuery({
     queryKey: ['publish-channels'],
@@ -90,26 +84,23 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const [localWorkflows, setLocalWorkflows] = useState<PipelineWorkflow[]>([])
   const [localModel, setLocalModel] = useState('')
   const [localContext, setLocalContext] = useState<PipelineContext>(DEFAULT_CONTEXT)
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingSourceIndex, setEditingSourceIndex] = useState<number | null>(null)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
-  const [isEditingName, setIsEditingName] = useState(false)
-  const [localName, setLocalName] = useState('')
   const [editingField, setEditingField] = useState<string | null>(null)
 
-  // Effective values: session-level overrides, fallback to pipeline defaults
+  // Effective values: session-level values only (no pipeline fallback for templates)
   const effectiveSources = useMemo(
-    () => session?.session_sources ?? pipeline?.sources ?? [],
-    [session?.session_sources, pipeline?.sources],
+    () => session?.session_sources ?? [],
+    [session?.session_sources],
   )
-  const effectiveSchedule = session?.schedule ?? pipeline?.schedule ?? ''
+  const effectiveSchedule = session?.schedule ?? ''
   const effectiveWorkflows = useMemo(
-    () => session?.session_workflows ?? pipeline?.workflows ?? [],
-    [session?.session_workflows, pipeline?.workflows],
+    () => session?.session_workflows ?? [],
+    [session?.session_workflows],
   )
-  const effectiveModel = session?.model ?? pipeline?.model ?? ''
-  const effectiveContext = session?.context ?? pipeline?.context ?? DEFAULT_CONTEXT
+  const effectiveModel = session?.model ?? ''
+  const effectiveContext = session?.context ?? DEFAULT_CONTEXT
 
   // Sync server -> local state when session changes
   useEffect(() => {
@@ -118,8 +109,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     setLocalWorkflows(effectiveWorkflows)
     setLocalModel(effectiveModel)
     setLocalContext(effectiveContext)
-    setLocalName(session?.name ?? '')
-    setIsEditingName(false)
     setEditingField(null)
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -154,7 +143,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   // ─── Auto-save ────────────────────────────────────────────────────────
 
   const doSave = async () => {
-    setAutoSaveStatus('saving')
     try {
       await updateSessionSettings(sessionId, {
         sources: localSourcesRef.current,
@@ -164,10 +152,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
         context: localContextRef.current,
       })
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-      setAutoSaveStatus('saved')
-      setTimeout(() => setAutoSaveStatus('idle'), 2000)
     } catch (err) {
-      setAutoSaveStatus('idle')
       addToast(`Failed to save: ${err instanceof Error ? err.message : 'unknown error'}`)
     }
   }
@@ -187,21 +172,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     return () => { if (isDirtyRef.current) void doSaveRef.current() }
   }, [])
 
-  // ─── Save name ──────────────────────────────────────────────────────
-
-  const handleNameSave = async () => {
-    const trimmed = localName.trim()
-    if (!trimmed || trimmed === session?.name) {
-      setLocalName(session?.name ?? '')
-      setIsEditingName(false)
-      return
-    }
-    await updateSessionSettings(sessionId, { name: trimmed })
-    queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-    setIsEditingName(false)
-  }
-
   // ─── Start session (collect) ──────────────────────────────────────────
 
   const collectMutation = useMutation({
@@ -220,7 +190,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   const signalCount = localSources.filter(s => s.source_type === 'signal').length
   const staticCount = localSources.filter(s => s.source_type === 'static').length
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === localSchedule)
-  const modelShort = localModel ? localModel.split('/').pop() : ''
 
   // ─── Render ───────────────────────────────────────────────────────────
 
@@ -234,45 +203,27 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+
       {/* ── Header ── */}
-      <div className="px-6 py-3 border-b border-border/40 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {isEditingName ? (
-            <input
-              type="text"
-              value={localName}
-              onChange={(e) => setLocalName(e.target.value)}
-              onBlur={handleNameSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleNameSave()
-                if (e.key === 'Escape') { setLocalName(session?.name ?? ''); setIsEditingName(false) }
-              }}
-              autoFocus
-              className="text-sm font-medium bg-transparent border-b border-foreground/20 outline-none py-0.5 min-w-0 flex-1"
-            />
-          ) : (
+      <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10 shrink-0">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">
+            {session.name || `Session #${session.session_number ?? '\u2014'}`}
+          </h2>
+          {isDraft && (
             <button
-              onClick={() => { setLocalName(session?.name ?? ''); setIsEditingName(true) }}
-              className="group flex items-center gap-1.5 min-w-0 cursor-pointer"
-              title="Rename session"
+              onClick={() => collectMutation.mutate()}
+              disabled={localSources.length === 0 || collectMutation.isPending}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                bg-foreground text-background hover:opacity-90 transition-opacity
+                disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed shrink-0"
             >
-              <span className="text-sm font-medium truncate">
-                {session.name || `Session #${session.session_number ?? '\u2014'}`}
-              </span>
-              <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              {collectMutation.isPending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" />Starting...</>
+              ) : (
+                <><Play className="h-3 w-3" />Start Session</>
+              )}
             </button>
-          )}
-        </div>
-        <div className="h-4 shrink-0">
-          {autoSaveStatus === 'saving' && (
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground animate-in fade-in">
-              <Loader2 className="h-3 w-3 animate-spin" />Saving
-            </span>
-          )}
-          {autoSaveStatus === 'saved' && (
-            <span className="flex items-center gap-1.5 text-[11px] text-success animate-in fade-in">
-              <CloudUpload className="h-3 w-3" />Saved
-            </span>
           )}
         </div>
       </div>
@@ -308,7 +259,6 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
 
             {localSources.length === 0 ? (
               <div className="border-t border-border/40 py-10 text-center">
-                <p className="text-[13px] text-muted-foreground/50 mb-4">No sources configured</p>
                 <button
                   onClick={() => setShowAddModal(true)}
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg
@@ -323,7 +273,8 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                   <div
                     key={src.id}
                     className="group flex items-center gap-3 py-2 -mx-2 px-2 rounded-md
-                      hover:bg-muted/40 transition-colors"
+                      hover:bg-muted/40 transition-colors cursor-pointer"
+                    onClick={() => setEditingSourceIndex(i)}
                   >
                     <div
                       className={cn(
@@ -338,7 +289,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                       {src.source_type}
                     </span>
                     <button
-                      onClick={() => setLocalSources(localSources.filter((_, j) => j !== i))}
+                      onClick={(e) => { e.stopPropagation(); setLocalSources(localSources.filter((_, j) => j !== i)) }}
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive
                         transition-all cursor-pointer p-0.5"
                     >
@@ -477,7 +428,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
             <div className="border-t border-border/40">
               {/* Model */}
               <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">Model</span>
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">Analysis Model</span>
                 <div className="flex-1 min-w-0">
                   <ModelSelector
                     key={localModel || '__default__'}
@@ -568,37 +519,22 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
         </div>
       </div>
 
-      {/* ── Sticky footer: Start Session ── */}
-      {isDraft && (
-        <div className="shrink-0 px-6 py-3 border-t border-border/40 bg-background/80 backdrop-blur-sm">
-          <div className="max-w-2xl mx-auto flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              {localSources.length === 0
-                ? 'Add at least one source to start.'
-                : `${localSources.length} source${localSources.length !== 1 ? 's' : ''}${modelShort ? ` \u00b7 ${modelShort}` : ''}`}
-            </p>
-            <button
-              onClick={() => collectMutation.mutate()}
-              disabled={localSources.length === 0 || collectMutation.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                bg-foreground text-background hover:opacity-90 transition-opacity
-                disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-            >
-              {collectMutation.isPending ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Starting...</>
-              ) : (
-                <><Play className="h-3.5 w-3.5" />Start Session</>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── Modals ── */}
       {showAddModal && (
         <AddSourceModal
           onAdd={(src) => setLocalSources([...localSources, src])}
           onClose={() => setShowAddModal(false)}
+        />
+      )}
+      {editingSourceIndex !== null && (
+        <AddSourceModal
+          editSource={localSources[editingSourceIndex]}
+          onAdd={(updated) => {
+            const next = [...localSources]
+            next[editingSourceIndex] = updated
+            setLocalSources(next)
+          }}
+          onClose={() => setEditingSourceIndex(null)}
         />
       )}
       {showWorkflowPicker && (
