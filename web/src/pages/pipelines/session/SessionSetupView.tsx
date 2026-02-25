@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -81,6 +81,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     queryKey: ['publish-channels'],
     queryFn: fetchPublishChannels,
   })
+
 
   // ─── Local settings state ─────────────────────────────────────────────
 
@@ -509,11 +510,14 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
                   <div className="ml-28 mt-1.5 space-y-0.5">
                     {localWorkflows.map((wf, i) => (
                       <div key={wf.workflow_name} className="group flex items-center gap-2 py-1">
+                        <div className="w-5 h-5 rounded-md bg-card border border-white/5 flex items-center justify-center shrink-0">
+                          <GitBranch className="w-3 h-3 text-blue-400" />
+                        </div>
                         <a
                           href={`/workflows?w=${encodeURIComponent(wf.workflow_name)}`}
                           className="text-sm flex-1 truncate hover:text-primary transition-colors"
                         >
-                          {wf.label || wf.workflow_name}
+                          {wf.workflow_name}
                         </a>
                         {channels.length > 0 && (
                           <div className="relative">
