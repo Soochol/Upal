@@ -39,31 +39,31 @@ func (r *MemoryContentSessionRepository) Get(ctx context.Context, id string) (*u
 
 func (r *MemoryContentSessionRepository) List(ctx context.Context) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return !s.IsTemplate && s.ArchivedAt == nil
+		return s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && !s.IsTemplate && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status && !s.IsTemplate && s.ArchivedAt == nil
+		return s.Status == status && s.ArchivedAt == nil
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status && !s.IsTemplate
+		return s.Status == status
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.Status == status && !s.IsTemplate && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID && s.Status == status && s.ArchivedAt == nil
 	})
 }
 
@@ -111,6 +111,9 @@ func (r *MemorySourceFetchRepository) Create(ctx context.Context, sf *upal.Sourc
 }
 
 func (r *MemorySourceFetchRepository) Update(ctx context.Context, sf *upal.SourceFetch) error {
+	if !r.store.Has(ctx, sf.ID) {
+		return fmt.Errorf("source fetch %q: %w", sf.ID, ErrNotFound)
+	}
 	return r.store.Set(ctx, sf)
 }
 

@@ -198,21 +198,10 @@ func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Cont
 	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
 }
 
-// SessionSettings holds the configuration fields that can be updated on a session.
-type SessionSettings struct {
-	Name          string
-	Sources       []upal.PipelineSource
-	Schedule      string
-	ClearSchedule bool
-	Model         string
-	Workflows     []upal.PipelineWorkflow
-	Context       *upal.PipelineContext
-}
-
 // UpdateSessionSettings conditionally updates session configuration fields.
 // Only non-zero fields are applied so that partial saves don't destroy data.
-// Settings can only be changed while the session is in draft status.
-func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings SessionSettings) error {
+// Settings can only be changed while the session is in draft or active status.
+func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings upal.SessionSettings) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
 		return err
@@ -449,8 +438,12 @@ func (s *ContentSessionService) UnarchiveSession(ctx context.Context, id string)
 }
 
 func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) error {
-	if _, err := s.sessions.Get(ctx, id); err != nil {
+	sess, err := s.sessions.Get(ctx, id)
+	if err != nil {
 		return err
+	}
+	if sess.ArchivedAt == nil {
+		return fmt.Errorf("session %q: %w", id, upal.ErrMustBeArchived)
 	}
 
 	// Clean up published_content (no FK cascade)

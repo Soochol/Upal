@@ -7,46 +7,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
-
-// POST /api/content-sessions
-// Body: {"pipeline_id": "...", "trigger_type": "manual"}
-// Creates a draft session that the user can configure before starting collection.
-func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		PipelineID string `json:"pipeline_id"`
-		Name       string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PipelineID == "" {
-		http.Error(w, "pipeline_id is required", http.StatusBadRequest)
-		return
-	}
-	if _, err := s.pipelineSvc.Get(r.Context(), body.PipelineID); err != nil {
-		http.Error(w, "pipeline not found", http.StatusNotFound)
-		return
-	}
-	sess := &upal.ContentSession{
-		PipelineID:  body.PipelineID,
-		Name:        body.Name,
-		Status:      upal.SessionDraft,
-		TriggerType: "manual",
-		IsTemplate:  true,
-	}
-	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	detail, _ := s.contentSvc.GetSessionDetail(r.Context(), sess.ID)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(detail)
-}
 
 // GET /api/content-sessions
 // Query params: pipeline_id=X, status=pending_review
@@ -59,30 +25,17 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	// When pipeline_id is provided, return composed detail views.
 	if pipelineID != "" {
 		archivedOnly := r.URL.Query().Get("archived_only") == "true"
-		templatesOnly := r.URL.Query().Get("templates") != "false" // default true for pipeline queries
 
 		var details []*upal.ContentSessionDetail
 		var err error
 		if archivedOnly {
 			details, err = s.contentSvc.ListArchivedSessionDetails(ctx, pipelineID)
-		} else if templatesOnly {
-			details, err = s.contentSvc.ListTemplateDetailsByPipeline(ctx, pipelineID)
 		} else {
-			details, err = s.contentSvc.ListSessionDetails(ctx, pipelineID)
+			details, err = s.contentSvc.ListSessionDetailsByPipelineAndStatus(ctx, pipelineID, upal.ContentSessionStatus(statusStr))
 		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
-		}
-		// Filter by status if requested.
-		if statusStr != "" {
-			filtered := make([]*upal.ContentSessionDetail, 0, len(details))
-			for _, d := range details {
-				if string(d.Status) == statusStr {
-					filtered = append(filtered, d)
-				}
-			}
-			details = filtered
 		}
 		if details == nil {
 			details = []*upal.ContentSessionDetail{}
@@ -156,19 +109,6 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 	switch body.Action {
 	case "approve":
 		err = s.contentSvc.ApproveSession(ctx, id)
-		if err == nil && s.collector != nil {
-			// Auto-produce using session's pre-configured workflows.
-			if sess, e := s.contentSvc.GetSession(ctx, id); e == nil && len(sess.Workflows) > 0 {
-				var requests []services.WorkflowRequest
-				for _, pw := range sess.Workflows {
-					requests = append(requests, services.WorkflowRequest{
-						Name:      pw.WorkflowName,
-						ChannelID: pw.ChannelID,
-					})
-				}
-				go s.collector.ProduceWorkflows(context.Background(), id, requests)
-			}
-		}
 	case "reject":
 		err = s.contentSvc.RejectSession(ctx, id)
 	default:
@@ -183,52 +123,9 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	detail, _ := s.contentSvc.GetSessionDetail(ctx, id)
+	sess, _ := s.contentSvc.GetSession(ctx, id)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
-}
-
-// PATCH /api/content-sessions/{id}/settings
-func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	var body struct {
-		Name      string                  `json:"name,omitempty"`
-		Sources   []upal.PipelineSource   `json:"sources,omitempty"`
-		Schedule  *string                 `json:"schedule,omitempty"`
-		Model     string                  `json:"model,omitempty"`
-		Workflows []upal.PipelineWorkflow `json:"workflows,omitempty"`
-		Context   *upal.PipelineContext   `json:"context,omitempty"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	settings := services.SessionSettings{
-		Name:      body.Name,
-		Sources:   body.Sources,
-		Model:     body.Model,
-		Workflows: body.Workflows,
-		Context:   body.Context,
-	}
-	if body.Schedule != nil {
-		if *body.Schedule == "" {
-			settings.ClearSchedule = true
-		} else {
-			settings.Schedule = *body.Schedule
-		}
-	}
-	if err := s.contentSvc.UpdateSessionSettings(r.Context(), id, settings); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-	detail, _ := s.contentSvc.GetSessionDetail(r.Context(), id)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	json.NewEncoder(w).Encode(sess)
 }
 
 // POST /api/content-sessions/{id}/produce
@@ -310,34 +207,20 @@ func (s *Server) listSessionSources(w http.ResponseWriter, r *http.Request) {
 func (s *Server) patchSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Summary      string   `json:"summary"`
-		Insights     []string `json:"insights"`
-		AngleID      string   `json:"angle_id,omitempty"`
-		WorkflowName string   `json:"workflow_name,omitempty"`
+		Summary  string   `json:"summary"`
+		Insights []string `json:"insights"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.Summary != "" || body.Insights != nil {
-		if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				http.Error(w, err.Error(), http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
+	if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	}
-	if body.AngleID != "" && body.WorkflowName != "" {
-		if err := s.contentSvc.UpdateAngleWorkflow(r.Context(), id, body.AngleID, body.WorkflowName); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				http.Error(w, err.Error(), http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
+		return
 	}
 	analysis, _ := s.contentSvc.GetAnalysis(r.Context(), id)
 	w.Header().Set("Content-Type", "application/json")
@@ -556,6 +439,170 @@ func (s *Server) createSessionFromSurge(w http.ResponseWriter, r *http.Request) 
 	http.Error(w, "not implemented in Phase 1", http.StatusNotImplemented)
 }
 
+// POST /api/content-sessions
+// Creates a new draft session for a pipeline.
+func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PipelineID string `json:"pipeline_id"`
+		Name       string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.PipelineID == "" {
+		http.Error(w, "pipeline_id is required", http.StatusBadRequest)
+		return
+	}
+
+	sess := &upal.ContentSession{
+		PipelineID:  body.PipelineID,
+		Name:        body.Name,
+		Status:      upal.SessionDraft,
+		TriggerType: "manual",
+	}
+	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), sess.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(detail)
+}
+
+// PATCH /api/content-sessions/{id}/settings
+// Partially updates session-level configuration (sources, schedule, model, etc.).
+func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name          string                  `json:"name,omitempty"`
+		Sources       []upal.PipelineSource   `json:"sources,omitempty"`
+		Schedule      string                  `json:"schedule,omitempty"`
+		ClearSchedule bool                    `json:"clear_schedule,omitempty"`
+		Model         string                  `json:"model,omitempty"`
+		Workflows     []upal.PipelineWorkflow `json:"workflows,omitempty"`
+		Context       *upal.PipelineContext   `json:"context,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	settings := upal.SessionSettings{
+		Name:          body.Name,
+		Sources:       body.Sources,
+		Schedule:      body.Schedule,
+		ClearSchedule: body.ClearSchedule,
+		Model:         body.Model,
+		Workflows:     body.Workflows,
+		Context:       body.Context,
+	}
+	if err := s.contentSvc.UpdateSessionSettings(r.Context(), id, settings); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		return
+	}
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
+// POST /api/content-sessions/{id}/collect
+// Triggers collection on an existing session.
+func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		IsTest bool `json:"isTest"`
+		Limit  int  `json:"limit"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	sess, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "content session not found", http.StatusNotFound)
+		return
+	}
+
+	pipeline, err := s.pipelineSvc.Get(r.Context(), sess.PipelineID)
+	if err != nil {
+		http.Error(w, "pipeline not found", http.StatusNotFound)
+		return
+	}
+
+	if s.collector != nil {
+		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{"session_id": id, "status": "accepted"})
+}
+
+// POST /api/content-sessions/{id}/activate
+// Transitions a draft session to active status.
+func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sess, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "content session not found", http.StatusNotFound)
+		return
+	}
+	if sess.Status != upal.SessionDraft {
+		http.Error(w, "only draft sessions can be activated", http.StatusConflict)
+		return
+	}
+	if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionActive); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
+// POST /api/content-sessions/{id}/deactivate
+// Transitions an active session back to draft status.
+func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sess, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "content session not found", http.StatusNotFound)
+		return
+	}
+	if sess.Status != upal.SessionActive {
+		http.Error(w, "only active sessions can be deactivated", http.StatusConflict)
+		return
+	}
+	if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionDraft); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
 // POST /api/pipelines/{id}/collect
 // Body (optional): {"isTest": bool, "limit": int}
 // Creates a content session and launches background collection + analysis.
@@ -580,12 +627,6 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	sess := &upal.ContentSession{
 		PipelineID:  id,
 		TriggerType: "manual",
-		IsTemplate:  false,
-		Sources:     pipeline.Sources,
-		Schedule:    pipeline.Schedule,
-		Model:       pipeline.Model,
-		Workflows:   pipeline.Workflows,
-		Context:     pipeline.Context,
 	}
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -594,59 +635,12 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 
 	// Launch background collection if collector is wired.
 	if s.collector != nil {
-		go s.collector.CollectAndAnalyze(context.Background(), sess, body.IsTest, body.Limit)
+		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
-}
-
-// POST /api/content-sessions/{id}/collect
-// Always creates a new child instance from the given template/session and runs collection on it.
-func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	session, err := s.contentSvc.GetSession(r.Context(), id)
-	if err != nil {
-		http.Error(w, "session not found", http.StatusNotFound)
-		return
-	}
-
-	var body struct {
-		IsTest bool `json:"isTest"`
-		Limit  int  `json:"limit"`
-	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-
-	// Always create a new instance from this template/session.
-	// Append timestamp to distinguish instances from the parent template.
-	instanceName := session.Name
-	if instanceName != "" {
-		instanceName += " — " + time.Now().Format("01/02 15:04")
-	}
-	execSess := &upal.ContentSession{
-		PipelineID:      session.PipelineID,
-		Name:            instanceName,
-		TriggerType:     "manual",
-		IsTemplate:      false,
-		ParentSessionID: session.ID,
-		Sources:         session.Sources,
-		Model:           session.Model,
-		Workflows:       session.Workflows,
-		Context:         session.Context,
-	}
-	if err := s.contentSvc.CreateSession(r.Context(), execSess); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if s.collector != nil {
-		go s.collector.CollectAndAnalyze(context.Background(), execSess, body.IsTest, body.Limit)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{"session_id": execSess.ID})
 }
 
 // POST /api/content-sessions/{id}/retry-analyze
@@ -745,93 +739,12 @@ func (s *Server) deleteContentSession(w http.ResponseWriter, r *http.Request) {
 	if err := s.contentSvc.DeleteSession(r.Context(), id); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if errors.Is(err, upal.ErrMustBeArchived) {
+			http.Error(w, err.Error(), http.StatusConflict)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// POST /api/content-sessions/{id}/activate
-func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	session, err := s.contentSvc.GetSession(r.Context(), id)
-	if err != nil {
-		http.Error(w, "session not found", http.StatusNotFound)
-		return
-	}
-	if !session.IsTemplate {
-		http.Error(w, "only templates can be activated", http.StatusBadRequest)
-		return
-	}
-	if session.Schedule == "" {
-		http.Error(w, "schedule is required to activate", http.StatusBadRequest)
-		return
-	}
-	if session.Status == upal.SessionActive {
-		http.Error(w, "session is already active", http.StatusConflict)
-		return
-	}
-
-	// Register cron schedule.
-	sched := &upal.Schedule{
-		SessionID: session.ID,
-		CronExpr:  session.Schedule,
-		Enabled:   true,
-		Timezone:  "UTC",
-	}
-	if err := s.schedulerSvc.AddSchedule(r.Context(), sched); err != nil {
-		http.Error(w, "failed to register schedule: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Update session: store schedule_id and transition to active.
-	session.ScheduleID = sched.ID
-	session.Status = upal.SessionActive
-	if err := s.contentSvc.UpdateSession(r.Context(), session); err != nil {
-		// Clean up orphaned schedule record.
-		_ = s.schedulerSvc.RemoveSchedule(r.Context(), sched.ID)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Trigger immediate first collection.
-	if s.collector != nil {
-		go s.collector.CollectFromTemplate(context.Background(), session.ID)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"status": "active", "schedule_id": sched.ID})
-}
-
-// POST /api/content-sessions/{id}/deactivate
-func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	session, err := s.contentSvc.GetSession(r.Context(), id)
-	if err != nil {
-		http.Error(w, "session not found", http.StatusNotFound)
-		return
-	}
-	if session.Status != upal.SessionActive {
-		http.Error(w, "session is not active", http.StatusBadRequest)
-		return
-	}
-
-	// Remove cron schedule.
-	if session.ScheduleID != "" {
-		if err := s.schedulerSvc.RemoveSchedule(r.Context(), session.ScheduleID); err != nil {
-			log.Printf("warn: failed to remove schedule %s: %v", session.ScheduleID, err)
-		}
-	}
-
-	session.ScheduleID = ""
-	session.Status = upal.SessionDraft
-	if err := s.contentSvc.UpdateSession(r.Context(), session); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"status": "draft"})
 }

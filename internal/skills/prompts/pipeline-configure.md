@@ -51,23 +51,10 @@ Array of workflow references:
 ```json
 { "workflow_name": "exact-slug", "label": "표시 이름" }
 ```
-- `workflow_name`: Must be the exact slug from "Available workflows" list
-- `label`: Must be the exact name/description from "Available workflows" — NEVER invent or rephrase
-
-Use workflows from the "Available workflows" list when they match the user's needs. If no suitable workflow exists, use `create_workflows` to request new ones (see below).
-
-### Create Workflows
-Array of new workflow requests. The system will auto-generate each workflow and add it to the session.
-```json
-{ "name": "kebab-case-slug", "description": "워크플로우가 수행할 작업의 상세 설명" }
-```
-- `name`: Unique kebab-case slug (e.g. `"blog-post-writer"`, `"newsletter-summary"`)
-- `description`: Detailed Korean description of what the workflow should do — this is the prompt for AI generation
-
-When you include `create_workflows`, also add matching entries in `workflows` so they get assigned to the session automatically.
+ONLY use workflows from the "Available workflows" list. If no workflows are listed, omit this field.
 
 ### Model
-Analysis model in `"provider/model"` format. Pick from the "Available models" list. Always set an appropriate model — never leave it empty when configuring a pipeline.
+Analysis model in `"provider/model"` format. Pick from the "Available models" list. Leave empty string `""` for system default.
 
 ### Editorial Brief (context)
 ```json
@@ -85,10 +72,10 @@ Analysis model in `"provider/model"` format. Pick from the "Available models" li
 
 ## Rules
 
-1. **Partial updates**: Only include fields that the user's request affects. If the user only asks about sources, only return `sources`. **However**, when current settings are mostly empty (initial setup) or the user describes a full pipeline, treat it as a comprehensive setup and set ALL fields: sources, schedule, workflows (create if needed), model, and context.
+1. **Partial updates**: Only include fields that the user's request affects. If the user only asks about sources, only return `sources`. If they describe a full pipeline, return all relevant fields.
 2. **Source IDs**: Always generate unique `id` values for new sources using `"src-{type}-{index}"` format.
 3. **Source type**: Always set `source_type` correctly — `"static"` for RSS/HTTP, `"signal"` for HN/Reddit/Google Trends/Twitter.
-4. **Workflow selection**: Prefer existing workflows from the "Available workflows" list. If no existing workflow fits the user's needs, you MUST use `create_workflows` to request new ones — do not leave workflows empty when the pipeline clearly needs content production. NEVER reference a workflow name that doesn't exist and isn't in `create_workflows`.
+4. **Workflow names**: ONLY reference workflows from the "Available workflows" list. NEVER invent workflow names.
 5. **Model selection**: ONLY use models from the "Available models" list. Match model capability to the pipeline's analysis needs.
 6. **Language**: ALL user-facing text (labels, purpose, descriptions, explanation) MUST be in Korean (한국어).
 7. **Explanation**: Always include a clear Korean explanation summarizing what was changed and why.
@@ -102,7 +89,6 @@ Analysis model in `"provider/model"` format. Pick from the "Available models" li
   "sources": [...],
   "schedule": "cron expression",
   "workflows": [...],
-  "create_workflows": [{ "name": "...", "description": "..." }],
   "model": "provider/model",
   "context": { ... },
   "explanation": "변경사항 요약"

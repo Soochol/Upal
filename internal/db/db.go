@@ -122,7 +122,6 @@ CREATE TABLE IF NOT EXISTS schedules (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT '';
-ALTER TABLE schedules ADD COLUMN IF NOT EXISTS session_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS triggers (
     id             TEXT PRIMARY KEY,
@@ -175,15 +174,13 @@ ALTER TABLE runs ADD COLUMN IF NOT EXISTS session_id TEXT;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS workflow_definition JSONB;
 
 CREATE TABLE IF NOT EXISTS content_sessions (
-    id                TEXT PRIMARY KEY,
-    pipeline_id       TEXT NOT NULL,
-    status            TEXT NOT NULL DEFAULT 'collecting',
-    trigger_type      TEXT NOT NULL DEFAULT 'manual',
-    source_count      INTEGER NOT NULL DEFAULT 0,
-    is_template       BOOLEAN NOT NULL DEFAULT false,
-    parent_session_id TEXT NOT NULL DEFAULT '',
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    reviewed_at       TIMESTAMPTZ
+    id           TEXT PRIMARY KEY,
+    pipeline_id  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'collecting',
+    trigger_type TEXT NOT NULL DEFAULT 'manual',
+    source_count INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reviewed_at  TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_content_sessions_pipeline_id ON content_sessions(pipeline_id);
 CREATE INDEX IF NOT EXISTS idx_content_sessions_status ON content_sessions(status);
@@ -202,7 +199,6 @@ CREATE TABLE IF NOT EXISTS source_fetches (
 CREATE INDEX IF NOT EXISTS idx_source_fetches_session_id ON source_fetches(session_id);
 ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS label TEXT NOT NULL DEFAULT '';
 ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS progress JSONB;
 
 CREATE TABLE IF NOT EXISTS llm_analyses (
     id               TEXT PRIMARY KEY,
@@ -242,7 +238,6 @@ CREATE TABLE IF NOT EXISTS surge_events (
 CREATE INDEX IF NOT EXISTS idx_surge_events_dismissed ON surge_events(dismissed);
 
 ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS workflow_results (
@@ -250,18 +245,4 @@ CREATE TABLE IF NOT EXISTS workflow_results (
     results     JSONB NOT NULL DEFAULT '[]',
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS parent_session_id TEXT NOT NULL DEFAULT '';
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS schedule_id TEXT NOT NULL DEFAULT '';
-
--- Migrate: existing draft sessions become templates
-UPDATE content_sessions SET is_template = true WHERE status = 'draft' AND is_template = false;
-
--- Session-level settings (sources, schedule, model, workflows, context)
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS session_sources JSONB NOT NULL DEFAULT '[]';
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS schedule TEXT NOT NULL DEFAULT '';
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS session_workflows JSONB NOT NULL DEFAULT '[]';
-ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS context JSONB;
 `

@@ -39,4 +39,6 @@ type PipelineRegistry interface {
 type SchedulerPort interface {
 	SyncPipelineSchedules(ctx context.Context, pipeline *upal.Pipeline) error
 	RemovePipelineSchedules(ctx context.Context, pipelineID string) error
+	AddSchedule(ctx context.Context, schedule *upal.Schedule) error
+	RemoveSchedule(ctx context.Context, id string) error
 }

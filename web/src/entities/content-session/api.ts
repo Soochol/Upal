@@ -1,5 +1,4 @@
 import { apiFetch } from '@/shared/api/client'
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 import type { ContentSession, ContentAngle, LLMAnalysis } from './types'
 
 const BASE = '/api/content-sessions'
@@ -121,54 +120,6 @@ export async function unarchiveSession(id: string): Promise<ContentSession> {
 export async function deleteSession(id: string): Promise<void> {
   await apiFetch(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-  })
-}
-
-export async function createDraftSession(pipelineId: string, data?: {
-  name?: string
-  sources?: PipelineSource[]
-  schedule?: string
-  model?: string
-  workflows?: PipelineWorkflow[]
-  context?: PipelineContext
-}): Promise<ContentSession> {
-  return apiFetch<ContentSession>(BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pipeline_id: pipelineId, ...data }),
-  })
-}
-
-export async function updateSessionSettings(id: string, settings: {
-  name?: string
-  sources?: PipelineSource[]
-  schedule?: string
-  workflows?: PipelineWorkflow[]
-  model?: string
-  context?: PipelineContext
-}): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/settings`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
-  })
-}
-
-export async function activateSession(id: string): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/activate`, {
-    method: 'POST',
-  })
-}
-
-export async function deactivateSession(id: string): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/deactivate`, {
-    method: 'POST',
-  })
-}
-
-export async function collectSession(id: string): Promise<ContentSession> {
-  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/collect`, {
-    method: 'POST',
   })
 }
 

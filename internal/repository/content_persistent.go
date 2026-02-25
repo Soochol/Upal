@@ -20,10 +20,8 @@ type ContentDB interface {
 	ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error)
 	UpdateContentSession(ctx context.Context, s *upal.ContentSession) error
 	ListArchivedContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
-	ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error)
 	DeleteContentSession(ctx context.Context, id string) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
-	UpdateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
 	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
 	GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
@@ -128,11 +126,7 @@ func (r *PersistentContentSessionRepository) ListArchivedByPipeline(ctx context.
 }
 
 func (r *PersistentContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
-	sessions, err := r.db.ListTemplateContentSessionsByPipeline(ctx, pipelineID)
-	if err == nil {
-		return sessions, nil
-	}
-	slog.Warn("db list template content_sessions failed, falling back to in-memory", "err", err)
+	// No DB method yet — fall back to in-memory filtering.
 	return r.mem.ListTemplatesByPipeline(ctx, pipelineID)
 }
 
@@ -171,11 +165,8 @@ func (r *PersistentSourceFetchRepository) Create(ctx context.Context, sf *upal.S
 }
 
 func (r *PersistentSourceFetchRepository) Update(ctx context.Context, sf *upal.SourceFetch) error {
-	_ = r.mem.Update(ctx, sf)
-	if err := r.db.UpdateSourceFetch(ctx, sf); err != nil {
-		return fmt.Errorf("db update source_fetch: %w", err)
-	}
-	return nil
+	// No DB update method yet — update in-memory only.
+	return r.mem.Update(ctx, sf)
 }
 
 func (r *PersistentSourceFetchRepository) ListBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {

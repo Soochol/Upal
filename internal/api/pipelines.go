@@ -28,6 +28,12 @@ func (s *Server) createPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Sync schedule stages: register cron jobs and fill in schedule_id.
+	if s.schedulerSvc != nil {
+		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
+			_ = s.pipelineSvc.Update(r.Context(), &p)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(p)
@@ -69,12 +75,22 @@ func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Sync schedule stages: register cron jobs and fill in schedule_id.
+	if s.schedulerSvc != nil {
+		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
+			_ = s.pipelineSvc.Update(r.Context(), &p)
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
 }
 
 func (s *Server) deletePipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	// Clean up associated cron jobs before deleting.
+	if s.schedulerSvc != nil {
+		_ = s.schedulerSvc.RemovePipelineSchedules(r.Context(), id)
+	}
 	if err := s.pipelineSvc.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

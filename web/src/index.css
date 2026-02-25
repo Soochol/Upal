@@ -290,15 +290,6 @@ h6 {
   font-size: 0.9em;
 }
 
-/* Active session pulse animation */
-@keyframes activePulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.4); }
-}
-.animate-active-pulse {
-  animation: activePulse 2s ease-in-out infinite;
-}
-
 /* ═══════════════════════════════════════════════════════
    Module Imports
    ═══════════════════════════════════════════════════════ */

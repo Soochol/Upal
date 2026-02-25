@@ -15,6 +15,7 @@ type ContentSessionPort interface {
 	ListSessions(ctx context.Context) ([]*upal.ContentSession, error)
 	UpdateSession(ctx context.Context, sess *upal.ContentSession) error
 	UpdateSessionStatus(ctx context.Context, id string, status upal.ContentSessionStatus) error
+	UpdateSessionSettings(ctx context.Context, id string, settings upal.SessionSettings) error
 	UpdateSessionSourceCount(ctx context.Context, id string, count int) error
 	ApproveSession(ctx context.Context, id string) error
 	RejectSession(ctx context.Context, id string) error
