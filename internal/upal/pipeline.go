@@ -46,6 +46,10 @@ type CollectSource struct {
 	Keywords    []string          `json:"keywords,omitempty"`     // Social: search keywords
 	Accounts    []string          `json:"accounts,omitempty"`     // Social: follow account handles
 	Geo         string            `json:"geo,omitempty"`          // Google Trends: country code
+	Topic       string            `json:"topic,omitempty"`        // Research: subject to investigate
+	Depth       string            `json:"depth,omitempty"`        // Research: "light" | "deep"
+	MaxSearches int               `json:"max_searches,omitempty"` // Research: max search iterations for deep (default 10)
+	Model       string            `json:"model,omitempty"`        // Research: LLM model ID
 }
 
 // StageConfig holds type-specific configuration for a Stage.
@@ -108,6 +112,8 @@ type PipelineSource struct {
 	Accounts  []string `json:"accounts,omitempty"` // social: follow account handles
 	Geo       string   `json:"geo,omitempty"`      // google_trends: country code
 	Limit     int      `json:"limit,omitempty"`
+	Topic     string `json:"topic,omitempty"` // research: subject to investigate
+	Depth     string `json:"depth,omitempty"` // research: "light" | "deep"
 }
 
 // PipelineWorkflow links an existing workflow to a pipeline for content production.
