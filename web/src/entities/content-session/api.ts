@@ -1,5 +1,6 @@
 import { apiFetch } from '@/shared/api/client'
 import type { ContentSession, ContentAngle, LLMAnalysis } from './types'
+import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/shared/types'
 
 const BASE = '/api/content-sessions'
 
@@ -85,6 +86,18 @@ export async function updateSessionAnalysis(
   })
 }
 
+export async function updateAngleWorkflow(
+  id: string,
+  angleId: string,
+  workflowName: string,
+): Promise<LLMAnalysis> {
+  return apiFetch<LLMAnalysis>(`${BASE}/${encodeURIComponent(id)}/analysis`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ angle_id: angleId, workflow_name: workflowName }),
+  })
+}
+
 export async function generateAngleWorkflow(
   sessionId: string,
   angleId: string,
@@ -120,6 +133,34 @@ export async function unarchiveSession(id: string): Promise<ContentSession> {
 export async function deleteSession(id: string): Promise<void> {
   await apiFetch(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  })
+}
+
+export async function updateSessionSettings(
+  id: string,
+  settings: {
+    sources?: PipelineSource[]
+    schedule?: string
+    model?: string
+    workflows?: PipelineWorkflow[]
+    context?: PipelineContext
+  },
+): Promise<ContentSession> {
+  return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+}
+
+export async function collectSession(
+  id: string,
+  config?: { isTest?: boolean; limit?: number },
+): Promise<{ session_id: string }> {
+  return apiFetch(`${BASE}/${encodeURIComponent(id)}/collect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config ?? {}),
   })
 }
 
