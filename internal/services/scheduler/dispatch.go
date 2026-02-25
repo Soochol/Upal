@@ -18,6 +18,28 @@ import (
 func (s *SchedulerService) executeScheduledRun(schedule *upal.Schedule) {
 	ctx := context.Background()
 
+	// Session-template-triggered collection.
+	if schedule.SessionID != "" && s.sessionCollector != nil {
+		slog.Info("scheduler: executing scheduled session collection",
+			"schedule", schedule.ID, "session", schedule.SessionID)
+
+		if err := s.sessionCollector.CollectFromTemplate(ctx, schedule.SessionID); err != nil {
+			slog.Error("scheduler: session collection failed",
+				"schedule", schedule.ID, "session", schedule.SessionID, "err", err)
+		}
+
+		now := time.Now()
+		schedule.LastRunAt = &now
+		if cronSched, parseErr := parseCronExpr(schedule.CronExpr, schedule.Timezone); parseErr == nil {
+			schedule.NextRunAt = cronSched.Next(now)
+		}
+		schedule.UpdatedAt = now
+		if updateErr := s.scheduleRepo.Update(ctx, schedule); updateErr != nil {
+			slog.Warn("scheduler: failed to update schedule after session run", "err", updateErr)
+		}
+		return
+	}
+
 	// Pipeline-triggered execution.
 	if schedule.PipelineID != "" && s.pipelineSvc != nil && s.pipelineRunner != nil {
 		slog.Info("scheduler: executing scheduled pipeline run",

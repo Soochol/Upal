@@ -42,7 +42,10 @@ func (s *SchedulerService) registerCronJob(schedule *upal.Schedule) error {
 	s.entryMap[schedule.ID] = entryID
 	s.mu.Unlock()
 
-	if schedule.PipelineID != "" {
+	if schedule.SessionID != "" {
+		slog.Info("scheduler: registered cron job",
+			"id", schedule.ID, "session", schedule.SessionID, "cron", schedule.CronExpr)
+	} else if schedule.PipelineID != "" {
 		slog.Info("scheduler: registered cron job",
 			"id", schedule.ID, "pipeline", schedule.PipelineID, "cron", schedule.CronExpr)
 	} else {

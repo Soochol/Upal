@@ -34,11 +34,17 @@ type SchedulerService struct {
 	pipelineRunner     ports.PipelineRunner
 	pipelineSvc        ports.PipelineRegistry
 	contentCollector   ContentCollector
+	sessionCollector   ContentSessionCollector
 }
 
 // ContentCollector is the interface for scheduled content pipeline dispatching.
 type ContentCollector interface {
 	CollectPipeline(ctx context.Context, pipelineID string) error
+}
+
+// ContentSessionCollector creates instances from a session template.
+type ContentSessionCollector interface {
+	CollectFromTemplate(ctx context.Context, templateID string) error
 }
 
 // SetPipelineRunner configures the pipeline runner for scheduled pipeline execution.
@@ -54,6 +60,11 @@ func (s *SchedulerService) SetPipelineService(svc ports.PipelineRegistry) {
 // SetContentCollector configures the content collector for scheduled content pipelines.
 func (s *SchedulerService) SetContentCollector(c ContentCollector) {
 	s.contentCollector = c
+}
+
+// SetContentSessionCollector configures the session collector for scheduled session-template dispatching.
+func (s *SchedulerService) SetContentSessionCollector(c ContentSessionCollector) {
+	s.sessionCollector = c
 }
 
 // NewSchedulerService creates a SchedulerService with all dependencies.
