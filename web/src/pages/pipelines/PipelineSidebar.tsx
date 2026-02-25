@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Search, Plus, GitBranch, Rss, Sparkles, Clock, Loader2, Settings,
+  Search, Plus, GitBranch, Rss, Sparkles, Clock, Loader2, Settings, Trash2,
 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/shared/lib/utils'
 import { humanReadableCron } from '@/shared/lib/cron'
+import { deletePipeline } from '@/entities/pipeline'
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import type { Pipeline } from '@/shared/types'
-
-type PipelineTab = 'all' | 'content'
 
 function isContentPipeline(p: Pipeline) {
   return (p.sources && p.sources.length > 0) || !!p.schedule || !!p.context
@@ -19,15 +20,24 @@ interface PipelineSidebarProps {
   onSelect: (id: string) => void
   isLoading: boolean
   onSettingsOpen?: () => void
+  onDelete?: (id: string) => void
 }
 
-export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, onSettingsOpen }: PipelineSidebarProps) {
+export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, onSettingsOpen, onDelete }: PipelineSidebarProps) {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<PipelineTab>('all')
+  const [deleteTarget, setDeleteTarget] = useState<Pipeline | null>(null)
 
-  const contentPipelines = pipelines.filter(isContentPipeline)
-  const displayPipelines = activeTab === 'content' ? contentPipelines : pipelines
-  const filtered = displayPipelines.filter((p) =>
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePipeline(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+      setDeleteTarget(null)
+      onDelete?.(id)
+    },
+  })
+
+  const filtered = pipelines.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
   )
 
@@ -35,6 +45,18 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header */}
       <div className="p-4 border-b border-border/50 shrink-0 bg-background/50 backdrop-blur-md shadow-sm z-10 space-y-3">
+        {/* Label + New */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Pipelines</h2>
+          <Link
+            to="/pipelines/new"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0"
+          >
+            <Plus className="h-3 w-3" />
+            New
+          </Link>
+        </div>
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -47,49 +69,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
           />
         </div>
 
-        {/* Tabs + New button */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted/30 shrink-0">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={cn(
-                'px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
-                activeTab === 'all'
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActiveTab('content')}
-              className={cn(
-                'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer',
-                activeTab === 'content'
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Content
-              {contentPipelines.length > 0 && (
-                <span className={cn(
-                  'text-[10px] font-bold tabular-nums px-1 rounded-full',
-                  activeTab === 'content' ? 'bg-background/20' : 'bg-muted-foreground/20',
-                )}>
-                  {contentPipelines.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <Link
-            to="/pipelines/new"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0"
-          >
-            <Plus className="h-3 w-3" />
-            New
-          </Link>
-        </div>
       </div>
 
       {/* Pipeline list */}
@@ -172,6 +151,13 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
                     >
                       <Settings className="h-3.5 w-3.5" />
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }}
+                      className="p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="Delete pipeline"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
                 {p.description && (
@@ -200,6 +186,15 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, isLoading, on
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title="Delete pipeline"
+        description={`"${deleteTarget?.name}" and all its sessions will be permanently deleted.`}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
     </div>
   )
 }

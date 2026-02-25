@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Loader2, ArrowLeft, Search, X,
+  Loader2, ArrowLeft, Search, X,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
@@ -22,9 +22,11 @@ function NewSessionModal({
   onClose,
 }: {
   isPending: boolean
-  onConfirm: () => void
+  onConfirm: (name: string) => void
   onClose: () => void
 }) {
+  const [name, setName] = useState('')
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -35,12 +37,24 @@ function NewSessionModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="p-5">
-          <p className="text-sm text-muted-foreground">Create a new session. You can configure sources, schedule, and workflows before starting collection.</p>
+        <div className="p-5 space-y-3">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Session Name</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Weekly AI Trends"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onConfirm(name.trim()) }}
+              className="mt-1.5 w-full h-10 px-3 rounded-xl border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow placeholder:text-muted-foreground/50"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">You can configure sources, schedule, and workflows after creation.</p>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted/10">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer">Cancel</button>
-          <button onClick={onConfirm} disabled={isPending} className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-primary/20">
+          <button onClick={() => onConfirm(name.trim())} disabled={isPending || !name.trim()} className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-opacity disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-primary/20">
             {isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating...</> : 'Create Session'}
           </button>
         </div>
@@ -90,7 +104,7 @@ export default function PipelinesPage() {
   })
 
   const createSessionMutation = useMutation({
-    mutationFn: () => createDraftSession(selectedPipelineId!),
+    mutationFn: (name: string) => createDraftSession(selectedPipelineId!, name),
     onSuccess: (session) => {
       setShowNewSession(false)
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId }] })
@@ -143,6 +157,9 @@ export default function PipelinesPage() {
             selectedId={selectedPipelineId}
             onSelect={selectPipeline}
             isLoading={isLoading}
+            onDelete={(id) => {
+              if (selectedPipelineId === id) setSearchParams({})
+            }}
           />
         </div>
 
@@ -153,16 +170,14 @@ export default function PipelinesPage() {
         )}>
           {selectedPipelineId ? (
             <>
-              {/* Pipeline header strip */}
-              <div className="px-4 md:px-6 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center justify-between gap-3">
-                {/* Mobile back button */}
+              {/* Pipeline header strip (mobile only — on desktop, selected pipeline is visible in sidebar) */}
+              <div className="md:hidden px-4 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center gap-3">
                 <button
                   onClick={goBackToPipelines}
-                  className="md:hidden flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
-
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-bold tracking-tight truncate">
                     {selectedPipeline?.name ?? 'Loading...'}
@@ -170,16 +185,6 @@ export default function PipelinesPage() {
                   {selectedPipeline?.description && (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{selectedPipeline.description}</p>
                   )}
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setShowNewSession(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">New Session</span>
-                  </button>
                 </div>
               </div>
 
@@ -190,6 +195,7 @@ export default function PipelinesPage() {
                   pipelineId={selectedPipelineId}
                   selectedSessionId={selectedSessionId}
                   onSelectSession={selectSession}
+                  onNewSession={() => setShowNewSession(true)}
                   className={cn(
                     'w-full md:w-[300px] 2xl:w-[340px] shrink-0 md:border-r border-border bg-sidebar/30',
                     mobileLevel === 'sessions' ? 'flex' : 'hidden md:flex',
@@ -244,7 +250,7 @@ export default function PipelinesPage() {
       {showNewSession && selectedPipelineId && (
         <NewSessionModal
           isPending={createSessionMutation.isPending}
-          onConfirm={() => createSessionMutation.mutate()}
+          onConfirm={(name) => createSessionMutation.mutate(name)}
           onClose={() => setShowNewSession(false)}
         />
       )}
