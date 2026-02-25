@@ -10,7 +10,7 @@ func TestMapPipelineSources_GoogleTrends(t *testing.T) {
 	sources := []upal.PipelineSource{
 		{ID: "gt1", Type: "google_trends", Keywords: []string{"AI", "LLM"}, Geo: "KR", Limit: 10},
 	}
-	result := mapPipelineSources(sources, false, 0)
+	result := mapPipelineSources(sources, "", false, 0)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 mapped source, got %d", len(result))
 	}
@@ -30,7 +30,7 @@ func TestMapPipelineSources_GoogleTrends_DefaultGeo(t *testing.T) {
 	sources := []upal.PipelineSource{
 		{ID: "gt2", Type: "google_trends"},
 	}
-	result := mapPipelineSources(sources, false, 0)
+	result := mapPipelineSources(sources, "", false, 0)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 mapped source, got %d", len(result))
 	}
@@ -43,7 +43,7 @@ func TestMapPipelineSources_Social(t *testing.T) {
 	sources := []upal.PipelineSource{
 		{ID: "soc1", Type: "social", Keywords: []string{"AI", "startup"}, Limit: 15},
 	}
-	result := mapPipelineSources(sources, false, 0)
+	result := mapPipelineSources(sources, "", false, 0)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 mapped source, got %d", len(result))
 	}
@@ -60,7 +60,7 @@ func TestMapPipelineSources_TwitterFallback(t *testing.T) {
 	sources := []upal.PipelineSource{
 		{ID: "tw1", Type: "twitter", Keywords: []string{"Go"}},
 	}
-	result := mapPipelineSources(sources, false, 0)
+	result := mapPipelineSources(sources, "", false, 0)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 mapped source (twitter fallback), got %d", len(result))
 	}

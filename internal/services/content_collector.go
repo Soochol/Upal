@@ -47,6 +47,9 @@ func NewContentCollector(
 	skills skills.Provider,
 	runHistorySvc ports.RunHistoryPort,
 ) *ContentCollector {
+	// Register fetchers that need LLM deps here (not in NewCollectStageExecutor).
+	collectExec.RegisterFetcher(NewResearchFetcher(resolver, skills))
+
 	return &ContentCollector{
 		contentSvc:    contentSvc,
 		collectExec:   collectExec,
@@ -129,7 +132,7 @@ func (c *ContentCollector) CollectFromTemplate(ctx context.Context, templateID s
 // limit value for faster iteration.
 func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, session *upal.ContentSession, isTest bool, limit int) {
 	// Map session sources to collect sources.
-	sources := mapPipelineSources(session.Sources, isTest, limit)
+	sources := mapPipelineSources(session.Sources, session.Model, isTest, limit)
 
 	if len(sources) == 0 {
 		log.Printf("content_collector: no fetchable sources for session %s", session.ID)
@@ -887,7 +890,7 @@ type mappedSource struct {
 // mapPipelineSources converts pipeline sources to collect sources using the
 // documented mapping rules. Sources with unsupported types are skipped with
 // a log warning.
-func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) []mappedSource {
+func mapPipelineSources(sources []upal.PipelineSource, defaultModel string, isTest bool, limit int) []mappedSource {
 	var result []mappedSource
 
 	for i, ps := range sources {
@@ -947,6 +950,7 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 			if cs.Depth == "" {
 				cs.Depth = "light"
 			}
+			cs.Model = defaultModel
 
 		default:
 			log.Printf("content_collector: skipping unknown source type %q (source %s)", ps.Type, ps.ID)
