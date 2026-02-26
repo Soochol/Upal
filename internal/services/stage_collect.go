@@ -22,8 +22,8 @@ type SourceFetcher interface {
 	Fetch(ctx context.Context, src upal.CollectSource) (string, any, error)
 }
 
-// CollectStageExecutor fetches data from external sources (RSS, HTTP, web scrape)
-// without LLM involvement.
+// CollectStageExecutor fetches data from external sources (RSS, HTTP, web scrape,
+// social feeds, LLM-powered research).
 type CollectStageExecutor struct {
 	fetchers map[string]SourceFetcher
 }

@@ -25,7 +25,7 @@ description: Guide for configuring collect stages — code-based data fetching f
 - **social**: `keywords` (string[], search terms for Bluesky), `accounts` (string[], Bluesky handles like `alice.bsky.social` or Mastodon handles like `user@mastodon.social`), `limit` (int, max items, default 20). Fetches trending topics + keyword search from Bluesky, trending tags + links from Mastodon, and recent posts from specified accounts.
 - **research**: `topic` (string, required — subject to investigate), `depth` ("light" | "deep", default "deep"), `model` (string, required — "provider/model" format, must support web_search native tool). LLM-powered web research. Light mode does a single search pass; deep mode runs an iterative agent loop with sub-question decomposition. Not available on Ollama or other providers without native tool support.
 
-All sources require: `id` (unique string), `type`. Most require `url`, except `social` (endpoints are built-in).
+All sources require: `id` (unique string), `type`. Most require `url`, except `social` and `research` (endpoints are built-in).
 
 ### Output fields available to downstream stages
 
@@ -37,7 +37,7 @@ All sources require: `id` (unique string), `type`. Most require `url`, except `s
 ### Rules
 
 - Each source `id` must be unique within the stage.
-- Use `rss` for RSS/Atom feeds, `http` for REST APIs or webhooks, `scrape` for HTML pages, `social` for Bluesky & Mastodon trends.
+- Use `rss` for RSS/Atom feeds, `http` for REST APIs or webhooks, `scrape` for HTML pages, `social` for Bluesky & Mastodon trends, `research` for LLM-powered deep topic investigation.
 - Prefer `rss` when a feed is available — more reliable than scraping.
 - `scrape` requires a valid CSS selector; test it against the target page structure.
 - `social` does not need a `url` — it calls Bluesky and Mastodon public APIs automatically. Keywords trigger Bluesky search; accounts fetch recent posts from specified handles.

@@ -29,7 +29,7 @@ type Stage struct {
 // CollectSource defines a single data source for a collect stage.
 type CollectSource struct {
 	ID          string            `json:"id"`
-	Type        string            `json:"type"`                  // "rss" | "http" | "scrape"
+	Type        string            `json:"type"`                  // "rss" | "http" | "scrape" | "social" | "research"
 	URL         string            `json:"url"`
 	Limit       int               `json:"limit,omitempty"`        // RSS: max items (default 20)
 	Method      string            `json:"method,omitempty"`       // HTTP: GET/POST (default GET)
@@ -42,10 +42,10 @@ type CollectSource struct {
 	Accounts    []string          `json:"accounts,omitempty"`     // Social: follow account handles
 	Geo         string            `json:"geo,omitempty"`          // Google Trends: country code
 	// Research source fields
-	Topic       string `json:"topic,omitempty"`        // Research: topic to investigate
-	Model       string `json:"model,omitempty"`        // Research: LLM model ID ("provider/model")
-	Depth       string `json:"depth,omitempty"`        // Research: "light" or "deep"
-	MaxSearches int    `json:"max_searches,omitempty"` // Research: max search iterations for deep mode
+	Topic       string `json:"topic,omitempty"`        // research: topic to investigate
+	Model       string `json:"model,omitempty"`        // research: LLM model ID ("provider/model")
+	Depth       string `json:"depth,omitempty"`        // research: "light" or "deep"
+	MaxSearches int    `json:"max_searches,omitempty"` // research: max search iterations for deep mode
 }
 
 // StageConfig holds type-specific configuration for a Stage.
@@ -95,7 +95,7 @@ type PipelineSource struct {
 	ID         string         `json:"id"`
 	PipelineID string         `json:"pipeline_id,omitempty"`
 	ToolName   string         `json:"tool_name,omitempty"`   // "hn_fetch" | "reddit_fetch" | "rss_feed" | ...
-	SourceType string         `json:"source_type"`           // "static" | "signal"
+	SourceType string         `json:"source_type"`           // "static" | "signal" | "research"
 	Config     map[string]any `json:"config,omitempty"`      // tool-specific params
 	Enabled    bool           `json:"enabled,omitempty"`
 	// Frontend-compatible flat fields (stored as-is from the UI)
@@ -105,13 +105,13 @@ type PipelineSource struct {
 	Subreddit string   `json:"subreddit,omitempty"` // reddit
 	MinScore  int      `json:"min_score,omitempty"` // reddit, hn
 	Keywords  []string `json:"keywords,omitempty"`  // google_trends, social
-	Accounts  []string `json:"accounts,omitempty"` // social: follow account handles
-	Geo       string   `json:"geo,omitempty"`      // google_trends: country code
+	Accounts  []string `json:"accounts,omitempty"`  // social: follow account handles
+	Geo       string   `json:"geo,omitempty"`       // google_trends: country code
 	Limit     int      `json:"limit,omitempty"`
 	// Research source fields
-	Topic string `json:"topic,omitempty"` // research: subject to investigate
-	Depth string `json:"depth,omitempty"` // research: "light" | "deep"
-	Model string `json:"model,omitempty"` // research: LLM model ID ("provider/model")
+	Topic     string   `json:"topic,omitempty"`     // research: subject to investigate
+	Depth     string   `json:"depth,omitempty"`     // research: "light" | "deep"
+	Model     string   `json:"model,omitempty"`     // research: LLM model ID ("provider/model")
 }
 
 // PipelineWorkflow links an existing workflow to a pipeline for content production.

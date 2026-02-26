@@ -39,7 +39,6 @@ export const RESEARCH_SOURCES: SourceTypeDef[] = [
   },
 ]
 
-
 type Props = {
   editSource?: PipelineSource
   onAdd: (source: PipelineSource) => void
@@ -70,9 +69,48 @@ function ResearchModelSelector({ value, onChange }: { value: string; onChange: (
   )
 }
 
+const ALL_SOURCES = [...STATIC_SOURCES, ...SIGNAL_SOURCES, ...RESEARCH_SOURCES]
+
+type SourceGroupProps = {
+  label: string
+  sources: SourceTypeDef[]
+  onSelect: (typeDef: SourceTypeDef) => void
+}
+
+function SourceGroup({ label, sources, onSelect }: SourceGroupProps) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+      <div className="space-y-1.5">
+        {sources.map((typeDef) => (
+          <button
+            key={typeDef.type}
+            onClick={() => onSelect(typeDef)}
+            className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
+              hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
+              active:scale-[0.99] transition-all text-left cursor-pointer"
+          >
+            <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
+              group-hover:scale-110 transition-transform`}>
+              {typeDef.icon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
+              <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
   const editTypeDef = editSource
-    ? [...STATIC_SOURCES, ...SIGNAL_SOURCES, ...RESEARCH_SOURCES].find(s => s.type === editSource.type) ?? null
+    ? ALL_SOURCES.find(s => s.type === editSource.type) ?? null
     : null
   const [step, setStep] = useState<'select' | 'config'>(editSource ? 'config' : 'select')
   const [selectedType, setSelectedType] = useState<SourceTypeDef | null>(editTypeDef)
@@ -98,13 +136,19 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
     onClose()
   }
 
+  function getTitle(): string {
+    if (step === 'select') return 'Add Source'
+    if (editSource) return `Edit ${selectedType?.label}`
+    return `Configure ${selectedType?.label}`
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold">
-            {step === 'select' ? 'Add Source' : editSource ? `Edit ${selectedType?.label}` : `Configure ${selectedType?.label}`}
+            {getTitle()}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
@@ -114,89 +158,9 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
         <div className="p-5">
           {step === 'select' ? (
             <div className="space-y-5">
-              {/* Static data sources */}
-              <div>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Data Sources</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-                <div className="space-y-1.5">
-                  {STATIC_SOURCES.map((typeDef) => (
-                    <button
-                      key={typeDef.type}
-                      onClick={() => handleSelectType(typeDef)}
-                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
-                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
-                        active:scale-[0.99] transition-all text-left cursor-pointer"
-                    >
-                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
-                        group-hover:scale-110 transition-transform`}>
-                        {typeDef.icon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
-                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Signal sources */}
-              <div>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Signals</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-                <div className="space-y-1.5">
-                  {SIGNAL_SOURCES.map((typeDef) => (
-                    <button
-                      key={typeDef.type}
-                      onClick={() => handleSelectType(typeDef)}
-                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
-                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
-                        active:scale-[0.99] transition-all text-left cursor-pointer"
-                    >
-                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
-                        group-hover:scale-110 transition-transform`}>
-                        {typeDef.icon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
-                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI Research */}
-              <div>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">AI Research</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-                <div className="space-y-1.5">
-                  {RESEARCH_SOURCES.map((typeDef) => (
-                    <button
-                      key={typeDef.type}
-                      onClick={() => handleSelectType(typeDef)}
-                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
-                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
-                        active:scale-[0.99] transition-all text-left cursor-pointer"
-                    >
-                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
-                        group-hover:scale-110 transition-transform`}>
-                        {typeDef.icon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
-                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <SourceGroup label="Data Sources" sources={STATIC_SOURCES} onSelect={handleSelectType} />
+              <SourceGroup label="Signals" sources={SIGNAL_SOURCES} onSelect={handleSelectType} />
+              <SourceGroup label="AI Research" sources={RESEARCH_SOURCES} onSelect={handleSelectType} />
             </div>
           ) : (
             <div className="space-y-4">

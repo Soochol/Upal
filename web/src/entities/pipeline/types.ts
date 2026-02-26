@@ -64,7 +64,7 @@ export type Stage = {
 
 export type CollectSource = {
   id: string
-  type: 'rss' | 'http' | 'scrape'
+  type: 'rss' | 'http' | 'scrape' | 'social' | 'research'
   url: string
   limit?: number
   method?: string
@@ -73,6 +73,13 @@ export type CollectSource = {
   selector?: string
   attribute?: string
   scrape_limit?: number
+  keywords?: string[]
+  accounts?: string[]
+  // research
+  topic?: string
+  model?: string
+  depth?: 'light' | 'deep'
+  max_searches?: number
 }
 
 export type StageConfig = {
