@@ -78,3 +78,14 @@ func (s *Store[V]) Has(_ context.Context, key string) bool {
 	_, ok := s.data[key]
 	return ok
 }
+
+// DeleteWhere removes all entries matching the predicate.
+func (s *Store[V]) DeleteWhere(_ context.Context, pred func(V) bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, v := range s.data {
+		if pred(v) {
+			delete(s.data, k)
+		}
+	}
+}

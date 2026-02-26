@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { fetchContentSession } from '@/entities/content-session/api'
+import { sessionDisplayName } from '@/entities/content-session/constants'
 import { fetchPipeline } from '@/entities/pipeline/api'
 import { SessionDetailPreview } from '@/pages/pipelines/session/SessionDetailPreview'
 
@@ -50,7 +51,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                     {pipeline.name}
                 </Link>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                    {session.name || (session.session_number ? `Session #${session.session_number}` : `Session ${session.id.slice(-6)}`)}
+                    {sessionDisplayName(session)}
                 </h1>
             </div>
             <div className="flex-1 overflow-hidden">

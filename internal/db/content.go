@@ -170,15 +170,7 @@ func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]
 }
 
 func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
-	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
-		status,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list all content_sessions by status: %w", err)
-	}
-	defer rows.Close()
-	return scanContentSessions(rows)
+	return d.ListContentSessionsByStatus(ctx, status)
 }
 
 func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {

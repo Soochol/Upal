@@ -314,21 +314,11 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 	if _, err := s.sessions.Get(ctx, id); err != nil {
 		return err
 	}
-
-	// Clean up children before deleting the session itself.
+	// Published content failure is hard — we must not leave orphaned publish records.
 	if err := s.published.DeleteBySession(ctx, id); err != nil {
 		return fmt.Errorf("delete published content: %w", err)
 	}
-	if err := s.workflowResults.DeleteBySession(ctx, id); err != nil {
-		slog.Warn("failed to clean up workflow results", "session_id", id, "err", err)
-	}
-	if err := s.fetches.DeleteBySession(ctx, id); err != nil {
-		slog.Warn("failed to clean up source fetches", "session_id", id, "err", err)
-	}
-	if err := s.analyses.DeleteBySession(ctx, id); err != nil {
-		slog.Warn("failed to clean up llm analyses", "session_id", id, "err", err)
-	}
-
+	s.cleanupSessionChildren(ctx, id)
 	return s.sessions.Delete(ctx, id)
 }
 
@@ -337,25 +327,32 @@ func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pi
 	if err != nil {
 		return fmt.Errorf("list sessions for pipeline %s: %w", pipelineID, err)
 	}
-
 	for _, sess := range sessions {
 		if err := s.published.DeleteBySession(ctx, sess.ID); err != nil {
 			slog.Warn("pipeline cleanup: published content", "session_id", sess.ID, "err", err)
 		}
-		if err := s.workflowResults.DeleteBySession(ctx, sess.ID); err != nil {
-			slog.Warn("pipeline cleanup: workflow results", "session_id", sess.ID, "err", err)
-		}
-		if err := s.fetches.DeleteBySession(ctx, sess.ID); err != nil {
-			slog.Warn("pipeline cleanup: source fetches", "session_id", sess.ID, "err", err)
-		}
-		if err := s.analyses.DeleteBySession(ctx, sess.ID); err != nil {
-			slog.Warn("pipeline cleanup: llm analyses", "session_id", sess.ID, "err", err)
-		}
+		s.cleanupSessionChildren(ctx, sess.ID)
 		if err := s.sessions.Delete(ctx, sess.ID); err != nil {
 			slog.Warn("pipeline cleanup: session", "session_id", sess.ID, "err", err)
 		}
 	}
 	return nil
+}
+
+// cleanupSessionChildren removes secondary child records (workflow results,
+// source fetches, analyses) for the given session. Errors are logged but do
+// not halt the cascade so the parent session can still be deleted.
+// Published content is handled separately by callers that may need hard errors.
+func (s *ContentSessionService) cleanupSessionChildren(ctx context.Context, id string) {
+	if err := s.workflowResults.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("cascade delete: workflow results", "session_id", id, "err", err)
+	}
+	if err := s.fetches.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("cascade delete: source fetches", "session_id", id, "err", err)
+	}
+	if err := s.analyses.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("cascade delete: llm analyses", "session_id", id, "err", err)
+	}
 }
 
 func sortDetailsNewestFirst(details []*upal.ContentSessionDetail) {

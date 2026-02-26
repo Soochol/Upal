@@ -42,7 +42,7 @@ export function InboxSidebar({
     }
 
     const deleteMutation = useMutation({
-        mutationFn: (sessionId: string) => deleteSession(sessionId),
+        mutationFn: deleteSession,
         onSuccess: invalidateInbox,
     })
 

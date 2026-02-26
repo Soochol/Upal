@@ -62,7 +62,10 @@ type ConfigureNodeOutput struct {
 func (g *Generator) ConfigureNode(ctx context.Context, in ConfigureNodeInput) (*ConfigureNodeOutput, error) {
 	llm, modelName := g.resolveLLM(in.Model)
 
-	configJSON, _ := json.Marshal(in.CurrentConfig)
+	configJSON, err := json.Marshal(in.CurrentConfig)
+	if err != nil {
+		return nil, fmt.Errorf("marshal current config: %w", err)
+	}
 
 	upstreamList := "none"
 	if len(in.UpstreamNodes) > 0 {

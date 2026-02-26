@@ -52,9 +52,7 @@ func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, statu
 }
 
 func (r *MemoryContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
-	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status
-	})
+	return r.ListByStatus(ctx, status)
 }
 
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
@@ -112,17 +110,7 @@ func (r *MemorySourceFetchRepository) ListBySession(ctx context.Context, session
 }
 
 func (r *MemorySourceFetchRepository) DeleteBySession(ctx context.Context, sessionID string) error {
-	all, err := r.store.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, sf := range all {
-		if sf.SessionID == sessionID {
-			if err := r.store.Delete(ctx, sf.ID); err != nil {
-				return err
-			}
-		}
-	}
+	r.store.DeleteWhere(ctx, func(sf *upal.SourceFetch) bool { return sf.SessionID == sessionID })
 	return nil
 }
 
@@ -167,17 +155,7 @@ func (r *MemoryLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAna
 }
 
 func (r *MemoryLLMAnalysisRepository) DeleteBySession(ctx context.Context, sessionID string) error {
-	all, err := r.store.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, a := range all {
-		if a.SessionID == sessionID {
-			if err := r.store.Delete(ctx, a.ID); err != nil {
-				return err
-			}
-		}
-	}
+	r.store.DeleteWhere(ctx, func(a *upal.LLMAnalysis) bool { return a.SessionID == sessionID })
 	return nil
 }
 
@@ -212,17 +190,7 @@ func (r *MemoryPublishedContentRepository) ListByChannel(ctx context.Context, ch
 }
 
 func (r *MemoryPublishedContentRepository) DeleteBySession(ctx context.Context, sessionID string) error {
-	all, err := r.store.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, pc := range all {
-		if pc.SessionID == sessionID {
-			if err := r.store.Delete(ctx, pc.ID); err != nil {
-				return err
-			}
-		}
-	}
+	r.store.DeleteWhere(ctx, func(pc *upal.PublishedContent) bool { return pc.SessionID == sessionID })
 	return nil
 }
 

@@ -63,25 +63,29 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
     const [isPublishing, setIsPublishing] = useState(false)
 
     // ----- Actions -----
+    const invalidateAndNotify = useCallback(async () => {
+        await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
+        await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
+        onMutate?.()
+    }, [queryClient, sessionId, onMutate])
+
     const handleApprove = useCallback(
         async (selectedWorkflows: string[]) => {
             if (!sessionId || !pipelineId) return
             setIsApproving(true)
             try {
-                // Build workflow→channel mapping from session config
+                // Build workflow->channel mapping from session config
                 const channelMap: Record<string, string> = {}
                 for (const pw of session?.session_workflows ?? []) {
                     if (pw.channel_id) channelMap[pw.workflow_name] = pw.channel_id
                 }
                 await approveSession(sessionId, selectedWorkflows, channelMap)
-                await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
-                onMutate?.()
+                await invalidateAndNotify()
             } finally {
                 setIsApproving(false)
             }
         },
-        [sessionId, pipelineId, session, approveSession, queryClient, onMutate],
+        [sessionId, pipelineId, session, approveSession, invalidateAndNotify],
     )
 
     const handleReject = useCallback(async () => {
@@ -89,13 +93,11 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
         setIsRejecting(true)
         try {
             await rejectSession(sessionId)
-            await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-            await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
-            onMutate?.()
+            await invalidateAndNotify()
         } finally {
             setIsRejecting(false)
         }
-    }, [sessionId, pipelineId, rejectSession, queryClient, onMutate])
+    }, [sessionId, pipelineId, rejectSession, invalidateAndNotify])
 
     const handlePublish = useCallback(
         async (approvedRunIds: string[]) => {
@@ -103,14 +105,12 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
             setIsPublishing(true)
             try {
                 await publishSession(sessionId, approvedRunIds)
-                await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
-                onMutate?.()
+                await invalidateAndNotify()
             } finally {
                 setIsPublishing(false)
             }
         },
-        [sessionId, pipelineId, queryClient, onMutate],
+        [sessionId, pipelineId, invalidateAndNotify],
     )
 
     const handleRetryProduce = useCallback(async () => {

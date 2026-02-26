@@ -98,12 +98,7 @@ func (r *PersistentContentSessionRepository) ListByStatus(ctx context.Context, s
 }
 
 func (r *PersistentContentSessionRepository) ListAllByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
-	sessions, err := r.db.ListAllContentSessionsByStatus(ctx, string(status))
-	if err == nil {
-		return sessions, nil
-	}
-	slog.Warn("db list all content_sessions by status failed, falling back to in-memory", "err", err)
-	return r.mem.ListAllByStatus(ctx, status)
+	return r.ListByStatus(ctx, status)
 }
 
 func (r *PersistentContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
