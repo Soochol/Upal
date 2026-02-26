@@ -1,7 +1,7 @@
 import { useRef, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, GitBranch, Rss, Loader2, Check, X, Trash2, Search,
+  Plus, GitBranch, Rss, Loader2, Check, X, Trash2, Search
 } from 'lucide-react'
 import { createPipeline, deletePipeline } from '@/entities/pipeline'
 import { createDraftSession } from '@/entities/content-session/api'
@@ -27,7 +27,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [search, setSearch] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const filteredPipelines = useMemo(() => {
@@ -73,10 +72,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
       queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       queryClient.removeQueries({ queryKey: ['content-sessions', { pipelineId: id }] })
       if (selectedId === id) onDeselect()
-      setConfirmDeleteId(null)
-    },
-    onError: () => {
-      setConfirmDeleteId(null)
     },
   })
 
@@ -197,7 +192,10 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
                       </span>
                     )}
                     <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Delete "${p.name}"?`)) deleteMutation.mutate(p.id)
+                      }}
                       className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                       title="Delete"
                     >
@@ -205,27 +203,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
                     </button>
                   </div>
                 </div>
-                {confirmDeleteId === p.id && (
-                  <div
-                    className="flex items-center gap-1.5 mt-1.5 ml-5 text-xs animate-in fade-in duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span className="text-destructive font-medium">Delete?</span>
-                    <button
-                      onClick={() => deleteMutation.mutate(p.id)}
-                      disabled={deleteMutation.isPending}
-                      className="px-1.5 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer font-medium"
-                    >
-                      {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(null)}
-                      className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                    >
-                      No
-                    </button>
-                  </div>
-                )}
               </div>
             )
           })

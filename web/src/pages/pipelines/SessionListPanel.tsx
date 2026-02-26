@@ -34,7 +34,6 @@ export function SessionListPanel({
 }: SessionListPanelProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
@@ -60,9 +59,7 @@ export function SessionListPanel({
     onSuccess: (_data, id) => {
       invalidateSessions()
       if (selectedSessionId === id) onDeselectSession?.()
-      setConfirmDeleteId(null)
     },
-    onError: () => setConfirmDeleteId(null),
   })
 
   // ─── Derived data ────────────────────────────────────────────────────────
@@ -175,7 +172,10 @@ export function SessionListPanel({
                         {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                       </span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm(`Delete "${sessionDisplayName(s)}"?`)) deleteMutation.mutate(s.id)
+                        }}
                         className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                         title="Delete"
                       >
@@ -187,27 +187,6 @@ export function SessionListPanel({
                     <p className="text-xs text-muted-foreground/70 truncate">{s.schedule}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground/50 italic">No schedule set</p>
-                  )}
-                  {confirmDeleteId === s.id && (
-                    <div
-                      className="flex items-center gap-1.5 mt-1.5 ml-5 text-xs animate-in fade-in duration-200"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="text-destructive font-medium">Delete?</span>
-                      <button
-                        onClick={() => deleteMutation.mutate(s.id)}
-                        disabled={deleteMutation.isPending}
-                        className="px-1.5 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer font-medium"
-                      >
-                        {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                      >
-                        No
-                      </button>
-                    </div>
                   )}
                 </div>
               )

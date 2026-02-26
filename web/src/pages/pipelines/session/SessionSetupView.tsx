@@ -32,9 +32,10 @@ const DEFAULT_CONTEXT: PipelineContext = {
 
 type Props = {
   sessionId: string
+  autoFocusName?: boolean
 }
 
-export function SessionSetupView({ sessionId }: Props) {
+export function SessionSetupView({ sessionId, autoFocusName }: Props) {
   const queryClient = useQueryClient()
   const addToast = useUIStore((s) => s.addToast)
 
@@ -79,11 +80,16 @@ export function SessionSetupView({ sessionId }: Props) {
     session?.session_workflows, session?.model, session?.session_context,
   ])
 
-  // Reset editing UI on session switch
+  // Reset editing UI on session switch — auto-focus name for newly created sessions
   useEffect(() => {
-    setIsEditingName(false)
-    setLocalName(session?.name ?? '')
-  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (autoFocusName) {
+      setIsEditingName(true)
+      setLocalName('')
+    } else {
+      setIsEditingName(false)
+      setLocalName(session?.name ?? '')
+    }
+  }, [sessionId, autoFocusName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Auto-save ────────────────────────────────────────────────────────
 
@@ -411,28 +417,34 @@ export function SessionSetupView({ sessionId }: Props) {
             </div>
           </section>
 
-          {/* ════ DESCRIPTION & PROMPT ════ */}
-          {(localContext.description || localContext.prompt) && (
-            <section className="mb-8">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-                Task
-              </h3>
-              <div className="border-t border-border/40">
-                {localContext.description && (
-                  <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                    <span className="w-28 shrink-0 text-sm text-muted-foreground">Description</span>
-                    <span className="text-sm flex-1">{localContext.description}</span>
-                  </div>
-                )}
-                {localContext.prompt && (
-                  <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                    <span className="w-28 shrink-0 text-sm text-muted-foreground">Prompt</span>
-                    <span className="text-sm flex-1 whitespace-pre-wrap">{localContext.prompt}</span>
-                  </div>
-                )}
+          {/* ════ TASK ════ */}
+          <section className="mb-8">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Task
+            </h3>
+            <div className="border-t border-border/40">
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Description</span>
+                <textarea
+                  value={localContext.description || ''}
+                  onChange={(e) => setLocalContext({ ...localContext, description: e.target.value })}
+                  placeholder="What does this task do?"
+                  rows={2}
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30 resize-none"
+                />
               </div>
-            </section>
-          )}
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Prompt</span>
+                <textarea
+                  value={localContext.prompt || ''}
+                  onChange={(e) => setLocalContext({ ...localContext, prompt: e.target.value })}
+                  placeholder="Tell the AI what to do..."
+                  rows={4}
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30 resize-none"
+                />
+              </div>
+            </div>
+          </section>
 
           {/* ════ PROCESSING ════ */}
           <section className="mb-8">
