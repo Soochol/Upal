@@ -46,6 +46,7 @@ type Server struct {
 	publishChannelRepo   repository.PublishChannelRepository
 	generationManager    *services.GenerationManager
 	aiProviderSvc        *services.AIProviderService
+	authSvc              *services.AuthService
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
 }
@@ -68,12 +69,20 @@ func (s *Server) Handler() http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
-		AllowedHeaders:   []string{"Content-Type"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
+	r.Use(AuthMiddleware(s.authSvc))
 	r.Route("/api", func(r chi.Router) {
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/login/{provider}", s.authLogin)
+			r.Get("/callback/{provider}", s.authCallback)
+			r.Post("/refresh", s.authRefresh)
+			r.Post("/logout", s.authLogout)
+			r.Get("/me", s.authMe)
+		})
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", s.createWorkflow)
 			r.Get("/", s.listWorkflows)
@@ -224,6 +233,7 @@ func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) { s.cont
 func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector = c }
 func (s *Server) SetGenerationManager(gm *services.GenerationManager) { s.generationManager = gm }
 func (s *Server) SetAIProviderService(svc *services.AIProviderService) { s.aiProviderSvc = svc }
+func (s *Server) SetAuthService(svc *services.AuthService)             { s.authSvc = svc }
 
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout

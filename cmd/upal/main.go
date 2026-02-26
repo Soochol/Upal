@@ -135,6 +135,13 @@ func serve() {
 		}
 	}
 
+	// Create auth service (requires database for user storage).
+	var authSvc *services.AuthService
+	if database != nil {
+		baseURL := fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+		authSvc = services.NewAuthService(database, cfg.Auth, baseURL)
+	}
+
 	// Create workflow repository (in-memory, or persistent if DB is available).
 	memRepo := repository.NewMemory()
 	var repo repository.WorkflowRepository = memRepo
@@ -204,6 +211,9 @@ func serve() {
 	srv.SetConcurrencyLimiter(limiter)
 	srv.SetRetryExecutor(retryExecutor)
 	srv.SetTriggerRepository(triggerRepo)
+	if authSvc != nil {
+		srv.SetAuthService(authSvc)
+	}
 
 	// Connection management (persistent if DB is available).
 	memConnRepo := repository.NewMemoryConnectionRepository()
