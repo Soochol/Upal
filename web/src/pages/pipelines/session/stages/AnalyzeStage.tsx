@@ -6,10 +6,6 @@ import { useAutoSave, type SaveStatus } from '@/shared/hooks/useAutoSave'
 import { ScoreIndicator } from '@/shared/ui/ScoreIndicator'
 import type { ContentSession, ContentAngle } from '@/entities/content-session'
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
 interface AnalyzeStageProps {
   session: ContentSession
   onApprove: (selectedWorkflows: string[]) => void
@@ -17,10 +13,6 @@ interface AnalyzeStageProps {
   isApproving: boolean
   isRejecting: boolean
 }
-
-// ---------------------------------------------------------------------------
-// Auto-save status indicator
-// ---------------------------------------------------------------------------
 
 function SaveIndicator({ status }: { status: SaveStatus }) {
   if (status === 'waiting' || status === 'saving') {
@@ -50,10 +42,6 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   return null
 }
 
-// ---------------------------------------------------------------------------
-// Score bar
-// ---------------------------------------------------------------------------
-
 function ScoreBar({ score, collected, selected }: { score: number; collected: number; selected: number }) {
   const pct = Math.min(100, Math.max(0, score))
 
@@ -77,10 +65,6 @@ function ScoreBar({ score, collected, selected }: { score: number; collected: nu
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Match type badge
-// ---------------------------------------------------------------------------
 
 function MatchBadge({ matchType }: { matchType?: string }) {
   if (matchType === 'matched') {
@@ -107,10 +91,6 @@ function MatchBadge({ matchType }: { matchType?: string }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function AnalyzeStage({
   session,
   onApprove,
@@ -126,25 +106,16 @@ export function AnalyzeStage({
   // ---- Editable state ----
   const [editedSummary, setEditedSummary] = useState(analysis?.summary ?? '')
   const [editedInsights, setEditedInsights] = useState<string[]>(analysis?.insights ?? [])
-  const [selectedAngles, setSelectedAngles] = useState<Record<string, boolean>>(() => {
-    const map: Record<string, boolean> = {}
-    for (const angle of analysis?.angles ?? []) {
-      map[angle.id] = angle.selected
-    }
-    return map
-  })
+  const [selectedAngles, setSelectedAngles] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries((analysis?.angles ?? []).map(a => [a.id, a.selected])),
+  )
 
   // Sync with prop changes (e.g. SSE updates)
   useEffect(() => {
-    if (analysis) {
-      setEditedSummary(analysis.summary)
-      setEditedInsights([...(analysis.insights ?? [])])
-      const map: Record<string, boolean> = {}
-      for (const angle of analysis.angles ?? []) {
-        map[angle.id] = angle.selected
-      }
-      setSelectedAngles(map)
-    }
+    if (!analysis) return
+    setEditedSummary(analysis.summary)
+    setEditedInsights([...(analysis.insights ?? [])])
+    setSelectedAngles(Object.fromEntries((analysis.angles ?? []).map(a => [a.id, a.selected])))
   }, [analysis])
 
   // ---- Auto-save via shared hook ----
@@ -280,26 +251,29 @@ export function AnalyzeStage({
             {sources.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">No sources.</p>
             ) : (
-              sources.map((src) => (
-                <div key={src.id} className="border-b border-border/50 last:border-b-0">
-                  <div className="px-4 py-2.5 bg-muted/20 text-sm font-semibold text-foreground border-b border-border/50">
-                    {src.label} &middot; <span className="text-muted-foreground">{src.count} items</span>
+              sources.map((src) => {
+                const items = src.items ?? []
+                return (
+                  <div key={src.id} className="border-b border-border/50 last:border-b-0">
+                    <div className="px-4 py-2.5 bg-muted/20 text-sm font-semibold text-foreground border-b border-border/50">
+                      {src.label} &middot; <span className="text-muted-foreground">{src.count} items</span>
+                    </div>
+                    {items.slice(0, 15).map((item, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-2.5 border-b border-border/30 last:border-b-0"
+                      >
+                        <p className="text-sm text-muted-foreground line-clamp-2">{item.title}</p>
+                      </div>
+                    ))}
+                    {items.length > 15 && (
+                      <div className="px-4 py-2 text-sm font-medium text-primary">
+                        +{items.length - 15} more
+                      </div>
+                    )}
                   </div>
-                  {(src.items ?? []).slice(0, 15).map((item, i) => (
-                    <div
-                      key={i}
-                      className="px-4 py-2.5 border-b border-border/30 last:border-b-0"
-                    >
-                      <p className="text-sm text-muted-foreground line-clamp-2">{item.title}</p>
-                    </div>
-                  ))}
-                  {(src.items ?? []).length > 15 && (
-                    <div className="px-4 py-2 text-sm font-medium text-primary">
-                      +{(src.items ?? []).length - 15} more
-                    </div>
-                  )}
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

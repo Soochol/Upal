@@ -119,8 +119,6 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/{id}", s.getContentSession)
 				r.Patch("/{id}", s.patchContentSession)
 				r.Delete("/{id}", s.deleteContentSession)
-				r.Post("/{id}/archive", s.archiveContentSession)
-				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Patch("/{id}/settings", s.patchSessionSettings)
 				r.Post("/{id}/collect", s.collectSession)
 				r.Post("/{id}/run", s.runSessionInstance)

@@ -25,7 +25,7 @@ export function sessionDisplayName(s: ContentSession): string {
 
 // ─── Session filter ──────────────────────────────────────────────────────────
 
-export type SessionFilter = 'all' | 'pending' | 'in_progress' | 'producing' | 'published' | 'rejected' | 'archived'
+export type SessionFilter = 'all' | 'pending' | 'in_progress' | 'producing' | 'published' | 'rejected'
 
 export const SESSION_FILTER_TABS: { value: SessionFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -34,7 +34,6 @@ export const SESSION_FILTER_TABS: { value: SessionFilter; label: string }[] = [
   { value: 'producing', label: 'Producing' },
   { value: 'published', label: 'Published' },
   { value: 'rejected', label: 'Rejected' },
-  { value: 'archived', label: 'Archived' },
 ]
 
 /** Map a session status to the appropriate filter tab */
@@ -46,15 +45,22 @@ export function matchesSessionFilter(status: string, filter: SessionFilter): boo
     case 'producing': return status === 'approved' || status === 'producing' || status === 'error'
     case 'published': return status === 'published'
     case 'rejected': return status === 'rejected'
-    case 'archived': return true // handled separately via query
     default: return true
   }
 }
 
-/** Compute per-filter counts from active + archived session lists */
+/** Polling interval for session queries: polls while session is in-flight */
+export function sessionPollingInterval(session: ContentSession | undefined): number | false {
+  if (!session) return false
+  const { status } = session
+  if (status === 'collecting' || status === 'analyzing' || status === 'producing') return 3000
+  if (status === 'approved' && (!session.workflow_results || session.workflow_results.length === 0)) return 3000
+  return false
+}
+
+/** Compute per-filter counts from session list */
 export function computeFilterCounts(
   sessions: ContentSession[],
-  archivedSessions: ContentSession[],
 ): Record<SessionFilter, number> {
   const counts: Record<SessionFilter, number> = {
     all: sessions.length,
@@ -63,7 +69,6 @@ export function computeFilterCounts(
     producing: 0,
     published: 0,
     rejected: 0,
-    archived: archivedSessions.length,
   }
   for (const s of sessions) {
     if (matchesSessionFilter(s.status, 'pending')) counts.pending++

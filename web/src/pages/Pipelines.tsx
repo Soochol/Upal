@@ -1,4 +1,3 @@
-// web/src/pages/Pipelines.tsx — Pipeline management page (3-column layout)
 import { useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -11,8 +10,6 @@ import { useUIStore } from '@/entities/ui'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
 import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
-
-// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function PipelinesPage() {
   const queryClient = useQueryClient()
@@ -28,11 +25,7 @@ export default function PipelinesPage() {
 
   const selectSession = useCallback((id: string) => {
     if (!selectedPipelineId) return
-    if (id) {
-      setSearchParams({ p: selectedPipelineId, s: id })
-    } else {
-      setSearchParams({ p: selectedPipelineId })
-    }
+    setSearchParams({ p: selectedPipelineId, s: id })
   }, [selectedPipelineId, setSearchParams])
 
   // ─── Data fetching ─────────────────────────────────────────────────────
@@ -114,6 +107,7 @@ export default function PipelinesPage() {
               isContentPipeline={(selectedPipeline?.stages ?? []).some(s => s.type === 'collect')}
               selectedSessionId={selectedSessionId}
               onSelectSession={selectSession}
+              onDeselectSession={goBackToSessions}
               onNewSession={() => newSessionMutation.mutate()}
               onBack={goBackToPipelines}
               className="h-full"

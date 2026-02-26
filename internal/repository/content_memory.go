@@ -36,20 +36,18 @@ func (r *MemoryContentSessionRepository) Get(ctx context.Context, id string) (*u
 }
 
 func (r *MemoryContentSessionRepository) List(ctx context.Context) ([]*upal.ContentSession, error) {
-	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.ArchivedAt == nil
-	})
+	return r.store.All(ctx)
 }
 
 func (r *MemoryContentSessionRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.Status == status && s.ArchivedAt == nil
+		return s.Status == status
 	})
 }
 
@@ -61,25 +59,13 @@ func (r *MemoryContentSessionRepository) ListAllByStatus(ctx context.Context, st
 
 func (r *MemoryContentSessionRepository) ListByPipelineAndStatus(ctx context.Context, pipelineID string, status upal.ContentSessionStatus) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.Status == status && s.ArchivedAt == nil
-	})
-}
-
-func (r *MemoryContentSessionRepository) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
-	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.ArchivedAt != nil
-	})
-}
-
-func (r *MemoryContentSessionRepository) ListArchived(ctx context.Context) ([]*upal.ContentSession, error) {
-	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.ArchivedAt != nil && !s.IsTemplate
+		return s.PipelineID == pipelineID && s.Status == status
 	})
 }
 
 func (r *MemoryContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
-		return s.PipelineID == pipelineID && s.IsTemplate && s.ArchivedAt == nil
+		return s.PipelineID == pipelineID && s.IsTemplate
 	})
 }
 

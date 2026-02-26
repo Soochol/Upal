@@ -35,7 +35,7 @@ type ConfigurePipelineResponse struct {
 }
 
 func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
-	_ = chi.URLParam(r, "id")
+	pipelineID := chi.URLParam(r, "id")
 
 	var req ConfigurePipelineRequest
 	if !decodeJSON(w, r, &req) {
@@ -68,6 +68,22 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 	sysPrompt := ""
 	if s.skills != nil {
 		sysPrompt = s.skills.GetPrompt("pipeline-configure")
+
+		// Inject stage-type skills for the pipeline's stages (mirrors configureNode pattern)
+		if s.pipelineSvc != nil {
+			if p, err := s.pipelineSvc.Get(r.Context(), pipelineID); err == nil {
+				seen := map[string]bool{}
+				for _, st := range p.Stages {
+					key := "stage-" + st.Type
+					if !seen[key] {
+						if skill := s.skills.Get(key); skill != "" {
+							sysPrompt += "\n\n--- STAGE GUIDE: " + st.Type + " ---\n\n" + skill
+						}
+						seen[key] = true
+					}
+				}
+			}
+		}
 	}
 
 	sysPrompt = s.appendModelCatalog(sysPrompt, modelName)

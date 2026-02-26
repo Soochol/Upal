@@ -1,5 +1,4 @@
-export { NodeEditor, fieldBox, fieldBoxExpand } from './ui/NodeEditor'
-export type { NodeEditorFieldProps } from './ui/NodeEditor'
+export { NodeEditor } from './ui/NodeEditor'
 export { registerAllEditors } from './model/registerEditors'
 export { useUpstreamNodes } from './model/useUpstreamNodes'
 export type { UpstreamNode } from './model/useUpstreamNodes'

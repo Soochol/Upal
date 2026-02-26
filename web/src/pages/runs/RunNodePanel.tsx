@@ -9,7 +9,8 @@ import { getNodeDefinition } from '@/entities/node'
 import type { NodeType } from '@/entities/node'
 import { TemplateText } from '@/shared/ui/TemplateText'
 import { NodeOutputViewer } from '@/widgets/right-panel/ui/console/NodeOutputViewer'
-import { resolveFormat, type OutputFormatDef } from '@/shared/lib/outputFormats'
+import type { OutputFormatDef } from '@/shared/lib/outputFormats'
+import { resolveFormat } from '@/shared/lib/outputFormats'
 import {
   Settings2, Terminal, Eye, X,
   CheckCircle2, XCircle, Loader2,
@@ -22,8 +23,6 @@ type Props = {
   run: RunRecord
   onClose: () => void
 }
-
-// ── Topological sort ──
 
 type SortedEntry = { node: Node<NodeData>; inDegree: number }
 
@@ -65,14 +64,18 @@ function sortAllNodesTopologically(nodes: Node<NodeData>[], edges: Edge[]): Sort
     .map((id) => ({ node: nodeMap.get(id)!, inDegree: inDegreeMap.get(id) ?? 0 }))
 }
 
-// ── Node status helpers ──
+const STATUS_ICONS: Record<string, { icon: typeof Loader2; className: string }> = {
+  running: { icon: Loader2, className: 'h-3 w-3 animate-spin text-muted-foreground' },
+  error:   { icon: XCircle, className: 'h-3 w-3 text-destructive' },
+  skipped: { icon: SkipForward, className: 'h-3 w-3 text-muted-foreground/40' },
+  waiting: { icon: Pause, className: 'h-3 w-3 text-warning' },
+}
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === 'running') return <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-  if (status === 'error')   return <XCircle className="h-3 w-3 text-destructive" />
-  if (status === 'skipped') return <SkipForward className="h-3 w-3 text-muted-foreground/40" />
-  if (status === 'waiting') return <Pause className="h-3 w-3 text-warning" />
-  return null
+  const cfg = STATUS_ICONS[status]
+  if (!cfg) return null
+  const Icon = cfg.icon
+  return <Icon className={cfg.className} />
 }
 
 function formatOutput(value: unknown): string {
@@ -80,8 +83,6 @@ function formatOutput(value: unknown): string {
   if (typeof value === 'string') return value
   return JSON.stringify(value, null, 2)
 }
-
-// ── NodeStepCard (for Console) ──
 
 function NodeStepCard({ node, status, output, isSelected }: {
   node: Node<NodeData>
@@ -160,8 +161,6 @@ function NodeStepCard({ node, status, output, isSelected }: {
   )
 }
 
-// ── RunConsole tab ──
-
 function RunConsole({ run, selectedNodeId }: { run: RunRecord; selectedNodeId: string | null }) {
   const nodes = useWorkflowStore((s) => s.nodes)
   const edges = useWorkflowStore((s) => s.edges)
@@ -169,15 +168,6 @@ function RunConsole({ run, selectedNodeId }: { run: RunRecord; selectedNodeId: s
 
   const sortedNodes = useMemo(() => sortAllNodesTopologically(nodes, edges), [nodes, edges])
 
-  const renderableNodes = useMemo(
-    () => sortedNodes.filter(({ node }) => {
-      try { getNodeDefinition(node.data.nodeType as 'input' | 'agent' | 'output' | 'asset'); return true }
-      catch { return false }
-    }),
-    [sortedNodes],
-  )
-
-  // Merge run.outputs with run.node_runs for output
   const nodeRunMap = useMemo(() => {
     const map = new Map<string, NodeRunRecord>()
     for (const nr of run.node_runs ?? []) map.set(nr.node_id, nr)
@@ -190,12 +180,11 @@ function RunConsole({ run, selectedNodeId }: { run: RunRecord; selectedNodeId: s
         <span className="text-xs font-medium text-muted-foreground">Steps</span>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {renderableNodes.length === 0 ? (
+        {sortedNodes.length === 0 ? (
           <p className="text-xs text-muted-foreground px-1 py-2">No nodes.</p>
         ) : (
-          renderableNodes.map(({ node }) => {
+          sortedNodes.map(({ node }) => {
             const nr = nodeRunMap.get(node.id)
-            // Prefer live status from execution store (SSE), fallback to run record
             const status = liveStatuses[node.id] ?? nr?.status ?? 'idle'
             const output = run.outputs?.[node.id]
             return (
@@ -213,8 +202,6 @@ function RunConsole({ run, selectedNodeId }: { run: RunRecord; selectedNodeId: s
     </div>
   )
 }
-
-// ── RunPreview tab ──
 
 function useLazyResultView(format: OutputFormatDef) {
   return useMemo(() => lazy(format.ResultView), [format])
@@ -297,12 +284,18 @@ function FormatResultView({ format, content, workflowName }: {
   )
 }
 
-// ── RunProperties tab ──
-
 const fieldBoxClass = "text-xs rounded-md border border-input bg-transparent px-3 py-2 whitespace-pre-wrap break-words select-text"
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v ? v : null
+}
+
+function formatExtraction(extract: { mode?: string; key?: string; tag?: string }): string {
+  switch (extract.mode) {
+    case 'json': return `JSON key: ${extract.key ?? ''}`
+    case 'tagged': return `XML tag: <${extract.tag ?? ''}>`
+    default: return 'None'
+  }
 }
 
 function RunProperties({ node }: { node: Node<NodeData> }) {
@@ -399,11 +392,7 @@ function RunProperties({ node }: { node: Node<NodeData> }) {
         {extract?.mode && (
           <PropField label="Output Extraction">
             <span className="text-xs text-muted-foreground">
-              {extract.mode === 'json'
-                ? `JSON key: ${extract.key ?? ''}`
-                : extract.mode === 'tagged'
-                  ? `XML tag: <${extract.tag ?? ''}>`
-                  : 'None'}
+              {formatExtraction(extract)}
             </span>
           </PropField>
         )}
@@ -440,15 +429,12 @@ function PropField({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
-// ── Main Panel ──
-
 const tabTriggerClass = "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 py-2 flex items-center gap-1.5 text-xs font-medium"
 
 export function RunNodePanel({ selectedNode, run, onClose }: Props) {
   const [activeTab, setActiveTab] = useState('console')
   const prevNodeIdRef = useRef<string | null>(null)
 
-  // Auto-switch to Properties when a node is selected
   useEffect(() => {
     if (selectedNode && selectedNode.id !== prevNodeIdRef.current) {
       setActiveTab('properties')

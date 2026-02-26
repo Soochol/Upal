@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Power,
@@ -16,14 +16,11 @@ import {
   deactivateSession,
   runSessionInstance,
 } from '@/entities/content-session/api'
+import { sessionPollingInterval } from '@/entities/content-session/constants'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { useUIStore } from '@/entities/ui'
 import type { ContentSession } from '@/entities/content-session'
 import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
   { label: 'Every hour', cron: '0 * * * *' },
@@ -46,17 +43,9 @@ const SOURCE_TYPE_MAP = Object.fromEntries(
   [...STATIC_SOURCES, ...SIGNAL_SOURCES].map(s => [s.type, s]),
 )
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
 type Props = {
   sessionId: string
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export function SessionSetupView({ sessionId }: Props) {
   const queryClient = useQueryClient()
@@ -68,21 +57,13 @@ export function SessionSetupView({ sessionId }: Props) {
     queryKey: ['content-session', sessionId],
     queryFn: () => fetchContentSession(sessionId),
     enabled: !!sessionId,
-    refetchInterval: (query) => {
-      const s = query.state.data
-      if (!s) return false
-      if (s.status === 'collecting' || s.status === 'analyzing' || s.status === 'producing') return 3000
-      if (s.status === 'approved' && (!s.workflow_results || s.workflow_results.length === 0)) return 3000
-      return false
-    },
+    refetchInterval: (query) => sessionPollingInterval(query.state.data),
   })
-
 
   const { data: channels = [] } = useQuery({
     queryKey: ['publish-channels'],
     queryFn: fetchPublishChannels,
   })
-
 
   // ─── Local settings state ─────────────────────────────────────────────
 
@@ -99,22 +80,16 @@ export function SessionSetupView({ sessionId }: Props) {
   const [localName, setLocalName] = useState('')
 
   // Effective values: session-level values only (no pipeline fallback for templates)
-  const effectiveSources = useMemo(
-    () => session?.session_sources ?? [],
-    [session?.session_sources],
-  )
+  const effectiveSources = session?.session_sources ?? []
   const effectiveSchedule = session?.schedule ?? ''
-  const effectiveWorkflows = useMemo(
-    () => session?.session_workflows ?? [],
-    [session?.session_workflows],
-  )
+  const effectiveWorkflows = session?.session_workflows ?? []
   const effectiveModel = session?.model ?? ''
-  const effectiveContext = session?.context ?? DEFAULT_CONTEXT
+  const effectiveContext = session?.session_context ?? DEFAULT_CONTEXT
 
   // Fingerprint of server-side data — changes when refetch brings new values
   const serverFingerprint = JSON.stringify([
     session?.session_sources, session?.schedule,
-    session?.session_workflows, session?.model, session?.context,
+    session?.session_workflows, session?.model, session?.session_context,
   ])
 
   // Reset editing UI on session switch
@@ -204,8 +179,6 @@ export function SessionSetupView({ sessionId }: Props) {
     }
   }
 
-  const nameInputRef = useRef<HTMLInputElement>(null)
-
   // ─── Derived ──────────────────────────────────────────────────────────
 
   const signalCount = localSources.filter(s => s.source_type === 'signal').length
@@ -230,7 +203,6 @@ export function SessionSetupView({ sessionId }: Props) {
         <div className="flex items-center justify-between">
           {isEditingName ? (
             <input
-              ref={nameInputRef}
               autoFocus
               type="text"
               value={localName}
@@ -293,9 +265,10 @@ export function SessionSetupView({ sessionId }: Props) {
                 </h3>
                 {localSources.length > 0 && (
                   <span className="text-xs text-muted-foreground/50">
-                    {signalCount > 0 && `${signalCount} signal${signalCount !== 1 ? 's' : ''}`}
-                    {signalCount > 0 && staticCount > 0 && ' \u00b7 '}
-                    {staticCount > 0 && `${staticCount} static`}
+                    {[
+                      signalCount > 0 && `${signalCount} signal${signalCount !== 1 ? 's' : ''}`,
+                      staticCount > 0 && `${staticCount} static`,
+                    ].filter(Boolean).join(' \u00b7 ')}
                   </span>
                 )}
               </div>
@@ -612,20 +585,7 @@ export function SessionSetupView({ sessionId }: Props) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// InlineTextField — property row with click-to-edit
-// ---------------------------------------------------------------------------
-
-function InlineTextField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  multiline,
-  editing,
-  onStartEdit,
-  onEndEdit,
-}: {
+type InlineTextFieldProps = {
   label: string
   value: string
   onChange: (v: string) => void
@@ -634,7 +594,12 @@ function InlineTextField({
   editing: boolean
   onStartEdit: () => void
   onEndEdit: () => void
-}) {
+}
+
+function InlineTextField({
+  label, value, onChange, placeholder, multiline,
+  editing, onStartEdit, onEndEdit,
+}: InlineTextFieldProps) {
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null)
 
   useEffect(() => {

@@ -60,17 +60,14 @@ export function RunViewer() {
     initial: 400,
   })
 
-  // Keep a ref to the abort controller for SSE cleanup
   const abortRef = useRef<AbortController | null>(null)
 
-  // Auto-open panel on node selection
   useEffect(() => {
     if (selectedNodeId) {
       setIsPanelOpen(true)
     }
   }, [selectedNodeId])
 
-  // Fetch run and load workflow into canvas
   useEffect(() => {
     if (!id) return
 
@@ -84,7 +81,6 @@ export function RunViewer() {
         if (cancelled) return
         setRun(r)
 
-        // Deserialize the workflow definition into the canvas store
         if (r.workflow_definition) {
           try {
             const { nodes: flowNodes, edges: flowEdges } = deserializeWorkflow(r.workflow_definition)
@@ -94,14 +90,12 @@ export function RunViewer() {
           }
         }
 
-        // Map existing node_runs statuses to the execution store
         if (r.node_runs) {
           for (const nr of r.node_runs) {
             setNodeStatus(nr.node_id, nr.status)
           }
         }
 
-        // Connect to SSE for live runs
         if (r.status === 'running' || r.status === 'pending') {
           connectSSE(r.id)
         }
@@ -139,7 +133,6 @@ export function RunViewer() {
         } else if (event.type === 'node_completed') {
           const nodeId = 'nodeId' in event && event.nodeId ? event.nodeId : 'system'
           setNodeStatus(nodeId, 'completed')
-          // Update run outputs in local state
           setRun((prev) => {
             if (!prev) return prev
             return {
@@ -153,8 +146,7 @@ export function RunViewer() {
           setNodeStatus(event.nodeId, 'waiting')
         }
       },
-      (_result) => {
-        // Run completed — re-fetch for final state
+      () => {
         fetchRun(runId).then((r) => setRun(r)).catch(() => {})
       },
       (error) => {
@@ -164,7 +156,6 @@ export function RunViewer() {
     )
   }
 
-  // Loading state
   if (loading) {
     return (
       <MainLayout>
@@ -175,7 +166,6 @@ export function RunViewer() {
     )
   }
 
-  // Not found
   if (!run) {
     return (
       <MainLayout>
@@ -197,7 +187,6 @@ export function RunViewer() {
 
   const headerContent = (
     <div className="flex items-center gap-2">
-      {/* Back button */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -206,12 +195,10 @@ export function RunViewer() {
         Back
       </button>
 
-      {/* Run ID */}
       <code className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded font-mono">
         {run.id.length > 12 ? `${run.id.slice(0, 12)}...` : run.id}
       </code>
 
-      {/* Status badge */}
       <div className="flex items-center gap-1.5">
         <StatusIcon
           size={16}
@@ -226,17 +213,14 @@ export function RunViewer() {
         </span>
       )}
 
-      {/* Workflow name */}
       <span className="text-xs text-muted-foreground">
         {run.workflow_name}
       </span>
 
-      {/* Duration */}
       <span className="text-xs text-muted-foreground font-mono">
         {formatDuration(run)}
       </span>
 
-      {/* Open Workflow */}
       <Link
         to={`/workflows?w=${encodeURIComponent(run.workflow_name)}`}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -245,7 +229,6 @@ export function RunViewer() {
         Open Workflow
       </Link>
 
-      {/* Panel toggle */}
       <button
         onClick={() => setIsPanelOpen((v) => !v)}
         className="p-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
@@ -258,9 +241,7 @@ export function RunViewer() {
 
   return (
     <MainLayout headerContent={headerContent}>
-      {/* Canvas + Panel */}
       <div className="flex-1 min-h-0 overflow-hidden flex">
-        {/* Canvas area */}
         <div className="flex-1 min-w-0 h-full">
           {hasWorkflow ? (
             <ReactFlowProvider>
@@ -280,7 +261,6 @@ export function RunViewer() {
           )}
         </div>
 
-        {/* Right panel */}
         {isPanelOpen && (
           <div className="hidden md:contents">
             <div

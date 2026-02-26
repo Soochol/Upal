@@ -29,7 +29,6 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
 
     const handleMutate = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-        queryClient.invalidateQueries({ queryKey: ['inbox-sessions-archived'] })
     }, [queryClient])
 
     if (sessionLoading || pipelineLoading || !session || !pipeline) {
@@ -58,7 +57,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                 <SessionDetailPreview
                     pipelineId={pipeline.id}
                     sessionId={sessionId}
-                    showArchive
+                    showDelete
                     onMutate={handleMutate}
                 />
             </div>

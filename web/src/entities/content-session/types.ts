@@ -79,7 +79,7 @@ export type ContentSession = {
   schedule?: string
   model?: string
   session_workflows?: PipelineWorkflow[]
-  context?: PipelineContext
+  session_context?: PipelineContext
   // Composed data
   sources?: SourceFetch[]
   analysis?: LLMAnalysis
@@ -87,5 +87,4 @@ export type ContentSession = {
   created_at: string
   updated_at?: string
   reviewed_at?: string
-  archived_at?: string
 }

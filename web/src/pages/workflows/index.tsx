@@ -1,6 +1,3 @@
-// web/src/pages/workflows/index.tsx — Unified Workflows page (inbox-style layout)
-// Merges Landing.tsx (listing) + Editor.tsx (canvas editing) into a single 3-column view.
-
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -25,16 +22,13 @@ import { useReconnectRun } from '@/features/execute-workflow'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
 
-// ─── Page ────────────────────────────────────────────────────────────────────
-
 export default function WorkflowsPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const selectedWorkflowName = searchParams.get('w')
   const isGenerateMode = searchParams.get('generate') === 'true'
-
-  // ─── Workflow store ─────────────────────────────────────────────────────
+  const hasWorkflowSelected = !!selectedWorkflowName
 
   const addNode = useWorkflowStore((s) => s.addNode)
   const nodes = useWorkflowStore((s) => s.nodes)
@@ -44,13 +38,9 @@ export default function WorkflowsPage() {
   const isTemplate = useWorkflowStore((s) => s.isTemplate)
   const setIsTemplate = useWorkflowStore((s) => s.setIsTemplate)
 
-  // ─── Execution store ────────────────────────────────────────────────────
-
   const addRunEvent = useExecutionStore((s) => s.addRunEvent)
   const setIsRunning = useExecutionStore((s) => s.setIsRunning)
   const startLocalRun = useExecutionStore((s) => s.startRun)
-
-  // ─── UI store ───────────────────────────────────────────────────────────
 
   const selectedNodeId = useUIStore((s) => s.selectedNodeId)
   const selectNode = useUIStore((s) => s.selectNode)
@@ -59,8 +49,6 @@ export default function WorkflowsPage() {
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId) ?? null
     : null
-
-  // ─── Local state ────────────────────────────────────────────────────────
 
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
@@ -73,20 +61,15 @@ export default function WorkflowsPage() {
     initial: 320,
   })
 
-  // ─── Auto-save + reconnect ──────────────────────────────────────────────
-
   const { saveStatus, saveNow, markClean } = useAutoSave()
   useReconnectRun()
   useKeyboardShortcuts({ onSave: saveNow })
-
-  // ─── Data fetching ──────────────────────────────────────────────────────
 
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
     queryFn: listWorkflows,
   })
 
-  // Detect running workflows on mount
   useEffect(() => {
     fetchRuns(100, 0)
       .then(({ runs }) => {
@@ -101,8 +84,6 @@ export default function WorkflowsPage() {
       })
   }, [])
 
-  // ─── Load workflow when ?w= param changes ──────────────────────────────
-
   useEffect(() => {
     if (!selectedWorkflowName) return
 
@@ -114,16 +95,12 @@ export default function WorkflowsPage() {
         useWorkflowStore.getState().setOriginalName(wf.name)
         useExecutionStore.getState().clearNodeStatuses()
         useExecutionStore.getState().clearRunEvents()
-        // Mark loaded state as clean so auto-save doesn't re-save it
-        // (which would bump updated_at and move the item to top of the list)
         markClean()
       })
       .catch(() => {
         addToast(`Workflow "${selectedWorkflowName}" not found.`)
       })
   }, [selectedWorkflowName]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Auto-open right panel when node selected ─────────────────────────
 
   useEffect(() => {
     if (selectedNodeId) {
@@ -135,8 +112,6 @@ export default function WorkflowsPage() {
     setIsRightPanelOpen(false)
   }, [])
 
-  // ─── Store reset helper ────────────────────────────────────────────────
-
   const resetStores = useCallback((name: string, template = false) => {
     useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: template })
     useWorkflowStore.getState().setWorkflowName(name)
@@ -144,8 +119,6 @@ export default function WorkflowsPage() {
     useExecutionStore.getState().clearNodeStatuses()
     useExecutionStore.getState().clearRunEvents()
   }, [])
-
-  // ─── Sidebar callbacks ─────────────────────────────────────────────────
 
   const handleSelect = useCallback(async (name: string) => {
     await saveNow()
@@ -190,8 +163,6 @@ export default function WorkflowsPage() {
     useExecutionStore.getState().clearRunEvents()
     setSearchParams({ w: tpl.workflow.name })
   }, [saveNow, setSearchParams])
-
-  // ─── Canvas callbacks ──────────────────────────────────────────────────
 
   const handleAddNode = useCallback((type: Parameters<typeof addNode>[0]) => {
     const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
@@ -270,19 +241,14 @@ export default function WorkflowsPage() {
     useWorkflowStore.getState().setOriginalName('')
   }, [setIsTemplate, setWorkflowName])
 
-  // ─── Refresh sidebar after auto-save ────────────────────────────────────
-
   useEffect(() => {
     if (saveStatus === 'saved') {
       queryClient.invalidateQueries({ queryKey: ['workflows'] })
     }
   }, [saveStatus, queryClient])
 
-  // ─── Generate mode: auto-focus prompt bar ──────────────────────────────
-
   useEffect(() => {
     if (isGenerateMode) {
-      // Clear the generate flag from URL so it doesn't re-trigger
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         next.delete('generate')
@@ -291,18 +257,11 @@ export default function WorkflowsPage() {
     }
   }, [isGenerateMode, setSearchParams])
 
-  // ─── Mobile level ──────────────────────────────────────────────────────
-
-  type MobileLevel = 'list' | 'detail'
-  const mobileLevel: MobileLevel = selectedWorkflowName ? 'detail' : 'list'
+  const mobileLevel = selectedWorkflowName ? 'detail' : 'list'
 
   const goBackToList = useCallback(() => {
     setSearchParams({})
   }, [setSearchParams])
-
-  // ─── Render ────────────────────────────────────────────────────────────
-
-  const hasWorkflowSelected = !!selectedWorkflowName
 
   return (
     <MainLayout
@@ -325,7 +284,6 @@ export default function WorkflowsPage() {
     >
       <div className="flex h-full w-full overflow-hidden bg-background">
 
-        {/* ── Left sidebar: Workflow list ── */}
         <div className={cn(
           'w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border',
           'bg-sidebar/30 backdrop-blur-xl z-20 flex flex-col',
@@ -345,14 +303,12 @@ export default function WorkflowsPage() {
           />
         </div>
 
-        {/* ── Center: Canvas area ── */}
         <div className={cn(
           'flex-1 min-w-0 flex flex-col relative',
           mobileLevel === 'list' ? 'hidden md:flex' : 'flex',
         )}>
           {hasWorkflowSelected ? (
             <>
-              {/* Mobile-only back button */}
               <div className="md:hidden px-4 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center">
                 <button
                   onClick={goBackToList}
@@ -362,7 +318,6 @@ export default function WorkflowsPage() {
                 </button>
               </div>
 
-              {/* Canvas + Right Panel */}
               <div className="flex-1 min-h-0 overflow-hidden flex">
                 <div className="flex-1 min-w-0 h-full relative">
                   <ReactFlowProvider>
@@ -378,7 +333,6 @@ export default function WorkflowsPage() {
                     />
                   </ReactFlowProvider>
 
-                  {/* Floating panel toggle — visible when panel is closed */}
                   {!isRightPanelOpen && (
                     <button
                       onClick={() => setIsRightPanelOpen(true)}
@@ -390,7 +344,6 @@ export default function WorkflowsPage() {
                   )}
                 </div>
 
-                {/* Right Inspector Panel — inside canvas area */}
                 {isRightPanelOpen && (
                   <div className="hidden md:contents">
                     <div
@@ -414,7 +367,6 @@ export default function WorkflowsPage() {
               </div>
             </>
           ) : (
-            /* Empty state — no workflow selected */
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
               <div className="size-14 rounded-full bg-muted/30 flex items-center justify-center shrink-0 border border-border/50">
                 <Search className="w-6 h-6 opacity-30" />

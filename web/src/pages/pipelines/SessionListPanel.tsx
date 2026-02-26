@@ -2,14 +2,12 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, FileText,
-  Plus, ArrowLeft, GitBranch,
+  Plus, ArrowLeft, GitBranch, Trash2,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { EditableName } from '@/shared/ui/EditableName'
-import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
+import { fetchContentSessions, updateSessionSettings, deleteSession } from '@/entities/content-session/api'
 import { sessionDisplayName, SESSION_STATUS_DOT } from '@/entities/content-session/constants'
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 interface SessionListPanelProps {
   pipelineId: string
@@ -17,6 +15,7 @@ interface SessionListPanelProps {
   isContentPipeline?: boolean
   selectedSessionId: string | null
   onSelectSession: (id: string) => void
+  onDeselectSession?: () => void
   onNewSession?: () => void
   onBack?: () => void
   className?: string
@@ -28,12 +27,14 @@ export function SessionListPanel({
   isContentPipeline = true,
   selectedSessionId,
   onSelectSession,
+  onDeselectSession,
   onNewSession,
   onBack,
   className,
 }: SessionListPanelProps) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
@@ -42,7 +43,6 @@ export function SessionListPanel({
     queryFn: () => fetchContentSessions({ pipelineId, templateOnly: true }),
     enabled: !!pipelineId,
   })
-
 
   // ─── Mutations ───────────────────────────────────────────────────────────
 
@@ -53,6 +53,16 @@ export function SessionListPanel({
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
     onSuccess: invalidateSessions,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSession(id),
+    onSuccess: (_data, id) => {
+      invalidateSessions()
+      if (selectedSessionId === id) onDeselectSession?.()
+      setConfirmDeleteId(null)
+    },
+    onError: () => setConfirmDeleteId(null),
   })
 
   // ─── Derived data ────────────────────────────────────────────────────────
@@ -107,17 +117,15 @@ export function SessionListPanel({
       {/* Search + Filters */}
       {showSessionList && (
         <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder="Search sessions..."
-                className="w-full h-9 pl-9 pr-4 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search sessions..."
+              className="w-full h-9 pl-9 pr-4 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
         </div>
       )}
@@ -138,7 +146,7 @@ export function SessionListPanel({
             filteredSessions.map((s) => {
               const isSelected = selectedSessionId === s.id
               return (
-                <button
+                <div
                   key={s.id}
                   onClick={() => onSelectSession(s.id)}
                   className={cn(
@@ -162,16 +170,46 @@ export function SessionListPanel({
                         className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
                       />
                     </div>
-                    <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">
-                      {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs text-muted-foreground/60 whitespace-nowrap">
+                        {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
+                        className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                   {s.schedule ? (
                     <p className="text-xs text-muted-foreground/70 truncate">{s.schedule}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground/50 italic">No schedule set</p>
                   )}
-                </button>
+                  {confirmDeleteId === s.id && (
+                    <div
+                      className="flex items-center gap-1.5 mt-1.5 ml-5 text-xs animate-in fade-in duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-destructive font-medium">Delete?</span>
+                      <button
+                        onClick={() => deleteMutation.mutate(s.id)}
+                        disabled={deleteMutation.isPending}
+                        className="px-1.5 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer font-medium"
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Yes'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )}
+                </div>
               )
             })
           )}

@@ -13,7 +13,7 @@ import (
 
 const contentSessionColumns = `id, pipeline_id, name, status, trigger_type, source_count,
 	sources, schedule, model, workflows, context,
-	is_template, parent_session_id, created_at, reviewed_at, archived_at`
+	is_template, parent_session_id, created_at, reviewed_at`
 
 // scanContentSession scans a single row into a ContentSession, unmarshaling JSONB fields.
 func scanContentSession(scanner interface{ Scan(...any) error }) (*upal.ContentSession, error) {
@@ -23,7 +23,7 @@ func scanContentSession(scanner interface{ Scan(...any) error }) (*upal.ContentS
 	if err := scanner.Scan(
 		&s.ID, &s.PipelineID, &s.Name, &status, &s.TriggerType, &s.SourceCount,
 		&sourcesJSON, &s.Schedule, &s.Model, &workflowsJSON, &ctxJSON,
-		&s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt, &s.ArchivedAt,
+		&s.IsTemplate, &s.ParentSessionID, &s.CreatedAt, &s.ReviewedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -84,11 +84,11 @@ func (d *DB) CreateContentSession(ctx context.Context, s *upal.ContentSession) e
 	_, err = d.Pool.ExecContext(ctx,
 		`INSERT INTO content_sessions (id, pipeline_id, name, status, trigger_type, source_count,
 		 sources, schedule, model, workflows, context,
-		 is_template, parent_session_id, created_at, reviewed_at, archived_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+		 is_template, parent_session_id, created_at, reviewed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		s.ID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxJSON,
-		s.IsTemplate, s.ParentSessionID, s.CreatedAt, s.ReviewedAt, s.ArchivedAt,
+		s.IsTemplate, s.ParentSessionID, s.CreatedAt, s.ReviewedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert content_session: %w", err)
@@ -112,7 +112,7 @@ func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSes
 
 func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions: %w", err)
@@ -123,7 +123,7 @@ func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, e
 
 func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 ORDER BY created_at DESC`,
 		pipelineID,
 	)
 	if err != nil {
@@ -141,11 +141,11 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 	res, err := d.Pool.ExecContext(ctx,
 		`UPDATE content_sessions SET name = $1, status = $2, source_count = $3,
 		 sources = $4, schedule = $5, model = $6, workflows = $7, context = $8,
-		 is_template = $9, parent_session_id = $10, reviewed_at = $11, archived_at = $12
-		 WHERE id = $13`,
+		 is_template = $9, parent_session_id = $10, reviewed_at = $11
+		 WHERE id = $12`,
 		s.Name, string(s.Status), s.SourceCount,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxJSON,
-		s.IsTemplate, s.ParentSessionID, s.ReviewedAt, s.ArchivedAt, s.ID,
+		s.IsTemplate, s.ParentSessionID, s.ReviewedAt, s.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update content_session: %w", err)
@@ -159,7 +159,7 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 
 func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE status = $1 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
 		status,
 	)
 	if err != nil {
@@ -183,7 +183,7 @@ func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) 
 
 func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND status = $2 AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND status = $2 ORDER BY created_at DESC`,
 		pipelineID, status,
 	)
 	if err != nil {
@@ -193,21 +193,9 @@ func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelin
 	return scanContentSessions(rows)
 }
 
-func (d *DB) ListArchivedContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
-	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND archived_at IS NOT NULL ORDER BY archived_at DESC`,
-		pipelineID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list archived content_sessions: %w", err)
-	}
-	defer rows.Close()
-	return scanContentSessions(rows)
-}
-
 func (d *DB) ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND is_template = true AND archived_at IS NULL ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND is_template = true ORDER BY created_at DESC`,
 		pipelineID,
 	)
 	if err != nil {

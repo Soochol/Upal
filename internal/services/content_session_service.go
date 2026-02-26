@@ -92,15 +92,6 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 	return s.buildDetails(ctx, sessions, names), nil
 }
 
-func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error) {
-	sessions, err := s.sessions.ListAllByStatus(ctx, status)
-	if err != nil {
-		return nil, err
-	}
-	names := s.newPipelineNameCache(ctx)
-	return s.buildDetails(ctx, sessions, names), nil
-}
-
 func (s *ContentSessionService) ListAllInstanceSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
 	allSessions, err := s.sessions.List(ctx)
 	if err != nil {
@@ -319,38 +310,9 @@ func (s *ContentSessionService) DismissSurge(ctx context.Context, id string) err
 	return s.surges.Update(ctx, se)
 }
 
-func (s *ContentSessionService) ArchiveSession(ctx context.Context, id string) error {
-	sess, err := s.sessions.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	if sess.ArchivedAt != nil {
-		return fmt.Errorf("session %q: %w", id, upal.ErrAlreadyArchived)
-	}
-	now := time.Now()
-	sess.ArchivedAt = &now
-	return s.sessions.Update(ctx, sess)
-}
-
-func (s *ContentSessionService) UnarchiveSession(ctx context.Context, id string) error {
-	sess, err := s.sessions.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	if sess.ArchivedAt == nil {
-		return fmt.Errorf("session %q: %w", id, upal.ErrNotArchived)
-	}
-	sess.ArchivedAt = nil
-	return s.sessions.Update(ctx, sess)
-}
-
 func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) error {
-	sess, err := s.sessions.Get(ctx, id)
-	if err != nil {
+	if _, err := s.sessions.Get(ctx, id); err != nil {
 		return err
-	}
-	if sess.ArchivedAt == nil {
-		return fmt.Errorf("session %q: %w", id, upal.ErrMustBeArchived)
 	}
 
 	if err := s.published.DeleteBySession(ctx, id); err != nil {
@@ -367,68 +329,19 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 }
 
 func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pipelineID string) error {
-	active, err := s.sessions.ListByPipeline(ctx, pipelineID)
+	sessions, err := s.sessions.ListByPipeline(ctx, pipelineID)
 	if err != nil {
-		return fmt.Errorf("list active sessions for pipeline %s: %w", pipelineID, err)
-	}
-	archived, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
-	if err != nil {
-		return fmt.Errorf("list archived sessions for pipeline %s: %w", pipelineID, err)
-	}
-	templates, err := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
-	if err != nil {
-		return fmt.Errorf("list template sessions for pipeline %s: %w", pipelineID, err)
+		return fmt.Errorf("list sessions for pipeline %s: %w", pipelineID, err)
 	}
 
-	seen := make(map[string]bool)
-	var ids []string
-	for _, list := range [][]*upal.ContentSession{active, archived, templates} {
-		for _, sess := range list {
-			if !seen[sess.ID] {
-				seen[sess.ID] = true
-				ids = append(ids, sess.ID)
-			}
-		}
-	}
-
-	for _, id := range ids {
-		_ = s.published.DeleteBySession(ctx, id)
-		_ = s.workflowResults.DeleteBySession(ctx, id)
-		if err := s.sessions.Delete(ctx, id); err != nil {
-			slog.Warn("failed to delete session during pipeline cleanup", "session_id", id, "err", err)
+	for _, sess := range sessions {
+		_ = s.published.DeleteBySession(ctx, sess.ID)
+		_ = s.workflowResults.DeleteBySession(ctx, sess.ID)
+		if err := s.sessions.Delete(ctx, sess.ID); err != nil {
+			slog.Warn("failed to delete session during pipeline cleanup", "session_id", sess.ID, "err", err)
 		}
 	}
 	return nil
-}
-
-func (s *ContentSessionService) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
-	return s.sessions.ListArchivedByPipeline(ctx, pipelineID)
-}
-
-func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
-	archivedSessions, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
-	if err != nil {
-		return nil, err
-	}
-	names := s.newPipelineNameCache(ctx)
-	numbers := s.sessionNumberMap(ctx, pipelineID)
-	details, err := s.buildFullDetails(ctx, archivedSessions, names, numbers)
-	if err != nil {
-		return nil, err
-	}
-	sortDetailsNewestFirst(details)
-	return details, nil
-}
-
-func (s *ContentSessionService) ListAllArchivedSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
-	archivedSessions, err := s.sessions.ListArchived(ctx)
-	if err != nil {
-		return nil, err
-	}
-	names := s.newPipelineNameCache(ctx)
-	details := s.buildDetails(ctx, archivedSessions, names)
-	sortDetailsNewestFirst(details)
-	return details, nil
 }
 
 func sortDetailsNewestFirst(details []*upal.ContentSessionDetail) {
@@ -507,7 +420,6 @@ func (s *ContentSessionService) sessionToDetail(
 		WorkflowResults:  wfResults,
 		CreatedAt:        sess.CreatedAt,
 		ReviewedAt:       sess.ReviewedAt,
-		ArchivedAt:       sess.ArchivedAt,
 	}
 }
 
@@ -542,9 +454,7 @@ func (s *ContentSessionService) buildFullDetails(
 }
 
 func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelineID string) []*upal.ContentSession {
-	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
-	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
-	all := append(active, archived...)
+	all, _ := s.sessions.ListByPipeline(ctx, pipelineID)
 	sort.Slice(all, func(i, j int) bool {
 		return all[i].CreatedAt.Before(all[j].CreatedAt)
 	})

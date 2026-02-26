@@ -42,18 +42,11 @@ func orEmpty[T any](s []T) []T {
 }
 
 // writeServiceError maps domain errors to appropriate HTTP status codes.
-// Handles ErrNotFound, ErrAlreadyArchived, ErrNotArchived, ErrMustBeArchived,
-// ErrInvalidStatus, and falls back to the given defaultStatus.
+// Handles ErrNotFound, ErrInvalidStatus, and falls back to the given defaultStatus.
 func writeServiceError(w http.ResponseWriter, err error, defaultStatus int) {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
-	case errors.Is(err, upal.ErrAlreadyArchived):
-		http.Error(w, err.Error(), http.StatusConflict)
-	case errors.Is(err, upal.ErrNotArchived):
-		http.Error(w, err.Error(), http.StatusConflict)
-	case errors.Is(err, upal.ErrMustBeArchived):
-		http.Error(w, err.Error(), http.StatusConflict)
 	case errors.Is(err, upal.ErrInvalidStatus):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:

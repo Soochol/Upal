@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Archive } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 
 import { fetchPipeline } from '@/entities/pipeline/api'
-import { fetchContentSession, publishSession, produceSession, archiveSession as archiveSessionApi } from '@/entities/content-session/api'
-
+import { fetchContentSession, publishSession, produceSession, deleteSession } from '@/entities/content-session/api'
+import { sessionPollingInterval } from '@/entities/content-session/constants'
 import { useContentSessionStore } from '@/entities/content-session/store'
 import type { Pipeline } from '@/entities/pipeline'
 import type { ContentSession } from '@/entities/content-session'
@@ -34,11 +34,11 @@ function getStageState(stage: Stage, session: ContentSession): StageState {
 type Props = {
     pipelineId: string
     sessionId: string
-    showArchive?: boolean
+    showDelete?: boolean
     onMutate?: () => void
 }
 
-export function SessionDetailPreview({ pipelineId, sessionId, showArchive = false, onMutate }: Props) {
+export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false, onMutate }: Props) {
     const queryClient = useQueryClient()
     const { approveSession, rejectSession } = useContentSessionStore()
 
@@ -54,15 +54,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, showArchive = fals
         queryKey: ['content-session', sessionId],
         queryFn: () => fetchContentSession(sessionId),
         enabled: !!sessionId,
-        refetchInterval: (query) => {
-            const s = query.state.data
-            if (!s) return false
-            // Poll while session is in-flight: collecting, producing, or
-            // approved-but-produce-not-yet-started (race with background goroutine).
-            if (s.status === 'collecting' || s.status === 'analyzing' || s.status === 'producing') return 3000
-            if (s.status === 'approved' && (!s.workflow_results || s.workflow_results.length === 0)) return 3000
-            return false
-        },
+        refetchInterval: (query) => sessionPollingInterval(query.state.data),
     })
 
     // ----- Local state -----
@@ -136,13 +128,12 @@ export function SessionDetailPreview({ pipelineId, sessionId, showArchive = fals
         await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
     }, [session, pipeline, sessionId, queryClient])
 
-    const archiveMutation = useMutation({
-        mutationFn: () => archiveSessionApi(sessionId),
+    const deleteMutation = useMutation({
+        mutationFn: () => deleteSession(sessionId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
             queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
             queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-            queryClient.invalidateQueries({ queryKey: ['inbox-sessions-archived'] })
             onMutate?.()
         },
     })
@@ -164,14 +155,14 @@ export function SessionDetailPreview({ pipelineId, sessionId, showArchive = fals
             {/* Sticky progress stepper + actions */}
             <div className="relative">
                 <StickyProgressBar session={session} />
-                {showArchive && !session.archived_at && (
+                {showDelete && (
                     <button
-                        onClick={() => archiveMutation.mutate()}
-                        disabled={archiveMutation.isPending}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                        title="Archive session"
+                        onClick={() => { if (confirm('이 세션을 영구 삭제합니다. 되돌릴 수 없습니다.')) deleteMutation.mutate() }}
+                        disabled={deleteMutation.isPending}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                        title="Delete session"
                     >
-                        <Archive className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                     </button>
                 )}
             </div>

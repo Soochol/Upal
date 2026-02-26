@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-    Search, Mailbox, Loader2, Archive, ArchiveRestore, Trash2, FileText,
+    Search, Mailbox, Trash2, FileText,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { EditableName } from '@/shared/ui/EditableName'
 import {
-    archiveSession, unarchiveSession, deleteSession, updateSessionSettings,
+    deleteSession, updateSessionSettings,
 } from '@/entities/content-session/api'
 import {
     SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter,
@@ -16,12 +16,8 @@ import {
 import type { SessionFilter } from '@/entities/content-session/constants'
 import type { ContentSession } from '@/entities/content-session'
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 interface InboxSidebarProps {
     sessions: ContentSession[]
-    archivedSessions: ContentSession[]
-    archivedLoading: boolean
     selectedId: string | null
     onSelect: (id: string) => void
     activeFilter: SessionFilter
@@ -30,8 +26,6 @@ interface InboxSidebarProps {
 
 export function InboxSidebar({
     sessions,
-    archivedSessions,
-    archivedLoading,
     selectedId,
     onSelect,
     activeFilter,
@@ -44,18 +38,7 @@ export function InboxSidebar({
 
     const invalidateInbox = () => {
         queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-        queryClient.invalidateQueries({ queryKey: ['inbox-sessions-archived'] })
     }
-
-    const archiveMutation = useMutation({
-        mutationFn: (sessionId: string) => archiveSession(sessionId),
-        onSuccess: invalidateInbox,
-    })
-
-    const unarchiveMutation = useMutation({
-        mutationFn: (sessionId: string) => unarchiveSession(sessionId),
-        onSuccess: invalidateInbox,
-    })
 
     const deleteMutation = useMutation({
         mutationFn: (sessionId: string) => deleteSession(sessionId),
@@ -70,13 +53,12 @@ export function InboxSidebar({
     // ─── Derived data ────────────────────────────────────────────────────────
 
     const filterCounts = useMemo(
-        () => computeFilterCounts(sessions, archivedSessions),
-        [sessions, archivedSessions],
+        () => computeFilterCounts(sessions),
+        [sessions],
     )
 
     const filteredSessions = useMemo(() => {
-        const pool = activeFilter === 'archived' ? archivedSessions : sessions
-        return pool
+        return sessions
             .filter(s => matchesSessionFilter(s.status, activeFilter))
             .filter(s => {
                 if (!search) return true
@@ -88,11 +70,11 @@ export function InboxSidebar({
                     s.status.includes(q)
                 )
             })
-    }, [sessions, archivedSessions, activeFilter, search])
+    }, [sessions, activeFilter, search])
 
     // ─── Empty state ─────────────────────────────────────────────────────────
 
-    if (sessions.length === 0 && activeFilter !== 'archived') {
+    if (sessions.length === 0) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 gap-3 text-center">
                 <Mailbox className="w-10 h-10 opacity-20" />
@@ -152,11 +134,7 @@ export function InboxSidebar({
 
             {/* Session list */}
             <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
-                {(activeFilter === 'archived' && archivedLoading) ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                ) : filteredSessions.length === 0 ? (
+                {filteredSessions.length === 0 ? (
                     <div className="text-center py-12 px-4">
                         <p className="text-sm text-muted-foreground">No sessions found.</p>
                     </div>
@@ -212,35 +190,14 @@ export function InboxSidebar({
                                     {s.status === 'pending_review' && (
                                         <span className="flex h-2 w-2 rounded-full bg-warning animate-pulse" title="Needs Review" />
                                     )}
-                                    {activeFilter === 'archived' ? (
-                                        <div className="flex items-center gap-1 ml-auto">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); unarchiveMutation.mutate(s.id) }}
-                                                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                                                title="Unarchive"
-                                            >
-                                                <ArchiveRestore className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); if (confirm('Permanently delete this session? This cannot be undone.')) deleteMutation.mutate(s.id) }}
-                                                className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                                                title="Delete permanently"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); archiveMutation.mutate(s.id) }}
-                                            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 ml-auto cursor-pointer"
-                                            title="Archive"
-                                        >
-                                            <Archive className="h-3.5 w-3.5" />
-                                        </button>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); if (confirm('이 세션을 영구 삭제합니다. 되돌릴 수 없습니다.')) deleteMutation.mutate(s.id) }}
+                                        className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 ml-auto cursor-pointer"
+                                        title="Delete"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
                             </button>
                         )

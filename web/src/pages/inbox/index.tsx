@@ -27,23 +27,15 @@ export default function InboxPage() {
         refetchInterval: 10000,
     })
 
-    // Fetch archived sessions separately (only when archived tab is active)
-    const { data: archivedSessions = [], isLoading: archivedLoading } = useQuery({
-        queryKey: ['inbox-sessions-archived'],
-        queryFn: () => fetchContentSessions({ archivedOnly: true }),
-        enabled: activeFilter === 'archived',
-    })
-
     // Auto-select first item if nothing selected or selected was removed
     useEffect(() => {
-        const pool = activeFilter === 'archived' ? archivedSessions : sessions
-        const selectedExists = pool.some(s => s.id === selectedSessionId)
-        if (pool.length > 0 && !selectedExists) {
-            setSelectedSessionId(pool[0].id)
-        } else if (pool.length === 0 && selectedSessionId) {
+        const selectedExists = sessions.some(s => s.id === selectedSessionId)
+        if (sessions.length > 0 && !selectedExists) {
+            setSelectedSessionId(sessions[0].id)
+        } else if (sessions.length === 0 && selectedSessionId) {
             setSelectedSessionId(null)
         }
-    }, [sessions, archivedSessions, activeFilter, selectedSessionId, setSelectedSessionId])
+    }, [sessions, activeFilter, selectedSessionId, setSelectedSessionId])
 
     // Mobile: show preview or list
     const showMobilePreview = !!selectedSessionId
@@ -65,8 +57,6 @@ export default function InboxPage() {
                     ) : (
                         <InboxSidebar
                             sessions={sessions}
-                            archivedSessions={archivedSessions}
-                            archivedLoading={archivedLoading}
                             selectedId={selectedSessionId}
                             onSelect={setSelectedSessionId}
                             activeFilter={activeFilter}

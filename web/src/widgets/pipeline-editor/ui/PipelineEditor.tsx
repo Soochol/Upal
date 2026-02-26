@@ -171,7 +171,6 @@ export function PipelineEditor({ pipeline, onSave, onBack }: Props) {
             )}
             <StageCard
               stage={stage}
-              index={i}
               pipelineId={pipeline.id}
               workflowNames={workflowNames}
               connections={connections}

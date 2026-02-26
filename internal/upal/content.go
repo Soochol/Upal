@@ -37,7 +37,6 @@ type ContentSession struct {
 	Context   *PipelineContext   `json:"context,omitempty"`
 	CreatedAt time.Time          `json:"created_at"`
 	ReviewedAt *time.Time        `json:"reviewed_at,omitempty"`
-	ArchivedAt *time.Time        `json:"archived_at,omitempty"`
 }
 
 // ResearchProgress reports live progress during deep research.
@@ -181,5 +180,4 @@ type ContentSessionDetail struct {
 	WorkflowResults []WorkflowResult `json:"workflow_results,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 	ReviewedAt      *time.Time       `json:"reviewed_at,omitempty"`
-	ArchivedAt      *time.Time       `json:"archived_at,omitempty"`
 }

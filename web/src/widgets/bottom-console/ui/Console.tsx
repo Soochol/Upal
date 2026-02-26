@@ -190,37 +190,38 @@ export function Console() {
     [runEvents],
   )
 
+  const verbose = logLevel === 'verbose'
+
   const filtered = useMemo<GroupEntry[]>(() => {
-    const verbose = logLevel === 'verbose'
+    const query = searchQuery.toLowerCase()
     return runEvents
       .map((event, originalIndex) => ({ event, originalIndex }))
       .filter(({ event }) => {
         if (!matchesLevel(event, logLevel)) return false
         if (nodeFilter && 'nodeId' in event && event.nodeId !== nodeFilter) return false
-        if (searchQuery) {
+        if (query) {
           const text = formatEvent(event, verbose).toLowerCase()
           const typeStr = event.type.toLowerCase()
-          if (!text.includes(searchQuery.toLowerCase()) && !typeStr.includes(searchQuery.toLowerCase())) return false
+          if (!text.includes(query) && !typeStr.includes(query)) return false
         }
         return true
       })
-  }, [runEvents, logLevel, nodeFilter, searchQuery])
+  }, [runEvents, logLevel, nodeFilter, searchQuery, verbose])
 
   const handleToggleRow = useCallback((i: number) => {
     setExpandedRows((prev) => {
       const next = new Set(prev)
-      next.has(i) ? next.delete(i) : next.add(i)
+      if (next.has(i)) { next.delete(i) } else { next.add(i) }
       return next
     })
   }, [])
 
   const handleCopy = useCallback(() => {
-    const verbose = logLevel === 'verbose'
     const text = filtered
       .map(({ event }) => `[${event.type}] ${formatEvent(event, verbose)}`)
       .join('\n')
     copyToClipboard(text)
-  }, [filtered, logLevel, copyToClipboard])
+  }, [filtered, verbose, copyToClipboard])
 
   // Clear node filter when events are cleared so it doesn't silently hide new events
   useEffect(() => {
@@ -364,7 +365,7 @@ export function Console() {
                   isExpanded={expandedRows.has(originalIndex)}
                   onToggle={handleToggleRow}
                   runStartTime={runStartTime}
-                  verbose={logLevel === 'verbose'}
+                  verbose={verbose}
                 />
               ))}
               {nodeGroups.groups.map(([nodeId, entries]) => (
@@ -375,7 +376,7 @@ export function Console() {
                   expandedRows={expandedRows}
                   onToggle={handleToggleRow}
                   runStartTime={runStartTime}
-                  verbose={logLevel === 'verbose'}
+                  verbose={verbose}
                 />
               ))}
             </div>
@@ -389,7 +390,7 @@ export function Console() {
                   isExpanded={expandedRows.has(originalIndex)}
                   onToggle={handleToggleRow}
                   runStartTime={runStartTime}
-                  verbose={logLevel === 'verbose'}
+                  verbose={verbose}
                 />
               ))}
             </div>

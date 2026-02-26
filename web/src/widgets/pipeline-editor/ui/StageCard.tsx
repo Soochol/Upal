@@ -171,8 +171,6 @@ function InputMappingField({
   )
 }
 
-// ─── Collect field config ─────────────────────────────────────────────────────
-
 function CollectFields({
   stage,
   onChange,
@@ -181,7 +179,6 @@ function CollectFields({
   onChange: (stage: Stage) => void
 }) {
   const sources = stage.config.sources ?? []
-  const fieldClass = 'w-full text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none border border-transparent focus:border-border focus:ring-1 focus:ring-ring transition-all'
 
   const addSource = () => {
     const newSource: CollectSource = { id: crypto.randomUUID(), type: 'rss', url: '' }
@@ -260,7 +257,7 @@ function CollectFields({
                 value={src.body ?? ''}
                 placeholder="요청 본문 (선택)"
                 onChange={(e) => updateSource(src.id, { body: e.target.value })}
-                className={`${fieldClass} resize-none`}
+                className={`${FIELD_CLASS} resize-none`}
               />
             </div>
           )}
@@ -272,7 +269,7 @@ function CollectFields({
                 value={src.selector ?? ''}
                 placeholder="CSS 셀렉터 (예: .article-title)"
                 onChange={(e) => updateSource(src.id, { selector: e.target.value })}
-                className={`${fieldClass} font-mono`}
+                className={`${FIELD_CLASS} font-mono`}
               />
               <div className="flex items-center gap-1.5">
                 <label className="text-[10px] text-muted-foreground shrink-0">최대 항목</label>
@@ -303,7 +300,92 @@ function CollectFields({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+function TriggerFields({
+  stage,
+  pipelineId,
+  onChange,
+}: {
+  stage: Stage
+  pipelineId?: string
+  onChange: (stage: Stage) => void
+}) {
+  const [creating, setCreating] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const webhookPath = stage.config.trigger_id ? `/api/hooks/${stage.config.trigger_id}` : null
+
+  const handleCreate = async () => {
+    if (!pipelineId) return
+    setCreating(true)
+    try {
+      const { trigger } = await createTrigger({ pipeline_id: pipelineId })
+      onChange({ ...stage, config: { ...stage.config, trigger_id: trigger.id } })
+    } catch {
+      // silent
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!stage.config.trigger_id) return
+    try {
+      await deleteTrigger(stage.config.trigger_id)
+    } catch {
+      // silent -- still clear from stage config
+    }
+    onChange({ ...stage, config: { ...stage.config, trigger_id: '' } })
+  }
+
+  const handleCopy = () => {
+    if (!webhookPath) return
+    const full = `${window.location.origin}${webhookPath}`
+    navigator.clipboard.writeText(full).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  if (webhookPath) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <code className="flex-1 text-[10px] bg-muted/40 rounded px-2 py-1.5 font-mono truncate text-muted-foreground">
+            {webhookPath}
+          </code>
+          <button
+            onClick={handleCopy}
+            title="Copy webhook URL"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground
+              transition-colors shrink-0 cursor-pointer"
+          >
+            {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+          </button>
+        </div>
+        <button
+          onClick={handleDelete}
+          className="text-[10px] text-destructive/70 hover:text-destructive transition-colors cursor-pointer"
+        >
+          Remove webhook
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={handleCreate}
+      disabled={creating || !pipelineId}
+      className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs rounded-lg
+        border border-dashed border-border hover:border-ring hover:bg-muted/40
+        text-muted-foreground hover:text-foreground transition-all disabled:opacity-50
+        disabled:cursor-not-allowed cursor-pointer"
+    >
+      <Zap className="h-3 w-3" />
+      {creating ? 'Generating...' : 'Generate webhook URL'}
+    </button>
+  )
+}
 
 const stageTypeConfig: Record<string, { label: string; icon: typeof GitBranch; color: string }> = {
   workflow:     { label: 'Workflow',     icon: Play,        color: 'var(--info)' },
@@ -322,15 +404,12 @@ export function StageCard({
 }: Props) {
   const cfg = stageTypeConfig[stage.type] ?? { label: stage.type, icon: GitBranch, color: 'var(--muted-foreground)' }
   const Icon = cfg.icon
-  const [creating, setCreating] = useState(false)
-  const [copied, setCopied] = useState(false)
-  // draggable is enabled only while the grip handle is held — prevents
+  // Draggable is enabled only while the grip handle is held -- prevents
   // accidental drags when clicking inputs/selects inside the card.
   const draggableRef = useRef(false)
   const [draggable, setDraggable] = useState(false)
   const [workflowDef, setWorkflowDef] = useState<WorkflowDefinition | null>(null)
 
-  // Fetch selected workflow to extract input nodes
   useEffect(() => {
     const name = stage.config.workflow_name
     if (!name) { setWorkflowDef(null); return }
@@ -340,40 +419,6 @@ export function StageCard({
   }, [stage.config.workflow_name])
 
   const inputNodes = workflowDef?.nodes.filter((n) => n.type === 'input') ?? []
-
-  const webhookPath = stage.config.trigger_id ? `/api/hooks/${stage.config.trigger_id}` : null
-
-  const handleCreateTrigger = async () => {
-    if (!pipelineId) return
-    setCreating(true)
-    try {
-      const { trigger } = await createTrigger({ pipeline_id: pipelineId })
-      onChange({ ...stage, config: { ...stage.config, trigger_id: trigger.id } })
-    } catch {
-      // silent
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const handleDeleteTrigger = async () => {
-    if (!stage.config.trigger_id) return
-    try {
-      await deleteTrigger(stage.config.trigger_id)
-    } catch {
-      // silent — still clear from stage config
-    }
-    onChange({ ...stage, config: { ...stage.config, trigger_id: '' } })
-  }
-
-  const handleCopy = () => {
-    if (!webhookPath) return
-    const full = `${window.location.origin}${webhookPath}`
-    navigator.clipboard.writeText(full).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
 
   return (
     <div
@@ -392,7 +437,6 @@ export function StageCard({
         isDragOver ? 'ring-2 ring-primary border-primary' : 'border-border',
       ].join(' ')}
     >
-      {/* Header row */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 bg-muted/20">
         <div className="flex items-center gap-2">
           <GripVertical
@@ -400,7 +444,6 @@ export function StageCard({
             onMouseDown={() => { draggableRef.current = true; setDraggable(true) }}
             onMouseUp={() => { if (!isDragging) { draggableRef.current = false; setDraggable(false) } }}
           />
-          {/* Type badge */}
           <span
             className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md landing-body"
             style={{
@@ -421,7 +464,6 @@ export function StageCard({
         </button>
       </div>
 
-      {/* Body */}
       <div className="px-3 pb-3 pt-2.5 space-y-2">
         <input
           type="text"
@@ -528,43 +570,11 @@ export function StageCard({
         )}
 
         {stage.type === 'trigger' && (
-          <>
-            {webhookPath ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <code className="flex-1 text-[10px] bg-muted/40 rounded px-2 py-1.5 font-mono truncate text-muted-foreground">
-                    {webhookPath}
-                  </code>
-                  <button
-                    onClick={handleCopy}
-                    title="Copy webhook URL"
-                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground
-                      transition-colors shrink-0 cursor-pointer"
-                  >
-                    {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-                  </button>
-                </div>
-                <button
-                  onClick={handleDeleteTrigger}
-                  className="text-[10px] text-destructive/70 hover:text-destructive transition-colors cursor-pointer"
-                >
-                  Remove webhook
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleCreateTrigger}
-                disabled={creating || !pipelineId}
-                className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs rounded-lg
-                  border border-dashed border-border hover:border-ring hover:bg-muted/40
-                  text-muted-foreground hover:text-foreground transition-all disabled:opacity-50
-                  disabled:cursor-not-allowed cursor-pointer"
-              >
-                <Zap className="h-3 w-3" />
-                {creating ? 'Generating…' : 'Generate webhook URL'}
-              </button>
-            )}
-          </>
+          <TriggerFields
+            stage={stage}
+            pipelineId={pipelineId}
+            onChange={onChange}
+          />
         )}
 
         {stage.type === 'collect' && (

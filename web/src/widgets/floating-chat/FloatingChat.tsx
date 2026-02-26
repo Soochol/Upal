@@ -14,7 +14,7 @@ type ChatMessage = {
   createdWorkflows?: CreatedWorkflowInfo[]
 }
 
-interface FloatingChatProps {
+type FloatingChatProps = {
   pipelineId?: string
   sessionId?: string
 }
@@ -37,7 +37,7 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
     queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
-  }, [queryClient, sessionId, pipelineId])
+  }, [queryClient, sessionId])
 
   // Auto-scroll to bottom on new messages or loading
   useEffect(() => {
@@ -74,7 +74,7 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
         current_schedule: session.schedule ?? '',
         current_workflows: session.session_workflows ?? [],
         current_model: session.model ?? '',
-        current_context: session.context,
+        current_context: session.session_context,
       })
 
       // Apply changes to session
@@ -264,13 +264,11 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
         {isLoading && !isOpen && (
           <span className="absolute inset-0 rounded-full animate-ping bg-primary/30" />
         )}
-        {isOpen ? (
-          <X className="h-5 w-5" />
-        ) : isLoading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <MessageSquare className="h-5 w-5" />
-        )}
+        {(() => {
+          if (isOpen) return <X className="h-5 w-5" />
+          if (isLoading) return <Loader2 className="h-5 w-5 animate-spin" />
+          return <MessageSquare className="h-5 w-5" />
+        })()}
       </button>
     </>
   )

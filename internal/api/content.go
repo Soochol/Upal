@@ -16,17 +16,6 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pipelineID := r.URL.Query().Get("pipeline_id")
 	statusStr := r.URL.Query().Get("status")
-	archivedOnly := r.URL.Query().Get("archived_only") == "true"
-
-	if archivedOnly && pipelineID == "" {
-		details, err := s.contentSvc.ListAllArchivedSessionDetails(ctx)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writeJSON(w, orEmpty(details))
-		return
-	}
 
 	if pipelineID != "" {
 		templateOnly := r.URL.Query().Get("template_only") == "true"
@@ -35,8 +24,6 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 		var err error
 		if templateOnly {
 			details, err = s.contentSvc.ListTemplateDetailsByPipeline(ctx, pipelineID)
-		} else if archivedOnly {
-			details, err = s.contentSvc.ListArchivedSessionDetails(ctx, pipelineID)
 		} else {
 			details, err = s.contentSvc.ListSessionDetailsByPipelineAndStatus(ctx, pipelineID, upal.ContentSessionStatus(statusStr))
 		}
@@ -59,14 +46,7 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if statusStr != "" {
-		includeArchived := r.URL.Query().Get("include_archived") == "true"
-		var details []*upal.ContentSessionDetail
-		var err error
-		if includeArchived {
-			details, err = s.contentSvc.ListSessionDetailsByStatusIncludeArchived(ctx, upal.ContentSessionStatus(statusStr))
-		} else {
-			details, err = s.contentSvc.ListSessionDetailsByStatus(ctx, upal.ContentSessionStatus(statusStr))
-		}
+		details, err := s.contentSvc.ListSessionDetailsByStatus(ctx, upal.ContentSessionStatus(statusStr))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -475,18 +455,19 @@ func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	writeJSONStatus(w, http.StatusAccepted, map[string]any{"session_id": id, "status": "accepted"})
 }
 
-func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
+// transitionSessionStatus validates the current status, applies the new status, and returns the detail.
+func (s *Server) transitionSessionStatus(w http.ResponseWriter, r *http.Request, requiredStatus, newStatus upal.ContentSessionStatus, errMsg string) {
 	id := chi.URLParam(r, "id")
 	sess, err := s.contentSvc.GetSession(r.Context(), id)
 	if err != nil {
 		http.Error(w, "content session not found", http.StatusNotFound)
 		return
 	}
-	if sess.Status != upal.SessionDraft {
-		http.Error(w, "only draft sessions can be activated", http.StatusConflict)
+	if sess.Status != requiredStatus {
+		http.Error(w, errMsg, http.StatusConflict)
 		return
 	}
-	if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionActive); err != nil {
+	if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, newStatus); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -498,27 +479,26 @@ func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, detail)
 }
 
+func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
+	s.transitionSessionStatus(w, r, upal.SessionDraft, upal.SessionActive, "only draft sessions can be activated")
+}
+
 func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	sess, err := s.contentSvc.GetSession(r.Context(), id)
-	if err != nil {
-		http.Error(w, "content session not found", http.StatusNotFound)
-		return
+	s.transitionSessionStatus(w, r, upal.SessionActive, upal.SessionDraft, "only active sessions can be deactivated")
+}
+
+// newInstanceFromTemplate creates a new session instance inheriting settings from a template.
+func newInstanceFromTemplate(tmpl *upal.ContentSession) *upal.ContentSession {
+	return &upal.ContentSession{
+		PipelineID:      tmpl.PipelineID,
+		TriggerType:     "manual",
+		ParentSessionID: tmpl.ID,
+		Sources:         tmpl.Sources,
+		Schedule:        tmpl.Schedule,
+		Model:           tmpl.Model,
+		Workflows:       tmpl.Workflows,
+		Context:         tmpl.Context,
 	}
-	if sess.Status != upal.SessionActive {
-		http.Error(w, "only active sessions can be deactivated", http.StatusConflict)
-		return
-	}
-	if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionDraft); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, detail)
 }
 
 func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
@@ -541,18 +521,8 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no template session found for this pipeline", http.StatusBadRequest)
 		return
 	}
-	tmpl := templates[0]
 
-	sess := &upal.ContentSession{
-		PipelineID:      id,
-		TriggerType:     "manual",
-		ParentSessionID: tmpl.ID,
-		Sources:         tmpl.Sources,
-		Schedule:        tmpl.Schedule,
-		Model:           tmpl.Model,
-		Workflows:       tmpl.Workflows,
-		Context:         tmpl.Context,
-	}
+	sess := newInstanceFromTemplate(templates[0])
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -604,34 +574,6 @@ func (s *Server) generateAngleWorkflow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, angle)
 }
 
-func (s *Server) archiveContentSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if err := s.contentSvc.ArchiveSession(r.Context(), id); err != nil {
-		writeServiceError(w, err, http.StatusInternalServerError)
-		return
-	}
-	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, detail)
-}
-
-func (s *Server) unarchiveContentSession(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if err := s.contentSvc.UnarchiveSession(r.Context(), id); err != nil {
-		writeServiceError(w, err, http.StatusInternalServerError)
-		return
-	}
-	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, detail)
-}
-
 // POST /api/content-sessions/{id}/run
 // Creates a new instance from this template session and launches collection.
 func (s *Server) runSessionInstance(w http.ResponseWriter, r *http.Request) {
@@ -659,16 +601,7 @@ func (s *Server) runSessionInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
-	sess := &upal.ContentSession{
-		PipelineID:      tmpl.PipelineID,
-		TriggerType:     "manual",
-		ParentSessionID: tmpl.ID,
-		Sources:         tmpl.Sources,
-		Schedule:        tmpl.Schedule,
-		Model:           tmpl.Model,
-		Workflows:       tmpl.Workflows,
-		Context:         tmpl.Context,
-	}
+	sess := newInstanceFromTemplate(tmpl)
 	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

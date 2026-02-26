@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
-import ProductLandingPage from '@/pages/landing/ProductLanding'
+import ProductLandingPage from '@/pages/ProductLanding'
 import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
