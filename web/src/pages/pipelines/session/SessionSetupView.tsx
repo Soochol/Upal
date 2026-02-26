@@ -8,7 +8,7 @@ import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { useModels } from '@/shared/api'
 import type { ChatMessage } from '@/entities/ui/model/chatStore'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
-import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
+import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
@@ -351,6 +351,10 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
                               hover:bg-muted/40 transition-colors cursor-pointer"
                             onClick={() => setEditingSourceIndex(i)}
                           >
+                            {(() => {
+                              const def = [...STATIC_SOURCES, ...SIGNAL_SOURCES].find(s => s.type === src.type)
+                              return def ? <span className={`shrink-0 ${def.accentText}`}>{def.icon}</span> : null
+                            })()}
                             <span className="text-sm flex-1 truncate">{src.label}</span>
                             <span className="text-xs text-muted-foreground/40">{src.type}</span>
                             <button
@@ -372,47 +376,6 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
                     </button>
                   </div>
                 )}
-              </div>
-            </div>
-          </section>
-
-          {/* ════ SCHEDULE ════ */}
-          <section className="mb-8">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-              Schedule
-            </h3>
-            <div className="border-t border-border/40">
-              {/* Frequency */}
-              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground">Frequency</span>
-                <div className="relative flex-1">
-                  <select
-                    value={isPreset ? localSchedule : '__custom__'}
-                    onChange={(e) => setLocalSchedule(e.target.value === '__custom__' ? '' : e.target.value)}
-                    className="w-full bg-transparent text-sm outline-none cursor-pointer
-                      appearance-none [-webkit-appearance:none] pr-5"
-                  >
-                    <option value="" disabled>Select...</option>
-                    {SCHEDULE_PRESETS.map(p => <option key={p.cron} value={p.cron}>{p.label}</option>)}
-                    <option value="__custom__">Custom cron</option>
-                  </select>
-                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
-                </div>
-              </div>
-              {/* Cron expression */}
-              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground">Cron</span>
-                <input
-                  type="text"
-                  value={localSchedule}
-                  onChange={(e) => setLocalSchedule(e.target.value)}
-                  placeholder="0 */6 * * *"
-                  readOnly={isPreset}
-                  className={cn(
-                    'flex-1 bg-transparent text-sm font-mono outline-none placeholder:text-muted-foreground/30',
-                    isPreset && 'text-muted-foreground cursor-default',
-                  )}
-                />
               </div>
             </div>
           </section>
@@ -541,6 +504,47 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </section>
+
+          {/* ════ SCHEDULE ════ */}
+          <section className="mb-8">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Schedule
+            </h3>
+            <div className="border-t border-border/40">
+              {/* Frequency */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Frequency</span>
+                <div className="relative flex-1">
+                  <select
+                    value={isPreset ? localSchedule : '__custom__'}
+                    onChange={(e) => setLocalSchedule(e.target.value === '__custom__' ? '' : e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none cursor-pointer
+                      appearance-none [-webkit-appearance:none] pr-5"
+                  >
+                    <option value="" disabled>Select...</option>
+                    {SCHEDULE_PRESETS.map(p => <option key={p.cron} value={p.cron}>{p.label}</option>)}
+                    <option value="__custom__">Custom cron</option>
+                  </select>
+                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
+                </div>
+              </div>
+              {/* Cron expression */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Cron</span>
+                <input
+                  type="text"
+                  value={localSchedule}
+                  onChange={(e) => setLocalSchedule(e.target.value)}
+                  placeholder="0 */6 * * *"
+                  readOnly={isPreset}
+                  className={cn(
+                    'flex-1 bg-transparent text-sm font-mono outline-none placeholder:text-muted-foreground/30',
+                    isPreset && 'text-muted-foreground cursor-default',
+                  )}
+                />
               </div>
             </div>
           </section>
