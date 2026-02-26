@@ -1,13 +1,12 @@
-import { useRef, createRef, useState } from 'react'
+import { useRef, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, GitBranch, Rss, Loader2, Pencil, Check, X, Trash2,
+  Plus, GitBranch, Rss, Loader2, Check, X, Trash2, Search,
 } from 'lucide-react'
 import { createPipeline, deletePipeline } from '@/entities/pipeline'
 import { createDraftSession } from '@/entities/content-session/api'
 import { cn } from '@/shared/lib/utils'
 import { EditableName } from '@/shared/ui/EditableName'
-import type { EditableNameHandle } from '@/shared/ui/EditableName'
 import type { Pipeline } from '@/entities/pipeline'
 import { updatePipeline } from '@/entities/pipeline/api'
 
@@ -25,11 +24,17 @@ interface PipelineSidebarProps {
 
 export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, isLoading }: PipelineSidebarProps) {
   const queryClient = useQueryClient()
-  const editableRefs = useRef<Map<string, React.RefObject<EditableNameHandle | null>>>(new Map())
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [search, setSearch] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const filteredPipelines = useMemo(() => {
+    if (!search) return pipelines
+    const q = search.toLowerCase()
+    return pipelines.filter(p => p.name.toLowerCase().includes(q))
+  }, [pipelines, search])
 
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updatePipeline(id, { name }),
@@ -94,13 +99,27 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
         </button>
       </div>
 
+      {/* Search */}
+      {!isLoading && pipelines.length > 0 && (
+        <div className="px-2 pt-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search pipelines..."
+              className="w-full h-8 pl-8 pr-3 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Pipeline list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {isCreating && (
           <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-primary/40 bg-primary/5 mb-1">
-            <div className="w-6 h-6 rounded-md bg-card border border-white/5 flex items-center justify-center shrink-0">
-              <GitBranch className="w-3 h-3 text-blue-400" />
-            </div>
+            <GitBranch className="h-3.5 w-3.5 shrink-0 text-blue-400" />
             <input
               ref={inputRef}
               type="text"
@@ -143,65 +162,52 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
             <p className="text-xs">No pipelines yet</p>
           </div>
         ) : (
-          pipelines.map((p) => {
+          filteredPipelines.map((p) => {
             const isSelected = selectedId === p.id
             const isContent = isContentPipeline(p)
             const pendingCount = p.pending_session_count ?? 0
-
-            if (!editableRefs.current.has(p.id)) {
-              editableRefs.current.set(p.id, createRef<EditableNameHandle>())
-            }
-            const editRef = editableRefs.current.get(p.id)!
 
             return (
               <div
                 key={p.id}
                 onClick={() => onSelect(p.id)}
                 className={cn(
-                  'group w-full text-left px-2.5 py-2 rounded-lg border transition-all duration-200 cursor-pointer',
-                  'flex flex-wrap items-center gap-2',
+                  'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border',
                   isSelected
-                    ? 'bg-primary/5 border-primary/40 shadow-sm'
+                    ? 'bg-primary/5 border-primary/20 shadow-sm'
                     : 'bg-transparent border-transparent hover:bg-muted/50',
                 )}
               >
-                <div className="w-6 h-6 rounded-md bg-card border border-white/5 flex items-center justify-center shrink-0">
-                  {isContent
-                    ? <Rss className="w-3 h-3 text-purple-400" />
-                    : <GitBranch className="w-3 h-3 text-blue-400" />}
-                </div>
-                <EditableName
-                  ref={editRef}
-                  value={p.name}
-                  placeholder="Untitled"
-                  onSave={(name) => renameMutation.mutate({ id: p.id, name })}
-                  className="text-sm font-medium flex-1 min-w-0 truncate"
-                  hideEditButton
-                />
-                <div className="flex items-center gap-1 shrink-0">
-                  {pendingCount > 0 && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-bold border border-warning/20 tabular-nums">
-                      {pendingCount}
-                    </span>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); editRef.current?.startEditing() }}
-                    className="p-0.5 rounded-md text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                    title="Rename"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id) }}
-                    className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {isContent
+                      ? <Rss className="h-3.5 w-3.5 shrink-0 text-purple-400" />
+                      : <GitBranch className="h-3.5 w-3.5 shrink-0 text-blue-400" />}
+                    <EditableName
+                      value={p.name}
+                      placeholder="Untitled"
+                      onSave={(name) => renameMutation.mutate({ id: p.id, name })}
+                      className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {pendingCount > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-bold border border-warning/20 tabular-nums">
+                        {pendingCount}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(p.id) }}
+                      className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
                 {confirmDeleteId === p.id && (
                   <div
-                    className="flex items-center gap-1.5 mt-1 ml-8 text-xs animate-in fade-in duration-200"
+                    className="flex items-center gap-1.5 mt-1.5 ml-5 text-xs animate-in fade-in duration-200"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span className="text-destructive font-medium">Delete?</span>
