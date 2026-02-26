@@ -83,8 +83,6 @@ var knownModels = map[string][]modelEntry{
 		{"claude-opus-4-6", upal.ModelTierHigh, "most intelligent, complex agents and coding"},
 		{"claude-sonnet-4-6", upal.ModelTierHigh, "best speed/intelligence balance, strong default"},
 		{"claude-haiku-4-5-20251001", upal.ModelTierLow, "fastest, near-frontier intelligence"},
-		{"claude-sonnet-4-5-20250929", upal.ModelTierMid, "previous gen sonnet, general-purpose"},
-		{"claude-opus-4-5-20251101", upal.ModelTierHigh, "previous gen opus, complex reasoning"},
 	},
 	"openai": {
 		{"gpt-5.2", upal.ModelTierHigh, "best for coding and agentic tasks"},

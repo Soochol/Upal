@@ -4,7 +4,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui/collapsible'
 import { ChevronRight } from 'lucide-react'
 import { PromptEditor } from '@/shared/ui/PromptEditor'
-import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { OUTPUT_FORMATS, type OutputFormatId } from '@/shared/lib/outputFormats'
 import type { OutputNodeConfig } from '@/shared/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
@@ -40,18 +39,6 @@ export function OutputNodeEditor({ nodeId, config, setConfig }: NodeEditorFieldP
           </SelectContent>
         </Select>
       </div>
-
-      {/* Model */}
-      {formatDef.editorFields.includes('model') && (
-        <div className="space-y-1 shrink-0">
-          <Label className="text-xs">Model</Label>
-          <ModelSelector
-            value={config.model ?? ''}
-            onChange={(v) => setConfig('model', v)}
-            placeholder="Default model"
-          />
-        </div>
-      )}
 
       {/* Prompt — main expandable area */}
       {formatDef.editorFields.includes('prompt') && (

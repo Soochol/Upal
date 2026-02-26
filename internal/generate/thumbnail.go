@@ -17,10 +17,11 @@ import (
 // represents the given workflow. The returned SVG is sanitized. Errors are
 // non-fatal — callers should treat a failure as "no thumbnail".
 func (g *Generator) GenerateThumbnail(ctx context.Context, wf *upal.WorkflowDefinition) (string, error) {
+	llm, modelName := g.currentDefault(ctx)
 	userPrompt := buildThumbnailPrompt(wf)
 
 	req := &adkmodel.LLMRequest{
-		Model: g.model,
+		Model: modelName,
 		Config: &genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("thumbnail"), genai.RoleUser),
 		},
@@ -33,7 +34,7 @@ func (g *Generator) GenerateThumbnail(ctx context.Context, wf *upal.WorkflowDefi
 	ctx = upalmodel.WithEffort(ctx, "low")
 
 	var resp *adkmodel.LLMResponse
-	for r, err := range g.llm.GenerateContent(ctx, req, false) {
+	for r, err := range llm.GenerateContent(ctx, req, false) {
 		if err != nil {
 			return "", fmt.Errorf("generate thumbnail: %w", err)
 		}
@@ -105,10 +106,11 @@ func buildThumbnailPrompt(wf *upal.WorkflowDefinition) string {
 // visually represents the given pipeline. The returned SVG is sanitized.
 // Errors are non-fatal — callers should treat a failure as "no thumbnail".
 func (g *Generator) GeneratePipelineThumbnail(ctx context.Context, p *upal.Pipeline) (string, error) {
+	llm, modelName := g.currentDefault(ctx)
 	userPrompt := buildPipelineThumbnailPrompt(p)
 
 	req := &adkmodel.LLMRequest{
-		Model: g.model,
+		Model: modelName,
 		Config: &genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("thumbnail"), genai.RoleUser),
 		},
@@ -120,7 +122,7 @@ func (g *Generator) GeneratePipelineThumbnail(ctx context.Context, p *upal.Pipel
 	ctx = upalmodel.WithEffort(ctx, "low")
 
 	var resp *adkmodel.LLMResponse
-	for r, err := range g.llm.GenerateContent(ctx, req, false) {
+	for r, err := range llm.GenerateContent(ctx, req, false) {
 		if err != nil {
 			return "", fmt.Errorf("generate pipeline thumbnail: %w", err)
 		}

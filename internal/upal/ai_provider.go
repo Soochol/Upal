@@ -30,6 +30,7 @@ type AIProvider struct {
 	Name      string             `json:"name"`
 	Category  AIProviderCategory `json:"category"`
 	Type      string             `json:"type"`
+	Model     string             `json:"model"`
 	APIKey    string             `json:"api_key,omitempty"`
 	IsDefault bool               `json:"is_default"`
 }
@@ -61,6 +62,7 @@ type AIProviderSafe struct {
 	Name      string             `json:"name"`
 	Category  AIProviderCategory `json:"category"`
 	Type      string             `json:"type"`
+	Model     string             `json:"model"`
 	IsDefault bool               `json:"is_default"`
 }
 
@@ -71,6 +73,7 @@ func (p *AIProvider) Safe() AIProviderSafe {
 		Name:      p.Name,
 		Category:  p.Category,
 		Type:      p.Type,
+		Model:     p.Model,
 		IsDefault: p.IsDefault,
 	}
 }

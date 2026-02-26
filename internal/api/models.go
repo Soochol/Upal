@@ -41,9 +41,10 @@ func (s *Server) effectiveProviderConfigs(ctx context.Context) map[string]config
 		return s.providerConfigs
 	}
 	providers, err := s.aiProviderSvc.ListAll(ctx)
-	if err != nil || len(providers) == 0 {
+	if err != nil {
 		return s.providerConfigs
 	}
+	// When DB is available, only show DB-registered providers (no config.yaml fallback).
 	configs := make(map[string]config.ProviderConfig, len(providers))
 	for _, p := range providers {
 		configs[p.Name] = config.ProviderConfig{

@@ -60,7 +60,7 @@ type ConfigureNodeOutput struct {
 
 // ConfigureNode asks the LLM to configure a workflow node based on the user's message.
 func (g *Generator) ConfigureNode(ctx context.Context, in ConfigureNodeInput) (*ConfigureNodeOutput, error) {
-	llm, modelName := g.resolveLLM(in.Model)
+	llm, modelName := g.resolveLLM(ctx, in.Model)
 
 	configJSON, err := json.Marshal(in.CurrentConfig)
 	if err != nil {
@@ -144,7 +144,7 @@ type ConfigurePipelineOutput struct {
 // When in.Session is set, session metadata is included in the LLM context and the
 // session-configure skill is preferred (falling back to pipeline-configure).
 func (g *Generator) ConfigurePipeline(ctx context.Context, in ConfigurePipelineInput) (*ConfigurePipelineOutput, error) {
-	llm, modelName := g.resolveLLM(in.Model)
+	llm, modelName := g.resolveLLM(ctx, in.Model)
 
 	var contextMsg string
 	if in.Session != nil {

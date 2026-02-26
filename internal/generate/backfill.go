@@ -40,10 +40,11 @@ func (g *Generator) BackfillWorkflowDescriptions(ctx context.Context, workflows 
 // generateWorkflowDescription asks the LLM for a one-sentence Korean description
 // of a workflow based on its name and node structure.
 func (g *Generator) generateWorkflowDescription(ctx context.Context, wf *upal.WorkflowDefinition) (string, error) {
+	llm, modelName := g.currentDefault(ctx)
 	userPrompt := buildWorkflowDescribePrompt(wf)
 
 	req := &adkmodel.LLMRequest{
-		Model: g.model,
+		Model: modelName,
 		Config: &genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("workflow-describe"), genai.RoleUser),
 		},
@@ -58,7 +59,7 @@ func (g *Generator) generateWorkflowDescription(ctx context.Context, wf *upal.Wo
 	defer cancel()
 
 	var resp *adkmodel.LLMResponse
-	for r, err := range g.llm.GenerateContent(descCtx, req, false) {
+	for r, err := range llm.GenerateContent(descCtx, req, false) {
 		if err != nil {
 			return "", fmt.Errorf("generate description: %w", err)
 		}
@@ -147,6 +148,7 @@ func (g *Generator) BackfillNodeDescriptions(ctx context.Context, workflows []*u
 
 // generateNodeDescription asks the LLM for a one-sentence Korean description of an agent node.
 func (g *Generator) generateNodeDescription(ctx context.Context, node *upal.NodeDefinition) (string, error) {
+	llm, modelName := g.currentDefault(ctx)
 	label, _ := node.Config["label"].(string)
 	prompt, _ := node.Config["prompt"].(string)
 	if len(prompt) > 200 {
@@ -155,7 +157,7 @@ func (g *Generator) generateNodeDescription(ctx context.Context, node *upal.Node
 	userPrompt := fmt.Sprintf("노드 라벨: %s\n프롬프트 (일부): %s", label, prompt)
 
 	req := &adkmodel.LLMRequest{
-		Model: g.model,
+		Model: modelName,
 		Config: &genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(g.skills.GetPrompt("node-describe"), genai.RoleUser),
 		},
@@ -169,7 +171,7 @@ func (g *Generator) generateNodeDescription(ctx context.Context, node *upal.Node
 	defer cancel()
 
 	var resp *adkmodel.LLMResponse
-	for r, err := range g.llm.GenerateContent(descCtx, req, false) {
+	for r, err := range llm.GenerateContent(descCtx, req, false) {
 		if err != nil {
 			return "", fmt.Errorf("generate node description: %w", err)
 		}

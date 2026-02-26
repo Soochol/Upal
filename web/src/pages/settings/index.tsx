@@ -6,7 +6,7 @@ import { Input } from '@/shared/ui/input'
 import { Button } from '@/shared/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/shared/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
-import { Moon, Sun, Monitor, Star, Trash2, Plus } from 'lucide-react'
+import { Moon, Sun, Monitor, Circle, CircleDot, Trash2, Plus } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { invalidateModelsCache } from '@/shared/api/useModels'
 import {
@@ -15,6 +15,7 @@ import {
     ALL_CATEGORIES,
     CATEGORY_LABELS,
     PROVIDER_TYPES_BY_CATEGORY,
+    MODELS_BY_PROVIDER_TYPE,
     listAIProviders,
     createAIProvider,
     deleteAIProvider,
@@ -37,6 +38,7 @@ export default function SettingsPage() {
     const [providers, setProviders] = useState<AIProvider[]>([])
     const [addCategory, setAddCategory] = useState<AIProviderCategory | null>(null)
     const [addType, setAddType] = useState('')
+    const [addModel, setAddModel] = useState('')
     const [addName, setAddName] = useState('')
     const [addApiKey, setAddApiKey] = useState('')
     const [saving, setSaving] = useState(false)
@@ -54,11 +56,12 @@ export default function SettingsPage() {
         setError('')
         try {
             const name = addName.trim() || getProviderTypeLabel(addCategory, addType)
-            await createAIProvider({ name, category: addCategory, type: addType, api_key: addApiKey })
+            await createAIProvider({ name, category: addCategory, type: addType, model: addModel, api_key: addApiKey })
             invalidateModelsCache()
             fetchProviders()
             setAddCategory(null)
             setAddType('')
+            setAddModel('')
             setAddName('')
             setAddApiKey('')
         } catch (err) {
@@ -93,6 +96,7 @@ export default function SettingsPage() {
     const openAddDialog = (category: AIProviderCategory) => {
         setAddCategory(category)
         setAddType('')
+        setAddModel('')
         setAddName('')
         setAddApiKey('')
         setError('')
@@ -152,19 +156,30 @@ export default function SettingsPage() {
                                             <div className="divide-y divide-border">
                                                 {categoryProviders.map((provider) => (
                                                     <div key={provider.id} className="flex items-center gap-3 px-5 py-3">
+                                                        <button
+                                                            onClick={() => handleSetDefault(provider.id)}
+                                                            className={cn(
+                                                                "shrink-0 transition-colors",
+                                                                provider.is_default ? "text-primary" : "text-muted-foreground/40 hover:text-muted-foreground"
+                                                            )}
+                                                            title={provider.is_default ? 'Default provider' : 'Set as default'}
+                                                        >
+                                                            {provider.is_default
+                                                                ? <CircleDot className="size-4" />
+                                                                : <Circle className="size-4" />
+                                                            }
+                                                        </button>
                                                         <div className="flex-1 min-w-0">
                                                             <span className="text-sm font-medium">{provider.name}</span>
                                                             <span className="text-xs text-muted-foreground ml-2">
                                                                 {getProviderTypeLabel(category, provider.type)}
                                                             </span>
+                                                            {provider.model && (
+                                                                <span className="text-xs text-muted-foreground ml-1">
+                                                                    · {provider.model}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        <button
-                                                            onClick={() => handleSetDefault(provider.id)}
-                                                            className="text-muted-foreground hover:text-warning transition-colors"
-                                                            title={provider.is_default ? 'Default provider' : 'Set as default'}
-                                                        >
-                                                            <Star className={cn("size-4", provider.is_default && "fill-warning text-warning")} />
-                                                        </button>
                                                         <button
                                                             onClick={() => handleDelete(provider)}
                                                             className="text-muted-foreground hover:text-destructive transition-colors"
@@ -215,7 +230,11 @@ export default function SettingsPage() {
                     <div className="space-y-4 py-2">
                         <div className="space-y-2">
                             <Label className="text-sm">Provider Type</Label>
-                            <Select value={addType} onValueChange={setAddType}>
+                            <Select value={addType} onValueChange={(v) => {
+                                setAddType(v)
+                                const models = MODELS_BY_PROVIDER_TYPE[v] ?? []
+                                setAddModel(models[0]?.value ?? '')
+                            }}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select provider type..." />
                                 </SelectTrigger>
@@ -226,6 +245,22 @@ export default function SettingsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {addType && (MODELS_BY_PROVIDER_TYPE[addType]?.length ?? 0) > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-sm">Model</Label>
+                                <Select value={addModel} onValueChange={setAddModel}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select model..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {MODELS_BY_PROVIDER_TYPE[addType].map((m) => (
+                                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label className="text-sm">Name <span className="text-muted-foreground">(optional)</span></Label>

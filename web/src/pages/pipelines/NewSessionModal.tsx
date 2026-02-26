@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 import { SCHEDULE_PRESETS } from '@/entities/pipeline'
-import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { WorkflowPicker } from './WorkflowPicker'
 
 export type NewSessionData = {
@@ -22,7 +21,6 @@ export function NewSessionModal({ onSave, onClose }: Props) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState('')
   const [workflow, setWorkflow] = useState('')
   const [schedule, setSchedule] = useState('')
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
@@ -35,7 +33,7 @@ export function NewSessionModal({ onSave, onClose }: Props) {
       name: name.trim(),
       description: description.trim(),
       prompt: prompt.trim(),
-      model,
+      model: '',
       workflow,
       schedule,
     })
@@ -100,16 +98,6 @@ export function NewSessionModal({ onSave, onClose }: Props) {
               rows={4}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm outline-none
                 focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 resize-none"
-            />
-          </div>
-
-          {/* Model */}
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
-            <ModelSelector
-              value={model}
-              onChange={setModel}
-              placeholder="Default"
             />
           </div>
 

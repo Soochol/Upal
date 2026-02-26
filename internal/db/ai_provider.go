@@ -10,8 +10,8 @@ import (
 
 func (d *DB) CreateAIProvider(ctx context.Context, p *upal.AIProvider) error {
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO ai_providers (id, name, category, type, api_key, is_default) VALUES ($1, $2, $3, $4, $5, $6)`,
-		p.ID, p.Name, string(p.Category), p.Type, p.APIKey, p.IsDefault,
+		`INSERT INTO ai_providers (id, name, category, type, model, api_key, is_default) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		p.ID, p.Name, string(p.Category), p.Type, p.Model, p.APIKey, p.IsDefault,
 	)
 	if err != nil {
 		return fmt.Errorf("insert ai provider: %w", err)
@@ -23,8 +23,8 @@ func (d *DB) GetAIProvider(ctx context.Context, id string) (*upal.AIProvider, er
 	p := &upal.AIProvider{}
 	var category string
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, name, category, type, api_key, is_default FROM ai_providers WHERE id = $1`, id,
-	).Scan(&p.ID, &p.Name, &category, &p.Type, &p.APIKey, &p.IsDefault)
+		`SELECT id, name, category, type, model, api_key, is_default FROM ai_providers WHERE id = $1`, id,
+	).Scan(&p.ID, &p.Name, &category, &p.Type, &p.Model, &p.APIKey, &p.IsDefault)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("ai provider not found: %s", id)
 	}
@@ -37,7 +37,7 @@ func (d *DB) GetAIProvider(ctx context.Context, id string) (*upal.AIProvider, er
 
 func (d *DB) ListAIProviders(ctx context.Context) ([]*upal.AIProvider, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT id, name, category, type, api_key, is_default FROM ai_providers ORDER BY category, name`,
+		`SELECT id, name, category, type, model, api_key, is_default FROM ai_providers ORDER BY category, name`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list ai providers: %w", err)
@@ -47,7 +47,7 @@ func (d *DB) ListAIProviders(ctx context.Context) ([]*upal.AIProvider, error) {
 	for rows.Next() {
 		p := &upal.AIProvider{}
 		var category string
-		if err := rows.Scan(&p.ID, &p.Name, &category, &p.Type, &p.APIKey, &p.IsDefault); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &category, &p.Type, &p.Model, &p.APIKey, &p.IsDefault); err != nil {
 			return nil, fmt.Errorf("scan ai provider: %w", err)
 		}
 		p.Category = upal.AIProviderCategory(category)
@@ -58,8 +58,8 @@ func (d *DB) ListAIProviders(ctx context.Context) ([]*upal.AIProvider, error) {
 
 func (d *DB) UpdateAIProvider(ctx context.Context, p *upal.AIProvider) error {
 	_, err := d.Pool.ExecContext(ctx,
-		`UPDATE ai_providers SET name=$1, category=$2, type=$3, api_key=$4, is_default=$5 WHERE id=$6`,
-		p.Name, string(p.Category), p.Type, p.APIKey, p.IsDefault, p.ID,
+		`UPDATE ai_providers SET name=$1, category=$2, type=$3, model=$4, api_key=$5, is_default=$6 WHERE id=$7`,
+		p.Name, string(p.Category), p.Type, p.Model, p.APIKey, p.IsDefault, p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update ai provider: %w", err)

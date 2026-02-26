@@ -391,6 +391,31 @@ func serve() {
 		}
 		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolInfos, modelOpts)
 		gen.SetLLMResolver(resolver)
+		gen.SetDefaultLLMFunc(func(ctx context.Context) (adkmodel.LLM, string, error) {
+			providers, err := aiProviderSvc.ListAll(ctx)
+			if err != nil {
+				return nil, "", err
+			}
+			for _, p := range providers {
+				if p.IsDefault && p.Category == upal.AICategoryLLM {
+					pc := config.ProviderConfig{
+						Type:   p.Type,
+						APIKey: p.APIKey,
+						URL:    upalmodel.DefaultURLForType(p.Type),
+					}
+					built, ok := upalmodel.BuildLLM(p.Name, pc)
+					if !ok {
+						return nil, "", fmt.Errorf("failed to build LLM for provider %s", p.Name)
+					}
+					modelName := p.Model
+					if modelName == "" {
+						modelName, _ = upalmodel.FirstModelForType(p.Type)
+					}
+					return built, modelName, nil
+				}
+			}
+			return nil, "", fmt.Errorf("no default LLM provider configured")
+		})
 		srv.SetGenerator(gen, defaultModelName)
 		if collector != nil {
 			collector.SetGenerator(gen)

@@ -43,7 +43,7 @@ func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 	wfJSON, _ := json.MarshalIndent(wf, "", "  ")
 
 	llmReq := &adkmodel.LLMRequest{
-		Model: s.generator.Model(),
+		Model: s.generator.Model(r.Context()),
 		Config: &genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(s.skills.GetPrompt("workflow-name"), genai.RoleUser),
 		},
@@ -53,7 +53,7 @@ func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp *adkmodel.LLMResponse
-	for r, err := range s.generator.LLM().GenerateContent(r.Context(), llmReq, false) {
+	for r, err := range s.generator.LLM(r.Context()).GenerateContent(r.Context(), llmReq, false) {
 		if err != nil {
 			respondWithName(buildFallbackName(wf))
 			return

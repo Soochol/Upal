@@ -15,6 +15,12 @@ import (
 	"google.golang.org/genai"
 )
 
+// DefaultLLMFunc resolves the current default LLM dynamically at request time.
+// Called at the start of each generation to pick up runtime changes
+// (e.g. when the user changes the default provider in Settings).
+// Returns an error to fall back to the static default.
+type DefaultLLMFunc func(ctx context.Context) (adkmodel.LLM, string, error)
+
 // Generator converts natural language descriptions into WorkflowDefinitions
 // and handles LLM-based configuration of nodes and pipelines.
 type Generator struct {
@@ -25,6 +31,7 @@ type Generator struct {
 	models         []upal.ModelSummary // available models with category/tier metadata
 	defaultModelID string              // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
 	llmResolver    ports.LLMResolver   // resolves "provider/model" → LLM instance (optional)
+	defaultLLMFunc DefaultLLMFunc      // dynamic default resolver (optional)
 }
 
 // New creates a Generator that uses the given LLM and model name.
@@ -52,25 +59,45 @@ func (g *Generator) SetLLMResolver(r ports.LLMResolver) {
 	g.llmResolver = r
 }
 
-// resolveLLM returns the LLM and model name for a request.
-// If requestModel is provided and resolvable, it overrides the default.
-func (g *Generator) resolveLLM(requestModel string) (adkmodel.LLM, string) {
-	if requestModel != "" && g.llmResolver != nil {
-		if resolved, resolvedName, err := g.llmResolver.Resolve(requestModel); err == nil {
-			return resolved, resolvedName
+// SetDefaultLLMFunc sets a function that dynamically resolves the current default LLM.
+// This allows the generator to pick up runtime changes when the user changes
+// the default provider in Settings, without requiring a server restart.
+func (g *Generator) SetDefaultLLMFunc(fn DefaultLLMFunc) {
+	g.defaultLLMFunc = fn
+}
+
+// currentDefault returns the current default LLM and model name.
+// Tries dynamic resolution first, falls back to static fields.
+func (g *Generator) currentDefault(ctx context.Context) (adkmodel.LLM, string) {
+	if g.defaultLLMFunc != nil {
+		if llm, model, err := g.defaultLLMFunc(ctx); err == nil && llm != nil {
+			return llm, model
 		}
 	}
 	return g.llm, g.model
 }
 
-// LLM returns the underlying LLM used by the generator.
-func (g *Generator) LLM() adkmodel.LLM {
-	return g.llm
+// resolveLLM returns the LLM and model name for a request.
+// Priority: explicit request model > dynamic default > static default.
+func (g *Generator) resolveLLM(ctx context.Context, requestModel string) (adkmodel.LLM, string) {
+	if requestModel != "" && g.llmResolver != nil {
+		if resolved, resolvedName, err := g.llmResolver.Resolve(requestModel); err == nil {
+			return resolved, resolvedName
+		}
+	}
+	return g.currentDefault(ctx)
 }
 
-// Model returns the model name used by the generator.
-func (g *Generator) Model() string {
-	return g.model
+// LLM returns the current default LLM (dynamic if configured, else static).
+func (g *Generator) LLM(ctx context.Context) adkmodel.LLM {
+	llm, _ := g.currentDefault(ctx)
+	return llm
+}
+
+// Model returns the current default model name (dynamic if configured, else static).
+func (g *Generator) Model(ctx context.Context) string {
+	_, model := g.currentDefault(ctx)
+	return model
 }
 
 // GenerateWorkflow creates a WorkflowDefinition from a description.
@@ -183,6 +210,8 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 // generateWithSkills runs a multi-turn LLM call that allows the model to call
 // get_skill() to load skill documentation on demand before producing the final JSON.
 func (g *Generator) generateWithSkills(ctx context.Context, sysPrompt, userContent, opName string) (string, error) {
+	llm, modelName := g.currentDefault(ctx)
+
 	genCfg := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),
 		Tools:             []*genai.Tool{skillLoaderTool},
@@ -194,13 +223,13 @@ func (g *Generator) generateWithSkills(ctx context.Context, sysPrompt, userConte
 
 	for turn := 0; turn < 10; turn++ {
 		req := &adkmodel.LLMRequest{
-			Model:    g.model,
+			Model:    modelName,
 			Config:   genCfg,
 			Contents: contents,
 		}
 
 		var resp *adkmodel.LLMResponse
-		for r, err := range g.llm.GenerateContent(ctx, req, false) {
+		for r, err := range llm.GenerateContent(ctx, req, false) {
 			if err != nil {
 				return "", fmt.Errorf("%s (turn %d): %w", opName, turn+1, err)
 			}
