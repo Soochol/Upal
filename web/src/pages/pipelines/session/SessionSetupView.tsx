@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Square,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Power,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -14,6 +14,7 @@ import {
   updateSessionSettings,
   activateSession,
   deactivateSession,
+  runSessionInstance,
 } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { useUIStore } from '@/entities/ui'
@@ -164,26 +165,23 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     markClean()
   }, [serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Activate / Deactivate ───────────────────────────────────────────
+  // ─── Activate / Deactivate / Run ─────────────────────────────────────
 
-  const activateMutation = useMutation({
-    mutationFn: () => activateSession(sessionId),
+  const toggleMutation = useMutation({
+    mutationFn: () => session?.status === 'active'
+      ? deactivateSession(sessionId)
+      : activateSession(sessionId),
     onSuccess: () => {
-      addToast('세션이 활성화되었습니다. 스케줄에 따라 수집이 진행됩니다.')
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     },
-    onError: (err) => addToast(`활성화 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`),
   })
 
-  const deactivateMutation = useMutation({
-    mutationFn: () => deactivateSession(sessionId),
+  const runMutation = useMutation({
+    mutationFn: () => runSessionInstance(sessionId),
     onSuccess: () => {
-      addToast('세션이 비활성화되었습니다.')
-      queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     },
-    onError: (err) => addToast(`비활성화 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`),
   })
 
   const isDraft = session?.status === 'draft'
@@ -249,29 +247,32 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
               <Pencil className="h-3 w-3 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
             </h2>
           )}
-          {(isDraft || isActive) && (
+          <div className="flex items-center gap-2">
+            {/* Start/Stop toggle */}
             <button
-              onClick={() => isActive ? deactivateMutation.mutate() : activateMutation.mutate()}
-              disabled={
-                (isDraft && (localSources.length === 0 || !localSchedule)) ||
-                activateMutation.isPending || deactivateMutation.isPending
-              }
+              onClick={() => toggleMutation.mutate()}
+              disabled={toggleMutation.isPending || (!isDraft && !isActive)}
               className={cn(
-                'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-opacity disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed shrink-0',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
                 isActive
-                  ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
-                  : 'bg-foreground text-background hover:opacity-90',
+                  ? 'bg-success/10 text-success border border-success/20 hover:bg-success/20'
+                  : 'bg-muted/50 text-muted-foreground border border-border hover:bg-muted',
               )}
             >
-              {activateMutation.isPending || deactivateMutation.isPending ? (
-                <><Loader2 className="h-3 w-3 animate-spin" />{isActive ? 'Stopping...' : 'Starting...'}</>
-              ) : isActive ? (
-                <><Square className="h-3 w-3" />Stop Session</>
-              ) : (
-                <><Play className="h-3 w-3" />Start Session</>
-              )}
+              <Power className="h-3 w-3" />
+              {toggleMutation.isPending ? 'Updating...' : isActive ? 'Active' : 'Draft'}
             </button>
-          )}
+
+            {/* Run Now */}
+            <button
+              onClick={() => runMutation.mutate()}
+              disabled={runMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Play className="h-3 w-3" />
+              {runMutation.isPending ? 'Running...' : 'Run Now'}
+            </button>
+          </div>
         </div>
       </div>
 
