@@ -16,7 +16,7 @@ var modelCategoryByType = map[string]upal.ModelCategory{
 	"openai":       upal.ModelCategoryText,
 	"claude-code":  upal.ModelCategoryText,
 	"gemini-image": upal.ModelCategoryImage,
-	"zimage":       upal.ModelCategoryImage,
+	"zimage": upal.ModelCategoryImage,
 	"openai-tts":   upal.ModelCategoryTTS,
 }
 
@@ -78,22 +78,27 @@ type modelEntry struct {
 
 // knownModels maps provider type to a curated list of popular models with metadata.
 var knownModels = map[string][]modelEntry{
-	"gemini": {
-		{"gemini-3.1-pro-preview", upal.ModelTierHigh, "latest high capability, complex reasoning and analysis"},
-		{"gemini-3-flash-preview", upal.ModelTierMid, "latest balanced speed and quality, general-purpose tasks"},
-	},
 	"anthropic": {
-		{"claude-opus-4-20250514", upal.ModelTierHigh, "highest capability, complex multi-step reasoning"},
-		{"claude-sonnet-4-6", upal.ModelTierHigh, "high capability, strong default for most tasks"},
-		{"claude-sonnet-4-20250514", upal.ModelTierMid, "balanced capability, general-purpose tasks"},
-		{"claude-haiku-4-20250414", upal.ModelTierLow, "fast and cheap, simple tasks"},
+		{"claude-opus-4-6", upal.ModelTierHigh, "most intelligent, complex agents and coding"},
+		{"claude-sonnet-4-6", upal.ModelTierHigh, "best speed/intelligence balance, strong default"},
+		{"claude-haiku-4-5-20251001", upal.ModelTierLow, "fastest, near-frontier intelligence"},
+		{"claude-sonnet-4-5-20250929", upal.ModelTierMid, "previous gen sonnet, general-purpose"},
+		{"claude-opus-4-5-20251101", upal.ModelTierHigh, "previous gen opus, complex reasoning"},
 	},
 	"openai": {
-		{"gpt-4.1", upal.ModelTierHigh, "high capability, complex reasoning tasks"},
-		{"gpt-4o", upal.ModelTierMid, "balanced speed/quality, general-purpose tasks"},
-		{"gpt-4.1-mini", upal.ModelTierMid, "good capability at lower cost"},
-		{"gpt-4o-mini", upal.ModelTierLow, "fast and cheap, simple tasks"},
-		{"o3-mini", upal.ModelTierMid, "strong reasoning, math and logic tasks"},
+		{"gpt-5.2", upal.ModelTierHigh, "best for coding and agentic tasks"},
+		{"gpt-5-mini", upal.ModelTierMid, "fast, cost-efficient for well-defined tasks"},
+		{"gpt-5-nano", upal.ModelTierLow, "fastest, most cost-efficient"},
+		{"gpt-4.1", upal.ModelTierHigh, "smartest non-reasoning model"},
+		{"gpt-4.1-mini", upal.ModelTierMid, "smaller, faster version of GPT-4.1"},
+		{"o3", upal.ModelTierHigh, "reasoning model for complex tasks"},
+	},
+	"gemini": {
+		{"gemini-3.1-pro-preview", upal.ModelTierHigh, "advanced intelligence, complex problem-solving"},
+		{"gemini-3-flash-preview", upal.ModelTierMid, "frontier-class at fraction of cost"},
+		{"gemini-2.5-pro", upal.ModelTierHigh, "deep reasoning and coding"},
+		{"gemini-2.5-flash", upal.ModelTierMid, "best price-performance, low-latency"},
+		{"gemini-2.5-flash-lite", upal.ModelTierLow, "fastest, most budget-friendly"},
 	},
 	"claude-code": {
 		{"opus", upal.ModelTierHigh, "highest capability, complex multi-step reasoning"},
@@ -101,16 +106,16 @@ var knownModels = map[string][]modelEntry{
 		{"haiku", upal.ModelTierLow, "fast and cheap, simple tasks"},
 	},
 	"gemini-image": {
-		{"gemini-2.5-flash-image", upal.ModelTierMid, "image generation"},
-		{"gemini-2.0-flash-exp-image-generation", upal.ModelTierMid, "image generation (experimental)"},
-		{"gemini-3-pro-image-preview", upal.ModelTierHigh, "image generation (preview)"},
+		{"gemini-3-pro-image-preview", upal.ModelTierHigh, "state-of-the-art native image generation"},
+		{"gemini-2.5-flash-image", upal.ModelTierMid, "fast native image generation and editing"},
 	},
 	"zimage": {
 		{"z-image", upal.ModelTierMid, "local image generation"},
 	},
 	"openai-tts": {
-		{"tts-1", upal.ModelTierLow, "fast speech synthesis, standard quality"},
+		{"gpt-4o-mini-tts", upal.ModelTierMid, "GPT-powered speech synthesis"},
 		{"tts-1-hd", upal.ModelTierMid, "high-definition speech synthesis"},
+		{"tts-1", upal.ModelTierLow, "fast speech synthesis, standard quality"},
 	},
 }
 
