@@ -6,6 +6,7 @@ import { Loader2, X, Settings, ArrowLeft } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
 import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipeline'
+import { createDraftSession } from '@/entities/content-session/api'
 import { useUIStore } from '@/entities/ui'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
@@ -115,6 +116,17 @@ export default function PipelinesPage() {
     onError: (err) => addToast(`Failed to start session: ${err instanceof Error ? err.message : 'unknown error'}`),
   })
 
+  const newSessionMutation = useMutation({
+    mutationFn: () => createDraftSession({ pipeline_id: selectedPipelineId! }),
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId }] })
+      if (selectedPipelineId) {
+        setSearchParams({ p: selectedPipelineId, s: session.id })
+      }
+    },
+    onError: (err) => addToast(`Failed to create session: ${err instanceof Error ? err.message : 'unknown error'}`),
+  })
+
   // Auto-select first pipeline on load
   useEffect(() => {
     if (!selectedPipelineId && pipelines.length > 0) {
@@ -152,6 +164,7 @@ export default function PipelinesPage() {
             pipelines={pipelines}
             selectedId={selectedPipelineId}
             onSelect={selectPipeline}
+            onDeselect={() => setSearchParams({})}
             isLoading={isLoading}
           />
         </div>
@@ -169,6 +182,7 @@ export default function PipelinesPage() {
               isContentPipeline={(selectedPipeline?.stages ?? []).some(s => s.type === 'collect')}
               selectedSessionId={selectedSessionId}
               onSelectSession={selectSession}
+              onNewSession={() => newSessionMutation.mutate()}
               onStartSession={() => setShowNewSession(true)}
               onBack={goBackToPipelines}
               className="h-full"

@@ -4,7 +4,6 @@ import ProductLandingPage from '@/pages/landing/ProductLanding'
 import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
-import PipelineNewPage from '@/pages/pipelines/PipelineNew'
 import ConnectionsPage from '@/pages/connections'
 import { RunViewer } from '@/pages/runs/RunViewer'
 import PublishedPage from '@/pages/Published'
@@ -37,7 +36,6 @@ export function AppRouter() {
 
           {/* Pipelines */}
           <Route path="/pipelines" element={<PipelinesPage />} />
-          <Route path="/pipelines/new" element={<PipelineNewPage />} />
           <Route path="/pipelines/:id" element={<PipelineRedirect />} />
           <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineRedirect />} />
 

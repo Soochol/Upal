@@ -91,6 +91,10 @@ func (s *Server) deletePipeline(w http.ResponseWriter, r *http.Request) {
 	if s.schedulerSvc != nil {
 		_ = s.schedulerSvc.RemovePipelineSchedules(r.Context(), id)
 	}
+	// Clean up all content sessions belonging to this pipeline.
+	if s.contentSvc != nil {
+		_ = s.contentSvc.DeleteSessionsByPipeline(r.Context(), id)
+	}
 	if err := s.pipelineSvc.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

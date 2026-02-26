@@ -402,6 +402,35 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 	return nil
 }
 
+// DeleteSessionsByPipeline removes all sessions (active, archived, templates)
+// belonging to a pipeline and their associated data. Used during pipeline deletion.
+func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pipelineID string) error {
+	// Collect all session IDs: active + archived + templates
+	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
+	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
+	templates, _ := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
+
+	seen := make(map[string]bool)
+	var ids []string
+	for _, list := range [][]*upal.ContentSession{active, archived, templates} {
+		for _, sess := range list {
+			if !seen[sess.ID] {
+				seen[sess.ID] = true
+				ids = append(ids, sess.ID)
+			}
+		}
+	}
+
+	for _, id := range ids {
+		_ = s.published.DeleteBySession(ctx, id)
+		_ = s.workflowResults.DeleteBySession(ctx, id)
+		if err := s.sessions.Delete(ctx, id); err != nil {
+			slog.Warn("failed to delete session during pipeline cleanup", "session_id", id, "err", err)
+		}
+	}
+	return nil
+}
+
 func (s *ContentSessionService) ListArchivedByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return s.sessions.ListArchivedByPipeline(ctx, pipelineID)
 }
