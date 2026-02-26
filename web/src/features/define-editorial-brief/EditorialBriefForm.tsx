@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { Textarea } from '@/shared/ui/textarea'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
+import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import type { PipelineContext } from '@/entities/pipeline'
 
 const LANGUAGE_OPTIONS = ['Korean', 'English', 'Japanese', 'Chinese']
@@ -27,41 +28,15 @@ type Props = {
 
 export function EditorialBriefForm({ initialContext, onSave, onBack, submitLabel = 'Save', skipLabel, onSkip, autoSave }: Props) {
   const [draft, setDraft] = useState<PipelineContext>(initialContext ?? DEFAULT_CONTEXT)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const isFirstRender = useRef(true)
 
-  // Auto-save with debounce when autoSave=true
-  useEffect(() => {
-    if (!autoSave) return
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    const timer = setTimeout(async () => {
-      setSaveStatus('saving')
-      try {
-        await onSave(draft)
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch {
-        setSaveStatus('error')
-        setTimeout(() => setSaveStatus('idle'), 3000)
-      }
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [draft]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { saveStatus, saveNow } = useAutoSave({
+    data: draft,
+    onSave: async (data) => { await onSave(data) },
+    delay: 2000,
+    enabled: autoSave ?? false,
+  })
 
-  const handleSave = async () => {
-    setSaveStatus('saving')
-    try {
-      await onSave(draft)
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch {
-      setSaveStatus('error')
-      setTimeout(() => setSaveStatus('idle'), 3000)
-    }
-  }
+  const handleSave = () => { void saveNow() }
 
   const field = (key: keyof PipelineContext) => ({
     value: (draft[key] as string) ?? '',
