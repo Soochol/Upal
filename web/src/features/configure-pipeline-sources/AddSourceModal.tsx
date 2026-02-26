@@ -27,7 +27,7 @@ export const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
 ]
 
-export const RESEARCH_SOURCES: SourceTypeDef[] = [
+const RESEARCH_SOURCES: SourceTypeDef[] = [
   {
     type: 'research',
     source_type: 'research',

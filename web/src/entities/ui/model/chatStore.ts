@@ -29,7 +29,6 @@ type ChatBarState = {
   // Actions
   open: () => void
   close: () => void
-  toggle: () => void
   registerHandler: (handler: ChatHandler, placeholder: string, pageLabel: string) => void
   unregisterHandler: () => void
   submit: (message: string) => Promise<void>
@@ -45,7 +44,6 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
-  toggle: () => set((s) => ({ isOpen: !s.isOpen })),
 
   registerHandler: (handler, placeholder, pageLabel) => {
     set({ handler, placeholder, pageLabel, messages: [], isLoading: false })
@@ -57,16 +55,17 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
 
   submit: async (message: string) => {
     const { handler, messages, isLoading } = get()
-    if (!handler || isLoading || !message.trim()) return
+    const trimmed = message.trim()
+    if (!handler || isLoading || !trimmed) return
 
-    const userMsg: ChatMessage = { role: 'user', content: message.trim() }
+    const userMsg: ChatMessage = { role: 'user', content: trimmed }
     const history = messages.map((m) => ({ role: m.role, content: m.content }))
 
     set((s) => ({ messages: [...s.messages, userMsg], isLoading: true }))
 
     try {
       const response = await handler({
-        message: message.trim(),
+        message: trimmed,
         model: '',
         thinking: false,
         history,

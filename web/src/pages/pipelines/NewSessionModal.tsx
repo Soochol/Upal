@@ -182,7 +182,7 @@ export function NewSessionModal({ onSave, onClose }: Props) {
         <WorkflowPicker
           mode="select"
           currentWorkflow={workflow}
-          onSelect={(name) => setWorkflow(name)}
+          onSelect={setWorkflow}
           onClose={() => setShowWorkflowPicker(false)}
         />
       )}

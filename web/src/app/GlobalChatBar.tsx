@@ -1,6 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react'
 import { useChatBarStore } from '@/entities/ui/model/chatStore'
+import type { ChatMessage } from '@/entities/ui/model/chatStore'
+
+function messageBubbleClass(msg: ChatMessage): string {
+  const base = 'rounded-2xl px-3 py-2 text-sm'
+  if (msg.role === 'user') {
+    return `${base} rounded-br-sm bg-primary text-primary-foreground`
+  }
+  if (msg.isError) {
+    return `${base} rounded-bl-sm bg-destructive/10 text-destructive border border-destructive/20`
+  }
+  return `${base} rounded-bl-sm bg-muted/60 text-foreground`
+}
 
 export function GlobalChatBar() {
   const {
@@ -81,15 +93,7 @@ export function GlobalChatBar() {
                 key={i}
                 className={msg.role === 'user' ? 'self-end max-w-[85%]' : 'self-start max-w-[85%]'}
               >
-                <div
-                  className={
-                    msg.role === 'user'
-                      ? 'rounded-2xl rounded-br-sm px-3 py-2 text-sm bg-primary text-primary-foreground'
-                      : msg.isError
-                        ? 'rounded-2xl rounded-bl-sm px-3 py-2 text-sm bg-destructive/10 text-destructive border border-destructive/20'
-                        : 'rounded-2xl rounded-bl-sm px-3 py-2 text-sm bg-muted/60 text-foreground'
-                  }
-                >
+                <div className={messageBubbleClass(msg)}>
                   {msg.content}
                 </div>
               </div>
