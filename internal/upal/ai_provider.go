@@ -1,6 +1,9 @@
 package upal
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // AIProviderCategory classifies AI providers by capability.
 type AIProviderCategory string
@@ -12,15 +15,8 @@ const (
 	AICategoryVideo AIProviderCategory = "video"
 )
 
-// ValidAICategories is the set of allowed category values.
-var ValidAICategories = map[AIProviderCategory]bool{
-	AICategoryLLM:   true,
-	AICategoryTTS:   true,
-	AICategoryImage: true,
-	AICategoryVideo: true,
-}
-
 // ValidProviderTypes lists allowed provider types per category.
+// The key set also defines the valid categories.
 var ValidProviderTypes = map[AIProviderCategory][]string{
 	AICategoryLLM:   {"anthropic", "openai", "gemini", "ollama", "claude-code"},
 	AICategoryTTS:   {"openai-tts"},
@@ -46,20 +42,14 @@ func (p *AIProvider) Validate() error {
 	if p.Category == "" {
 		return fmt.Errorf("category is required")
 	}
-	if !ValidAICategories[p.Category] {
+	allowed, ok := ValidProviderTypes[p.Category]
+	if !ok {
 		return fmt.Errorf("invalid category: %s", p.Category)
 	}
 	if p.Type == "" {
 		return fmt.Errorf("type is required")
 	}
-	valid := false
-	for _, t := range ValidProviderTypes[p.Category] {
-		if t == p.Type {
-			valid = true
-			break
-		}
-	}
-	if !valid {
+	if !slices.Contains(allowed, p.Type) {
 		return fmt.Errorf("invalid type %q for category %s", p.Type, p.Category)
 	}
 	return nil
