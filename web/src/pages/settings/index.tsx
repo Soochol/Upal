@@ -66,9 +66,12 @@ export default function SettingsPage() {
 
     const handleDelete = async (provider: AIProvider) => {
         if (!confirm(`Delete provider "${provider.name}"?`)) return
-        await deleteAIProvider(provider.id)
-        invalidateModelsCache()
-        fetchProviders()
+        try {
+            await deleteAIProvider(provider.id)
+            invalidateModelsCache()
+        } finally {
+            fetchProviders()
+        }
     }
 
     const handleSetDefault = async (id: string) => {

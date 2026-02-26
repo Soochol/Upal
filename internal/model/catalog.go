@@ -183,6 +183,16 @@ func FirstModelForType(providerType string) (string, bool) {
 	return "", false
 }
 
+// DefaultURLForType returns the default API URL for a provider type.
+func DefaultURLForType(providerType string) string {
+	switch providerType {
+	case "ollama":
+		return "http://localhost:11434"
+	default:
+		return ""
+	}
+}
+
 // IsOllama detects if a provider config points to a local Ollama instance.
 // It returns true if the type is explicitly "ollama", or if the type is "openai"
 // and the URL contains the default Ollama port (11434) for backward compatibility.

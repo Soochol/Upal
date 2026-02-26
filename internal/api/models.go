@@ -49,17 +49,8 @@ func (s *Server) effectiveProviderConfigs(ctx context.Context) map[string]config
 		configs[p.Name] = config.ProviderConfig{
 			Type:   p.Type,
 			APIKey: p.APIKey,
-			URL:    defaultURLForType(p.Type),
+			URL:    upalmodel.DefaultURLForType(p.Type),
 		}
 	}
 	return configs
-}
-
-func defaultURLForType(providerType string) string {
-	switch providerType {
-	case "ollama":
-		return "http://localhost:11434"
-	default:
-		return ""
-	}
 }

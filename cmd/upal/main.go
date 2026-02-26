@@ -211,8 +211,8 @@ func serve() {
 	if database != nil {
 		connRepo = repository.NewPersistentConnectionRepository(memConnRepo, database)
 	}
-	connEnc, _ := upalcrypto.NewEncryptor(nil)
-	connSvc := services.NewConnectionService(connRepo, connEnc)
+	enc, _ := upalcrypto.NewEncryptor(nil)
+	connSvc := services.NewConnectionService(connRepo, enc)
 	srv.SetConnectionService(connSvc)
 
 	// AI provider management (persistent if DB is available).
@@ -221,8 +221,7 @@ func serve() {
 	if database != nil {
 		aiProviderRepo = repository.NewPersistentAIProviderRepository(memAIProviderRepo, database)
 	}
-	aiProviderEnc, _ := upalcrypto.NewEncryptor(nil)
-	aiProviderSvc := services.NewAIProviderService(aiProviderRepo, aiProviderEnc)
+	aiProviderSvc := services.NewAIProviderService(aiProviderRepo, enc)
 	srv.SetAIProviderService(aiProviderSvc)
 
 	// Merge DB-registered AI providers into LLM pool.
@@ -235,6 +234,7 @@ func serve() {
 			pc := config.ProviderConfig{
 				Type:   p.Type,
 				APIKey: p.APIKey,
+				URL:    upalmodel.DefaultURLForType(p.Type),
 			}
 			if llm, ok := upalmodel.BuildLLM(p.Name, pc); ok {
 				llms[p.Name] = llm

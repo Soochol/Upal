@@ -46,14 +46,23 @@ func (s *AIProviderService) List(ctx context.Context) ([]upal.AIProviderSafe, er
 }
 
 // Update handles default logic, encrypts the API key, and persists.
+// If APIKey is empty, the existing encrypted key is preserved.
 func (s *AIProviderService) Update(ctx context.Context, p *upal.AIProvider) error {
 	if p.IsDefault {
 		if err := s.repo.ClearDefault(ctx, p.Category); err != nil {
 			return fmt.Errorf("clear default: %w", err)
 		}
 	}
-	if err := s.encryptKey(p); err != nil {
-		return err
+	if p.APIKey == "" {
+		existing, err := s.repo.Get(ctx, p.ID)
+		if err != nil {
+			return fmt.Errorf("get existing provider: %w", err)
+		}
+		p.APIKey = existing.APIKey
+	} else {
+		if err := s.encryptKey(p); err != nil {
+			return err
+		}
 	}
 	return s.repo.Update(ctx, p)
 }
