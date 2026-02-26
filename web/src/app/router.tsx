@@ -45,8 +45,8 @@ export function AppRouter() {
           {/* Settings */}
           <Route path="/settings" element={<Suspense fallback={null}><SettingsPage /></Suspense>} />
         </Routes>
+        <GlobalChatBar />
       </BrowserRouter>
-      <GlobalChatBar />
       <ToastContainer />
     </ErrorBoundary>
   )

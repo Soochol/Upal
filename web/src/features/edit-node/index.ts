@@ -1,6 +1,5 @@
 export { NodeEditor } from './ui/NodeEditor'
 export { registerAllEditors } from './model/registerEditors'
-export { useUpstreamNodes } from './model/useUpstreamNodes'
+export { useUpstreamNodes, computeUpstreamNodes } from './model/useUpstreamNodes'
 export type { UpstreamNode } from './model/useUpstreamNodes'
-export { AIChatEditor } from './ui/AIChatEditor'
 export * from './api/index'

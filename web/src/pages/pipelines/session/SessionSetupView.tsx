@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
-import type { ChatMessage } from '@/shared/ui/ConfigureChat'
+import type { ChatMessage } from '@/entities/ui/model/chatStore'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'

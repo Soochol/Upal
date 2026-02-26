@@ -17,5 +17,5 @@ export function useRegisterChatHandler(
       unregisterHandler()
     }
     return () => unregisterHandler()
-  }, [handler]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handler, placeholder, pageLabel]) // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -20,7 +20,7 @@ import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
-import { configureNode } from '@/features/edit-node/api'
+import { configureNode, computeUpstreamNodes } from '@/features/edit-node'
 import type { ChatSubmitParams } from '@/entities/ui/model/chatStore'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
@@ -80,10 +80,7 @@ export default function WorkflowsPage() {
     const node = curNodes.find((n) => n.id === nodeId)
     if (!node) throw new Error('Node not found')
 
-    const sourceIds = new Set(curEdges.filter((e) => e.target === nodeId).map((e) => e.source))
-    const upstream = curNodes
-      .filter((n) => sourceIds.has(n.id) && n.type !== 'groupNode')
-      .map((n) => ({ id: n.id, type: n.data.nodeType as string, label: n.data.label }))
+    const upstream = computeUpstreamNodes(nodeId, curNodes, curEdges)
 
     const response = await configureNode({
       node_type: node.data.nodeType,

@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import type { ChatMessage } from '@/shared/ui/ConfigureChat'
+
+export type ChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  isError?: boolean
+}
 
 export type ChatSubmitParams = {
   message: string
