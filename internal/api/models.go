@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/soochol/upal/internal/config"
@@ -69,6 +70,7 @@ func (s *Server) effectiveProviderConfigs(ctx context.Context) map[string]config
 	}
 	providers, err := s.aiProviderSvc.ListAll(ctx)
 	if err != nil {
+		slog.Warn("effectiveProviderConfigs: DB unavailable, falling back to static config", "err", err)
 		return s.providerConfigs
 	}
 	// When DB is available, only show DB-registered providers (no config.yaml fallback).

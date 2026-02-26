@@ -236,7 +236,8 @@ func serve() {
 
 	// Migrate config.yaml providers to DB on first startup (when DB is empty).
 	if len(cfg.Providers) > 0 {
-		if existing, err := aiProviderSvc.ListAll(context.Background()); err == nil && len(existing) == 0 {
+		startupCtx := context.Background()
+		if existing, err := aiProviderSvc.ListAll(startupCtx); err == nil && len(existing) == 0 {
 			typeToCategory := make(map[string]upal.AIProviderCategory)
 			for cat, types := range upal.ValidProviderTypes {
 				for _, t := range types {
@@ -257,7 +258,7 @@ func serve() {
 					Model:    modelName,
 					APIKey:   pc.APIKey,
 				}
-				if err := aiProviderSvc.Create(context.Background(), p); err != nil {
+				if err := aiProviderSvc.Create(startupCtx, p); err != nil {
 					slog.Warn("failed to migrate config.yaml provider to DB", "name", name, "err", err)
 				} else {
 					slog.Info("migrated config.yaml provider to DB", "name", name, "type", pc.Type)
@@ -287,7 +288,7 @@ func serve() {
 		}
 		// Override default LLM if a DB provider is marked as default.
 		for _, p := range dbProviders {
-			if p.IsDefault && string(p.Category) == "llm" {
+			if p.IsDefault && p.Category == upal.AICategoryLLM {
 				if llm, ok := llms[p.Name]; ok {
 					defaultLLM = llm
 					if modelName, ok := upalmodel.FirstModelForType(p.Type); ok {
