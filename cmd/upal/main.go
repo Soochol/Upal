@@ -225,6 +225,48 @@ func serve() {
 	aiProviderSvc := services.NewAIProviderService(aiProviderRepo, aiProviderEnc)
 	srv.SetAIProviderService(aiProviderSvc)
 
+	// Merge DB-registered AI providers into LLM pool.
+	if dbProviders, err := aiProviderSvc.ListAll(context.Background()); err == nil {
+		for _, p := range dbProviders {
+			// Skip if already configured from config.yaml
+			if _, exists := llms[p.Name]; exists {
+				continue
+			}
+			pc := config.ProviderConfig{
+				Type:   p.Type,
+				APIKey: p.APIKey,
+			}
+			if llm, ok := upalmodel.BuildLLM(p.Name, pc); ok {
+				llms[p.Name] = llm
+				providerTypes[p.Name] = p.Type
+			}
+		}
+		// Override default LLM if a DB provider is marked as default.
+		for _, p := range dbProviders {
+			if p.IsDefault && string(p.Category) == "llm" {
+				if llm, ok := llms[p.Name]; ok {
+					defaultLLM = llm
+					if modelName, ok := upalmodel.FirstModelForType(p.Type); ok {
+						defaultModelName = modelName
+					}
+				}
+			}
+		}
+		// Update resolver with potentially new defaults.
+		resolver = llmutil.NewMapResolver(llms, defaultLLM, defaultModelName)
+	}
+
+	// Build effective provider configs by merging config.yaml + DB providers.
+	effectiveProviders := make(map[string]config.ProviderConfig, len(cfg.Providers))
+	for k, v := range cfg.Providers {
+		effectiveProviders[k] = v
+	}
+	for name, typ := range providerTypes {
+		if _, exists := effectiveProviders[name]; !exists {
+			effectiveProviders[name] = config.ProviderConfig{Type: typ}
+		}
+	}
+
 	// Publish channel management.
 	publishChannelRepo := repository.NewMemoryPublishChannelRepository()
 	srv.SetPublishChannelRepo(publishChannelRepo)
@@ -335,7 +377,7 @@ func serve() {
 		for _, t := range toolReg.AllTools() {
 			toolInfos = append(toolInfos, upal.ToolSummary{Name: t.Name, Description: t.Description})
 		}
-		allModels := upalmodel.KnownModelsGrouped(cfg.Providers)
+		allModels := upalmodel.KnownModelsGrouped(effectiveProviders)
 		var modelOpts []upal.ModelSummary
 		for _, m := range allModels {
 			modelOpts = append(modelOpts, upal.ModelSummary{
@@ -352,7 +394,7 @@ func serve() {
 			collector.SetGenerator(gen)
 		}
 	}
-	srv.SetProviderConfigs(cfg.Providers)
+	srv.SetProviderConfigs(effectiveProviders)
 	srv.SetServerConfig(cfg.Server, cfg.Generator)
 
 	// Enable A2A protocol endpoints.

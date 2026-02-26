@@ -175,6 +175,14 @@ func AllStaticModels(configs map[string]config.ProviderConfig) []upal.ModelInfo 
 	return models
 }
 
+// FirstModelForType returns the first known model name for the given provider type.
+func FirstModelForType(providerType string) (string, bool) {
+	if models, ok := knownModels[providerType]; ok && len(models) > 0 {
+		return models[0].Name, true
+	}
+	return "", false
+}
+
 // IsOllama detects if a provider config points to a local Ollama instance.
 // It returns true if the type is explicitly "ollama", or if the type is "openai"
 // and the URL contains the default Ollama port (11434) for backward compatibility.
