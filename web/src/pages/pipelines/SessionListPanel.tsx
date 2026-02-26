@@ -153,7 +153,7 @@ export function SessionListPanel({
                     'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border min-h-[120px]',
                     isSelected
                       ? 'bg-primary/5 border-primary/20 shadow-sm'
-                      : 'bg-transparent border-transparent hover:bg-muted/50',
+                      : 'bg-transparent border-border hover:bg-muted/50',
                   )}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">

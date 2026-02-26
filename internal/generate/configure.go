@@ -153,14 +153,14 @@ func (g *Generator) ConfigurePipeline(ctx context.Context, in ConfigurePipelineI
 			sessionType = "template"
 		}
 		contextMsg = fmt.Sprintf(
-			"Session: name=%q, status=%q, type=%s\nCurrent settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
+			"Session: name=%q, status=%q, type=%s\nCurrent settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nContext: %s\n\nUser request: %s",
 			in.Session.Name, in.Session.Status, sessionType,
 			string(in.CurrentSources), in.CurrentSchedule, string(in.CurrentWorkflows),
 			in.CurrentModel, string(in.CurrentContext), in.Message,
 		)
 	} else {
 		contextMsg = fmt.Sprintf(
-			"Current pipeline settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
+			"Current pipeline settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nContext: %s\n\nUser request: %s",
 			string(in.CurrentSources), in.CurrentSchedule, string(in.CurrentWorkflows),
 			in.CurrentModel, string(in.CurrentContext), in.Message,
 		)
@@ -188,6 +188,19 @@ func (g *Generator) ConfigurePipeline(ctx context.Context, in ConfigurePipelineI
 					sysPrompt += "\n\n--- STAGE GUIDE: " + stType + " ---\n\n" + skill
 				}
 				seen[key] = true
+			}
+		}
+		// Always inject collect and research guides for session configuration
+		// so the LLM knows about research source types even without a collect stage.
+		if in.Session != nil {
+			for _, stType := range []string{"collect", "research"} {
+				key := "stage-" + stType
+				if !seen[key] {
+					if skill := g.skills.Get(key); skill != "" {
+						sysPrompt += "\n\n--- STAGE GUIDE: " + stType + " ---\n\n" + skill
+					}
+					seen[key] = true
+				}
 			}
 		}
 	}

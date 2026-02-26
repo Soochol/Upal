@@ -1,21 +1,24 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
-  Search, Plus, GitBranch, Sparkles, Trash2, Loader2,
+  Search, Plus, GitBranch, Sparkles, Trash2, Loader2, Check, X,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { templates } from '@/shared/lib/templates'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import type { WorkflowDefinition } from '@/entities/workflow'
+import { EditableName } from '@/shared/ui/EditableName'
 
 interface WorkflowSidebarProps {
   workflows: WorkflowDefinition[]
   selectedName: string | null
   onSelect: (name: string) => void
-  onNew: () => void
+  onNew: (name: string) => void
   onGenerate: () => void
   onDelete: (name: string) => void
+  onRename: (oldName: string, newName: string) => void
   onTemplate: (tpl: TemplateDefinition) => void
   isLoading: boolean
+  isCreating: boolean
   runningWorkflows: Set<string>
 }
 
@@ -26,17 +29,35 @@ export function WorkflowSidebar({
   onNew,
   onGenerate,
   onDelete,
+  onRename,
   onTemplate,
   isLoading,
+  isCreating,
   runningWorkflows,
 }: WorkflowSidebarProps) {
   const [search, setSearch] = useState('')
+  const [isNaming, setIsNaming] = useState(false)
+  const [newName, setNewName] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const filtered = workflows.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase()),
   )
 
   const displayTemplates = templates.slice(0, 3)
+
+  const handleCreate = () => {
+    const trimmed = newName.trim()
+    if (!trimmed || isCreating) return
+    onNew(trimmed)
+    setIsNaming(false)
+    setNewName('')
+  }
+
+  const handleCancel = () => {
+    setIsNaming(false)
+    setNewName('')
+  }
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
@@ -65,7 +86,7 @@ export function WorkflowSidebar({
           </button>
 
           <button
-            onClick={onNew}
+            onClick={() => { setIsNaming(true); setTimeout(() => inputRef.current?.focus(), 0) }}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
           >
             <Plus className="h-3 w-3" />
@@ -76,6 +97,43 @@ export function WorkflowSidebar({
 
       {/* Workflow list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+        {/* Inline creation input */}
+        {isNaming && (
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-primary/40 bg-primary/5 mb-1">
+            <div className="w-7 h-7 rounded-lg bg-card border border-white/5 flex items-center justify-center shrink-0">
+              <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreate()
+                if (e.key === 'Escape') handleCancel()
+              }}
+              onBlur={() => { if (!newName.trim()) handleCancel() }}
+              placeholder="Workflow name…"
+              disabled={isCreating}
+              className="flex-1 min-w-0 text-sm font-semibold bg-transparent outline-none placeholder:text-muted-foreground/50"
+            />
+            <button
+              onClick={handleCreate}
+              disabled={!newName.trim() || isCreating}
+              className="p-0.5 rounded-md text-success hover:bg-success/10 transition-colors cursor-pointer disabled:opacity-30"
+            >
+              {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={isCreating}
+              className="p-0.5 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
             <Loader2 className="w-5 h-5 animate-spin text-primary/50" />
@@ -94,7 +152,7 @@ export function WorkflowSidebar({
               </div>
               <div className="flex flex-col gap-2 w-full max-w-[200px]">
                 <button
-                  onClick={onNew}
+                  onClick={() => { setIsNaming(true); setTimeout(() => inputRef.current?.focus(), 0) }}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -136,7 +194,12 @@ export function WorkflowSidebar({
                     <div className="w-7 h-7 rounded-lg bg-card border border-white/5 flex items-center justify-center shrink-0">
                       <GitBranch className="w-3.5 h-3.5 text-blue-400" />
                     </div>
-                    <span className="text-sm font-semibold truncate">{wf.name}</span>
+                    <EditableName
+                      value={wf.name}
+                      placeholder="Untitled"
+                      onSave={(name) => onRename(wf.name, name)}
+                      className="text-sm font-semibold truncate"
+                    />
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {isRunning && (

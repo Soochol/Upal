@@ -12,7 +12,7 @@ import { Console } from '@/widgets/bottom-console'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import {
   useWorkflowStore, serializeWorkflow, deserializeWorkflow,
-  loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow,
+  loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow, saveWorkflow,
 } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import { fetchRuns } from '@/entities/run'
@@ -57,6 +57,7 @@ export default function WorkflowsPage() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
+  const skipNextLoadRef = useRef(false)
   const { size: rightPanelWidth, handleMouseDown: onRightPanelDrag } = useResizeDrag({
     direction: 'horizontal',
     min: 260,
@@ -133,6 +134,12 @@ export default function WorkflowsPage() {
   useEffect(() => {
     if (!selectedWorkflowName) return
 
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false
+      requestAnimationFrame(() => markClean())
+      return
+    }
+
     loadWorkflow(selectedWorkflowName)
       .then((wf) => {
         const { nodes: n, edges: e } = deserializeWorkflow(wf)
@@ -173,17 +180,40 @@ export default function WorkflowsPage() {
     setSearchParams({ w: name })
   }, [saveNow, setSearchParams])
 
-  const handleNew = useCallback(async () => {
-    await saveNow()
-    const name = `Untitled-${Date.now().toString(36).slice(-4)}`
-    resetStores(name)
-    setSearchParams({ w: name })
-  }, [saveNow, resetStores, setSearchParams])
+  const [isCreating, setIsCreating] = useState(false)
+
+  const handleNew = useCallback(async (name: string) => {
+    setIsCreating(true)
+    try {
+      await saveNow()
+      resetStores(name)
+      skipNextLoadRef.current = true
+      setSearchParams({ w: name })
+      await saveWorkflow({ name, version: 1, nodes: [], edges: [] })
+      queryClient.invalidateQueries({ queryKey: ['workflows'] })
+    } finally {
+      setIsCreating(false)
+    }
+  }, [saveNow, resetStores, setSearchParams, queryClient])
+
+  const handleRename = useCallback(async (oldName: string, newName: string) => {
+    const wf = workflows.find((w) => w.name === oldName)
+    if (!wf) return
+    await saveWorkflow({ ...wf, name: newName }, oldName)
+    queryClient.invalidateQueries({ queryKey: ['workflows'] })
+    if (selectedWorkflowName === oldName) {
+      useWorkflowStore.getState().setWorkflowName(newName)
+      useWorkflowStore.getState().setOriginalName(newName)
+      skipNextLoadRef.current = true
+      setSearchParams({ w: newName })
+    }
+  }, [workflows, selectedWorkflowName, queryClient, setSearchParams])
 
   const handleGenerate = useCallback(async () => {
     await saveNow()
     const name = `Untitled-${Date.now().toString(36).slice(-4)}`
     resetStores(name)
+    skipNextLoadRef.current = true
     setSearchParams({ w: name, generate: 'true' })
   }, [saveNow, resetStores, setSearchParams])
 
@@ -209,6 +239,7 @@ export default function WorkflowsPage() {
     useWorkflowStore.getState().setOriginalName('')
     useExecutionStore.getState().clearNodeStatuses()
     useExecutionStore.getState().clearRunEvents()
+    skipNextLoadRef.current = true
     setSearchParams({ w: tpl.workflow.name })
   }, [saveNow, setSearchParams])
 
@@ -345,8 +376,10 @@ export default function WorkflowsPage() {
             onNew={handleNew}
             onGenerate={handleGenerate}
             onDelete={handleDelete}
+            onRename={handleRename}
             onTemplate={handleTemplate}
             isLoading={isLoading}
+            isCreating={isCreating}
             runningWorkflows={runningWorkflows}
           />
         </div>
