@@ -90,12 +90,14 @@ export default function WorkflowsPage() {
     loadWorkflow(selectedWorkflowName)
       .then((wf) => {
         const { nodes: n, edges: e } = deserializeWorkflow(wf)
-        useWorkflowStore.setState({ nodes: n, edges: e, isTemplate: false })
+        useWorkflowStore.setState({ nodes: n, edges: e, isTemplate: false, positionVersion: 0 })
         useWorkflowStore.getState().setWorkflowName(wf.name)
         useWorkflowStore.getState().setOriginalName(wf.name)
         useExecutionStore.getState().clearNodeStatuses()
         useExecutionStore.getState().clearRunEvents()
-        markClean()
+        // Defer markClean to after React re-renders with the new store state,
+        // so the clean baseline captures the actual post-load snapshot.
+        requestAnimationFrame(() => markClean())
       })
       .catch(() => {
         addToast(`Workflow "${selectedWorkflowName}" not found.`)
@@ -113,7 +115,7 @@ export default function WorkflowsPage() {
   }, [])
 
   const resetStores = useCallback((name: string, template = false) => {
-    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: template })
+    useWorkflowStore.setState({ nodes: [], edges: [], isTemplate: template, positionVersion: 0 })
     useWorkflowStore.getState().setWorkflowName(name)
     useWorkflowStore.getState().setOriginalName('')
     useExecutionStore.getState().clearNodeStatuses()

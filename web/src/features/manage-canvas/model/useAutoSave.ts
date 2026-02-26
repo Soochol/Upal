@@ -9,9 +9,10 @@ import {
 } from '@/entities/workflow'
 
 type CanvasSnapshot = {
-  nodes: Array<{ id: string; data: unknown; position: { x: number; y: number } }>
+  nodes: Array<{ id: string; data: unknown }>
   edges: unknown[]
   workflowName: string
+  positionVersion: number
 }
 
 export function useAutoSave() {
@@ -22,15 +23,17 @@ export function useAutoSave() {
   const originalName = useWorkflowStore((s) => s.originalName)
   const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
   const setOriginalName = useWorkflowStore((s) => s.setOriginalName)
+  const positionVersion = useWorkflowStore((s) => s.positionVersion)
   const isRunning = useExecutionStore((s) => s.isRunning)
 
   const data: CanvasSnapshot = useMemo(
     () => ({
-      nodes: nodes.map((n) => ({ id: n.id, data: n.data, position: n.position })),
+      nodes: nodes.map((n) => ({ id: n.id, data: n.data })),
       edges,
       workflowName: workflowName ?? '',
+      positionVersion,
     }),
-    [nodes, edges, workflowName],
+    [nodes, edges, workflowName, positionVersion],
   )
 
   const onSave = useCallback(

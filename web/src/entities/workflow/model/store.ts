@@ -67,6 +67,10 @@ type WorkflowState = {
   isTemplate: boolean
   setIsTemplate: (v: boolean) => void
 
+  // Bumped on user-initiated position changes (drag-stop, manual layout)
+  // so auto-save can detect edits without comparing raw layout coordinates.
+  positionVersion: number
+
   // Group management
   createGroup: (nodeIds: string[]) => string | undefined
   removeGroup: (groupId: string) => void
@@ -88,9 +92,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   originalName: '',
   isTemplate: false,
   setIsTemplate: (v) => set({ isTemplate: v }),
+  positionVersion: 0,
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) })
+    const hasDragStop = changes.some((c) => c.type === 'position' && c.dragging === false)
+    set((s) => ({
+      nodes: applyNodeChanges(changes, s.nodes),
+      ...(hasDragStop ? { positionVersion: s.positionVersion + 1 } : {}),
+    }))
   },
   onEdgesChange: (changes) => {
     // Auto-remove {{source}} template references from target node prompts on edge removal
@@ -178,10 +187,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({ nodes: patchNodeData(get().nodes, nodeId, { description }) })
   },
   applyAutoLayout: () => {
-    const { nodes, edges } = get()
+    const { nodes, edges, positionVersion } = get()
     if (nodes.length === 0) return
     const { nodes: layouted } = getLayoutedElements<WorkflowNode>(nodes, edges, 'LR')
-    set({ nodes: layouted })
+    set({ nodes: layouted, positionVersion: positionVersion + 1 })
   },
   setWorkflowName: (name) => set({ workflowName: name }),
   setOriginalName: (name) => set({ originalName: name }),
