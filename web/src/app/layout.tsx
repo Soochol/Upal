@@ -23,7 +23,7 @@ const NAV_GROUPS = [
   {
     items: [
       { icon: Box, label: 'Workflows', to: '/workflows' },
-      { icon: Workflow, label: 'Pipelines', to: '/pipelines' },
+      { icon: Workflow, label: 'Sessions', to: '/sessions' },
     ],
   },
   {

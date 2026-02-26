@@ -68,10 +68,10 @@ export default function ProductLanding() {
               Workflows
             </Link>
             <Link
-              to="/pipelines"
+              to="/sessions"
               className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
             >
-              Pipelines
+              Sessions
             </Link>
             <Link
               to="/connections"

@@ -48,7 +48,7 @@ export function AppRouter() {
           <Route path="/login" element={<LoginPage />} />
 
           {/* All other routes — protected */}
-          <Route path="/" element={<AuthGuard><Navigate to="/pipelines" replace /></AuthGuard>} />
+          <Route path="/" element={<AuthGuard><Navigate to="/sessions" replace /></AuthGuard>} />
           <Route path="/workflows" element={<AuthGuard><WorkflowsPage /></AuthGuard>} />
           <Route path="/runs" element={<AuthGuard><RunsPage /></AuthGuard>} />
           <Route path="/runs/:id" element={<AuthGuard><RunViewer /></AuthGuard>} />
