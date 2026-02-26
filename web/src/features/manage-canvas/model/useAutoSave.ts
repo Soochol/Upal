@@ -1,123 +1,79 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useWorkflowStore, serializeWorkflow, saveWorkflow, suggestWorkflowName } from '@/entities/workflow'
+import { useCallback, useMemo } from 'react'
+import {
+  useAutoSave as useGenericAutoSave,
+  type SaveStatus,
+} from '@/shared/hooks/useAutoSave'
+import { useWorkflowStore } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
+import {
+  serializeWorkflow,
+  saveWorkflow,
+  suggestWorkflowName,
+} from '@/entities/workflow'
 
-const DEBOUNCE_MS = 2000
+export type { SaveStatus }
 
-export type SaveStatus = 'idle' | 'waiting' | 'saving' | 'saved' | 'error'
+type CanvasSnapshot = {
+  nodes: Array<{ id: string; data: unknown; position: { x: number; y: number } }>
+  edges: unknown[]
+  workflowName: string
+}
 
-/**
- * Save the current canvas state to the backend immediately.
- * Reads directly from Zustand stores — safe to call outside React components.
- */
-async function flushSave(): Promise<void> {
-  if (useWorkflowStore.getState().isTemplate) return
-  const { nodes, edges, workflowName, originalName, setWorkflowName, setOriginalName } =
-    useWorkflowStore.getState()
-
-  if (nodes.length === 0) return
-
-  let name = workflowName
-  if (!name) {
-    const tempWf = serializeWorkflow('untitled', nodes, edges)
-    try {
-      name = await suggestWorkflowName(tempWf)
-    } catch {
-      name = 'untitled-workflow'
-    }
-    setWorkflowName(name)
-  }
-
-  const wf = serializeWorkflow(name, nodes, edges)
-  await saveWorkflow(wf, originalName || undefined)
-
-  // After successful save, sync originalName to current name
-  if (originalName !== name) {
-    setOriginalName(name)
-  }
+function snapshotEqual(a: CanvasSnapshot, b: CanvasSnapshot): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 export function useAutoSave() {
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isSavingRef = useRef(false)
-  const lastSnapshotRef = useRef('')
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nodes = useWorkflowStore((s) => s.nodes)
+  const edges = useWorkflowStore((s) => s.edges)
+  const workflowName = useWorkflowStore((s) => s.workflowName)
+  const isTemplate = useWorkflowStore((s) => s.isTemplate)
+  const originalName = useWorkflowStore((s) => s.originalName)
+  const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName)
+  const setOriginalName = useWorkflowStore((s) => s.setOriginalName)
+  const isRunning = useExecutionStore((s) => s.isRunning)
 
-  const performSave = useCallback(async () => {
-    // Clear any pending "Saved" dismiss timer
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-
-    const { nodes, edges, workflowName } = useWorkflowStore.getState()
-    const { isRunning } = useExecutionStore.getState()
-
-    // Don't save during execution or with empty canvas
-    if (isRunning || nodes.length === 0) return
-
-    // Snapshot check: skip if nothing changed
-    const snapshot = JSON.stringify({ nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })), edges, workflowName })
-    if (snapshot === lastSnapshotRef.current) return
-
-    if (isSavingRef.current) return
-    isSavingRef.current = true
-    setSaveStatus('saving')
-
-    try {
-      await flushSave()
-
-      lastSnapshotRef.current = snapshot
-      setSaveStatus('saved')
-      // Auto-dismiss "Saved" after 2 seconds
-      savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch {
-      setSaveStatus('error')
-    } finally {
-      isSavingRef.current = false
-    }
-  }, [])
-
-  const debouncedSave = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setSaveStatus('waiting')
-    timerRef.current = setTimeout(performSave, DEBOUNCE_MS)
-  }, [performSave])
-
-  // Immediate save (for Ctrl+S) — returns promise so callers can await
-  const saveNow = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    return performSave()
-  }, [performSave])
-
-  useEffect(() => {
-    const unsub = useWorkflowStore.subscribe(
-      (state, prevState) => {
-        if (
-          state.nodes !== prevState.nodes ||
-          state.edges !== prevState.edges ||
-          state.workflowName !== prevState.workflowName
-        ) {
-          debouncedSave()
-        }
-      },
-    )
-    return () => {
-      unsub()
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [debouncedSave])
-
-  // Mark current store state as "clean" — prevents auto-save from treating
-  // a freshly-loaded workflow as a pending change.
-  const markClean = useCallback(() => {
-    const { nodes, edges, workflowName } = useWorkflowStore.getState()
-    lastSnapshotRef.current = JSON.stringify({
-      nodes: nodes.map(n => ({ id: n.id, data: n.data, position: n.position })),
+  const data: CanvasSnapshot = useMemo(
+    () => ({
+      nodes: nodes.map((n) => ({ id: n.id, data: n.data, position: n.position })),
       edges,
-      workflowName,
-    })
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setSaveStatus('idle')
-  }, [])
+      workflowName: workflowName ?? '',
+    }),
+    [nodes, edges, workflowName],
+  )
+
+  const onSave = useCallback(
+    async (snapshot: CanvasSnapshot) => {
+      let name = snapshot.workflowName
+      if (!name) {
+        const tempWf = serializeWorkflow('untitled', nodes, edges)
+        try {
+          name = await suggestWorkflowName(tempWf)
+        } catch {
+          name = 'untitled-workflow'
+        }
+        setWorkflowName(name)
+      }
+
+      const wf = serializeWorkflow(name, nodes, edges)
+      await saveWorkflow(wf, originalName || undefined)
+
+      if (originalName !== name) {
+        setOriginalName(name)
+      }
+    },
+    [nodes, edges, originalName, setWorkflowName, setOriginalName],
+  )
+
+  const enabled = !isTemplate && !isRunning && nodes.length > 0
+
+  const { saveStatus, saveNow, markClean } = useGenericAutoSave<CanvasSnapshot>({
+    data,
+    onSave,
+    delay: 2000,
+    isEqual: snapshotEqual,
+    enabled,
+  })
 
   return { saveStatus, saveNow, markClean }
 }

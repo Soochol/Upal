@@ -148,6 +148,8 @@ type Registry struct {
 
 코드 diff는 사용자가 직접 확인하므로, **왜 하는지**(목적)와 **뭐가 달라지는지**(사용자·시스템 관점의 동작 변화)를 중심으로 설명한다.
 
+설계 제안·리뷰에서도 동일 원칙을 적용한다. 코드 표현이나 변수명을 쓰지 않고 "실행 중이면 저장 안 함", "변경 여부 추적"처럼 **동작 중심**으로 설명한다.
+
 ## Solution Approach
 
 When suggesting fixes or changes, always consider both perspectives:
