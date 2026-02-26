@@ -1,5 +1,9 @@
 import { lazy, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
+import { useAuthStore } from '@/entities/auth'
+import { LoginPage } from '@/pages/login'
 import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
 import PipelinesPage from '@/pages/pipelines'
@@ -19,31 +23,50 @@ function PipelineRedirect() {
   return <Navigate to={`/pipelines${search}`} replace />
 }
 
+function AuthGuard({ children }: { children: ReactNode }) {
+  const { user, loading, initialized } = useAuthStore()
+
+  if (!initialized || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
 export function AppRouter() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/pipelines" replace />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/runs" element={<RunsPage />} />
-          <Route path="/runs/:id" element={<RunViewer />} />
-          <Route path="/connections" element={<ConnectionsPage />} />
+          {/* Login — outside auth guard */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* All other routes — protected */}
+          <Route path="/" element={<AuthGuard><Navigate to="/pipelines" replace /></AuthGuard>} />
+          <Route path="/workflows" element={<AuthGuard><WorkflowsPage /></AuthGuard>} />
+          <Route path="/runs" element={<AuthGuard><RunsPage /></AuthGuard>} />
+          <Route path="/runs/:id" element={<AuthGuard><RunViewer /></AuthGuard>} />
+          <Route path="/connections" element={<AuthGuard><ConnectionsPage /></AuthGuard>} />
 
           {/* Inbox */}
-          <Route path="/inbox" element={<Suspense fallback={null}><InboxPage /></Suspense>} />
+          <Route path="/inbox" element={<AuthGuard><Suspense fallback={null}><InboxPage /></Suspense></AuthGuard>} />
           <Route path="/publish-inbox" element={<Navigate to="/inbox" replace />} />
 
           {/* Pipelines */}
-          <Route path="/pipelines" element={<PipelinesPage />} />
-          <Route path="/pipelines/:id" element={<PipelineRedirect />} />
-          <Route path="/pipelines/:id/sessions/:sessionId" element={<PipelineRedirect />} />
+          <Route path="/pipelines" element={<AuthGuard><PipelinesPage /></AuthGuard>} />
+          <Route path="/pipelines/:id" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
+          <Route path="/pipelines/:id/sessions/:sessionId" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
 
           {/* Content */}
-          <Route path="/published" element={<PublishedPage />} />
+          <Route path="/published" element={<AuthGuard><PublishedPage /></AuthGuard>} />
 
           {/* Settings */}
-          <Route path="/settings" element={<Suspense fallback={null}><SettingsPage /></Suspense>} />
+          <Route path="/settings" element={<AuthGuard><Suspense fallback={null}><SettingsPage /></Suspense></AuthGuard>} />
         </Routes>
         <GlobalChatBar />
       </BrowserRouter>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X } from 'lucide-react'
+import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X, LogOut } from 'lucide-react'
 import { useLocation, NavLink } from 'react-router-dom'
 import { useContentSessionStore } from '@/entities/content-session/store'
+import { useAuthStore } from '@/entities/auth'
 import { cn } from '@/shared/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Separator } from '@/shared/ui/separator'
@@ -60,6 +61,8 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
   const [gnbVisible, setGnbVisible] = useState(true)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
+  const user = useAuthStore((s) => s.user)
+  const authLogout = useAuthStore((s) => s.logout)
   const pendingCount = useContentSessionStore((s) => s.pendingCount)
   const publishReadyCount = useContentSessionStore((s) => s.publishReadyCount)
   const syncBadgeCounts = useContentSessionStore((s) => s.syncBadgeCounts)
@@ -82,6 +85,10 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
     } else {
       setGnbVisible(!gnbVisible)
     }
+  }
+
+  function handleLogout(): void {
+    authLogout().then(() => { window.location.href = '/login' })
   }
 
   return (
@@ -139,6 +146,23 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
               )}
             </div>
           </NavLink>
+          {user && (
+            <>
+              <Separator className="mx-1" />
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 overflow-hidden"
+                onClick={handleLogout}
+              >
+                <img src={user.avatar_url} alt="" className="size-5 min-w-5 rounded-full shrink-0" />
+                {gnbVisible && (
+                  <span className="truncate font-medium">{user.name}</span>
+                )}
+                {gnbVisible && (
+                  <LogOut className="size-4 ml-auto shrink-0 opacity-60" />
+                )}
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -175,13 +199,26 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
                 </div>
               ))}
             </div>
-            <div className="px-2">
+            <div className="px-2 flex flex-col gap-2">
               <NavLink to="/settings" className={navLinkClass}>
                 <div className="flex items-center gap-3">
                   <Settings className="size-5 shrink-0" />
                   <span className="text-sm font-medium">Settings</span>
                 </div>
               </NavLink>
+              {user && (
+                <>
+                  <Separator className="mx-1" />
+                  <button
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200"
+                    onClick={handleLogout}
+                  >
+                    <img src={user.avatar_url} alt="" className="size-5 rounded-full shrink-0" />
+                    <span className="truncate font-medium">{user.name}</span>
+                    <LogOut className="size-4 ml-auto shrink-0 opacity-60" />
+                  </button>
+                </>
+              )}
             </div>
           </nav>
         </div>
