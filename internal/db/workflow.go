@@ -22,7 +22,7 @@ type WorkflowRow struct {
 }
 
 // CreateWorkflow stores a new workflow.
-func (d *DB) CreateWorkflow(ctx context.Context, wf *upal.WorkflowDefinition) (*WorkflowRow, error) {
+func (d *DB) CreateWorkflow(ctx context.Context, userID string, wf *upal.WorkflowDefinition) (*WorkflowRow, error) {
 	defJSON, err := json.Marshal(wf)
 	if err != nil {
 		return nil, fmt.Errorf("marshal definition: %w", err)
@@ -41,10 +41,10 @@ func (d *DB) CreateWorkflow(ctx context.Context, wf *upal.WorkflowDefinition) (*
 	}
 
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO workflows (id, name, version, definition, visibility, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT (name) DO UPDATE SET definition = EXCLUDED.definition, version = EXCLUDED.version, updated_at = EXCLUDED.updated_at`,
-		row.ID, row.Name, row.Version, defJSON, row.Visibility, row.CreatedAt, row.UpdatedAt,
+		`INSERT INTO workflows (id, user_id, name, version, definition, visibility, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (user_id, name) DO UPDATE SET definition = EXCLUDED.definition, version = EXCLUDED.version, updated_at = EXCLUDED.updated_at`,
+		row.ID, userID, row.Name, row.Version, defJSON, row.Visibility, row.CreatedAt, row.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert workflow: %w", err)
@@ -53,13 +53,13 @@ func (d *DB) CreateWorkflow(ctx context.Context, wf *upal.WorkflowDefinition) (*
 }
 
 // GetWorkflow retrieves a workflow by name.
-func (d *DB) GetWorkflow(ctx context.Context, name string) (*WorkflowRow, error) {
+func (d *DB) GetWorkflow(ctx context.Context, userID string, name string) (*WorkflowRow, error) {
 	var row WorkflowRow
 	var defJSON []byte
 
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, name, version, definition, visibility, created_at, updated_at
-		 FROM workflows WHERE name = $1`, name,
+		 FROM workflows WHERE name = $1 AND user_id = $2`, name, userID,
 	).Scan(&row.ID, &row.Name, &row.Version, &defJSON, &row.Visibility, &row.CreatedAt, &row.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("workflow not found: %s", name)
@@ -74,11 +74,11 @@ func (d *DB) GetWorkflow(ctx context.Context, name string) (*WorkflowRow, error)
 	return &row, nil
 }
 
-// ListWorkflows returns all workflows.
-func (d *DB) ListWorkflows(ctx context.Context) ([]WorkflowRow, error) {
+// ListWorkflows returns all workflows for a user.
+func (d *DB) ListWorkflows(ctx context.Context, userID string) ([]WorkflowRow, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, name, version, definition, visibility, created_at, updated_at
-		 FROM workflows ORDER BY updated_at DESC`,
+		 FROM workflows WHERE user_id = $1 ORDER BY updated_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list workflows: %w", err)
@@ -104,8 +104,8 @@ func (d *DB) ListWorkflows(ctx context.Context) ([]WorkflowRow, error) {
 }
 
 // DeleteWorkflow removes a workflow by name.
-func (d *DB) DeleteWorkflow(ctx context.Context, name string) error {
-	res, err := d.Pool.ExecContext(ctx, `DELETE FROM workflows WHERE name = $1`, name)
+func (d *DB) DeleteWorkflow(ctx context.Context, userID string, name string) error {
+	res, err := d.Pool.ExecContext(ctx, `DELETE FROM workflows WHERE name = $1 AND user_id = $2`, name, userID)
 	if err != nil {
 		return fmt.Errorf("delete workflow: %w", err)
 	}

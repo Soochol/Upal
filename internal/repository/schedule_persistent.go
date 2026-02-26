@@ -20,7 +20,8 @@ func NewPersistentScheduleRepository(mem *MemoryScheduleRepository, database *db
 
 func (r *PersistentScheduleRepository) Create(ctx context.Context, schedule *upal.Schedule) error {
 	_ = r.mem.Create(ctx, schedule)
-	if err := r.db.CreateSchedule(ctx, schedule); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreateSchedule(ctx, userID, schedule); err != nil {
 		slog.Warn("db create schedule failed, in-memory only", "err", err)
 	}
 	return nil
@@ -32,7 +33,8 @@ func (r *PersistentScheduleRepository) Get(ctx context.Context, id string) (*upa
 		return s, nil
 	}
 
-	dbSched, dbErr := r.db.GetSchedule(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	dbSched, dbErr := r.db.GetSchedule(ctx, userID, id)
 	if dbErr != nil {
 		return nil, err // return original ErrNotFound
 	}
@@ -43,7 +45,8 @@ func (r *PersistentScheduleRepository) Get(ctx context.Context, id string) (*upa
 
 func (r *PersistentScheduleRepository) Update(ctx context.Context, schedule *upal.Schedule) error {
 	_ = r.mem.Update(ctx, schedule)
-	if err := r.db.UpdateSchedule(ctx, schedule); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdateSchedule(ctx, userID, schedule); err != nil {
 		slog.Warn("db update schedule failed, in-memory only", "err", err)
 	}
 	return nil
@@ -51,14 +54,16 @@ func (r *PersistentScheduleRepository) Update(ctx context.Context, schedule *upa
 
 func (r *PersistentScheduleRepository) Delete(ctx context.Context, id string) error {
 	_ = r.mem.Delete(ctx, id)
-	if err := r.db.DeleteSchedule(ctx, id); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeleteSchedule(ctx, userID, id); err != nil {
 		slog.Warn("db delete schedule failed", "err", err)
 	}
 	return nil
 }
 
 func (r *PersistentScheduleRepository) List(ctx context.Context) ([]*upal.Schedule, error) {
-	schedules, err := r.db.ListSchedules(ctx)
+	userID := upal.UserIDFromContext(ctx)
+	schedules, err := r.db.ListSchedules(ctx, userID)
 	if err == nil {
 		return schedules, nil
 	}
@@ -76,7 +81,8 @@ func (r *PersistentScheduleRepository) ListDue(ctx context.Context, now time.Tim
 }
 
 func (r *PersistentScheduleRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Schedule, error) {
-	schedules, err := r.db.ListSchedulesByPipeline(ctx, pipelineID)
+	userID := upal.UserIDFromContext(ctx)
+	schedules, err := r.db.ListSchedulesByPipeline(ctx, userID, pipelineID)
 	if err == nil {
 		return schedules, nil
 	}

@@ -76,17 +76,17 @@ func marshalSessionJSON(s *upal.ContentSession) (sourcesJSON, workflowsJSON, ctx
 	return sourcesJSON, workflowsJSON, ctxJSON, nil
 }
 
-func (d *DB) CreateContentSession(ctx context.Context, s *upal.ContentSession) error {
+func (d *DB) CreateContentSession(ctx context.Context, userID string, s *upal.ContentSession) error {
 	sourcesJSON, workflowsJSON, ctxJSON, err := marshalSessionJSON(s)
 	if err != nil {
 		return err
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO content_sessions (id, pipeline_id, name, status, trigger_type, source_count,
+		`INSERT INTO content_sessions (id, user_id, pipeline_id, name, status, trigger_type, source_count,
 		 sources, schedule, model, workflows, context,
 		 is_template, parent_session_id, created_at, reviewed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-		s.ID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+		s.ID, userID, s.PipelineID, s.Name, string(s.Status), s.TriggerType, s.SourceCount,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxJSON,
 		s.IsTemplate, s.ParentSessionID, s.CreatedAt, s.ReviewedAt,
 	)
@@ -96,9 +96,9 @@ func (d *DB) CreateContentSession(ctx context.Context, s *upal.ContentSession) e
 	return nil
 }
 
-func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSession, error) {
+func (d *DB) GetContentSession(ctx context.Context, userID string, id string) (*upal.ContentSession, error) {
 	row := d.Pool.QueryRowContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE id = $1`, id,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE id = $1 AND user_id = $2`, id, userID,
 	)
 	s, err := scanContentSession(row)
 	if err == sql.ErrNoRows {
@@ -110,9 +110,9 @@ func (d *DB) GetContentSession(ctx context.Context, id string) (*upal.ContentSes
 	return s, nil
 }
 
-func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, error) {
+func (d *DB) ListContentSessions(ctx context.Context, userID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions ORDER BY created_at DESC`,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions: %w", err)
@@ -121,10 +121,10 @@ func (d *DB) ListContentSessions(ctx context.Context) ([]*upal.ContentSession, e
 	return scanContentSessions(rows)
 }
 
-func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+func (d *DB) ListContentSessionsByPipeline(ctx context.Context, userID string, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 ORDER BY created_at DESC`,
-		pipelineID,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND user_id = $2 ORDER BY created_at DESC`,
+		pipelineID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions by pipeline: %w", err)
@@ -133,7 +133,7 @@ func (d *DB) ListContentSessionsByPipeline(ctx context.Context, pipelineID strin
 	return scanContentSessions(rows)
 }
 
-func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) error {
+func (d *DB) UpdateContentSession(ctx context.Context, userID string, s *upal.ContentSession) error {
 	sourcesJSON, workflowsJSON, ctxJSON, err := marshalSessionJSON(s)
 	if err != nil {
 		return err
@@ -142,10 +142,10 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 		`UPDATE content_sessions SET name = $1, status = $2, source_count = $3,
 		 sources = $4, schedule = $5, model = $6, workflows = $7, context = $8,
 		 is_template = $9, parent_session_id = $10, reviewed_at = $11
-		 WHERE id = $12`,
+		 WHERE id = $12 AND user_id = $13`,
 		s.Name, string(s.Status), s.SourceCount,
 		sourcesJSON, s.Schedule, s.Model, workflowsJSON, ctxJSON,
-		s.IsTemplate, s.ParentSessionID, s.ReviewedAt, s.ID,
+		s.IsTemplate, s.ParentSessionID, s.ReviewedAt, s.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update content_session: %w", err)
@@ -157,10 +157,10 @@ func (d *DB) UpdateContentSession(ctx context.Context, s *upal.ContentSession) e
 	return nil
 }
 
-func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
+func (d *DB) ListContentSessionsByStatus(ctx context.Context, userID string, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE status = $1 ORDER BY created_at DESC`,
-		status,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE status = $1 AND user_id = $2 ORDER BY created_at DESC`,
+		status, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions by status: %w", err)
@@ -169,14 +169,14 @@ func (d *DB) ListContentSessionsByStatus(ctx context.Context, status string) ([]
 	return scanContentSessions(rows)
 }
 
-func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, status string) ([]*upal.ContentSession, error) {
-	return d.ListContentSessionsByStatus(ctx, status)
+func (d *DB) ListAllContentSessionsByStatus(ctx context.Context, userID string, status string) ([]*upal.ContentSession, error) {
+	return d.ListContentSessionsByStatus(ctx, userID, status)
 }
 
-func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelineID, status string) ([]*upal.ContentSession, error) {
+func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, userID string, pipelineID, status string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND status = $2 ORDER BY created_at DESC`,
-		pipelineID, status,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND status = $2 AND user_id = $3 ORDER BY created_at DESC`,
+		pipelineID, status, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list content_sessions by pipeline+status: %w", err)
@@ -185,10 +185,10 @@ func (d *DB) ListContentSessionsByPipelineAndStatus(ctx context.Context, pipelin
 	return scanContentSessions(rows)
 }
 
-func (d *DB) ListTemplateContentSessionsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
+func (d *DB) ListTemplateContentSessionsByPipeline(ctx context.Context, userID string, pipelineID string) ([]*upal.ContentSession, error) {
 	rows, err := d.Pool.QueryContext(ctx,
-		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND is_template = true ORDER BY created_at DESC`,
-		pipelineID,
+		`SELECT `+contentSessionColumns+` FROM content_sessions WHERE pipeline_id = $1 AND is_template = true AND user_id = $2 ORDER BY created_at DESC`,
+		pipelineID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list template content_sessions: %w", err)
@@ -197,8 +197,8 @@ func (d *DB) ListTemplateContentSessionsByPipeline(ctx context.Context, pipeline
 	return scanContentSessions(rows)
 }
 
-func (d *DB) DeleteContentSession(ctx context.Context, id string) error {
-	res, err := d.Pool.ExecContext(ctx, `DELETE FROM content_sessions WHERE id = $1`, id)
+func (d *DB) DeleteContentSession(ctx context.Context, userID string, id string) error {
+	res, err := d.Pool.ExecContext(ctx, `DELETE FROM content_sessions WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete content_session: %w", err)
 	}
@@ -209,8 +209,8 @@ func (d *DB) DeleteContentSession(ctx context.Context, id string) error {
 	return nil
 }
 
-func (d *DB) DeletePublishedContentBySession(ctx context.Context, sessionID string) error {
-	_, err := d.Pool.ExecContext(ctx, `DELETE FROM published_content WHERE session_id = $1`, sessionID)
+func (d *DB) DeletePublishedContentBySession(ctx context.Context, userID string, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM published_content WHERE session_id = $1 AND user_id = $2`, sessionID, userID)
 	if err != nil {
 		return fmt.Errorf("delete published_content by session: %w", err)
 	}
@@ -219,15 +219,15 @@ func (d *DB) DeletePublishedContentBySession(ctx context.Context, sessionID stri
 
 // --- SourceFetch ---
 
-func (d *DB) CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error {
+func (d *DB) CreateSourceFetch(ctx context.Context, userID string, sf *upal.SourceFetch) error {
 	itemsJSON, err := json.Marshal(sf.RawItems)
 	if err != nil {
 		return fmt.Errorf("marshal raw_items: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO source_fetches (id, session_id, tool_name, source_type, label, item_count, raw_items, error, fetched_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		sf.ID, sf.SessionID, sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, sf.FetchedAt,
+		`INSERT INTO source_fetches (id, user_id, session_id, tool_name, source_type, label, item_count, raw_items, error, fetched_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		sf.ID, userID, sf.SessionID, sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, sf.FetchedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert source_fetch: %w", err)
@@ -235,11 +235,11 @@ func (d *DB) CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error 
 	return nil
 }
 
-func (d *DB) ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error) {
+func (d *DB) ListSourceFetchesBySession(ctx context.Context, userID string, sessionID string) ([]*upal.SourceFetch, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, session_id, tool_name, source_type, COALESCE(label, ''), COALESCE(item_count, 0), raw_items, error, fetched_at
-		 FROM source_fetches WHERE session_id = $1 ORDER BY fetched_at ASC`,
-		sessionID,
+		 FROM source_fetches WHERE session_id = $1 AND user_id = $2 ORDER BY fetched_at ASC`,
+		sessionID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list source_fetches: %w", err)
@@ -264,8 +264,8 @@ func (d *DB) ListSourceFetchesBySession(ctx context.Context, sessionID string) (
 	return result, rows.Err()
 }
 
-func (d *DB) DeleteSourceFetchesBySession(ctx context.Context, sessionID string) error {
-	_, err := d.Pool.ExecContext(ctx, `DELETE FROM source_fetches WHERE session_id = $1`, sessionID)
+func (d *DB) DeleteSourceFetchesBySession(ctx context.Context, userID string, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM source_fetches WHERE session_id = $1 AND user_id = $2`, sessionID, userID)
 	if err != nil {
 		return fmt.Errorf("delete source_fetches by session: %w", err)
 	}
@@ -274,7 +274,7 @@ func (d *DB) DeleteSourceFetchesBySession(ctx context.Context, sessionID string)
 
 // --- LLMAnalysis ---
 
-func (d *DB) CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
+func (d *DB) CreateLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
 	insightsJSON, err := json.Marshal(a.Insights)
 	if err != nil {
 		return fmt.Errorf("marshal insights: %w", err)
@@ -284,9 +284,9 @@ func (d *DB) CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 		return fmt.Errorf("marshal suggested_angles: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO llm_analyses (id, session_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		a.ID, a.SessionID, a.RawItemCount, a.FilteredCount, a.Summary,
+		`INSERT INTO llm_analyses (id, user_id, session_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		a.ID, userID, a.SessionID, a.RawItemCount, a.FilteredCount, a.Summary,
 		insightsJSON, anglesJSON, a.OverallScore, a.CreatedAt,
 	)
 	if err != nil {
@@ -295,7 +295,7 @@ func (d *DB) CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 	return nil
 }
 
-func (d *DB) UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
+func (d *DB) UpdateLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
 	insightsJSON, err := json.Marshal(a.Insights)
 	if err != nil {
 		return fmt.Errorf("marshal insights: %w", err)
@@ -305,8 +305,8 @@ func (d *DB) UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 		return fmt.Errorf("marshal suggested_angles: %w", err)
 	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE llm_analyses SET summary = $1, insights = $2, suggested_angles = $3, overall_score = $4 WHERE id = $5`,
-		a.Summary, insightsJSON, anglesJSON, a.OverallScore, a.ID,
+		`UPDATE llm_analyses SET summary = $1, insights = $2, suggested_angles = $3, overall_score = $4 WHERE id = $5 AND user_id = $6`,
+		a.Summary, insightsJSON, anglesJSON, a.OverallScore, a.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update llm_analysis: %w", err)
@@ -318,13 +318,13 @@ func (d *DB) UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 	return nil
 }
 
-func (d *DB) GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error) {
+func (d *DB) GetLLMAnalysisBySession(ctx context.Context, userID string, sessionID string) (*upal.LLMAnalysis, error) {
 	var a upal.LLMAnalysis
 	var insightsJSON, anglesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, session_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at
-		 FROM llm_analyses WHERE session_id = $1 ORDER BY created_at DESC LIMIT 1`,
-		sessionID,
+		 FROM llm_analyses WHERE session_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 1`,
+		sessionID, userID,
 	).Scan(&a.ID, &a.SessionID, &a.RawItemCount, &a.FilteredCount, &a.Summary,
 		&insightsJSON, &anglesJSON, &a.OverallScore, &a.CreatedAt)
 	if err == sql.ErrNoRows {
@@ -342,8 +342,8 @@ func (d *DB) GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*up
 	return &a, nil
 }
 
-func (d *DB) DeleteLLMAnalysesBySession(ctx context.Context, sessionID string) error {
-	_, err := d.Pool.ExecContext(ctx, `DELETE FROM llm_analyses WHERE session_id = $1`, sessionID)
+func (d *DB) DeleteLLMAnalysesBySession(ctx context.Context, userID string, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM llm_analyses WHERE session_id = $1 AND user_id = $2`, sessionID, userID)
 	if err != nil {
 		return fmt.Errorf("delete llm_analyses by session: %w", err)
 	}
@@ -352,11 +352,11 @@ func (d *DB) DeleteLLMAnalysesBySession(ctx context.Context, sessionID string) e
 
 // --- PublishedContent ---
 
-func (d *DB) CreatePublishedContent(ctx context.Context, pc *upal.PublishedContent) error {
+func (d *DB) CreatePublishedContent(ctx context.Context, userID string, pc *upal.PublishedContent) error {
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO published_content (id, workflow_run_id, session_id, channel, external_url, title, published_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		pc.ID, pc.WorkflowRunID, pc.SessionID, pc.Channel, pc.ExternalURL, pc.Title, pc.PublishedAt,
+		`INSERT INTO published_content (id, user_id, workflow_run_id, session_id, channel, external_url, title, published_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		pc.ID, userID, pc.WorkflowRunID, pc.SessionID, pc.Channel, pc.ExternalURL, pc.Title, pc.PublishedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert published_content: %w", err)
@@ -364,10 +364,10 @@ func (d *DB) CreatePublishedContent(ctx context.Context, pc *upal.PublishedConte
 	return nil
 }
 
-func (d *DB) ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent, error) {
+func (d *DB) ListPublishedContent(ctx context.Context, userID string) ([]*upal.PublishedContent, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_run_id, session_id, channel, external_url, title, published_at
-		 FROM published_content ORDER BY published_at DESC`,
+		 FROM published_content WHERE user_id = $1 ORDER BY published_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list published_content: %w", err)
@@ -376,11 +376,11 @@ func (d *DB) ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent
 	return scanPublishedContent(rows)
 }
 
-func (d *DB) ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error) {
+func (d *DB) ListPublishedContentBySession(ctx context.Context, userID string, sessionID string) ([]*upal.PublishedContent, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_run_id, session_id, channel, external_url, title, published_at
-		 FROM published_content WHERE session_id = $1 ORDER BY published_at DESC`,
-		sessionID,
+		 FROM published_content WHERE session_id = $1 AND user_id = $2 ORDER BY published_at DESC`,
+		sessionID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list published_content by session: %w", err)
@@ -389,11 +389,11 @@ func (d *DB) ListPublishedContentBySession(ctx context.Context, sessionID string
 	return scanPublishedContent(rows)
 }
 
-func (d *DB) ListPublishedContentByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error) {
+func (d *DB) ListPublishedContentByChannel(ctx context.Context, userID string, channel string) ([]*upal.PublishedContent, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_run_id, session_id, channel, external_url, title, published_at
-		 FROM published_content WHERE channel = $1 ORDER BY published_at DESC`,
-		channel,
+		 FROM published_content WHERE channel = $1 AND user_id = $2 ORDER BY published_at DESC`,
+		channel, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list published_content by channel: %w", err)
@@ -416,15 +416,15 @@ func scanPublishedContent(rows *sql.Rows) ([]*upal.PublishedContent, error) {
 
 // --- SurgeEvent ---
 
-func (d *DB) CreateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error {
+func (d *DB) CreateSurgeEvent(ctx context.Context, userID string, se *upal.SurgeEvent) error {
 	sourcesJSON, err := json.Marshal(se.Sources)
 	if err != nil {
 		return fmt.Errorf("marshal sources: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO surge_events (id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		se.ID, se.Keyword, se.PipelineID, se.Multiplier, sourcesJSON, se.Dismissed, se.SessionID, se.CreatedAt,
+		`INSERT INTO surge_events (id, user_id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		se.ID, userID, se.Keyword, se.PipelineID, se.Multiplier, sourcesJSON, se.Dismissed, se.SessionID, se.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert surge_event: %w", err)
@@ -432,10 +432,10 @@ func (d *DB) CreateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error {
 	return nil
 }
 
-func (d *DB) ListSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error) {
+func (d *DB) ListSurgeEvents(ctx context.Context, userID string) ([]*upal.SurgeEvent, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at
-		 FROM surge_events ORDER BY created_at DESC`,
+		 FROM surge_events WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list surge_events: %w", err)
@@ -444,10 +444,10 @@ func (d *DB) ListSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error) {
 	return scanSurgeEvents(rows)
 }
 
-func (d *DB) ListActiveSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, error) {
+func (d *DB) ListActiveSurgeEvents(ctx context.Context, userID string) ([]*upal.SurgeEvent, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at
-		 FROM surge_events WHERE dismissed = false ORDER BY created_at DESC`,
+		 FROM surge_events WHERE dismissed = false AND user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active surge_events: %w", err)
@@ -456,10 +456,10 @@ func (d *DB) ListActiveSurgeEvents(ctx context.Context) ([]*upal.SurgeEvent, err
 	return scanSurgeEvents(rows)
 }
 
-func (d *DB) UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error {
+func (d *DB) UpdateSurgeEvent(ctx context.Context, userID string, se *upal.SurgeEvent) error {
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE surge_events SET dismissed = $1, session_id = $2 WHERE id = $3`,
-		se.Dismissed, se.SessionID, se.ID,
+		`UPDATE surge_events SET dismissed = $1, session_id = $2 WHERE id = $3 AND user_id = $4`,
+		se.Dismissed, se.SessionID, se.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update surge_event: %w", err)
@@ -471,12 +471,12 @@ func (d *DB) UpdateSurgeEvent(ctx context.Context, se *upal.SurgeEvent) error {
 	return nil
 }
 
-func (d *DB) GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, error) {
+func (d *DB) GetSurgeEvent(ctx context.Context, userID string, id string) (*upal.SurgeEvent, error) {
 	var se upal.SurgeEvent
 	var sourcesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, keyword, pipeline_id, multiplier, sources, dismissed, session_id, created_at
-		 FROM surge_events WHERE id = $1`, id,
+		 FROM surge_events WHERE id = $1 AND user_id = $2`, id, userID,
 	).Scan(&se.ID, &se.Keyword, &se.PipelineID, &se.Multiplier, &sourcesJSON, &se.Dismissed, &se.SessionID, &se.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("surge event %q not found", id)
@@ -492,16 +492,16 @@ func (d *DB) GetSurgeEvent(ctx context.Context, id string) (*upal.SurgeEvent, er
 
 // --- WorkflowResults ---
 
-func (d *DB) SaveWorkflowResults(ctx context.Context, sessionID string, results []upal.WorkflowResult) error {
+func (d *DB) SaveWorkflowResults(ctx context.Context, userID string, sessionID string, results []upal.WorkflowResult) error {
 	resultsJSON, err := json.Marshal(results)
 	if err != nil {
 		return fmt.Errorf("marshal workflow_results: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO workflow_results (session_id, results, updated_at)
-		 VALUES ($1, $2, NOW())
-		 ON CONFLICT (session_id) DO UPDATE SET results = $2, updated_at = NOW()`,
-		sessionID, resultsJSON,
+		`INSERT INTO workflow_results (session_id, user_id, results, updated_at)
+		 VALUES ($1, $2, $3, NOW())
+		 ON CONFLICT (session_id) DO UPDATE SET results = $3, updated_at = NOW()`,
+		sessionID, userID, resultsJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert workflow_results: %w", err)
@@ -509,10 +509,10 @@ func (d *DB) SaveWorkflowResults(ctx context.Context, sessionID string, results 
 	return nil
 }
 
-func (d *DB) GetWorkflowResultsBySession(ctx context.Context, sessionID string) ([]upal.WorkflowResult, error) {
+func (d *DB) GetWorkflowResultsBySession(ctx context.Context, userID string, sessionID string) ([]upal.WorkflowResult, error) {
 	var resultsJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT results FROM workflow_results WHERE session_id = $1`, sessionID,
+		`SELECT results FROM workflow_results WHERE session_id = $1 AND user_id = $2`, sessionID, userID,
 	).Scan(&resultsJSON)
 	if err == sql.ErrNoRows {
 		return []upal.WorkflowResult{}, nil
@@ -527,8 +527,8 @@ func (d *DB) GetWorkflowResultsBySession(ctx context.Context, sessionID string) 
 	return results, nil
 }
 
-func (d *DB) DeleteWorkflowResultsBySession(ctx context.Context, sessionID string) error {
-	_, err := d.Pool.ExecContext(ctx, `DELETE FROM workflow_results WHERE session_id = $1`, sessionID)
+func (d *DB) DeleteWorkflowResultsBySession(ctx context.Context, userID string, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM workflow_results WHERE session_id = $1 AND user_id = $2`, sessionID, userID)
 	if err != nil {
 		return fmt.Errorf("delete workflow_results: %w", err)
 	}

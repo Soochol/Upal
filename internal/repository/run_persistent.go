@@ -19,7 +19,8 @@ func NewPersistentRunRepository(mem *MemoryRunRepository, database *db.DB) *Pers
 
 func (r *PersistentRunRepository) Create(ctx context.Context, record *upal.RunRecord) error {
 	_ = r.mem.Create(ctx, record)
-	if err := r.db.CreateRun(ctx, record); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreateRun(ctx, userID, record); err != nil {
 		slog.Warn("db create run failed, in-memory only", "err", err)
 	}
 	return nil
@@ -31,7 +32,8 @@ func (r *PersistentRunRepository) Get(ctx context.Context, id string) (*upal.Run
 		return rec, nil
 	}
 
-	dbRec, dbErr := r.db.GetRun(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	dbRec, dbErr := r.db.GetRun(ctx, userID, id)
 	if dbErr != nil {
 		return nil, err // return original ErrNotFound
 	}
@@ -42,14 +44,16 @@ func (r *PersistentRunRepository) Get(ctx context.Context, id string) (*upal.Run
 
 func (r *PersistentRunRepository) Update(ctx context.Context, record *upal.RunRecord) error {
 	_ = r.mem.Update(ctx, record)
-	if err := r.db.UpdateRun(ctx, record); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdateRun(ctx, userID, record); err != nil {
 		slog.Warn("db update run failed, in-memory only", "err", err)
 	}
 	return nil
 }
 
 func (r *PersistentRunRepository) ListByWorkflow(ctx context.Context, workflowName string, limit, offset int) ([]*upal.RunRecord, int, error) {
-	runs, total, err := r.db.ListRunsByWorkflow(ctx, workflowName, limit, offset)
+	userID := upal.UserIDFromContext(ctx)
+	runs, total, err := r.db.ListRunsByWorkflow(ctx, userID, workflowName, limit, offset)
 	if err == nil {
 		return runs, total, nil
 	}
@@ -62,7 +66,8 @@ func (r *PersistentRunRepository) MarkOrphanedRunsFailed(ctx context.Context) (i
 }
 
 func (r *PersistentRunRepository) ListAll(ctx context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
-	runs, total, err := r.db.ListAllRuns(ctx, limit, offset, status)
+	userID := upal.UserIDFromContext(ctx)
+	runs, total, err := r.db.ListAllRuns(ctx, userID, limit, offset, status)
 	if err == nil {
 		return runs, total, nil
 	}

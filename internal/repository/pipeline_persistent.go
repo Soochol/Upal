@@ -10,19 +10,19 @@ import (
 
 // PipelineDB defines the database methods used by persistent pipeline repositories.
 type PipelineDB interface {
-	CreatePipeline(ctx context.Context, p *upal.Pipeline) error
-	GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
-	ListPipelines(ctx context.Context) ([]*upal.Pipeline, error)
-	UpdatePipeline(ctx context.Context, p *upal.Pipeline) error
-	DeletePipeline(ctx context.Context, id string) error
+	CreatePipeline(ctx context.Context, userID string, p *upal.Pipeline) error
+	GetPipeline(ctx context.Context, userID string, id string) (*upal.Pipeline, error)
+	ListPipelines(ctx context.Context, userID string) ([]*upal.Pipeline, error)
+	UpdatePipeline(ctx context.Context, userID string, p *upal.Pipeline) error
+	DeletePipeline(ctx context.Context, userID string, id string) error
 }
 
 // PipelineRunDB defines the database methods used by persistent pipeline run repositories.
 type PipelineRunDB interface {
-	CreatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
-	GetPipelineRun(ctx context.Context, id string) (*upal.PipelineRun, error)
-	ListPipelineRunsByPipeline(ctx context.Context, pipelineID string) ([]*upal.PipelineRun, error)
-	UpdatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
+	CreatePipelineRun(ctx context.Context, userID string, run *upal.PipelineRun) error
+	GetPipelineRun(ctx context.Context, userID string, id string) (*upal.PipelineRun, error)
+	ListPipelineRunsByPipeline(ctx context.Context, userID string, pipelineID string) ([]*upal.PipelineRun, error)
+	UpdatePipelineRun(ctx context.Context, userID string, run *upal.PipelineRun) error
 }
 
 type PersistentPipelineRepository struct {
@@ -36,7 +36,8 @@ func NewPersistentPipelineRepository(mem *MemoryPipelineRepository, db PipelineD
 
 func (r *PersistentPipelineRepository) Create(ctx context.Context, p *upal.Pipeline) error {
 	_ = r.mem.Create(ctx, p)
-	if err := r.db.CreatePipeline(ctx, p); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreatePipeline(ctx, userID, p); err != nil {
 		return fmt.Errorf("db create pipeline: %w", err)
 	}
 	return nil
@@ -46,7 +47,8 @@ func (r *PersistentPipelineRepository) Get(ctx context.Context, id string) (*upa
 	if p, err := r.mem.Get(ctx, id); err == nil {
 		return p, nil
 	}
-	p, err := r.db.GetPipeline(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	p, err := r.db.GetPipeline(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +57,8 @@ func (r *PersistentPipelineRepository) Get(ctx context.Context, id string) (*upa
 }
 
 func (r *PersistentPipelineRepository) List(ctx context.Context) ([]*upal.Pipeline, error) {
-	pipelines, err := r.db.ListPipelines(ctx)
+	userID := upal.UserIDFromContext(ctx)
+	pipelines, err := r.db.ListPipelines(ctx, userID)
 	if err == nil {
 		return pipelines, nil
 	}
@@ -65,7 +68,8 @@ func (r *PersistentPipelineRepository) List(ctx context.Context) ([]*upal.Pipeli
 
 func (r *PersistentPipelineRepository) Update(ctx context.Context, p *upal.Pipeline) error {
 	_ = r.mem.Update(ctx, p)
-	if err := r.db.UpdatePipeline(ctx, p); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdatePipeline(ctx, userID, p); err != nil {
 		return fmt.Errorf("db update pipeline: %w", err)
 	}
 	return nil
@@ -73,7 +77,8 @@ func (r *PersistentPipelineRepository) Update(ctx context.Context, p *upal.Pipel
 
 func (r *PersistentPipelineRepository) Delete(ctx context.Context, id string) error {
 	_ = r.mem.Delete(ctx, id)
-	if err := r.db.DeletePipeline(ctx, id); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeletePipeline(ctx, userID, id); err != nil {
 		return fmt.Errorf("db delete pipeline: %w", err)
 	}
 	return nil
@@ -90,7 +95,8 @@ func NewPersistentPipelineRunRepository(mem *MemoryPipelineRunRepository, db Pip
 
 func (r *PersistentPipelineRunRepository) Create(ctx context.Context, run *upal.PipelineRun) error {
 	_ = r.mem.Create(ctx, run)
-	if err := r.db.CreatePipelineRun(ctx, run); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreatePipelineRun(ctx, userID, run); err != nil {
 		return fmt.Errorf("db create pipeline_run: %w", err)
 	}
 	return nil
@@ -100,7 +106,8 @@ func (r *PersistentPipelineRunRepository) Get(ctx context.Context, id string) (*
 	if run, err := r.mem.Get(ctx, id); err == nil {
 		return run, nil
 	}
-	run, err := r.db.GetPipelineRun(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	run, err := r.db.GetPipelineRun(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +116,8 @@ func (r *PersistentPipelineRunRepository) Get(ctx context.Context, id string) (*
 }
 
 func (r *PersistentPipelineRunRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.PipelineRun, error) {
-	runs, err := r.db.ListPipelineRunsByPipeline(ctx, pipelineID)
+	userID := upal.UserIDFromContext(ctx)
+	runs, err := r.db.ListPipelineRunsByPipeline(ctx, userID, pipelineID)
 	if err == nil {
 		return runs, nil
 	}
@@ -119,7 +127,8 @@ func (r *PersistentPipelineRunRepository) ListByPipeline(ctx context.Context, pi
 
 func (r *PersistentPipelineRunRepository) Update(ctx context.Context, run *upal.PipelineRun) error {
 	_ = r.mem.Update(ctx, run)
-	if err := r.db.UpdatePipelineRun(ctx, run); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdatePipelineRun(ctx, userID, run); err != nil {
 		return fmt.Errorf("db update pipeline_run: %w", err)
 	}
 	return nil

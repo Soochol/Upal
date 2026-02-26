@@ -20,7 +20,8 @@ func NewPersistent(mem *MemoryRepository, database *db.DB) *PersistentRepository
 
 func (r *PersistentRepository) Create(ctx context.Context, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Create(ctx, wf)
-	if _, err := r.db.CreateWorkflow(ctx, wf); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if _, err := r.db.CreateWorkflow(ctx, userID, wf); err != nil {
 		return fmt.Errorf("db persist failed: %w", err)
 	}
 	return nil
@@ -32,7 +33,8 @@ func (r *PersistentRepository) Get(ctx context.Context, name string) (*upal.Work
 		return wf, nil
 	}
 
-	row, dbErr := r.db.GetWorkflow(ctx, name)
+	userID := upal.UserIDFromContext(ctx)
+	row, dbErr := r.db.GetWorkflow(ctx, userID, name)
 	if dbErr != nil {
 		return nil, err
 	}
@@ -42,7 +44,8 @@ func (r *PersistentRepository) Get(ctx context.Context, name string) (*upal.Work
 }
 
 func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefinition, error) {
-	rows, err := r.db.ListWorkflows(ctx)
+	userID := upal.UserIDFromContext(ctx)
+	rows, err := r.db.ListWorkflows(ctx, userID)
 	if err == nil {
 		result := make([]*upal.WorkflowDefinition, len(rows))
 		for i := range rows {
@@ -56,8 +59,9 @@ func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefini
 
 func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Update(ctx, name, wf)
+	userID := upal.UserIDFromContext(ctx)
 	// CreateWorkflow uses upsert (INSERT ON CONFLICT DO UPDATE).
-	if _, err := r.db.CreateWorkflow(ctx, wf); err != nil {
+	if _, err := r.db.CreateWorkflow(ctx, userID, wf); err != nil {
 		return fmt.Errorf("db persist failed: %w", err)
 	}
 	return nil
@@ -65,7 +69,8 @@ func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal
 
 func (r *PersistentRepository) Delete(ctx context.Context, name string) error {
 	_ = r.mem.Delete(ctx, name)
-	if err := r.db.DeleteWorkflow(ctx, name); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeleteWorkflow(ctx, userID, name); err != nil {
 		return fmt.Errorf("db delete failed: %w", err)
 	}
 	return nil

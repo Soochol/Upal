@@ -19,7 +19,8 @@ func NewPersistentTriggerRepository(mem *MemoryTriggerRepository, database *db.D
 
 func (r *PersistentTriggerRepository) Create(ctx context.Context, trigger *upal.Trigger) error {
 	_ = r.mem.Create(ctx, trigger)
-	if err := r.db.CreateTrigger(ctx, trigger); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreateTrigger(ctx, userID, trigger); err != nil {
 		slog.Warn("db create trigger failed, in-memory only", "err", err)
 	}
 	return nil
@@ -31,7 +32,8 @@ func (r *PersistentTriggerRepository) Get(ctx context.Context, id string) (*upal
 		return t, nil
 	}
 
-	dbTrig, dbErr := r.db.GetTrigger(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	dbTrig, dbErr := r.db.GetTrigger(ctx, userID, id)
 	if dbErr != nil {
 		return nil, err // return original ErrNotFound
 	}
@@ -42,14 +44,16 @@ func (r *PersistentTriggerRepository) Get(ctx context.Context, id string) (*upal
 
 func (r *PersistentTriggerRepository) Delete(ctx context.Context, id string) error {
 	_ = r.mem.Delete(ctx, id)
-	if err := r.db.DeleteTrigger(ctx, id); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeleteTrigger(ctx, userID, id); err != nil {
 		slog.Warn("db delete trigger failed", "err", err)
 	}
 	return nil
 }
 
 func (r *PersistentTriggerRepository) ListByWorkflow(ctx context.Context, workflowName string) ([]*upal.Trigger, error) {
-	triggers, err := r.db.ListTriggersByWorkflow(ctx, workflowName)
+	userID := upal.UserIDFromContext(ctx)
+	triggers, err := r.db.ListTriggersByWorkflow(ctx, userID, workflowName)
 	if err == nil {
 		return triggers, nil
 	}
@@ -58,7 +62,8 @@ func (r *PersistentTriggerRepository) ListByWorkflow(ctx context.Context, workfl
 }
 
 func (r *PersistentTriggerRepository) ListByPipeline(ctx context.Context, pipelineID string) ([]*upal.Trigger, error) {
-	triggers, err := r.db.ListTriggersByPipeline(ctx, pipelineID)
+	userID := upal.UserIDFromContext(ctx)
+	triggers, err := r.db.ListTriggersByPipeline(ctx, userID, pipelineID)
 	if err == nil {
 		return triggers, nil
 	}

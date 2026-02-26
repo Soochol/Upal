@@ -19,7 +19,8 @@ func NewPersistentConnectionRepository(mem *MemoryConnectionRepository, database
 
 func (r *PersistentConnectionRepository) Create(ctx context.Context, conn *upal.Connection) error {
 	_ = r.mem.Create(ctx, conn)
-	if err := r.db.CreateConnection(ctx, conn); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreateConnection(ctx, userID, conn); err != nil {
 		slog.Warn("db create connection failed, in-memory only", "err", err)
 	}
 	return nil
@@ -29,7 +30,8 @@ func (r *PersistentConnectionRepository) Get(ctx context.Context, id string) (*u
 	if c, err := r.mem.Get(ctx, id); err == nil {
 		return c, nil
 	}
-	c, err := r.db.GetConnection(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	c, err := r.db.GetConnection(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +40,8 @@ func (r *PersistentConnectionRepository) Get(ctx context.Context, id string) (*u
 }
 
 func (r *PersistentConnectionRepository) List(ctx context.Context) ([]*upal.Connection, error) {
-	conns, err := r.db.ListConnections(ctx)
+	userID := upal.UserIDFromContext(ctx)
+	conns, err := r.db.ListConnections(ctx, userID)
 	if err == nil {
 		return conns, nil
 	}
@@ -48,7 +51,8 @@ func (r *PersistentConnectionRepository) List(ctx context.Context) ([]*upal.Conn
 
 func (r *PersistentConnectionRepository) Update(ctx context.Context, conn *upal.Connection) error {
 	_ = r.mem.Update(ctx, conn)
-	if err := r.db.UpdateConnection(ctx, conn); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdateConnection(ctx, userID, conn); err != nil {
 		slog.Warn("db update connection failed, in-memory only", "err", err)
 	}
 	return nil
@@ -56,7 +60,8 @@ func (r *PersistentConnectionRepository) Update(ctx context.Context, conn *upal.
 
 func (r *PersistentConnectionRepository) Delete(ctx context.Context, id string) error {
 	_ = r.mem.Delete(ctx, id)
-	if err := r.db.DeleteConnection(ctx, id); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeleteConnection(ctx, userID, id); err != nil {
 		slog.Warn("db delete connection failed", "err", err)
 	}
 	return nil

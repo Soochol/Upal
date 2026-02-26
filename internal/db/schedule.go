@@ -11,7 +11,7 @@ import (
 )
 
 // CreateSchedule stores a new schedule.
-func (d *DB) CreateSchedule(ctx context.Context, s *upal.Schedule) error {
+func (d *DB) CreateSchedule(ctx context.Context, userID string, s *upal.Schedule) error {
 	inputsJSON, _ := json.Marshal(s.Inputs)
 	var retryParam any // SQL NULL when nil; lib/pq rejects nil []byte for JSONB
 	if s.RetryPolicy != nil {
@@ -19,9 +19,9 @@ func (d *DB) CreateSchedule(ctx context.Context, s *upal.Schedule) error {
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO schedules (id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		s.ID, s.WorkflowName, s.PipelineID, s.CronExpr, inputsJSON,
+		`INSERT INTO schedules (id, user_id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		s.ID, userID, s.WorkflowName, s.PipelineID, s.CronExpr, inputsJSON,
 		s.Enabled, s.Timezone, retryParam,
 		s.NextRunAt, s.LastRunAt, s.CreatedAt, s.UpdatedAt,
 	)
@@ -32,13 +32,13 @@ func (d *DB) CreateSchedule(ctx context.Context, s *upal.Schedule) error {
 }
 
 // GetSchedule retrieves a schedule by ID.
-func (d *DB) GetSchedule(ctx context.Context, id string) (*upal.Schedule, error) {
+func (d *DB) GetSchedule(ctx context.Context, userID string, id string) (*upal.Schedule, error) {
 	s := &upal.Schedule{}
 	var inputsJSON, retryJSON []byte
 
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
-		 FROM schedules WHERE id = $1`, id,
+		 FROM schedules WHERE id = $1 AND user_id = $2`, id, userID,
 	).Scan(&s.ID, &s.WorkflowName, &s.PipelineID, &s.CronExpr, &inputsJSON,
 		&s.Enabled, &s.Timezone, &retryJSON,
 		&s.NextRunAt, &s.LastRunAt, &s.CreatedAt, &s.UpdatedAt,
@@ -59,7 +59,7 @@ func (d *DB) GetSchedule(ctx context.Context, id string) (*upal.Schedule, error)
 }
 
 // UpdateSchedule updates an existing schedule.
-func (d *DB) UpdateSchedule(ctx context.Context, s *upal.Schedule) error {
+func (d *DB) UpdateSchedule(ctx context.Context, userID string, s *upal.Schedule) error {
 	inputsJSON, _ := json.Marshal(s.Inputs)
 	var retryParam any
 	if s.RetryPolicy != nil {
@@ -68,10 +68,10 @@ func (d *DB) UpdateSchedule(ctx context.Context, s *upal.Schedule) error {
 
 	_, err := d.Pool.ExecContext(ctx,
 		`UPDATE schedules SET workflow_name = $1, pipeline_id = $2, cron_expr = $3, inputs = $4, enabled = $5, timezone = $6, retry_policy = $7, next_run_at = $8, last_run_at = $9, updated_at = $10
-		 WHERE id = $11`,
+		 WHERE id = $11 AND user_id = $12`,
 		s.WorkflowName, s.PipelineID, s.CronExpr, inputsJSON,
 		s.Enabled, s.Timezone, retryParam,
-		s.NextRunAt, s.LastRunAt, s.UpdatedAt, s.ID,
+		s.NextRunAt, s.LastRunAt, s.UpdatedAt, s.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update schedule: %w", err)
@@ -80,19 +80,19 @@ func (d *DB) UpdateSchedule(ctx context.Context, s *upal.Schedule) error {
 }
 
 // DeleteSchedule removes a schedule by ID.
-func (d *DB) DeleteSchedule(ctx context.Context, id string) error {
-	_, err := d.Pool.ExecContext(ctx, `DELETE FROM schedules WHERE id = $1`, id)
+func (d *DB) DeleteSchedule(ctx context.Context, userID string, id string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM schedules WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete schedule: %w", err)
 	}
 	return nil
 }
 
-// ListSchedules returns all schedules.
-func (d *DB) ListSchedules(ctx context.Context) ([]*upal.Schedule, error) {
+// ListSchedules returns all schedules for a user.
+func (d *DB) ListSchedules(ctx context.Context, userID string) ([]*upal.Schedule, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
-		 FROM schedules ORDER BY created_at DESC`,
+		 FROM schedules WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list schedules: %w", err)
@@ -117,10 +117,10 @@ func (d *DB) ListDueSchedules(ctx context.Context, now time.Time) ([]*upal.Sched
 }
 
 // ListSchedulesByPipeline returns all schedules associated with a pipeline.
-func (d *DB) ListSchedulesByPipeline(ctx context.Context, pipelineID string) ([]*upal.Schedule, error) {
+func (d *DB) ListSchedulesByPipeline(ctx context.Context, userID string, pipelineID string) ([]*upal.Schedule, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_name, pipeline_id, cron_expr, inputs, enabled, timezone, retry_policy, next_run_at, last_run_at, created_at, updated_at
-		 FROM schedules WHERE pipeline_id = $1 ORDER BY created_at DESC`, pipelineID,
+		 FROM schedules WHERE pipeline_id = $1 AND user_id = $2 ORDER BY created_at DESC`, pipelineID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list schedules by pipeline: %w", err)

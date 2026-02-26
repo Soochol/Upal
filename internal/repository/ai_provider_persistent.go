@@ -18,7 +18,8 @@ func NewPersistentAIProviderRepository(mem *MemoryAIProviderRepository, database
 }
 
 func (r *PersistentAIProviderRepository) Create(ctx context.Context, p *upal.AIProvider) error {
-	if err := r.db.CreateAIProvider(ctx, p); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.CreateAIProvider(ctx, userID, p); err != nil {
 		return err
 	}
 	_ = r.mem.Create(ctx, p)
@@ -29,7 +30,8 @@ func (r *PersistentAIProviderRepository) Get(ctx context.Context, id string) (*u
 	if p, err := r.mem.Get(ctx, id); err == nil {
 		return p, nil
 	}
-	p, err := r.db.GetAIProvider(ctx, id)
+	userID := upal.UserIDFromContext(ctx)
+	p, err := r.db.GetAIProvider(ctx, userID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +40,8 @@ func (r *PersistentAIProviderRepository) Get(ctx context.Context, id string) (*u
 }
 
 func (r *PersistentAIProviderRepository) List(ctx context.Context) ([]*upal.AIProvider, error) {
-	providers, err := r.db.ListAIProviders(ctx)
+	userID := upal.UserIDFromContext(ctx)
+	providers, err := r.db.ListAIProviders(ctx, userID)
 	if err == nil {
 		return providers, nil
 	}
@@ -47,7 +50,8 @@ func (r *PersistentAIProviderRepository) List(ctx context.Context) ([]*upal.AIPr
 }
 
 func (r *PersistentAIProviderRepository) Update(ctx context.Context, p *upal.AIProvider) error {
-	if err := r.db.UpdateAIProvider(ctx, p); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.UpdateAIProvider(ctx, userID, p); err != nil {
 		return err
 	}
 	_ = r.mem.Update(ctx, p)
@@ -55,7 +59,8 @@ func (r *PersistentAIProviderRepository) Update(ctx context.Context, p *upal.AIP
 }
 
 func (r *PersistentAIProviderRepository) Delete(ctx context.Context, id string) error {
-	if err := r.db.DeleteAIProvider(ctx, id); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.DeleteAIProvider(ctx, userID, id); err != nil {
 		return err
 	}
 	_ = r.mem.Delete(ctx, id)
@@ -63,7 +68,8 @@ func (r *PersistentAIProviderRepository) Delete(ctx context.Context, id string) 
 }
 
 func (r *PersistentAIProviderRepository) ClearDefault(ctx context.Context, category upal.AIProviderCategory) error {
-	if err := r.db.ClearAIProviderDefault(ctx, string(category)); err != nil {
+	userID := upal.UserIDFromContext(ctx)
+	if err := r.db.ClearAIProviderDefault(ctx, userID, string(category)); err != nil {
 		return err
 	}
 	_ = r.mem.ClearDefault(ctx, category)

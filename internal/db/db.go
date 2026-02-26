@@ -59,16 +59,21 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS workflows (
     id          TEXT PRIMARY KEY,
-    name        TEXT UNIQUE NOT NULL,
+    user_id     TEXT NOT NULL DEFAULT 'default',
+    name        TEXT NOT NULL,
     version     INTEGER NOT NULL DEFAULT 1,
     definition  JSONB NOT NULL,
     visibility  TEXT NOT NULL DEFAULT 'private',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Drop old single-column unique constraint and replace with per-user unique
+DROP INDEX IF EXISTS workflows_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workflows_user_name ON workflows(user_id, name);
 
 CREATE TABLE IF NOT EXISTS sessions (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     workflow_id TEXT NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
     state       JSONB NOT NULL DEFAULT '{}',
     status      TEXT NOT NULL DEFAULT 'running',
@@ -78,6 +83,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS events (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     node_id     TEXT NOT NULL DEFAULT '',
     type        TEXT NOT NULL,
@@ -90,6 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_workflow_id ON sessions(workflow_id);
 
 CREATE TABLE IF NOT EXISTS assets (
     id           TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL DEFAULT 'default',
     filename     TEXT NOT NULL,
     content_type TEXT NOT NULL,
     size         BIGINT NOT NULL DEFAULT 0,
@@ -99,6 +106,7 @@ CREATE TABLE IF NOT EXISTS assets (
 
 CREATE TABLE IF NOT EXISTS runs (
     id             TEXT PRIMARY KEY,
+    user_id        TEXT NOT NULL DEFAULT 'default',
     workflow_name  TEXT NOT NULL,
     trigger_type   TEXT NOT NULL DEFAULT 'manual',
     trigger_ref    TEXT NOT NULL DEFAULT '',
@@ -121,6 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at);
 
 CREATE TABLE IF NOT EXISTS schedules (
     id             TEXT PRIMARY KEY,
+    user_id        TEXT NOT NULL DEFAULT 'default',
     workflow_name  TEXT NOT NULL DEFAULT '',
     pipeline_id    TEXT NOT NULL DEFAULT '',
     cron_expr      TEXT NOT NULL,
@@ -137,6 +146,7 @@ ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT
 
 CREATE TABLE IF NOT EXISTS triggers (
     id             TEXT PRIMARY KEY,
+    user_id        TEXT NOT NULL DEFAULT 'default',
     workflow_name  TEXT NOT NULL DEFAULT '',
     pipeline_id    TEXT NOT NULL DEFAULT '',
     type           TEXT NOT NULL,
@@ -148,6 +158,7 @@ ALTER TABLE triggers ADD COLUMN IF NOT EXISTS pipeline_id TEXT NOT NULL DEFAULT 
 
 CREATE TABLE IF NOT EXISTS pipelines (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     name        TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     stages      JSONB NOT NULL DEFAULT '[]',
@@ -157,6 +168,7 @@ CREATE TABLE IF NOT EXISTS pipelines (
 
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL DEFAULT 'default',
     pipeline_id   TEXT NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
     status        TEXT NOT NULL DEFAULT 'pending',
     current_stage TEXT NOT NULL DEFAULT '',
@@ -169,6 +181,7 @@ CREATE INDEX IF NOT EXISTS idx_pipeline_runs_pipeline_id ON pipeline_runs(pipeli
 
 CREATE TABLE IF NOT EXISTS connections (
     id       TEXT PRIMARY KEY,
+    user_id  TEXT NOT NULL DEFAULT 'default',
     name     TEXT NOT NULL,
     type     TEXT NOT NULL,
     host     TEXT NOT NULL DEFAULT '',
@@ -184,6 +197,7 @@ ALTER TABLE runs ADD COLUMN IF NOT EXISTS workflow_definition JSONB;
 
 CREATE TABLE IF NOT EXISTS content_sessions (
     id           TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL DEFAULT 'default',
     pipeline_id  TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'collecting',
     trigger_type TEXT NOT NULL DEFAULT 'manual',
@@ -196,6 +210,7 @@ CREATE INDEX IF NOT EXISTS idx_content_sessions_status ON content_sessions(statu
 
 CREATE TABLE IF NOT EXISTS source_fetches (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     session_id  TEXT NOT NULL REFERENCES content_sessions(id) ON DELETE CASCADE,
     tool_name   TEXT NOT NULL,
     source_type TEXT NOT NULL DEFAULT 'static',
@@ -211,6 +226,7 @@ ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL 
 
 CREATE TABLE IF NOT EXISTS llm_analyses (
     id               TEXT PRIMARY KEY,
+    user_id          TEXT NOT NULL DEFAULT 'default',
     session_id       TEXT NOT NULL REFERENCES content_sessions(id) ON DELETE CASCADE,
     raw_item_count   INTEGER NOT NULL DEFAULT 0,
     filtered_count   INTEGER NOT NULL DEFAULT 0,
@@ -224,6 +240,7 @@ CREATE INDEX IF NOT EXISTS idx_llm_analyses_session_id ON llm_analyses(session_i
 
 CREATE TABLE IF NOT EXISTS published_content (
     id               TEXT PRIMARY KEY,
+    user_id          TEXT NOT NULL DEFAULT 'default',
     workflow_run_id  TEXT NOT NULL,
     session_id       TEXT NOT NULL,
     channel          TEXT NOT NULL,
@@ -236,6 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_published_content_channel ON published_content(ch
 
 CREATE TABLE IF NOT EXISTS surge_events (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     keyword     TEXT NOT NULL,
     pipeline_id TEXT NOT NULL DEFAULT '',
     multiplier  DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -258,22 +276,76 @@ ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS parent_session_id TEXT NOT
 
 CREATE TABLE IF NOT EXISTS workflow_results (
     session_id  TEXT PRIMARY KEY REFERENCES content_sessions(id) ON DELETE CASCADE,
+    user_id     TEXT NOT NULL DEFAULT 'default',
     results     JSONB NOT NULL DEFAULT '[]',
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS ai_providers (
     id         TEXT PRIMARY KEY,
-    name       TEXT NOT NULL UNIQUE,
+    user_id    TEXT NOT NULL DEFAULT 'default',
+    name       TEXT NOT NULL,
     category   TEXT NOT NULL,
     type       TEXT NOT NULL,
     model      TEXT NOT NULL DEFAULT '',
     api_key    TEXT NOT NULL DEFAULT '',
     is_default BOOLEAN NOT NULL DEFAULT FALSE
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_name
-    ON ai_providers(name);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_default_per_category
-    ON ai_providers(category) WHERE is_default = TRUE;
+-- Drop old single-column unique indexes and replace with per-user unique
+DROP INDEX IF EXISTS idx_ai_provider_name;
+DROP INDEX IF EXISTS ai_providers_name_key;
+DROP INDEX IF EXISTS idx_ai_provider_default_per_category;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_user_name
+    ON ai_providers(user_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_user_default_per_category
+    ON ai_providers(user_id, category) WHERE is_default = TRUE;
 ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    config     JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_user_id ON mcp_servers(user_id);
+
+-- Add user_id to existing tables (idempotent)
+ALTER TABLE workflows ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE triggers ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE pipeline_runs ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE connections ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE content_sessions ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE source_fetches ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE llm_analyses ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE published_content ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE surge_events ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE workflow_results ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
+
+-- Add user_id indexes
+CREATE INDEX IF NOT EXISTS idx_workflows_user_id ON workflows(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
+CREATE INDEX IF NOT EXISTS idx_assets_user_id ON assets(user_id);
+CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_user_id ON schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_triggers_user_id ON triggers(user_id);
+CREATE INDEX IF NOT EXISTS idx_pipelines_user_id ON pipelines(user_id);
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_user_id ON pipeline_runs(user_id);
+CREATE INDEX IF NOT EXISTS idx_connections_user_id ON connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_sessions_user_id ON content_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_source_fetches_user_id ON source_fetches(user_id);
+CREATE INDEX IF NOT EXISTS idx_llm_analyses_user_id ON llm_analyses(user_id);
+CREATE INDEX IF NOT EXISTS idx_published_content_user_id ON published_content(user_id);
+CREATE INDEX IF NOT EXISTS idx_surge_events_user_id ON surge_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_results_user_id ON workflow_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_providers_user_id ON ai_providers(user_id);
 `

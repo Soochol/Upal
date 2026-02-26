@@ -10,7 +10,7 @@ import (
 )
 
 // CreateRun stores a new run record.
-func (d *DB) CreateRun(ctx context.Context, r *upal.RunRecord) error {
+func (d *DB) CreateRun(ctx context.Context, userID string, r *upal.RunRecord) error {
 	inputsJSON, _ := json.Marshal(r.Inputs)
 	outputsJSON, _ := json.Marshal(r.Outputs)
 	nodeRunsJSON, _ := json.Marshal(r.NodeRuns)
@@ -20,9 +20,9 @@ func (d *DB) CreateRun(ctx context.Context, r *upal.RunRecord) error {
 	}
 
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO runs (id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-		r.ID, r.WorkflowName, r.TriggerType, r.TriggerRef,
+		`INSERT INTO runs (id, user_id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+		r.ID, userID, r.WorkflowName, r.TriggerType, r.TriggerRef,
 		string(r.Status), inputsJSON, outputsJSON, r.Error,
 		r.RetryOf, r.RetryCount, nodeRunsJSON,
 		r.SessionID, wfDefJSON, r.CreatedAt, r.StartedAt, r.CompletedAt,
@@ -34,14 +34,14 @@ func (d *DB) CreateRun(ctx context.Context, r *upal.RunRecord) error {
 }
 
 // GetRun retrieves a run record by ID.
-func (d *DB) GetRun(ctx context.Context, id string) (*upal.RunRecord, error) {
+func (d *DB) GetRun(ctx context.Context, userID string, id string) (*upal.RunRecord, error) {
 	r := &upal.RunRecord{}
 	var status string
 	var inputsJSON, outputsJSON, nodeRunsJSON, wfDefJSON []byte
 
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
-		 FROM runs WHERE id = $1`, id,
+		 FROM runs WHERE id = $1 AND user_id = $2`, id, userID,
 	).Scan(&r.ID, &r.WorkflowName, &r.TriggerType, &r.TriggerRef,
 		&status, &inputsJSON, &outputsJSON, &r.Error,
 		&r.RetryOf, &r.RetryCount, &nodeRunsJSON,
@@ -66,15 +66,15 @@ func (d *DB) GetRun(ctx context.Context, id string) (*upal.RunRecord, error) {
 }
 
 // UpdateRun updates an existing run record.
-func (d *DB) UpdateRun(ctx context.Context, r *upal.RunRecord) error {
+func (d *DB) UpdateRun(ctx context.Context, userID string, r *upal.RunRecord) error {
 	outputsJSON, _ := json.Marshal(r.Outputs)
 	nodeRunsJSON, _ := json.Marshal(r.NodeRuns)
 
 	_, err := d.Pool.ExecContext(ctx,
 		`UPDATE runs SET status = $1, outputs = $2, error = $3, retry_count = $4, node_runs = $5, started_at = $6, completed_at = $7
-		 WHERE id = $8`,
+		 WHERE id = $8 AND user_id = $9`,
 		string(r.Status), outputsJSON, r.Error, r.RetryCount, nodeRunsJSON,
-		r.StartedAt, r.CompletedAt, r.ID,
+		r.StartedAt, r.CompletedAt, r.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update run: %w", err)
@@ -83,10 +83,10 @@ func (d *DB) UpdateRun(ctx context.Context, r *upal.RunRecord) error {
 }
 
 // ListRunsByWorkflow returns runs for a specific workflow with pagination.
-func (d *DB) ListRunsByWorkflow(ctx context.Context, workflowName string, limit, offset int) ([]*upal.RunRecord, int, error) {
+func (d *DB) ListRunsByWorkflow(ctx context.Context, userID string, workflowName string, limit, offset int) ([]*upal.RunRecord, int, error) {
 	var total int
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM runs WHERE workflow_name = $1`, workflowName,
+		`SELECT COUNT(*) FROM runs WHERE workflow_name = $1 AND user_id = $2`, workflowName, userID,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count runs: %w", err)
@@ -94,8 +94,8 @@ func (d *DB) ListRunsByWorkflow(ctx context.Context, workflowName string, limit,
 
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
-		 FROM runs WHERE workflow_name = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-		workflowName, limit, offset,
+		 FROM runs WHERE workflow_name = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+		workflowName, userID, limit, offset,
 	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list runs: %w", err)
@@ -106,13 +106,13 @@ func (d *DB) ListRunsByWorkflow(ctx context.Context, workflowName string, limit,
 }
 
 // ListAllRuns returns all runs with pagination. status filters by run status when non-empty.
-func (d *DB) ListAllRuns(ctx context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
+func (d *DB) ListAllRuns(ctx context.Context, userID string, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
 	var total int
 	var countErr error
 	if status == "" {
-		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs`).Scan(&total)
+		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE user_id = $1`, userID).Scan(&total)
 	} else {
-		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE status = $1`, status).Scan(&total)
+		countErr = d.Pool.QueryRowContext(ctx, `SELECT COUNT(*) FROM runs WHERE status = $1 AND user_id = $2`, status, userID).Scan(&total)
 	}
 	if countErr != nil {
 		return nil, 0, fmt.Errorf("count runs: %w", countErr)
@@ -123,14 +123,14 @@ func (d *DB) ListAllRuns(ctx context.Context, limit, offset int, status string) 
 	if status == "" {
 		rows, err = d.Pool.QueryContext(ctx,
 			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
-			 FROM runs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-			limit, offset,
+			 FROM runs WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+			userID, limit, offset,
 		)
 	} else {
 		rows, err = d.Pool.QueryContext(ctx,
 			`SELECT id, workflow_name, trigger_type, trigger_ref, status, inputs, outputs, error, retry_of, retry_count, node_runs, session_id, workflow_definition, created_at, started_at, completed_at
-			 FROM runs WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-			status, limit, offset,
+			 FROM runs WHERE status = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+			status, userID, limit, offset,
 		)
 	}
 	if err != nil {

@@ -10,15 +10,15 @@ import (
 )
 
 // CreatePipeline inserts a new pipeline. stages is stored as JSONB.
-func (d *DB) CreatePipeline(ctx context.Context, p *upal.Pipeline) error {
+func (d *DB) CreatePipeline(ctx context.Context, userID string, p *upal.Pipeline) error {
 	stagesJSON, err := json.Marshal(p.Stages)
 	if err != nil {
 		return fmt.Errorf("marshal stages: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO pipelines (id, name, description, stages, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		p.ID, p.Name, p.Description, stagesJSON, p.CreatedAt, p.UpdatedAt,
+		`INSERT INTO pipelines (id, user_id, name, description, stages, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		p.ID, userID, p.Name, p.Description, stagesJSON, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert pipeline: %w", err)
@@ -27,12 +27,12 @@ func (d *DB) CreatePipeline(ctx context.Context, p *upal.Pipeline) error {
 }
 
 // GetPipeline retrieves a pipeline by ID.
-func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error) {
+func (d *DB) GetPipeline(ctx context.Context, userID string, id string) (*upal.Pipeline, error) {
 	var p upal.Pipeline
 	var stagesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, name, description, stages, created_at, updated_at
-		 FROM pipelines WHERE id = $1`, id,
+		 FROM pipelines WHERE id = $1 AND user_id = $2`, id, userID,
 	).Scan(&p.ID, &p.Name, &p.Description, &stagesJSON, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("pipeline %q not found", id)
@@ -46,11 +46,11 @@ func (d *DB) GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
 	return &p, nil
 }
 
-// ListPipelines returns all pipelines ordered by updated_at descending.
-func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
+// ListPipelines returns all pipelines for a user ordered by updated_at descending.
+func (d *DB) ListPipelines(ctx context.Context, userID string) ([]*upal.Pipeline, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, name, description, stages, created_at, updated_at
-		 FROM pipelines ORDER BY updated_at DESC`,
+		 FROM pipelines WHERE user_id = $1 ORDER BY updated_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list pipelines: %w", err)
@@ -76,15 +76,15 @@ func (d *DB) ListPipelines(ctx context.Context) ([]*upal.Pipeline, error) {
 }
 
 // UpdatePipeline updates an existing pipeline's name, description, stages, and updated_at.
-func (d *DB) UpdatePipeline(ctx context.Context, p *upal.Pipeline) error {
+func (d *DB) UpdatePipeline(ctx context.Context, userID string, p *upal.Pipeline) error {
 	stagesJSON, err := json.Marshal(p.Stages)
 	if err != nil {
 		return fmt.Errorf("marshal stages: %w", err)
 	}
 	res, err := d.Pool.ExecContext(ctx,
 		`UPDATE pipelines SET name = $1, description = $2, stages = $3, updated_at = $4
-		 WHERE id = $5`,
-		p.Name, p.Description, stagesJSON, p.UpdatedAt, p.ID,
+		 WHERE id = $5 AND user_id = $6`,
+		p.Name, p.Description, stagesJSON, p.UpdatedAt, p.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update pipeline: %w", err)
@@ -97,8 +97,8 @@ func (d *DB) UpdatePipeline(ctx context.Context, p *upal.Pipeline) error {
 }
 
 // DeletePipeline removes a pipeline by ID. Cascade deletes pipeline_runs.
-func (d *DB) DeletePipeline(ctx context.Context, id string) error {
-	res, err := d.Pool.ExecContext(ctx, `DELETE FROM pipelines WHERE id = $1`, id)
+func (d *DB) DeletePipeline(ctx context.Context, userID string, id string) error {
+	res, err := d.Pool.ExecContext(ctx, `DELETE FROM pipelines WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete pipeline: %w", err)
 	}
@@ -110,15 +110,15 @@ func (d *DB) DeletePipeline(ctx context.Context, id string) error {
 }
 
 // CreatePipelineRun inserts a new pipeline run.
-func (d *DB) CreatePipelineRun(ctx context.Context, run *upal.PipelineRun) error {
+func (d *DB) CreatePipelineRun(ctx context.Context, userID string, run *upal.PipelineRun) error {
 	stageResultsJSON, err := json.Marshal(run.StageResults)
 	if err != nil {
 		return fmt.Errorf("marshal stage_results: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO pipeline_runs (id, pipeline_id, status, current_stage, stage_results, started_at, completed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		run.ID, run.PipelineID, run.Status, run.CurrentStage, stageResultsJSON, run.StartedAt, run.CompletedAt,
+		`INSERT INTO pipeline_runs (id, user_id, pipeline_id, status, current_stage, stage_results, started_at, completed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		run.ID, userID, run.PipelineID, run.Status, run.CurrentStage, stageResultsJSON, run.StartedAt, run.CompletedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert pipeline_run: %w", err)
@@ -127,12 +127,12 @@ func (d *DB) CreatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
 }
 
 // GetPipelineRun retrieves a pipeline run by ID.
-func (d *DB) GetPipelineRun(ctx context.Context, id string) (*upal.PipelineRun, error) {
+func (d *DB) GetPipelineRun(ctx context.Context, userID string, id string) (*upal.PipelineRun, error) {
 	var run upal.PipelineRun
 	var stageResultsJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
 		`SELECT id, pipeline_id, status, current_stage, stage_results, started_at, completed_at
-		 FROM pipeline_runs WHERE id = $1`, id,
+		 FROM pipeline_runs WHERE id = $1 AND user_id = $2`, id, userID,
 	).Scan(&run.ID, &run.PipelineID, &run.Status, &run.CurrentStage, &stageResultsJSON, &run.StartedAt, &run.CompletedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("pipeline run %q not found", id)
@@ -147,11 +147,11 @@ func (d *DB) GetPipelineRun(ctx context.Context, id string) (*upal.PipelineRun, 
 }
 
 // ListPipelineRunsByPipeline returns all runs for a pipeline ordered by started_at descending.
-func (d *DB) ListPipelineRunsByPipeline(ctx context.Context, pipelineID string) ([]*upal.PipelineRun, error) {
+func (d *DB) ListPipelineRunsByPipeline(ctx context.Context, userID string, pipelineID string) ([]*upal.PipelineRun, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, pipeline_id, status, current_stage, stage_results, started_at, completed_at
-		 FROM pipeline_runs WHERE pipeline_id = $1 ORDER BY started_at DESC`,
-		pipelineID,
+		 FROM pipeline_runs WHERE pipeline_id = $1 AND user_id = $2 ORDER BY started_at DESC`,
+		pipelineID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list pipeline_runs: %w", err)
@@ -177,7 +177,7 @@ func (d *DB) ListPipelineRunsByPipeline(ctx context.Context, pipelineID string) 
 }
 
 // UpdatePipelineRun updates an existing pipeline run's mutable fields.
-func (d *DB) UpdatePipelineRun(ctx context.Context, run *upal.PipelineRun) error {
+func (d *DB) UpdatePipelineRun(ctx context.Context, userID string, run *upal.PipelineRun) error {
 	stageResultsJSON, err := json.Marshal(run.StageResults)
 	if err != nil {
 		return fmt.Errorf("marshal stage_results: %w", err)
@@ -185,8 +185,8 @@ func (d *DB) UpdatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
 	res, err := d.Pool.ExecContext(ctx,
 		`UPDATE pipeline_runs
 		 SET status = $1, current_stage = $2, stage_results = $3, completed_at = $4
-		 WHERE id = $5`,
-		run.Status, run.CurrentStage, stageResultsJSON, run.CompletedAt, run.ID,
+		 WHERE id = $5 AND user_id = $6`,
+		run.Status, run.CurrentStage, stageResultsJSON, run.CompletedAt, run.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update pipeline_run: %w", err)

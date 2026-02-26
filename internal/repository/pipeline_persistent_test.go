@@ -24,11 +24,11 @@ type stubPipelineDB struct {
 	deleteErr error
 }
 
-func (s *stubPipelineDB) CreatePipeline(_ context.Context, p *upal.Pipeline) error {
+func (s *stubPipelineDB) CreatePipeline(_ context.Context, _ string, p *upal.Pipeline) error {
 	s.pipelines = append(s.pipelines, p)
 	return s.createErr
 }
-func (s *stubPipelineDB) GetPipeline(_ context.Context, id string) (*upal.Pipeline, error) {
+func (s *stubPipelineDB) GetPipeline(_ context.Context, _ string, id string) (*upal.Pipeline, error) {
 	for _, p := range s.pipelines {
 		if p.ID == id {
 			return p, nil
@@ -36,23 +36,23 @@ func (s *stubPipelineDB) GetPipeline(_ context.Context, id string) (*upal.Pipeli
 	}
 	return nil, s.getErr
 }
-func (s *stubPipelineDB) ListPipelines(_ context.Context) ([]*upal.Pipeline, error) {
+func (s *stubPipelineDB) ListPipelines(_ context.Context, _ string) ([]*upal.Pipeline, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 	return s.pipelines, nil
 }
-func (s *stubPipelineDB) UpdatePipeline(_ context.Context, p *upal.Pipeline) error {
+func (s *stubPipelineDB) UpdatePipeline(_ context.Context, _ string, p *upal.Pipeline) error {
 	return s.updateErr
 }
-func (s *stubPipelineDB) DeletePipeline(_ context.Context, _ string) error {
+func (s *stubPipelineDB) DeletePipeline(_ context.Context, _ string, _ string) error {
 	return s.deleteErr
 }
-func (s *stubPipelineDB) CreatePipelineRun(_ context.Context, r *upal.PipelineRun) error {
+func (s *stubPipelineDB) CreatePipelineRun(_ context.Context, _ string, r *upal.PipelineRun) error {
 	s.runs = append(s.runs, r)
 	return s.createErr
 }
-func (s *stubPipelineDB) GetPipelineRun(_ context.Context, id string) (*upal.PipelineRun, error) {
+func (s *stubPipelineDB) GetPipelineRun(_ context.Context, _ string, id string) (*upal.PipelineRun, error) {
 	for _, r := range s.runs {
 		if r.ID == id {
 			return r, nil
@@ -60,7 +60,7 @@ func (s *stubPipelineDB) GetPipelineRun(_ context.Context, id string) (*upal.Pip
 	}
 	return nil, s.getErr
 }
-func (s *stubPipelineDB) ListPipelineRunsByPipeline(_ context.Context, pipelineID string) ([]*upal.PipelineRun, error) {
+func (s *stubPipelineDB) ListPipelineRunsByPipeline(_ context.Context, _ string, pipelineID string) ([]*upal.PipelineRun, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -72,7 +72,7 @@ func (s *stubPipelineDB) ListPipelineRunsByPipeline(_ context.Context, pipelineI
 	}
 	return out, nil
 }
-func (s *stubPipelineDB) UpdatePipelineRun(_ context.Context, _ *upal.PipelineRun) error {
+func (s *stubPipelineDB) UpdatePipelineRun(_ context.Context, _ string, _ *upal.PipelineRun) error {
 	return s.updateErr
 }
 
