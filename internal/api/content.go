@@ -3,42 +3,31 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
 
-// GET /api/content-sessions
-// Query params: pipeline_id=X, status=pending_review
-// When pipeline_id is provided, returns composed ContentSessionDetail records.
 func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pipelineID := r.URL.Query().Get("pipeline_id")
 	statusStr := r.URL.Query().Get("status")
 	archivedOnly := r.URL.Query().Get("archived_only") == "true"
 
-	// Cross-pipeline archived listing.
 	if archivedOnly && pipelineID == "" {
 		details, err := s.contentSvc.ListAllArchivedSessionDetails(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if details == nil {
-			details = []*upal.ContentSessionDetail{}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(details)
+		writeJSON(w, orEmpty(details))
 		return
 	}
 
-	// When pipeline_id is provided, return composed detail views.
 	if pipelineID != "" {
 		templateOnly := r.URL.Query().Get("template_only") == "true"
 
@@ -55,30 +44,20 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if details == nil {
-			details = []*upal.ContentSessionDetail{}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(details)
+		writeJSON(w, orEmpty(details))
 		return
 	}
 
-	// All instance sessions as composed details (inbox mode).
 	if r.URL.Query().Get("detail") == "true" && statusStr == "" {
 		details, err := s.contentSvc.ListAllInstanceSessionDetails(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if details == nil {
-			details = []*upal.ContentSessionDetail{}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(details)
+		writeJSON(w, orEmpty(details))
 		return
 	}
 
-	// No pipeline_id but status provided: return composed details (includes pipeline_name).
 	if statusStr != "" {
 		includeArchived := r.URL.Query().Get("include_archived") == "true"
 		var details []*upal.ContentSessionDetail
@@ -92,29 +71,18 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if details == nil {
-			details = []*upal.ContentSessionDetail{}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(details)
+		writeJSON(w, orEmpty(details))
 		return
 	}
 
-	// No pipeline_id, no status: return raw sessions.
 	sessions, err := s.contentSvc.ListSessions(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if sessions == nil {
-		sessions = []*upal.ContentSession{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	writeJSON(w, orEmpty(sessions))
 }
 
-// GET /api/content-sessions/{id}
-// Returns composed ContentSessionDetail with sources, analysis, and workflow results.
 func (s *Server) getContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
@@ -122,19 +90,15 @@ func (s *Server) getContentSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "content session not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// PATCH /api/content-sessions/{id}
-// Body: {"action": "approve" | "reject"}
 func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		Action string `json:"action"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	ctx := r.Context()
@@ -149,21 +113,13 @@ func (s *Server) patchContentSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	sess, _ := s.contentSvc.GetSession(ctx, id)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	writeJSON(w, sess)
 }
 
-// POST /api/content-sessions/{id}/produce
-// Body: {"workflows": [{"name": "blog", "channel_id": "youtube"}, ...]}
-// Validates the session exists and launches background workflow production.
 func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
@@ -172,8 +128,7 @@ func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 			ChannelID string `json:"channel_id,omitempty"`
 		} `json:"workflows"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if len(body.Workflows) == 0 {
@@ -181,13 +136,11 @@ func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify session exists before accepting.
 	if _, err := s.contentSvc.GetSession(r.Context(), id); err != nil {
 		http.Error(w, "content session not found", http.StatusNotFound)
 		return
 	}
 
-	// Deduplicate by workflow name (first occurrence wins).
 	seen := make(map[string]bool, len(body.Workflows))
 	var requests []services.WorkflowRequest
 	for _, bw := range body.Workflows {
@@ -201,27 +154,22 @@ func (s *Server) produceContentSession(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Launch background production if collector is wired.
 	if s.collector != nil {
 		go s.collector.ProduceWorkflows(context.Background(), id, requests)
 	} else {
-		// Fallback: just update status directly (no collector available).
 		if err := s.contentSvc.UpdateSessionStatus(r.Context(), id, upal.SessionProducing); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]any{
+	writeJSONStatus(w, http.StatusAccepted, map[string]any{
 		"session_id": id,
 		"workflows":  body.Workflows,
 		"status":     "accepted",
 	})
 }
 
-// GET /api/content-sessions/{id}/sources
 func (s *Server) listSessionSources(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	fetches, err := s.contentSvc.ListSourceFetches(r.Context(), id)
@@ -229,38 +177,26 @@ func (s *Server) listSessionSources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if fetches == nil {
-		fetches = []*upal.SourceFetch{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(fetches)
+	writeJSON(w, orEmpty(fetches))
 }
 
-// PATCH /api/content-sessions/{id}/analysis
 func (s *Server) patchSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		Summary  string   `json:"summary"`
 		Insights []string `json:"insights"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if err := s.contentSvc.UpdateAnalysis(r.Context(), id, body.Summary, body.Insights); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	analysis, _ := s.contentSvc.GetAnalysis(r.Context(), id)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(analysis)
+	writeJSON(w, analysis)
 }
 
-// GET /api/content-sessions/{id}/analysis
 func (s *Server) getSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	analysis, err := s.contentSvc.GetAnalysis(r.Context(), id)
@@ -268,20 +204,15 @@ func (s *Server) getSessionAnalysis(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "analysis not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(analysis)
+	writeJSON(w, analysis)
 }
 
-// POST /api/content-sessions/{id}/publish
-// Body: {"run_ids": ["run-xxx", ...]}
-// Creates PublishedContent records for each run and transitions session to published.
 func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		RunIDs []string `json:"run_ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if len(body.RunIDs) == 0 {
@@ -291,7 +222,6 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Look up workflow results to derive titles and channels for published records.
 	wfResults := s.contentSvc.GetWorkflowResults(ctx, id)
 	runToName := make(map[string]string, len(wfResults))
 	runToChannel := make(map[string]string, len(wfResults))
@@ -302,9 +232,7 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Create a PublishedContent record for each run_id.
 	for _, runID := range body.RunIDs {
-		title := runToName[runID] // may be empty if not found
 		channel := runToChannel[runID]
 		if channel == "" {
 			channel = "default"
@@ -313,7 +241,7 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 			SessionID:     id,
 			WorkflowRunID: runID,
 			Channel:       channel,
-			Title:         title,
+			Title:         runToName[runID],
 		}
 		if err := s.contentSvc.RecordPublished(ctx, pc); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -321,7 +249,6 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mark each published run_id in workflow results.
 	results := s.contentSvc.GetWorkflowResults(ctx, id)
 	for i, wr := range results {
 		for _, runID := range body.RunIDs {
@@ -332,28 +259,22 @@ func (s *Server) publishContentSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.contentSvc.SetWorkflowResults(ctx, id, results)
 
-	// Check if all results are terminal — only then transition session.
 	s.checkAndFinalizeSession(ctx, id)
 
-	// Return the composed session detail.
 	detail, err := s.contentSvc.GetSessionDetail(ctx, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// POST /api/content-sessions/{id}/reject-result
-// Body: {"run_id": "..."}
 func (s *Server) rejectWorkflowResult(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		RunID string `json:"run_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if body.RunID == "" {
@@ -377,11 +298,9 @@ func (s *Server) rejectWorkflowResult(w http.ResponseWriter, r *http.Request) {
 	}
 	s.contentSvc.SetWorkflowResults(ctx, id, results)
 
-	// Check if all results are now terminal (published or rejected)
 	s.checkAndFinalizeSession(ctx, id)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "rejected"})
+	writeJSON(w, map[string]string{"status": "rejected"})
 }
 
 // checkAndFinalizeSession transitions session to published if all workflow results are terminal.
@@ -390,20 +309,14 @@ func (s *Server) checkAndFinalizeSession(ctx context.Context, id string) {
 	if len(results) == 0 {
 		return
 	}
-	allTerminal := true
 	for _, wr := range results {
 		if wr.Status != upal.WFResultPublished && wr.Status != upal.WFResultRejected && wr.Status != upal.WFResultFailed {
-			allTerminal = false
-			break
+			return
 		}
 	}
-	if allTerminal {
-		_ = s.contentSvc.UpdateSessionStatus(ctx, id, upal.SessionPublished)
-	}
+	_ = s.contentSvc.UpdateSessionStatus(ctx, id, upal.SessionPublished)
 }
 
-// GET /api/published
-// Query params: session_id=X, channel=youtube
 func (s *Server) listPublished(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -421,15 +334,9 @@ func (s *Server) listPublished(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if items == nil {
-		items = []*upal.PublishedContent{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(items)
+	writeJSON(w, orEmpty(items))
 }
 
-// GET /api/surges
-// Query param: active=true to filter to undismissed only
 func (s *Server) listSurges(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -445,35 +352,22 @@ func (s *Server) listSurges(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if events == nil {
-		events = []*upal.SurgeEvent{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, orEmpty(events))
 }
 
-// POST /api/surges/{id}/dismiss
 func (s *Server) dismissSurge(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.DismissSurge(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /api/surges/{id}/create-session
-// Phase 1 stub: actual implementation in Phase 2.
 func (s *Server) createSessionFromSurge(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "not implemented in Phase 1", http.StatusNotImplemented)
 }
 
-// POST /api/content-sessions
-// Creates a new draft session for a pipeline.
 func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PipelineID string                  `json:"pipeline_id"`
@@ -485,8 +379,7 @@ func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 		Workflows  []upal.PipelineWorkflow `json:"workflows,omitempty"`
 		Context    *upal.PipelineContext   `json:"context,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if body.PipelineID == "" {
@@ -516,13 +409,9 @@ func (s *Server) createDraftSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(detail)
+	writeJSONStatus(w, http.StatusCreated, detail)
 }
 
-// PATCH /api/content-sessions/{id}/settings
-// Partially updates session-level configuration (sources, schedule, model, etc.).
 func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
@@ -534,8 +423,7 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 		Workflows     []upal.PipelineWorkflow `json:"workflows,omitempty"`
 		Context       *upal.PipelineContext   `json:"context,omitempty"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 
@@ -549,11 +437,7 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 		Context:       body.Context,
 	}
 	if err := s.contentSvc.UpdateSessionSettings(r.Context(), id, settings); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
+		writeServiceError(w, err, http.StatusBadRequest)
 		return
 	}
 	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
@@ -561,12 +445,9 @@ func (s *Server) patchSessionSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// POST /api/content-sessions/{id}/collect
-// Triggers collection on an existing session.
 func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
@@ -591,13 +472,9 @@ func (s *Server) collectSession(w http.ResponseWriter, r *http.Request) {
 		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]any{"session_id": id, "status": "accepted"})
+	writeJSONStatus(w, http.StatusAccepted, map[string]any{"session_id": id, "status": "accepted"})
 }
 
-// POST /api/content-sessions/{id}/activate
-// Transitions a draft session to active status.
 func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	sess, err := s.contentSvc.GetSession(r.Context(), id)
@@ -618,12 +495,9 @@ func (s *Server) activateSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// POST /api/content-sessions/{id}/deactivate
-// Transitions an active session back to draft status.
 func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	sess, err := s.contentSvc.GetSession(r.Context(), id)
@@ -644,32 +518,24 @@ func (s *Server) deactivateSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// POST /api/pipelines/{id}/collect
-// Body (optional): {"isTest": bool, "limit": int}
-// Creates a content session and launches background collection + analysis.
 func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	// Parse optional body.
 	var body struct {
 		IsTest bool `json:"isTest"`
 		Limit  int  `json:"limit"`
 	}
-	// Body is optional — ignore decode errors for empty bodies.
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
-	// Fetch the pipeline to pass to the collector.
 	pipeline, err := s.pipelineSvc.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, "pipeline not found", http.StatusNotFound)
 		return
 	}
 
-	// Find active template session to copy settings from.
 	templates, tErr := s.contentSvc.ListTemplatesByPipeline(r.Context(), id)
 	if tErr != nil || len(templates) == 0 {
 		http.Error(w, "no template session found for this pipeline", http.StatusBadRequest)
@@ -692,18 +558,13 @@ func (s *Server) collectPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Launch background collection if collector is wired.
 	if s.collector != nil {
 		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{"session_id": sess.ID})
+	writeJSONStatus(w, http.StatusCreated, map[string]any{"session_id": sess.ID})
 }
 
-// POST /api/content-sessions/{id}/retry-analyze
-// Re-runs LLM analysis for a session stuck in "analyzing" state.
 func (s *Server) retryAnalyze(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if s.collector == nil {
@@ -714,13 +575,9 @@ func (s *Server) retryAnalyze(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, map[string]string{"status": "ok"})
 }
 
-// POST /api/content-sessions/{id}/generate-workflow
-// Body: {"angle_id": "angle-1"}
-// Generates a new workflow for an unmatched content angle using the Generator.
 func (s *Server) generateAngleWorkflow(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -744,21 +601,13 @@ func (s *Server) generateAngleWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(angle)
+	writeJSON(w, angle)
 }
 
-// POST /api/content-sessions/{id}/archive
 func (s *Server) archiveContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.ArchiveSession(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if errors.Is(err, upal.ErrAlreadyArchived) {
-			http.Error(w, err.Error(), http.StatusConflict)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
@@ -766,21 +615,13 @@ func (s *Server) archiveContentSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// POST /api/content-sessions/{id}/unarchive
 func (s *Server) unarchiveContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.UnarchiveSession(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if errors.Is(err, upal.ErrNotArchived) {
-			http.Error(w, err.Error(), http.StatusConflict)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	detail, err := s.contentSvc.GetSessionDetail(r.Context(), id)
@@ -788,21 +629,62 @@ func (s *Server) unarchiveContentSession(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(detail)
+	writeJSON(w, detail)
 }
 
-// DELETE /api/content-sessions/{id}
+// POST /api/content-sessions/{id}/run
+// Creates a new instance from this template session and launches collection.
+func (s *Server) runSessionInstance(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	tmpl, err := s.contentSvc.GetSession(r.Context(), id)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if !tmpl.IsTemplate {
+		http.Error(w, "only template sessions can spawn instances", http.StatusBadRequest)
+		return
+	}
+
+	pipeline, err := s.pipelineSvc.Get(r.Context(), tmpl.PipelineID)
+	if err != nil {
+		http.Error(w, "pipeline not found", http.StatusNotFound)
+		return
+	}
+
+	var body struct {
+		IsTest bool `json:"isTest"`
+		Limit  int  `json:"limit"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	sess := &upal.ContentSession{
+		PipelineID:      tmpl.PipelineID,
+		TriggerType:     "manual",
+		ParentSessionID: tmpl.ID,
+		Sources:         tmpl.Sources,
+		Schedule:        tmpl.Schedule,
+		Model:           tmpl.Model,
+		Workflows:       tmpl.Workflows,
+		Context:         tmpl.Context,
+	}
+	if err := s.contentSvc.CreateSession(r.Context(), sess); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if s.collector != nil {
+		go s.collector.CollectAndAnalyze(context.Background(), pipeline, sess, body.IsTest, body.Limit)
+	}
+
+	writeJSONStatus(w, http.StatusCreated, map[string]any{"session_id": sess.ID})
+}
+
 func (s *Server) deleteContentSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.contentSvc.DeleteSession(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else if errors.Is(err, upal.ErrMustBeArchived) {
-			http.Error(w, err.Error(), http.StatusConflict)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

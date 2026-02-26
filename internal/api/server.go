@@ -125,6 +125,7 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/{id}/unarchive", s.unarchiveContentSession)
 				r.Patch("/{id}/settings", s.patchSessionSettings)
 				r.Post("/{id}/collect", s.collectSession)
+				r.Post("/{id}/run", s.runSessionInstance)
 				r.Post("/{id}/activate", s.activateSession)
 				r.Post("/{id}/deactivate", s.deactivateSession)
 				r.Post("/{id}/produce", s.produceContentSession)
