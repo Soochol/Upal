@@ -3,6 +3,8 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,13 +16,14 @@ import (
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 	if s.authSvc == nil {
-		http.Error(w, `{"error":"auth not configured"}`, http.StatusNotFound)
+		http.Error(w, "auth not configured", http.StatusNotFound)
 		return
 	}
 
 	oauthCfg, err := s.authSvc.OAuthConfig(provider)
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		slog.Warn("oauth config error", "provider", provider, "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -43,18 +46,18 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 	if s.authSvc == nil {
-		http.Error(w, `{"error":"auth not configured"}`, http.StatusNotFound)
+		http.Error(w, "auth not configured", http.StatusNotFound)
 		return
 	}
 
 	// Verify state cookie for CSRF protection.
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil || stateCookie.Value == "" {
-		http.Error(w, `{"error":"missing state cookie"}`, http.StatusBadRequest)
+		http.Error(w, "missing state cookie", http.StatusBadRequest)
 		return
 	}
 	if r.URL.Query().Get("state") != stateCookie.Value {
-		http.Error(w, `{"error":"state mismatch"}`, http.StatusBadRequest)
+		http.Error(w, "state mismatch", http.StatusBadRequest)
 		return
 	}
 
@@ -69,25 +72,28 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Check for error from OAuth provider.
 	if errMsg := r.URL.Query().Get("error"); errMsg != "" {
-		http.Error(w, `{"error":"`+errMsg+`"}`, http.StatusBadRequest)
+		slog.Warn("oauth provider error", "provider", provider, "error", errMsg)
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		http.Error(w, `{"error":"missing code"}`, http.StatusBadRequest)
+		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
 
 	user, err := s.authSvc.ExchangeAndUpsertUser(r.Context(), provider, code)
 	if err != nil {
-		http.Error(w, `{"error":"authentication failed"}`, http.StatusInternalServerError)
+		slog.Error("oauth exchange failed", "provider", provider, "err", err)
+		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
 	accessToken, refreshToken, err := s.authSvc.GenerateTokens(user)
 	if err != nil {
-		http.Error(w, `{"error":"token generation failed"}`, http.StatusInternalServerError)
+		slog.Error("token generation failed", "user", user.ID, "err", err)
+		http.Error(w, "token generation failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -108,31 +114,31 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 // authRefresh generates new tokens from a valid refresh token cookie.
 func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 	if s.authSvc == nil {
-		http.Error(w, `{"error":"auth not configured"}`, http.StatusNotFound)
+		http.Error(w, "auth not configured", http.StatusNotFound)
 		return
 	}
 
 	cookie, err := r.Cookie("refresh_token")
 	if err != nil || cookie.Value == "" {
-		http.Error(w, `{"error":"missing refresh token"}`, http.StatusUnauthorized)
+		http.Error(w, "missing refresh token", http.StatusUnauthorized)
 		return
 	}
 
 	userID, err := s.authSvc.ValidateRefreshToken(cookie.Value)
 	if err != nil {
-		http.Error(w, `{"error":"invalid refresh token"}`, http.StatusUnauthorized)
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
 	user, err := s.authSvc.GetUser(r.Context(), userID)
 	if err != nil {
-		http.Error(w, `{"error":"user not found"}`, http.StatusUnauthorized)
+		http.Error(w, "user not found", http.StatusUnauthorized)
 		return
 	}
 
 	accessToken, refreshToken, err := s.authSvc.GenerateTokens(user)
 	if err != nil {
-		http.Error(w, `{"error":"token generation failed"}`, http.StatusInternalServerError)
+		http.Error(w, "token generation failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -147,7 +153,7 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]string{
-		"access_token": accessToken,
+		"token": accessToken,
 	})
 }
 
@@ -168,19 +174,19 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 // authMe returns the current authenticated user's info.
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	if s.authSvc == nil {
-		http.Error(w, `{"error":"auth not configured"}`, http.StatusNotFound)
+		http.Error(w, "auth not configured", http.StatusNotFound)
 		return
 	}
 
 	userID := upal.UserIDFromContext(r.Context())
 	if userID == "" || userID == "default" {
-		http.Error(w, `{"error":"not authenticated"}`, http.StatusUnauthorized)
+		http.Error(w, "not authenticated", http.StatusUnauthorized)
 		return
 	}
 
 	user, err := s.authSvc.GetUser(r.Context(), userID)
 	if err != nil {
-		http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
@@ -190,6 +196,8 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 // generateState creates a random hex string for CSRF protection.
 func generateState() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand failed: %v", err))
+	}
 	return hex.EncodeToString(b)
 }

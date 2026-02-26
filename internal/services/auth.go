@@ -31,7 +31,9 @@ func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) 
 	secret := authCfg.JWTSecret
 	if secret == "" {
 		b := make([]byte, 32)
-		rand.Read(b)
+		if _, err := rand.Read(b); err != nil {
+			panic(fmt.Sprintf("crypto/rand failed: %v", err))
+		}
 		secret = hex.EncodeToString(b)
 	}
 	return &AuthService{
@@ -197,7 +199,11 @@ func (s *AuthService) fetchGitHubUser(ctx context.Context, accessToken string) (
 
 	email := info.Email
 	if email == "" {
-		email, _ = s.fetchGitHubPrimaryEmail(ctx, accessToken)
+		var emailErr error
+		email, emailErr = s.fetchGitHubPrimaryEmail(ctx, accessToken)
+		if emailErr != nil || email == "" {
+			return nil, fmt.Errorf("github email unavailable: %w", emailErr)
+		}
 	}
 
 	return &upal.User{
