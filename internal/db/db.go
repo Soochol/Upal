@@ -249,4 +249,13 @@ CREATE TABLE IF NOT EXISTS workflow_results (
     results     JSONB NOT NULL DEFAULT '[]',
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS ai_providers (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    category   TEXT NOT NULL,
+    type       TEXT NOT NULL,
+    api_key    TEXT NOT NULL DEFAULT '',
+    is_default BOOLEAN NOT NULL DEFAULT FALSE
+);
 `
