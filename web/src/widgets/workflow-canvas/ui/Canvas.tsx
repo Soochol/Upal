@@ -72,7 +72,8 @@ function SelectionGrouper() {
 export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly, autoFocusPrompt }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
-  const { screenToFlowPosition } = useReactFlow()
+  const workflowName = useWorkflowStore((s) => s.workflowName)
+  const reactFlow = useReactFlow()
 
   // Expose viewport center calculator to parent (for click-to-add nodes)
   useEffect(() => {
@@ -80,12 +81,21 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
       const el = document.querySelector('.react-flow')
       if (!el) return { x: 250, y: 150 }
       const rect = el.getBoundingClientRect()
-      return screenToFlowPosition({
+      return reactFlow.screenToFlowPosition({
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2,
       })
     })
-  }, [exposeGetViewportCenter, screenToFlowPosition])
+  }, [exposeGetViewportCenter, reactFlow])
+
+  // Re-fit viewport when workflow changes (nodes load asynchronously after mount)
+  const prevNameRef = useRef(workflowName)
+  useEffect(() => {
+    if (workflowName && workflowName !== prevNameRef.current && nodes.length > 0) {
+      requestAnimationFrame(() => reactFlow.fitView({ padding: 0.1 }))
+    }
+    prevNameRef.current = workflowName
+  }, [workflowName, nodes.length, reactFlow])
 
   const isEmpty = nodes.length === 0
 
@@ -164,7 +174,7 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
       // File drop: upload each file and create an asset node
       if (e.dataTransfer.files.length > 0) {
         const files = Array.from(e.dataTransfer.files)
-        const basePosition = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        const basePosition = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
         for (let i = 0; i < files.length; i++) {
           try {
             const info = await uploadFile(files[i])
@@ -184,10 +194,10 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
       // Node-type drop from the palette
       const type = e.dataTransfer.getData('application/upal-node-type')
       if (!type) return
-      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      const position = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
       onDropNode(type, position)
     },
-    [onDropNode, screenToFlowPosition, addNode],
+    [onDropNode, reactFlow, addNode],
   )
 
   return (
