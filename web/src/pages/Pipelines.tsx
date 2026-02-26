@@ -168,9 +168,14 @@ export default function PipelinesPage() {
       setLocalSchedule(templateSession.schedule ?? '')
       setLocalWorkflows(templateSession.session_workflows ?? [])
       setLocalModel(templateSession.model ?? '')
-      markClean()
     }
   }, [templateSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // markClean after state settles (settingsData reflects new values)
+  const serverFingerprint = templateSession?.id
+  useEffect(() => {
+    if (serverFingerprint) markClean()
+  }, [settingsData, serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select first pipeline on load
   useEffect(() => {

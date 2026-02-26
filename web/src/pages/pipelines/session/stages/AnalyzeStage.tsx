@@ -160,6 +160,7 @@ export function AnalyzeStage({
     },
     delay: 2000,
     enabled: isPendingReview,
+    onError: (err) => console.error('Failed to save analysis:', err),
   })
 
   // ---- Handlers ----

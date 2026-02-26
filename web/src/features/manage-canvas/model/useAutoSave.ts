@@ -19,10 +19,6 @@ type CanvasSnapshot = {
   workflowName: string
 }
 
-function snapshotEqual(a: CanvasSnapshot, b: CanvasSnapshot): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
 export function useAutoSave() {
   const nodes = useWorkflowStore((s) => s.nodes)
   const edges = useWorkflowStore((s) => s.edges)
@@ -71,8 +67,8 @@ export function useAutoSave() {
     data,
     onSave,
     delay: 2000,
-    isEqual: snapshotEqual,
     enabled,
+    onError: (err) => console.error('Failed to save workflow:', err),
   })
 
   return { saveStatus, saveNow, markClean }

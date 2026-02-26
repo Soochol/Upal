@@ -77,6 +77,7 @@ Organized by Feature-Sliced Design: `app` → `pages` → `widgets` → `feature
 - **Model ID format**: `"provider/model"` — e.g. `anthropic/claude-sonnet-4-20250514`, `gemini/gemini-2.0-flash`, `ollama/llama3.2`
 - **Template references**: `{{node_id}}` in prompts resolve from ADK session state at runtime
 - **Data flow**: Visual workflow → `WorkflowDefinition` JSON → DAG → ADK agents (topological order, parallel fan-out) → SSE events to frontend
+- **Auto-save**: 모든 자동 저장은 `shared/hooks/useAutoSave` 훅을 사용한다. 새 auto-save 추가 시 반드시 이 훅을 사용하고, `onError` 콜백을 포함해야 한다. `markClean()`은 React 상태 업데이트가 반영된 다음 렌더에서 호출해야 한다 (같은 이펙트에서 setState 직후 호출 금지).
 
 ## Configuration
 

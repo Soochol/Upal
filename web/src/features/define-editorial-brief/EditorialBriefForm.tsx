@@ -34,6 +34,7 @@ export function EditorialBriefForm({ initialContext, onSave, onBack, submitLabel
     onSave: async (data) => { await onSave(data) },
     delay: 2000,
     enabled: autoSave ?? false,
+    onError: (err) => console.error('Failed to save editorial brief:', err),
   })
 
   const handleSave = () => { void saveNow() }
