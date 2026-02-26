@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react'
-import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
+import { X, Rss, Flame, MessageCircle, TrendingUp, Globe, Search } from 'lucide-react'
+import { useModels } from '@/shared/api/useModels'
+import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
 
 type SourceTypeDef = {
   type: PipelineSourceType
-  source_type: 'static' | 'signal'
+  source_type: 'static' | 'signal' | 'research'
   label: string
   description: string
   icon: ReactNode
@@ -25,6 +27,18 @@ export const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
 ]
 
+export const RESEARCH_SOURCES: SourceTypeDef[] = [
+  {
+    type: 'research',
+    source_type: 'research',
+    label: 'Deep Research',
+    description: 'LLM-powered topic research with web search',
+    icon: <Search className="h-4 w-4" />,
+    accent: 'bg-[oklch(0.7_0.15_280)]/12',
+    accentText: 'text-[oklch(0.6_0.15_280)]',
+  },
+]
+
 
 type Props = {
   editSource?: PipelineSource
@@ -36,9 +50,29 @@ function generateId() {
   return `src-${crypto.randomUUID()}`
 }
 
+function ResearchModelSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const models = useModels()
+  const researchModels = models.filter((m) => m.supportsTools && m.category === 'text')
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
+      <ModelSelector
+        value={value}
+        onChange={onChange}
+        models={researchModels}
+        placeholder="Select a research model..."
+      />
+      <p className="text-[10px] text-muted-foreground mt-1">
+        Only models with web search support are shown
+      </p>
+    </div>
+  )
+}
+
 export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
   const editTypeDef = editSource
-    ? [...STATIC_SOURCES, ...SIGNAL_SOURCES].find(s => s.type === editSource.type) ?? null
+    ? [...STATIC_SOURCES, ...SIGNAL_SOURCES, ...RESEARCH_SOURCES].find(s => s.type === editSource.type) ?? null
     : null
   const [step, setStep] = useState<'select' | 'config'>(editSource ? 'config' : 'select')
   const [selectedType, setSelectedType] = useState<SourceTypeDef | null>(editTypeDef)
@@ -51,9 +85,9 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
       type: typeDef.type,
       source_type: typeDef.source_type,
       label: typeDef.label,
-      limit: 20,
-      keywords: [],
-      accounts: [],
+      ...(typeDef.type === 'research'
+        ? { depth: 'deep' as const, topic: '', model: '' }
+        : { limit: 20, keywords: [], accounts: [] }),
     })
     setStep('config')
   }
@@ -116,6 +150,34 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
                 <div className="space-y-1.5">
                   {SIGNAL_SOURCES.map((typeDef) => (
+                    <button
+                      key={typeDef.type}
+                      onClick={() => handleSelectType(typeDef)}
+                      className="group w-full flex items-center gap-3 rounded-xl border border-border p-3
+                        hover:border-foreground/15 hover:bg-muted/40 hover:shadow-sm
+                        active:scale-[0.99] transition-all text-left cursor-pointer"
+                    >
+                      <div className={`w-8 h-8 rounded-lg ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0
+                        group-hover:scale-110 transition-transform`}>
+                        {typeDef.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground">{typeDef.label}</span>
+                        <p className="text-[11px] text-muted-foreground leading-tight">{typeDef.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* AI Research */}
+              <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">AI Research</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <div className="space-y-1.5">
+                  {RESEARCH_SOURCES.map((typeDef) => (
                     <button
                       key={typeDef.type}
                       onClick={() => handleSelectType(typeDef)}
@@ -236,15 +298,65 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
-                <input
-                  type="number"
-                  value={draft.limit ?? 20}
-                  onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) })}
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
+              {draft.type === 'research' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Research topic</label>
+                    <input
+                      type="text"
+                      value={draft.topic ?? ''}
+                      onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
+                      placeholder="e.g. EV battery technology trends 2026"
+                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Depth</label>
+                    <div className="flex gap-4 mt-1">
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="depth"
+                          value="light"
+                          checked={(draft.depth ?? 'deep') === 'light'}
+                          onChange={() => setDraft({ ...draft, depth: 'light' })}
+                          className="accent-primary"
+                        />
+                        <span>Light</span>
+                        <span className="text-[10px] text-muted-foreground">— quick scan</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="depth"
+                          value="deep"
+                          checked={(draft.depth ?? 'deep') === 'deep'}
+                          onChange={() => setDraft({ ...draft, depth: 'deep' })}
+                          className="accent-primary"
+                        />
+                        <span>Deep</span>
+                        <span className="text-[10px] text-muted-foreground">— iterative research</span>
+                      </label>
+                    </div>
+                  </div>
+                  <ResearchModelSelector
+                    value={draft.model ?? ''}
+                    onChange={(model) => setDraft({ ...draft, model })}
+                  />
+                </>
+              )}
+
+              {draft.type !== 'research' && (
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
+                  <input
+                    type="number"
+                    value={draft.limit ?? 20}
+                    onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
