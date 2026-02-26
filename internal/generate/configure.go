@@ -201,7 +201,9 @@ func buildChatHistory(history []ChatMessage) []*genai.Content {
 	return contents
 }
 
-// buildModelCatalog appends the available model catalog to a system prompt.
+// buildModelCatalog appends a compact model catalog to configure system prompts.
+// Unlike buildModelPrompt (used in generation), this omits TTS/image model selection
+// rules since configure only needs the model ID list for field assignment.
 func (g *Generator) buildModelCatalog(modelName string) string {
 	if len(g.models) == 0 {
 		return ""

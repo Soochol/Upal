@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -193,7 +193,7 @@ func (f *researchFetcher) runResearch(
 
 func buildResearchSystemPrompt(skillContent, depth string) string {
 	if skillContent == "" {
-		log.Printf("[WARN] stage-research skill not found; using full skill content as fallback")
+		slog.Warn("stage-research skill not found; using full skill content as fallback")
 		return "You are a research analyst. Use web_search and get_webpage to research the topic. Provide a structured markdown report with sources."
 	}
 

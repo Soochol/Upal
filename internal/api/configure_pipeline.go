@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -44,6 +45,8 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 			for _, st := range p.Stages {
 				stageTypes = append(stageTypes, st.Type)
 			}
+		} else {
+			slog.Warn("failed to load pipeline for configure", "pipeline_id", pipelineID, "error", err)
 		}
 	}
 
@@ -54,6 +57,8 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 			for _, wf := range wfs {
 				workflows = append(workflows, generate.WorkflowRef{Name: wf.Name, Description: wf.Description})
 			}
+		} else {
+			slog.Warn("failed to list workflows for configure", "error", err)
 		}
 	}
 
