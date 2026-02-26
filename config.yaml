@@ -5,6 +5,15 @@ server:
 database:
   url: "" # Set DATABASE_URL in .env
 
+auth:
+  google:
+    client_id: ""
+    client_secret: ""
+  github:
+    client_id: ""
+    client_secret: ""
+  jwt_secret: ""
+
 # AI Providers — uncomment and configure the ones you need.
 # Each provider name becomes the prefix for model IDs (e.g., "openai/gpt-4o").
 providers:

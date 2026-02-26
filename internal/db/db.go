@@ -45,6 +45,18 @@ func (d *DB) Migrate(ctx context.Context) error {
 }
 
 const migrationSQL = `
+CREATE TABLE IF NOT EXISTS users (
+    id             TEXT PRIMARY KEY,
+    email          TEXT NOT NULL UNIQUE,
+    name           TEXT NOT NULL DEFAULT '',
+    avatar_url     TEXT NOT NULL DEFAULT '',
+    oauth_provider TEXT NOT NULL,
+    oauth_id       TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(oauth_provider, oauth_id)
+);
+
 CREATE TABLE IF NOT EXISTS workflows (
     id          TEXT PRIMARY KEY,
     name        TEXT UNIQUE NOT NULL,

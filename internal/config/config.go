@@ -16,10 +16,24 @@ import (
 type Config struct {
 	Server    ServerConfig              `yaml:"server"`
 	Database  DatabaseConfig            `yaml:"database"`
+	Auth      AuthConfig                `yaml:"auth"`
 	Providers map[string]ProviderConfig `yaml:"providers"`
 	Scheduler upal.ConcurrencyLimits    `yaml:"scheduler"`
 	Runs      RunsConfig                `yaml:"runs"`
 	Generator GeneratorConfig           `yaml:"generator"`
+}
+
+// AuthConfig holds authentication and OAuth settings.
+type AuthConfig struct {
+	Google    OAuthProviderConfig `yaml:"google"`
+	GitHub    OAuthProviderConfig `yaml:"github"`
+	JWTSecret string             `yaml:"jwt_secret"`
+}
+
+// OAuthProviderConfig holds OAuth client credentials for a provider.
+type OAuthProviderConfig struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -126,5 +140,21 @@ func applyEnvOverrides(cfg *Config) {
 			pc.APIKey = v
 			cfg.Providers[name] = pc
 		}
+	}
+
+	if v := os.Getenv("GOOGLE_CLIENT_ID"); v != "" {
+		cfg.Auth.Google.ClientID = v
+	}
+	if v := os.Getenv("GOOGLE_CLIENT_SECRET"); v != "" {
+		cfg.Auth.Google.ClientSecret = v
+	}
+	if v := os.Getenv("GITHUB_CLIENT_ID"); v != "" {
+		cfg.Auth.GitHub.ClientID = v
+	}
+	if v := os.Getenv("GITHUB_CLIENT_SECRET"); v != "" {
+		cfg.Auth.GitHub.ClientSecret = v
+	}
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		cfg.Auth.JWTSecret = v
 	}
 }
