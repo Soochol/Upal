@@ -6,7 +6,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import { ConfigureChat } from '@/shared/ui/ConfigureChat'
+import { FloatingConfigureChat } from '@/shared/ui/FloatingConfigureChat'
 import type { ChatMessage } from '@/shared/ui/ConfigureChat'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
@@ -281,17 +281,8 @@ export function SessionSetupView({ sessionId }: Props) {
         </div>
       </div>
 
-      {/* ── AI Assistant ── */}
-      <div className="border-b border-border/50 px-4">
-        <ConfigureChat
-          onSubmit={handleConfigure}
-          placeholder="Describe your session settings..."
-          loadingText="Configuring session..."
-        />
-      </div>
-
       {/* ── Scrollable content ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative">
         <div className="max-w-2xl mx-auto px-6 py-6">
 
           {/* ════ SOURCES ════ */}
@@ -592,6 +583,13 @@ export function SessionSetupView({ sessionId }: Props) {
           </section>
 
         </div>
+
+        {/* ── Floating AI Configure ── */}
+        <FloatingConfigureChat
+          key={sessionId}
+          onSubmit={handleConfigure}
+          placeholder="Describe your session settings..."
+        />
       </div>
 
       {/* ── Modals ── */}
