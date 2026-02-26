@@ -99,7 +99,7 @@ type PipelineSource struct {
 	Config     map[string]any `json:"config,omitempty"`      // tool-specific params
 	Enabled    bool           `json:"enabled,omitempty"`
 	// Frontend-compatible flat fields (stored as-is from the UI)
-	Type      string   `json:"type,omitempty"`      // "rss" | "hn" | "reddit" | "google_trends" | "social" | "http"
+	Type      string   `json:"type,omitempty"`      // "rss" | "hn" | "reddit" | "google_trends" | "social" | "http" | "research"
 	Label     string   `json:"label,omitempty"`     // display name
 	URL       string   `json:"url,omitempty"`       // rss, http
 	Subreddit string   `json:"subreddit,omitempty"` // reddit
@@ -108,6 +108,10 @@ type PipelineSource struct {
 	Accounts  []string `json:"accounts,omitempty"` // social: follow account handles
 	Geo       string   `json:"geo,omitempty"`      // google_trends: country code
 	Limit     int      `json:"limit,omitempty"`
+	// Research source fields
+	Topic string `json:"topic,omitempty"` // research: subject to investigate
+	Depth string `json:"depth,omitempty"` // research: "light" | "deep"
+	Model string `json:"model,omitempty"` // research: LLM model ID ("provider/model")
 }
 
 // PipelineWorkflow links an existing workflow to a pipeline for content production.
