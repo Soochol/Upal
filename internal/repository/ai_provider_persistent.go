@@ -18,10 +18,10 @@ func NewPersistentAIProviderRepository(mem *MemoryAIProviderRepository, database
 }
 
 func (r *PersistentAIProviderRepository) Create(ctx context.Context, p *upal.AIProvider) error {
-	_ = r.mem.Create(ctx, p)
 	if err := r.db.CreateAIProvider(ctx, p); err != nil {
-		slog.Warn("db create ai provider failed, in-memory only", "err", err)
+		return err
 	}
+	_ = r.mem.Create(ctx, p)
 	return nil
 }
 
@@ -47,25 +47,25 @@ func (r *PersistentAIProviderRepository) List(ctx context.Context) ([]*upal.AIPr
 }
 
 func (r *PersistentAIProviderRepository) Update(ctx context.Context, p *upal.AIProvider) error {
-	_ = r.mem.Update(ctx, p)
 	if err := r.db.UpdateAIProvider(ctx, p); err != nil {
-		slog.Warn("db update ai provider failed, in-memory only", "err", err)
+		return err
 	}
+	_ = r.mem.Update(ctx, p)
 	return nil
 }
 
 func (r *PersistentAIProviderRepository) Delete(ctx context.Context, id string) error {
-	_ = r.mem.Delete(ctx, id)
 	if err := r.db.DeleteAIProvider(ctx, id); err != nil {
-		slog.Warn("db delete ai provider failed", "err", err)
+		return err
 	}
+	_ = r.mem.Delete(ctx, id)
 	return nil
 }
 
 func (r *PersistentAIProviderRepository) ClearDefault(ctx context.Context, category upal.AIProviderCategory) error {
-	_ = r.mem.ClearDefault(ctx, category)
 	if err := r.db.ClearAIProviderDefault(ctx, string(category)); err != nil {
-		slog.Warn("db clear ai provider default failed", "err", err)
+		return err
 	}
+	_ = r.mem.ClearDefault(ctx, category)
 	return nil
 }
