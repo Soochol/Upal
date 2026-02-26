@@ -92,6 +92,8 @@ export function useAutoSave<T>(options: UseAutoSaveOptions<T>): UseAutoSaveRetur
   const isDirty = !isEqual(data, cleanRef.current)
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
+  const saveStatusRef = useRef(saveStatus)
+  saveStatusRef.current = saveStatus
 
   // ── Core save ───────────────────────────────────────────────────────
   const performSave = useCallback(async () => {
@@ -135,7 +137,7 @@ export function useAutoSave<T>(options: UseAutoSaveOptions<T>): UseAutoSaveRetur
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     }
-  }, [data, enabled, isDirty, delay, performSave]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, enabled, isDirty, delay, performSave])
 
   // ── saveNow ─────────────────────────────────────────────────────────
   const saveNow = useCallback(async () => {
@@ -148,8 +150,8 @@ export function useAutoSave<T>(options: UseAutoSaveOptions<T>): UseAutoSaveRetur
     cleanRef.current = dataRef.current
     isDirtyRef.current = false
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    if (saveStatus === 'waiting') setSaveStatus('idle')
-  }, [saveStatus])
+    if (saveStatusRef.current === 'waiting') setSaveStatus('idle')
+  }, [])
 
   // ── Unmount save ────────────────────────────────────────────────────
   useEffect(() => {

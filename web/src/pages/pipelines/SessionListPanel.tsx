@@ -49,12 +49,6 @@ export function SessionListPanel({
     enabled: !!pipelineId,
   })
 
-  const { data: archivedSessions = [], isLoading: archivedLoading } = useQuery({
-    queryKey: ['content-sessions', { pipelineId, archived: true }],
-    queryFn: () => fetchContentSessions({ pipelineId, archivedOnly: true }),
-    enabled: !!pipelineId && activeFilter === 'archived',
-  })
-
   const { data: templateSessions = [] } = useQuery({
     queryKey: ['content-sessions', { pipelineId, templateOnly: true }],
     queryFn: () => fetchContentSessions({ pipelineId, templateOnly: true }),
@@ -66,26 +60,7 @@ export function SessionListPanel({
 
   const invalidateSessions = () => {
     queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
   }
-
-  const archiveMutation = useMutation({
-    mutationFn: (sessionId: string) => archiveSession(sessionId),
-    onSuccess: invalidateSessions,
-  })
-
-  const unarchiveMutation = useMutation({
-    mutationFn: (sessionId: string) => unarchiveSession(sessionId),
-    onSuccess: invalidateSessions,
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (sessionId: string) => deleteSession(sessionId),
-    onSuccess: () => {
-      onSelectSession('')
-      invalidateSessions()
-    },
-  })
 
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
@@ -94,14 +69,18 @@ export function SessionListPanel({
 
   // ─── Derived data ────────────────────────────────────────────────────────
 
+  const pipelineFilterTabs = useMemo(
+    () => SESSION_FILTER_TABS.filter(tab => tab.value !== 'archived'),
+    [],
+  )
+
   const filterCounts = useMemo(
-    () => computeFilterCounts(sessions, archivedSessions),
-    [sessions, archivedSessions],
+    () => computeFilterCounts(sessions, []),
+    [sessions],
   )
 
   const filteredSessions = useMemo(() => {
-    const pool = activeFilter === 'archived' ? archivedSessions : sessions
-    return pool
+    return sessions
       .filter(s => matchesSessionFilter(s.status, activeFilter))
       .filter(s => {
         if (!search) return true
@@ -110,10 +89,9 @@ export function SessionListPanel({
           s.analysis?.summary?.toLowerCase().includes(q) ||
           s.status.includes(q)
       })
-  }, [sessions, archivedSessions, activeFilter, search])
+  }, [sessions, activeFilter, search])
 
   const showSessionList = isContentPipeline || sessions.length > 0 || sessionsLoading
-  const isLoading = activeFilter === 'archived' ? archivedLoading : sessionsLoading
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -165,7 +143,7 @@ export function SessionListPanel({
             />
           </div>
           <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
-            {SESSION_FILTER_TABS.map(tab => {
+            {pipelineFilterTabs.map(tab => {
               const count = filterCounts[tab.value]
               const isActive = activeFilter === tab.value
               return (
@@ -199,7 +177,7 @@ export function SessionListPanel({
       {showSessionList && (
         <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
           {/* Template session (pinned "Defaults") */}
-          {templateSession && activeFilter !== 'archived' && (
+          {templateSession && (
             <>
               <button
                 onClick={() => onSelectSession(templateSession.id)}
@@ -230,7 +208,7 @@ export function SessionListPanel({
           )}
 
           {/* Regular sessions */}
-          {isLoading ? (
+          {sessionsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
@@ -278,35 +256,6 @@ export function SessionListPanel({
                     <StatusBadge status={s.status} />
                     {s.status === 'pending_review' && (
                       <span className="flex h-2 w-2 rounded-full bg-warning animate-pulse ml-auto" title="Needs Review" />
-                    )}
-                    {activeFilter === 'archived' ? (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); unarchiveMutation.mutate(s.id) }}
-                          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                          title="Unarchive"
-                        >
-                          <ArchiveRestore className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); if (confirm('Permanently delete this session? This cannot be undone.')) deleteMutation.mutate(s.id) }}
-                          className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                          title="Delete permanently"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); archiveMutation.mutate(s.id) }}
-                        className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors opacity-0 group-hover:opacity-100 ml-auto cursor-pointer"
-                        title="Archive"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                      </button>
                     )}
                   </div>
                 </button>

@@ -257,7 +257,8 @@ export function AnalyzeStage({
   }
 
   const angles: ContentAngle[] = analysis.angles ?? []
-  const anySelected = angles.some((a) => selectedAngles[a.id] && a.workflow_name)
+  const selectedWithWorkflow = angles.filter((a) => selectedAngles[a.id] && a.workflow_name)
+  const selectedCount = selectedWithWorkflow.length
 
   return (
     <div className="space-y-6">
@@ -438,7 +439,7 @@ export function AnalyzeStage({
       {isPendingReview && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
           <span className="text-sm text-muted-foreground">
-            {anySelected ? `${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length} workflow${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length > 1 ? 's' : ''} selected` : 'Select workflows above to proceed'}
+            {selectedCount > 0 ? `${selectedCount} workflow${selectedCount > 1 ? 's' : ''} selected` : 'Select workflows above to proceed'}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -457,7 +458,7 @@ export function AnalyzeStage({
             <button
               type="button"
               onClick={handleApprove}
-              disabled={isApproving || isRejecting || !anySelected}
+              disabled={isApproving || isRejecting || selectedCount === 0}
               className="inline-flex items-center gap-2 rounded-xl bg-success px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-success/20 hover:bg-success/90 hover:shadow-xl hover:shadow-success/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isApproving ? (
@@ -465,7 +466,7 @@ export function AnalyzeStage({
               ) : (
                 <CheckCircle className="h-4 w-4" />
               )}
-              Approve{anySelected ? ` (${angles.filter((a) => selectedAngles[a.id] && a.workflow_name).length})` : ''}
+              Approve{selectedCount > 0 ? ` (${selectedCount})` : ''}
             </button>
           </div>
         </div>

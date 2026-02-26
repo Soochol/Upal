@@ -10,6 +10,7 @@ export async function fetchContentSessions(params?: {
   archivedOnly?: boolean
   includeArchived?: boolean
   templateOnly?: boolean
+  detail?: boolean
 }): Promise<ContentSession[]> {
   const qs = new URLSearchParams()
   if (params?.pipelineId) qs.set('pipeline_id', params.pipelineId)
@@ -17,6 +18,7 @@ export async function fetchContentSessions(params?: {
   if (params?.archivedOnly) qs.set('archived_only', 'true')
   if (params?.includeArchived) qs.set('include_archived', 'true')
   if (params?.templateOnly) qs.set('template_only', 'true')
+  if (params?.detail) qs.set('detail', 'true')
   const query = qs.toString() ? `?${qs}` : ''
   return apiFetch<ContentSession[]>(`${BASE}${query}`)
 }

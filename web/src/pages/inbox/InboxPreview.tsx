@@ -51,7 +51,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                     {pipeline.name}
                 </Link>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                    {session.name || `Session #${session.session_number || session.id.slice(0, 8)}`}
+                    {session.name || (session.session_number ? `Session #${session.session_number}` : `Session ${session.id.slice(-6)}`)}
                 </h1>
             </div>
             <div className="flex-1 overflow-hidden">

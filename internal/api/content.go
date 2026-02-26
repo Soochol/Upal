@@ -63,6 +63,21 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// All instance sessions as composed details (inbox mode).
+	if r.URL.Query().Get("detail") == "true" && statusStr == "" {
+		details, err := s.contentSvc.ListAllInstanceSessionDetails(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if details == nil {
+			details = []*upal.ContentSessionDetail{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(details)
+		return
+	}
+
 	// No pipeline_id but status provided: return composed details (includes pipeline_name).
 	if statusStr != "" {
 		includeArchived := r.URL.Query().Get("include_archived") == "true"

@@ -31,7 +31,7 @@ export function EditorialBriefForm({ initialContext, onSave, onBack, submitLabel
 
   const { saveStatus, saveNow } = useAutoSave({
     data: draft,
-    onSave: async (data) => { await onSave(data) },
+    onSave,
     delay: 2000,
     enabled: autoSave ?? false,
     onError: (err) => console.error('Failed to save editorial brief:', err),
@@ -166,13 +166,14 @@ export function EditorialBriefForm({ initialContext, onSave, onBack, submitLabel
               bg-foreground text-background hover:opacity-90 transition-opacity
               disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
           >
-            {saveStatus === 'saving' ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
-            ) : saveStatus === 'saved' ? (
-              <><Check className="h-3.5 w-3.5" />Saved</>
-            ) : saveStatus === 'error' ? (
-              <><AlertCircle className="h-3.5 w-3.5" />Failed</>
-            ) : submitLabel}
+            {(() => {
+              switch (saveStatus) {
+                case 'saving': return <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
+                case 'saved': return <><Check className="h-3.5 w-3.5" />Saved</>
+                case 'error': return <><AlertCircle className="h-3.5 w-3.5" />Failed</>
+                default: return submitLabel
+              }
+            })()}
           </button>
         </div>
       )}

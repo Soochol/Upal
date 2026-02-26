@@ -95,51 +95,8 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-
-	// Cache pipeline names to avoid repeated lookups.
-	pipelineNames := make(map[string]string)
-	lookupPipelineName := func(pipelineID string) string {
-		if pipelineID == "" || s.pipelineRepo == nil {
-			return ""
-		}
-		if name, ok := pipelineNames[pipelineID]; ok {
-			return name
-		}
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineNames[pipelineID] = p.Name
-			return p.Name
-		}
-		return ""
-	}
-
-	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
-	for _, sess := range sessions {
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     lookupPipelineName(sess.PipelineID),
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
-	}
-	return details, nil
+	names := s.newPipelineNameCache(ctx)
+	return s.buildDetails(ctx, sessions, names), nil
 }
 
 // ListSessionDetailsByStatusIncludeArchived returns composed details including archived sessions.
@@ -148,49 +105,30 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 	if err != nil {
 		return nil, err
 	}
+	names := s.newPipelineNameCache(ctx)
+	return s.buildDetails(ctx, sessions, names), nil
+}
 
-	pipelineNames := make(map[string]string)
-	lookupPipelineName := func(pipelineID string) string {
-		if pipelineID == "" || s.pipelineRepo == nil {
-			return ""
-		}
-		if name, ok := pipelineNames[pipelineID]; ok {
-			return name
-		}
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineNames[pipelineID] = p.Name
-			return p.Name
-		}
-		return ""
+// ListAllInstanceSessionDetails returns composed ContentSessionDetail records
+// for all non-template, non-archived sessions across all pipelines, sorted newest first.
+// This powers the unified inbox with a single query instead of per-status calls.
+func (s *ContentSessionService) ListAllInstanceSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
+	allSessions, err := s.sessions.List(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
-	for _, sess := range sessions {
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     lookupPipelineName(sess.PipelineID),
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
+	// Filter out templates -- session numbers only apply to execution instances.
+	instances := make([]*upal.ContentSession, 0, len(allSessions))
+	for _, sess := range allSessions {
+		if !sess.IsTemplate {
+			instances = append(instances, sess)
+		}
 	}
+	names := s.newPipelineNameCache(ctx)
+	details := s.buildDetails(ctx, instances, names)
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].CreatedAt.After(details[j].CreatedAt)
+	})
 	return details, nil
 }
 
@@ -475,53 +413,11 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-
-	var pipelineName string
-	if pipelineID != "" && s.pipelineRepo != nil {
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineName = p.Name
-		}
-	}
-
-	// Build session number lookup from ALL sessions (active + archived).
-	allSessions := s.allPipelineSessions(ctx, pipelineID)
-	numberOf := make(map[string]int, len(allSessions))
-	for i, ps := range allSessions {
-		numberOf[ps.ID] = i + 1
-	}
-
-	details := make([]*upal.ContentSessionDetail, 0, len(archivedSessions))
-	for _, sess := range archivedSessions {
-		sources, err := s.fetches.ListBySession(ctx, sess.ID)
-		if err != nil {
-			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
-		}
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     pipelineName,
-			SessionNumber:    numberOf[sess.ID],
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Sources:          sources,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
+	names := s.newPipelineNameCache(ctx)
+	numbers := s.sessionNumberMap(ctx, pipelineID)
+	details, err := s.buildFullDetails(ctx, archivedSessions, names, numbers)
+	if err != nil {
+		return nil, err
 	}
 	sort.Slice(details, func(i, j int) bool {
 		return details[i].CreatedAt.After(details[j].CreatedAt)
@@ -536,52 +432,121 @@ func (s *ContentSessionService) ListAllArchivedSessionDetails(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-
-	pipelineNames := make(map[string]string)
-	lookupPipelineName := func(pipelineID string) string {
-		if pipelineID == "" || s.pipelineRepo == nil {
-			return ""
-		}
-		if name, ok := pipelineNames[pipelineID]; ok {
-			return name
-		}
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineNames[pipelineID] = p.Name
-			return p.Name
-		}
-		return ""
-	}
-
-	details := make([]*upal.ContentSessionDetail, 0, len(archivedSessions))
-	for _, sess := range archivedSessions {
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     lookupPipelineName(sess.PipelineID),
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
-	}
+	names := s.newPipelineNameCache(ctx)
+	details := s.buildDetails(ctx, archivedSessions, names)
 	sort.Slice(details, func(i, j int) bool {
 		return details[i].CreatedAt.After(details[j].CreatedAt)
 	})
+	return details, nil
+}
+
+// --- Detail-building helpers ---
+//
+// These extract the repeated pattern of mapping ContentSession → ContentSessionDetail.
+// Two variants exist:
+//   - buildDetails: lightweight (no source fetches, no session numbers)
+//   - buildFullDetails: includes source fetches and session numbers (may return error)
+
+// pipelineNameCache caches pipeline ID → name lookups within a single request.
+type pipelineNameCache struct {
+	svc   *ContentSessionService
+	ctx   context.Context
+	cache map[string]string
+}
+
+func (s *ContentSessionService) newPipelineNameCache(ctx context.Context) *pipelineNameCache {
+	return &pipelineNameCache{svc: s, ctx: ctx, cache: make(map[string]string)}
+}
+
+func (c *pipelineNameCache) lookup(pipelineID string) string {
+	if pipelineID == "" || c.svc.pipelineRepo == nil {
+		return ""
+	}
+	if name, ok := c.cache[pipelineID]; ok {
+		return name
+	}
+	if p, err := c.svc.pipelineRepo.Get(c.ctx, pipelineID); err == nil {
+		c.cache[pipelineID] = p.Name
+		return p.Name
+	}
+	return ""
+}
+
+// sessionNumberMap returns a map of session ID → 1-based position among all
+// pipeline sessions (active + archived), so archived sessions keep their
+// original number. Returns nil for empty pipelineID (cross-pipeline queries).
+func (s *ContentSessionService) sessionNumberMap(ctx context.Context, pipelineID string) map[string]int {
+	if pipelineID == "" {
+		return nil
+	}
+	all := s.allPipelineSessions(ctx, pipelineID)
+	numbers := make(map[string]int, len(all))
+	for i, ps := range all {
+		numbers[ps.ID] = i + 1
+	}
+	return numbers
+}
+
+// sessionToDetail maps a ContentSession to a ContentSessionDetail with analysis
+// and workflow results, but without source fetches or session numbers.
+func (s *ContentSessionService) sessionToDetail(
+	ctx context.Context, sess *upal.ContentSession, names *pipelineNameCache,
+) *upal.ContentSessionDetail {
+	analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
+	wfResults := s.GetWorkflowResults(ctx, sess.ID)
+	return &upal.ContentSessionDetail{
+		ID:               sess.ID,
+		PipelineID:       sess.PipelineID,
+		Name:             sess.Name,
+		PipelineName:     names.lookup(sess.PipelineID),
+		Status:           sess.Status,
+		TriggerType:      sess.TriggerType,
+		SourceCount:      sess.SourceCount,
+		IsTemplate:       sess.IsTemplate,
+		ParentSessionID:  sess.ParentSessionID,
+		ScheduleID:       sess.ScheduleID,
+		SessionSources:   sess.Sources,
+		Schedule:         sess.Schedule,
+		Model:            sess.Model,
+		SessionWorkflows: sess.Workflows,
+		SessionContext:   sess.Context,
+		Analysis:         analysis,
+		WorkflowResults:  wfResults,
+		CreatedAt:        sess.CreatedAt,
+		ReviewedAt:       sess.ReviewedAt,
+		ArchivedAt:       sess.ArchivedAt,
+	}
+}
+
+// buildDetails maps a slice of sessions to lightweight details (no source fetches, no session numbers).
+func (s *ContentSessionService) buildDetails(
+	ctx context.Context, sessions []*upal.ContentSession, names *pipelineNameCache,
+) []*upal.ContentSessionDetail {
+	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
+	for _, sess := range sessions {
+		details = append(details, s.sessionToDetail(ctx, sess, names))
+	}
+	return details
+}
+
+// buildFullDetails maps sessions to full details including source fetches and session numbers.
+func (s *ContentSessionService) buildFullDetails(
+	ctx context.Context, sessions []*upal.ContentSession,
+	names *pipelineNameCache, numbers map[string]int,
+) ([]*upal.ContentSessionDetail, error) {
+	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
+	for _, sess := range sessions {
+		d := s.sessionToDetail(ctx, sess, names)
+		sources, err := s.fetches.ListBySession(ctx, sess.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
+		}
+		d.Sources = sources
+		if numbers != nil {
+			d.SessionNumber = numbers[sess.ID]
+		}
+		details = append(details, d)
+	}
 	return details, nil
 }
 
@@ -621,59 +586,13 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 	if err != nil {
 		return nil, err
 	}
-
-	sources, err := s.fetches.ListBySession(ctx, id)
+	names := s.newPipelineNameCache(ctx)
+	numbers := s.sessionNumberMap(ctx, sess.PipelineID)
+	details, err := s.buildFullDetails(ctx, []*upal.ContentSession{sess}, names, numbers)
 	if err != nil {
-		return nil, fmt.Errorf("list sources for session %s: %w", id, err)
+		return nil, err
 	}
-
-	analysis, _ := s.analyses.GetBySession(ctx, id) // nil if not found
-
-	wfResults := s.GetWorkflowResults(ctx, id)
-
-	// Compute session number: 1-based position among ALL pipeline sessions
-	// (active + archived) sorted by created_at, so archived sessions keep
-	// their original number.
-	sessionNumber := 0
-	if sess.PipelineID != "" {
-		allSessions := s.allPipelineSessions(ctx, sess.PipelineID)
-		for i, ps := range allSessions {
-			if ps.ID == id {
-				sessionNumber = i + 1
-				break
-			}
-		}
-	}
-
-	detail := &upal.ContentSessionDetail{
-		ID:               sess.ID,
-		PipelineID:       sess.PipelineID,
-		Name:             sess.Name,
-		SessionNumber:    sessionNumber,
-		Status:           sess.Status,
-		TriggerType:      sess.TriggerType,
-		SourceCount:      sess.SourceCount,
-		IsTemplate:       sess.IsTemplate,
-		ParentSessionID:  sess.ParentSessionID,
-		ScheduleID:       sess.ScheduleID,
-		SessionSources:   sess.Sources,
-		Schedule:         sess.Schedule,
-		Model:            sess.Model,
-		SessionWorkflows: sess.Workflows,
-		SessionContext:   sess.Context,
-		Sources:          sources,
-		Analysis:         analysis,
-		WorkflowResults:  wfResults,
-		CreatedAt:        sess.CreatedAt,
-		ReviewedAt:       sess.ReviewedAt,
-		ArchivedAt:       sess.ArchivedAt,
-	}
-	if sess.PipelineID != "" && s.pipelineRepo != nil {
-		if p, err := s.pipelineRepo.Get(ctx, sess.PipelineID); err == nil {
-			detail.PipelineName = p.Name
-		}
-	}
-	return detail, nil
+	return details[0], nil
 }
 
 // ListSessionDetails returns composed ContentSessionDetail records for all
@@ -683,61 +602,15 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 	if err != nil {
 		return nil, err
 	}
-
-	var pipelineName string
-	if pipelineID != "" && s.pipelineRepo != nil {
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineName = p.Name
-		}
+	names := s.newPipelineNameCache(ctx)
+	numbers := s.sessionNumberMap(ctx, pipelineID)
+	details, err := s.buildFullDetails(ctx, sessions, names, numbers)
+	if err != nil {
+		return nil, err
 	}
-
-	// Sort ascending by created_at first to assign session numbers.
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt.Before(sessions[j].CreatedAt)
-	})
-
-	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
-	for i, sess := range sessions {
-		sources, err := s.fetches.ListBySession(ctx, sess.ID)
-		if err != nil {
-			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
-		}
-
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID) // nil if not found
-
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     pipelineName,
-			SessionNumber:    i + 1, // 1-based
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Sources:          sources,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
-	}
-
-	// Reverse to descending (newest first) for the API response.
 	sort.Slice(details, func(i, j int) bool {
 		return details[i].CreatedAt.After(details[j].CreatedAt)
 	})
-
 	return details, nil
 }
 
@@ -777,55 +650,14 @@ func (s *ContentSessionService) ListTemplateDetailsByPipeline(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-
-	var pipelineName string
-	if pipelineID != "" && s.pipelineRepo != nil {
-		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
-			pipelineName = p.Name
-		}
+	names := s.newPipelineNameCache(ctx)
+	numbers := s.sessionNumberMap(ctx, pipelineID)
+	details, err := s.buildFullDetails(ctx, sessions, names, numbers)
+	if err != nil {
+		return nil, err
 	}
-
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt.Before(sessions[j].CreatedAt)
-	})
-
-	details := make([]*upal.ContentSessionDetail, 0, len(sessions))
-	for i, sess := range sessions {
-		sources, err := s.fetches.ListBySession(ctx, sess.ID)
-		if err != nil {
-			return nil, fmt.Errorf("list sources for session %s: %w", sess.ID, err)
-		}
-		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
-		wfResults := s.GetWorkflowResults(ctx, sess.ID)
-		details = append(details, &upal.ContentSessionDetail{
-			ID:               sess.ID,
-			PipelineID:       sess.PipelineID,
-			Name:             sess.Name,
-			PipelineName:     pipelineName,
-			SessionNumber:    i + 1,
-			Status:           sess.Status,
-			TriggerType:      sess.TriggerType,
-			SourceCount:      sess.SourceCount,
-			IsTemplate:       sess.IsTemplate,
-			ParentSessionID:  sess.ParentSessionID,
-			ScheduleID:       sess.ScheduleID,
-			SessionSources:   sess.Sources,
-			Schedule:         sess.Schedule,
-			Model:            sess.Model,
-			SessionWorkflows: sess.Workflows,
-			SessionContext:   sess.Context,
-			Sources:          sources,
-			Analysis:         analysis,
-			WorkflowResults:  wfResults,
-			CreatedAt:        sess.CreatedAt,
-			ReviewedAt:       sess.ReviewedAt,
-			ArchivedAt:       sess.ArchivedAt,
-		})
-	}
-
 	sort.Slice(details, func(i, j int) bool {
 		return details[i].CreatedAt.After(details[j].CreatedAt)
 	})
-
 	return details, nil
 }
