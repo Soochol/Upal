@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings, ArrowLeft } from 'lucide-react'
@@ -10,11 +10,14 @@ import { useUIStore } from '@/entities/ui'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
 import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
+import { NewSessionModal } from '@/pages/pipelines/NewSessionModal'
+import type { NewSessionData } from '@/pages/pipelines/NewSessionModal'
 
 export default function PipelinesPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const addToast = useUIStore((s) => s.addToast)
+  const [showNewModal, setShowNewModal] = useState(false)
 
   const selectedPipelineId = searchParams.get('p')
   const selectedSessionId = searchParams.get('s')
@@ -42,7 +45,18 @@ export default function PipelinesPage() {
   })
 
   const newSessionMutation = useMutation({
-    mutationFn: () => createDraftSession({ pipeline_id: selectedPipelineId!, is_template: true }),
+    mutationFn: (data: NewSessionData) => createDraftSession({
+      pipeline_id: selectedPipelineId!,
+      is_template: true,
+      name: data.name,
+      schedule: data.schedule || undefined,
+      model: data.model || undefined,
+      workflows: data.workflow ? [{ workflow_name: data.workflow, auto_select: true }] : undefined,
+      context: {
+        description: data.description,
+        prompt: data.prompt,
+      },
+    }),
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
       if (selectedPipelineId) {
@@ -108,7 +122,7 @@ export default function PipelinesPage() {
               selectedSessionId={selectedSessionId}
               onSelectSession={selectSession}
               onDeselectSession={goBackToSessions}
-              onNewSession={() => newSessionMutation.mutate()}
+              onNewSession={() => setShowNewModal(true)}
               onBack={goBackToPipelines}
               className="h-full"
             />
@@ -154,6 +168,15 @@ export default function PipelinesPage() {
         </div>
       </div>
 
+      {showNewModal && (
+        <NewSessionModal
+          onSave={(data) => {
+            setShowNewModal(false)
+            newSessionMutation.mutate(data)
+          }}
+          onClose={() => setShowNewModal(false)}
+        />
+      )}
     </MainLayout>
   )
 }

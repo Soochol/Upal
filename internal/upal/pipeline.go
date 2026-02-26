@@ -77,15 +77,18 @@ type StageConfig struct {
 	Sources []CollectSource `json:"sources,omitempty"`
 }
 
-// PipelineContext carries editorial brief injected into all child layers.
+// PipelineContext carries session-level context injected into all child layers.
 type PipelineContext struct {
+	Description string `json:"description,omitempty"`
+	Prompt      string `json:"prompt,omitempty"`
+	Language    string `json:"language,omitempty"` // "ko" | "en"
+	// Legacy editorial brief fields (kept for backward compat).
 	Purpose         string   `json:"purpose,omitempty"`
 	TargetAudience  string   `json:"target_audience,omitempty"`
 	ToneStyle       string   `json:"tone_style,omitempty"`
 	FocusKeywords   []string `json:"focus_keywords,omitempty"`
 	ExcludeKeywords []string `json:"exclude_keywords,omitempty"`
 	ContentGoals    string   `json:"content_goals,omitempty"`
-	Language        string   `json:"language,omitempty"` // "ko" | "en"
 }
 
 // PipelineSource defines a single data source attached to a Pipeline.

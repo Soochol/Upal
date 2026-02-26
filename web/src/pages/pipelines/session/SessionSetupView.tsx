@@ -1,13 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Power,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
-import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import { FloatingConfigureChat } from '@/shared/ui/FloatingConfigureChat'
 import type { ChatMessage } from '@/shared/ui/ConfigureChat'
+import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import { WorkflowPicker } from '../WorkflowPicker'
@@ -35,11 +34,8 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
   { label: 'Monthly (1st 09:00)', cron: '0 9 1 * *' },
 ]
 
-const LANGUAGE_OPTIONS = ['Korean', 'English', 'Japanese', 'Chinese']
-
 const DEFAULT_CONTEXT: PipelineContext = {
-  purpose: '', target_audience: '', tone_style: '',
-  focus_keywords: [], exclude_keywords: [], language: 'Korean',
+  description: '', prompt: '', language: 'Korean',
 }
 
 const SOURCE_TYPE_MAP = Object.fromEntries(
@@ -78,7 +74,6 @@ export function SessionSetupView({ sessionId }: Props) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingSourceIndex, setEditingSourceIndex] = useState<number | null>(null)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
-  const [editingField, setEditingField] = useState<string | null>(null)
   const [isEditingName, setIsEditingName] = useState(false)
   const [localName, setLocalName] = useState('')
 
@@ -97,7 +92,6 @@ export function SessionSetupView({ sessionId }: Props) {
 
   // Reset editing UI on session switch
   useEffect(() => {
-    setEditingField(null)
     setIsEditingName(false)
     setLocalName(session?.name ?? '')
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -207,6 +201,9 @@ export function SessionSetupView({ sessionId }: Props) {
 
     return { explanation: response.explanation || 'Settings updated.' }
   }, [sessionId, localSources, localSchedule, localWorkflows, localModel, localContext])
+
+  // Register global chat bar handler
+  useRegisterChatHandler(handleConfigure, 'Describe your session settings...', 'Session')
 
   // ─── Derived ──────────────────────────────────────────────────────────
 
@@ -405,83 +402,28 @@ export function SessionSetupView({ sessionId }: Props) {
             </div>
           </section>
 
-          {/* ════ EDITORIAL BRIEF ════ */}
-          <section className="mb-8">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-              Editorial Brief
-            </h3>
-            <div className="border-t border-border/40">
-              <InlineTextField
-                label="Purpose"
-                value={localContext.purpose}
-                onChange={(v) => setLocalContext({ ...localContext, purpose: v })}
-                placeholder="Topic and goal of this pipeline..."
-                multiline
-                editing={editingField === 'purpose'}
-                onStartEdit={() => setEditingField('purpose')}
-                onEndEdit={() => setEditingField(null)}
-              />
-              <InlineTextField
-                label="Audience"
-                value={localContext.target_audience}
-                onChange={(v) => setLocalContext({ ...localContext, target_audience: v })}
-                placeholder="Target audience..."
-                editing={editingField === 'audience'}
-                onStartEdit={() => setEditingField('audience')}
-                onEndEdit={() => setEditingField(null)}
-              />
-              <InlineTextField
-                label="Tone"
-                value={localContext.tone_style}
-                onChange={(v) => setLocalContext({ ...localContext, tone_style: v })}
-                placeholder="Tone and style..."
-                editing={editingField === 'tone'}
-                onStartEdit={() => setEditingField('tone')}
-                onEndEdit={() => setEditingField(null)}
-              />
-              {/* Focus keywords */}
-              <div className="flex items-start py-2.5 -mx-2 px-2">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-1.5">Focus</span>
-                <div className="flex-1 min-w-0">
-                  <KeywordTagInput
-                    keywords={localContext.focus_keywords ?? []}
-                    onChange={(kws) => setLocalContext({ ...localContext, focus_keywords: kws })}
-                    placeholder="Add focus keywords..."
-                    className="border-0 bg-transparent px-0 py-0 min-h-[28px] rounded-none"
-                  />
-                </div>
+          {/* ════ DESCRIPTION & PROMPT ════ */}
+          {(localContext.description || localContext.prompt) && (
+            <section className="mb-8">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+                Task
+              </h3>
+              <div className="border-t border-border/40">
+                {localContext.description && (
+                  <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                    <span className="w-28 shrink-0 text-sm text-muted-foreground">Description</span>
+                    <span className="text-sm flex-1">{localContext.description}</span>
+                  </div>
+                )}
+                {localContext.prompt && (
+                  <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                    <span className="w-28 shrink-0 text-sm text-muted-foreground">Prompt</span>
+                    <span className="text-sm flex-1 whitespace-pre-wrap">{localContext.prompt}</span>
+                  </div>
+                )}
               </div>
-              {/* Exclude keywords */}
-              <div className="flex items-start py-2.5 -mx-2 px-2">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-1.5">Exclude</span>
-                <div className="flex-1 min-w-0">
-                  <KeywordTagInput
-                    keywords={localContext.exclude_keywords ?? []}
-                    onChange={(kws) => setLocalContext({ ...localContext, exclude_keywords: kws })}
-                    placeholder="Add exclude keywords..."
-                    className="border-0 bg-transparent px-0 py-0 min-h-[28px] rounded-none"
-                  />
-                </div>
-              </div>
-              {/* Language */}
-              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground">Language</span>
-                <div className="relative flex-1">
-                  <select
-                    value={localContext.language}
-                    onChange={(e) => setLocalContext({ ...localContext, language: e.target.value })}
-                    className="w-full bg-transparent text-sm outline-none cursor-pointer
-                      appearance-none [-webkit-appearance:none] pr-5"
-                  >
-                    {LANGUAGE_OPTIONS.map((lang) => (
-                      <option key={lang} value={lang}>{lang}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* ════ PROCESSING ════ */}
           <section className="mb-8">
@@ -585,13 +527,6 @@ export function SessionSetupView({ sessionId }: Props) {
         </div>
       </div>
 
-      {/* ── AI Chat ── */}
-      <FloatingConfigureChat
-        key={sessionId}
-        onSubmit={handleConfigure}
-        placeholder="Describe your session settings..."
-      />
-
       {/* ── Modals ── */}
       {showAddModal && (
         <AddSourceModal
@@ -621,66 +556,3 @@ export function SessionSetupView({ sessionId }: Props) {
   )
 }
 
-type InlineTextFieldProps = {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  multiline?: boolean
-  editing: boolean
-  onStartEdit: () => void
-  onEndEdit: () => void
-}
-
-function InlineTextField({
-  label, value, onChange, placeholder, multiline,
-  editing, onStartEdit, onEndEdit,
-}: InlineTextFieldProps) {
-  const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (editing && ref.current) {
-      ref.current.focus()
-      const len = ref.current.value.length
-      ref.current.setSelectionRange(len, len)
-    }
-  }, [editing])
-
-  if (editing) {
-    const sharedProps = {
-      ref,
-      value,
-      onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => onChange(e.target.value),
-      onBlur: onEndEdit,
-      onKeyDown: (e: React.KeyboardEvent) => {
-        if (e.key === 'Escape') onEndEdit()
-        if (e.key === 'Enter' && !multiline) onEndEdit()
-      },
-      placeholder,
-      className: 'flex-1 bg-transparent text-sm outline-none resize-none placeholder:text-muted-foreground/30',
-    }
-
-    return (
-      <div className="flex items-start py-2.5 -mx-2 px-2 bg-muted/30 rounded-md">
-        <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">{label}</span>
-        {multiline ? <textarea rows={3} {...sharedProps} /> : <input type="text" {...sharedProps} />}
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30
-        transition-colors cursor-pointer group"
-      onClick={onStartEdit}
-    >
-      <span className="w-28 shrink-0 text-sm text-muted-foreground">{label}</span>
-      {value ? (
-        <span className="text-sm flex-1 truncate">{value}</span>
-      ) : (
-        <span className="text-sm flex-1 text-muted-foreground/30 italic">{placeholder}</span>
-      )}
-      <Pencil className="h-3 w-3 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
-    </div>
-  )
-}

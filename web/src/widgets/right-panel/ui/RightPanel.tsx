@@ -4,7 +4,6 @@ import { NodeEditor } from '@/features/edit-node'
 import { PanelPreview } from './PanelPreview'
 import { PanelConsole } from './PanelConsole'
 import { GroupEditor } from './GroupEditor'
-import { AIChatEditor } from '@/features/edit-node'
 import { Settings2, Terminal, Eye, PanelRightClose } from 'lucide-react'
 import type { NodeData } from '@/entities/workflow'
 import { useUIStore } from '@/entities/ui'
@@ -54,8 +53,6 @@ export function RightPanel({ selectedNode, onCloseNode, onCollapse, onTogglePane
     )
     return unsub
   }, [])
-
-  const showAIChat = selectedNode && selectedNode.type !== 'groupNode'
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
@@ -113,12 +110,6 @@ export function RightPanel({ selectedNode, onCloseNode, onCollapse, onTogglePane
         <PanelPreview />
       </TabsContent>
 
-      {/* AI Assistant — pinned to bottom of panel */}
-      {showAIChat && (
-        <div className="mt-auto shrink-0 border-t border-white/10 bg-black/20 dark:bg-white/5 backdrop-blur-md">
-          <AIChatEditor nodeId={selectedNode.id} data={selectedNode.data as NodeData} />
-        </div>
-      )}
     </Tabs>
   )
 }

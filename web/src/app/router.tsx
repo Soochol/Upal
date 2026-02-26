@@ -8,6 +8,7 @@ import { RunViewer } from '@/pages/runs/RunViewer'
 import PublishedPage from '@/pages/Published'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
+import { GlobalChatBar } from './GlobalChatBar'
 
 const InboxPage = lazy(() => import('@/pages/inbox'))
 const SettingsPage = lazy(() => import('@/pages/settings'))
@@ -45,6 +46,7 @@ export function AppRouter() {
           <Route path="/settings" element={<Suspense fallback={null}><SettingsPage /></Suspense>} />
         </Routes>
       </BrowserRouter>
+      <GlobalChatBar />
       <ToastContainer />
     </ErrorBoundary>
   )

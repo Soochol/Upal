@@ -27,12 +27,15 @@ export type PipelineSource = {
 }
 
 export type PipelineContext = {
-  purpose: string
-  target_audience: string
-  tone_style: string
-  focus_keywords: string[]
-  exclude_keywords: string[]
-  language: string
+  description?: string
+  prompt?: string
+  language?: string
+  // legacy editorial brief fields (kept for backward compat)
+  purpose?: string
+  target_audience?: string
+  tone_style?: string
+  focus_keywords?: string[]
+  exclude_keywords?: string[]
 }
 
 export type PipelineWorkflow = {

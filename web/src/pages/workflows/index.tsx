@@ -19,6 +19,9 @@ import { fetchRuns } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
+import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
+import { configureNode } from '@/features/edit-node/api'
+import type { ChatSubmitParams } from '@/entities/ui/model/chatStore'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
 
@@ -64,6 +67,52 @@ export default function WorkflowsPage() {
   const { saveStatus, saveNow, markClean } = useAutoSave()
   useReconnectRun()
   useKeyboardShortcuts({ onSave: saveNow })
+
+  // ─── Global chat bar: node configure handler ──────────────────────────
+  const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
+  const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
+  const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
+
+  const nodeConfigureHandler = useCallback(async (params: ChatSubmitParams) => {
+    const { nodes: curNodes, edges: curEdges } = useWorkflowStore.getState()
+    const nodeId = useUIStore.getState().selectedNodeId
+    if (!nodeId) throw new Error('No node selected')
+    const node = curNodes.find((n) => n.id === nodeId)
+    if (!node) throw new Error('Node not found')
+
+    const sourceIds = new Set(curEdges.filter((e) => e.target === nodeId).map((e) => e.source))
+    const upstream = curNodes
+      .filter((n) => sourceIds.has(n.id) && n.type !== 'groupNode')
+      .map((n) => ({ id: n.id, type: n.data.nodeType as string, label: n.data.label }))
+
+    const response = await configureNode({
+      node_type: node.data.nodeType,
+      node_id: nodeId,
+      current_config: node.data.config,
+      label: node.data.label,
+      description: node.data.description ?? '',
+      message: params.message,
+      model: params.model || undefined,
+      thinking: params.thinking,
+      history: params.history,
+      upstream_nodes: upstream,
+    })
+
+    if (response.config && Object.keys(response.config).length > 0) {
+      updateNodeConfig(nodeId, response.config)
+    }
+    if (response.label) updateNodeLabel(nodeId, response.label)
+    const desc = response.description || (response.config?.description as string)
+    if (desc) updateNodeDescription(nodeId, desc)
+
+    return { explanation: response.explanation }
+  }, [updateNodeConfig, updateNodeLabel, updateNodeDescription])
+
+  useRegisterChatHandler(
+    selectedNodeId ? nodeConfigureHandler : null,
+    selectedNodeId ? 'Describe this node...' : '',
+    selectedNodeId ? 'Node' : '',
+  )
 
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
