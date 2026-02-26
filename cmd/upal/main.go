@@ -256,7 +256,7 @@ func serve() {
 	pipelineRunner.RegisterExecutor(services.NewApprovalStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(services.NewNotificationStageExecutor(senderReg, connSvc))
 	pipelineRunner.RegisterExecutor(&services.TransformStageExecutor{})
-	pipelineRunner.RegisterExecutor(services.NewCollectStageExecutor(resolver, skillReg))
+	pipelineRunner.RegisterExecutor(services.NewCollectStageExecutor(resolver, skillReg, toolReg))
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("schedule"))
 	pipelineRunner.RegisterExecutor(services.NewPassthroughStageExecutor("trigger"))
 	srv.SetPipelineService(pipelineSvc)
@@ -301,7 +301,7 @@ func serve() {
 	if defaultLLM != nil {
 		collector = services.NewContentCollector(
 			contentSvc,
-			services.NewCollectStageExecutor(resolver, skillReg),
+			services.NewCollectStageExecutor(resolver, skillReg, toolReg),
 			workflowSvc,
 			repo,
 			pipelineRepo,

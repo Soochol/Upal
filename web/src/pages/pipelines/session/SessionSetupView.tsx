@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Power,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, ChevronRight, RotateCcw, GitBranch, Power,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import type { ChatMessage } from '@/entities/ui/model/chatStore'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
-import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
+import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
@@ -37,10 +37,6 @@ const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
 const DEFAULT_CONTEXT: PipelineContext = {
   description: '', prompt: '', language: 'Korean',
 }
-
-const SOURCE_TYPE_MAP = Object.fromEntries(
-  [...STATIC_SOURCES, ...SIGNAL_SOURCES].map(s => [s.type, s]),
-)
 
 type Props = {
   sessionId: string
@@ -74,6 +70,7 @@ export function SessionSetupView({ sessionId }: Props) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingSourceIndex, setEditingSourceIndex] = useState<number | null>(null)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
+  const [showAdvancedSources, setShowAdvancedSources] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const [localName, setLocalName] = useState('')
 
@@ -207,8 +204,6 @@ export function SessionSetupView({ sessionId }: Props) {
 
   // ─── Derived ──────────────────────────────────────────────────────────
 
-  const signalCount = localSources.filter(s => s.source_type === 'signal').length
-  const staticCount = localSources.filter(s => s.source_type === 'static').length
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === localSchedule)
 
   // ─── Render ───────────────────────────────────────────────────────────
@@ -282,83 +277,99 @@ export function SessionSetupView({ sessionId }: Props) {
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-2xl mx-auto px-6 py-6">
 
-          {/* ════ SOURCES ════ */}
+          {/* ════ RESEARCH ════ */}
           <section className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-baseline gap-2.5">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Sources
-                </h3>
-                {localSources.length > 0 && (
-                  <span className="text-xs text-muted-foreground/50">
-                    {[
-                      signalCount > 0 && `${signalCount} signal${signalCount !== 1 ? 's' : ''}`,
-                      staticCount > 0 && `${staticCount} static`,
-                    ].filter(Boolean).join(' \u00b7 ')}
-                  </span>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Research
+            </h3>
+            <div className="border-t border-border/40">
+              {/* Mode */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Mode</span>
+                <div className="flex gap-1">
+                  {(['light', 'deep'] as const).map((depth) => (
+                    <button
+                      key={depth}
+                      onClick={() => setLocalContext({ ...localContext, research_depth: depth })}
+                      className={cn(
+                        'px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer',
+                        (localContext.research_depth || 'deep') === depth
+                          ? 'bg-foreground text-background'
+                          : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                      )}
+                    >
+                      {depth === 'light' ? 'Search' : 'Deep Research'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Research Model */}
+              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">Model</span>
+                <div className="flex-1 min-w-0">
+                  <ModelSelector
+                    key={localContext.research_model || '__research_default__'}
+                    value={localContext.research_model || ''}
+                    onChange={(v) => setLocalContext({ ...localContext, research_model: v })}
+                    placeholder="Same as analysis"
+                  />
+                </div>
+                {localContext.research_model && (
+                  <button
+                    onClick={() => setLocalContext({ ...localContext, research_model: undefined })}
+                    className="ml-2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+                    title="Reset to default"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
                 )}
               </div>
-              {localSources.length > 0 && (
+              {/* Advanced sources toggle */}
+              <div className="pt-2">
                 <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  onClick={() => setShowAdvancedSources(!showAdvancedSources)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
                 >
-                  <Plus className="h-3 w-3" /> Add source
+                  <ChevronRight className={cn('h-3 w-3 transition-transform', showAdvancedSources && 'rotate-90')} />
+                  Additional sources
+                  {localSources.length > 0 && (
+                    <span className="text-muted-foreground/40 ml-1">({localSources.length})</span>
+                  )}
                 </button>
-              )}
-            </div>
-
-            {localSources.length === 0 ? (
-              <div className="border-t border-border/40 py-10 text-center">
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg
-                    bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
-                >
-                  <Plus className="h-3 w-3" /> Add source
-                </button>
-              </div>
-            ) : (
-              <div className="border-t border-border/40">
-                {localSources.map((src, i) => {
-                  const typeDef = SOURCE_TYPE_MAP[src.type]
-                  return (
-                  <div
-                    key={src.id}
-                    className="group flex items-center gap-3 py-2 -mx-2 px-2 rounded-md
-                      hover:bg-muted/40 transition-colors cursor-pointer"
-                    onClick={() => setEditingSourceIndex(i)}
-                  >
-                    {typeDef ? (
-                      <div className={`w-6 h-6 rounded-md ${typeDef.accent} ${typeDef.accentText} flex items-center justify-center shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5`}>
-                        {typeDef.icon}
+                {showAdvancedSources && (
+                  <div className="mt-2 ml-4">
+                    {localSources.length > 0 && (
+                      <div className="space-y-0.5 mb-2">
+                        {localSources.map((src, i) => (
+                          <div
+                            key={src.id}
+                            className="group flex items-center gap-2 py-1.5 -mx-2 px-2 rounded-md
+                              hover:bg-muted/40 transition-colors cursor-pointer"
+                            onClick={() => setEditingSourceIndex(i)}
+                          >
+                            <span className="text-sm flex-1 truncate">{src.label}</span>
+                            <span className="text-xs text-muted-foreground/40">{src.type}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setLocalSources(localSources.filter((_, j) => j !== i)) }}
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive
+                                transition-all cursor-pointer p-0.5"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ) : (
-                      <div
-                        className={cn(
-                          'w-1.5 h-1.5 rounded-full shrink-0',
-                          src.source_type === 'signal'
-                            ? 'bg-primary shadow-[0_0_4px_var(--color-primary)]'
-                            : 'bg-muted-foreground/30',
-                        )}
-                      />
                     )}
-                    <span className="text-sm flex-1 truncate">{src.label}</span>
-                    <span className="text-xs text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {src.source_type}
-                    </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setLocalSources(localSources.filter((_, j) => j !== i)) }}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive
-                        transition-all cursor-pointer p-0.5"
+                      onClick={() => setShowAddModal(true)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-foreground transition-colors cursor-pointer"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Plus className="h-3 w-3" /> Add source (RSS, URL...)
                     </button>
                   </div>
-                  )
-                })}
+                )}
               </div>
-            )}
+            </div>
           </section>
 
           {/* ════ SCHEDULE ════ */}

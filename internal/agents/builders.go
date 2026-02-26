@@ -53,67 +53,6 @@ func resolveTemplateFromState(template string, state session.State) string {
 	})
 }
 
-// toGenaiSchema converts a map[string]any JSON schema (from tools.Tool.InputSchema)
-// to a *genai.Schema for use in genai.FunctionDeclaration.
-func toGenaiSchema(schema map[string]any) *genai.Schema {
-	if schema == nil {
-		return nil
-	}
-	s := &genai.Schema{Type: genai.TypeObject}
-	if props, ok := schema["properties"].(map[string]any); ok {
-		s.Properties = make(map[string]*genai.Schema)
-		for k, v := range props {
-			prop, _ := v.(map[string]any)
-			ps := &genai.Schema{}
-			if t, ok := prop["type"].(string); ok {
-				switch t {
-				case "string":
-					ps.Type = genai.TypeString
-				case "number":
-					ps.Type = genai.TypeNumber
-				case "integer":
-					ps.Type = genai.TypeInteger
-				case "boolean":
-					ps.Type = genai.TypeBoolean
-				case "array":
-					ps.Type = genai.TypeArray
-					if items, ok := prop["items"].(map[string]any); ok {
-						itemSchema := &genai.Schema{Type: genai.TypeString}
-						if it, ok := items["type"].(string); ok {
-							switch it {
-							case "number":
-								itemSchema.Type = genai.TypeNumber
-							case "integer":
-								itemSchema.Type = genai.TypeInteger
-							case "boolean":
-								itemSchema.Type = genai.TypeBoolean
-							}
-						}
-						ps.Items = itemSchema
-					} else {
-						// Gemini requires Items for array types; default to string.
-						ps.Items = &genai.Schema{Type: genai.TypeString}
-					}
-				default:
-					ps.Type = genai.TypeString
-				}
-			}
-			if d, ok := prop["description"].(string); ok {
-				ps.Description = d
-			}
-			s.Properties[k] = ps
-		}
-	}
-	if req, ok := schema["required"].([]any); ok {
-		for _, r := range req {
-			if rs, ok := r.(string); ok {
-				s.Required = append(s.Required, rs)
-			}
-		}
-	}
-	return s
-}
-
 // buildPromptParts converts a resolved prompt string into genai Parts.
 // Segments that are bare data URIs (from asset image nodes) become inline
 // image parts; everything else becomes text parts.

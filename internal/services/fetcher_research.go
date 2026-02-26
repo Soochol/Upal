@@ -22,6 +22,7 @@ type ResearchProgressFn func(progress upal.ResearchProgress)
 type researchFetcher struct {
 	resolver   ports.LLMResolver
 	skills     skills.Provider
+	toolReg    *tools.Registry
 	progressFn ResearchProgressFn
 }
 
@@ -29,8 +30,8 @@ func (f *researchFetcher) SetProgressFn(fn ResearchProgressFn) {
 	f.progressFn = fn
 }
 
-func NewResearchFetcher(resolver ports.LLMResolver, skills skills.Provider) *researchFetcher {
-	return &researchFetcher{resolver: resolver, skills: skills}
+func NewResearchFetcher(resolver ports.LLMResolver, skills skills.Provider, toolReg *tools.Registry) *researchFetcher {
+	return &researchFetcher{resolver: resolver, skills: skills, toolReg: toolReg}
 }
 
 func (f *researchFetcher) Type() string { return "research" }
@@ -83,27 +84,18 @@ func (f *researchFetcher) runResearch(
 	skillContent := f.skills.Get("stage-research")
 	systemPrompt := buildResearchSystemPrompt(skillContent, src.Depth)
 
-	var nativeTools []*genai.Tool
-	if spec, isGlobalNative := upalmodel.LookupNativeTool("web_search"); isGlobalNative {
-		if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
-			if modelSpec, supported := provider.NativeTool("web_search"); supported {
-				nativeTools = append(nativeTools, modelSpec)
-			}
-		} else {
-			nativeTools = append(nativeTools, spec)
-		}
+	// Resolve tools from registry (unified with agent node tool system).
+	toolNames := []string{"web_search", "get_webpage"}
+	nativeTools, customTools, funcDecls, err := tools.ResolveToolSet(f.toolReg, llm, toolNames)
+	if err != nil {
+		return "", nil, fmt.Errorf("resolve research tools: %w", err)
 	}
-
-	webpageTool := &tools.GetWebpageTool{}
-	funcDecls := []*genai.FunctionDeclaration{{
-		Name:        webpageTool.Name(),
-		Description: webpageTool.Description(),
-		Parameters:  researchToGenaiSchema(webpageTool.InputSchema()),
-	}}
 
 	var allTools []*genai.Tool
 	allTools = append(allTools, nativeTools...)
-	allTools = append(allTools, &genai.Tool{FunctionDeclarations: funcDecls})
+	if len(funcDecls) > 0 {
+		allTools = append(allTools, &genai.Tool{FunctionDeclarations: funcDecls})
+	}
 
 	genCfg := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
@@ -175,7 +167,7 @@ func (f *researchFetcher) runResearch(
 		}
 
 		contents = append(contents, resp.Content)
-		if toolResults := executeResearchToolCalls(ctx, toolCalls, webpageTool); toolResults != nil {
+		if toolResults := tools.ExecuteToolCalls(ctx, toolCalls, customTools); toolResults != nil {
 			contents = append(contents, toolResults)
 		}
 
@@ -249,77 +241,4 @@ func parseResearchSources(text string) []map[string]any {
 		})
 	}
 	return sources
-}
-
-func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, webpageTool *tools.GetWebpageTool) *genai.Content {
-	var parts []*genai.Part
-	for _, fc := range calls {
-		var output map[string]any
-		switch fc.Name {
-		case webpageTool.Name():
-			result, err := webpageTool.Execute(ctx, fc.Args)
-			if err != nil {
-				output = map[string]any{"error": err.Error()}
-			} else if m, ok := result.(map[string]any); ok {
-				output = m
-			} else {
-				output = map[string]any{"result": fmt.Sprintf("%v", result)}
-			}
-		default:
-			continue
-		}
-		parts = append(parts, &genai.Part{
-			FunctionResponse: &genai.FunctionResponse{
-				Name:     fc.Name,
-				Response: output,
-			},
-		})
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-	return &genai.Content{
-		Role:  genai.RoleUser,
-		Parts: parts,
-	}
-}
-
-func researchToGenaiSchema(schema map[string]any) *genai.Schema {
-	if schema == nil {
-		return nil
-	}
-	s := &genai.Schema{Type: genai.TypeObject}
-	if props, ok := schema["properties"].(map[string]any); ok {
-		s.Properties = make(map[string]*genai.Schema)
-		for k, v := range props {
-			prop, _ := v.(map[string]any)
-			ps := &genai.Schema{}
-			if t, ok := prop["type"].(string); ok {
-				switch t {
-				case "string":
-					ps.Type = genai.TypeString
-				case "number":
-					ps.Type = genai.TypeNumber
-				case "integer":
-					ps.Type = genai.TypeInteger
-				case "boolean":
-					ps.Type = genai.TypeBoolean
-				default:
-					ps.Type = genai.TypeString
-				}
-			}
-			if d, ok := prop["description"].(string); ok {
-				ps.Description = d
-			}
-			s.Properties[k] = ps
-		}
-	}
-	if req, ok := schema["required"].([]any); ok {
-		for _, r := range req {
-			if rs, ok := r.(string); ok {
-				s.Required = append(s.Required, rs)
-			}
-		}
-	}
-	return s
 }

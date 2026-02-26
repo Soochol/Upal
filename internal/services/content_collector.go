@@ -92,6 +92,28 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession, isTest bool, limit int) {
 	sources := mapPipelineSources(session.Sources, isTest, limit)
 
+	// When no explicit sources but session has a prompt, auto-create a research source.
+	if len(sources) == 0 && session.Context != nil && session.Context.Prompt != "" {
+		depth := session.Context.ResearchDepth
+		if depth == "" {
+			depth = "deep"
+		}
+		model := session.Context.ResearchModel
+		if model == "" {
+			model = session.Model
+		}
+		sources = []mappedSource{{
+			collectSource: upal.CollectSource{
+				ID:    "auto-research",
+				Type:  "research",
+				Topic: session.Context.Prompt,
+				Model: model,
+				Depth: depth,
+			},
+			pipelineIndex: -1,
+		}}
+	}
+
 	if len(sources) == 0 {
 		log.Printf("content_collector: no fetchable sources for pipeline %s", pipeline.ID)
 		if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionPendingReview); err != nil {
@@ -102,7 +124,15 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 
 	totalItems := 0
 	for _, mapped := range sources {
-		pipelineSrc := session.Sources[mapped.pipelineIndex]
+		var pipelineSrc upal.PipelineSource
+		if mapped.pipelineIndex >= 0 {
+			pipelineSrc = session.Sources[mapped.pipelineIndex]
+		} else {
+			pipelineSrc = upal.PipelineSource{
+				ID: mapped.collectSource.ID, Type: "research",
+				SourceType: "research", Label: "Auto Research",
+			}
+		}
 		sf := c.fetchAndRecord(ctx, session.ID, pipelineSrc, mapped.collectSource)
 		if sf != nil && sf.Error == nil {
 			totalItems += len(sf.RawItems)
@@ -393,6 +423,16 @@ func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, sessi
 	b.WriteString("## Pipeline Context\n")
 	if session.Context != nil {
 		ctx := session.Context
+		if ctx.Description != "" {
+			fmt.Fprintf(&b, "Description: %s\n", ctx.Description)
+		}
+		if ctx.Prompt != "" {
+			fmt.Fprintf(&b, "Task prompt: %s\n", ctx.Prompt)
+		}
+		if ctx.Language != "" {
+			fmt.Fprintf(&b, "Language: %s\n", ctx.Language)
+		}
+		// Legacy editorial brief fields (backward compat).
 		if ctx.Purpose != "" {
 			fmt.Fprintf(&b, "Purpose: %s\n", ctx.Purpose)
 		}

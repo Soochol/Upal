@@ -79,48 +79,16 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 	var nativeTools []*genai.Tool
 	upalTools := make(map[string]tools.Tool)
 	if toolNames, ok := nd.Config["tools"].([]any); ok {
+		names := make([]string, 0, len(toolNames))
 		for _, tn := range toolNames {
-			name, ok := tn.(string)
-			if !ok {
-				continue
+			if name, ok := tn.(string); ok {
+				names = append(names, name)
 			}
-			// Check if it's a global native tool (e.g., web_search).
-			if spec, isGlobalNative := upalmodel.LookupNativeTool(name); isGlobalNative {
-				if provider, ok := named.LLM.(upalmodel.NativeToolProvider); ok {
-					if modelSpec, supported := provider.NativeTool(name); supported {
-						nativeTools = append(nativeTools, modelSpec)
-					}
-					// Model doesn't support this native tool — skip silently.
-				} else {
-					// Fall back to global spec if model doesn't implement NativeToolProvider.
-					nativeTools = append(nativeTools, spec)
-				}
-				continue
-			}
-			// Check if it's a registry native tool.
-			if deps.ToolReg != nil && deps.ToolReg.IsNative(name) {
-				if provider, ok := named.LLM.(upalmodel.NativeToolProvider); ok {
-					if modelSpec, supported := provider.NativeTool(name); supported {
-						nativeTools = append(nativeTools, modelSpec)
-					}
-					// Model doesn't support this native tool — skip silently.
-				}
-				continue
-			}
-			// Treat as a custom tool.
-			if deps.ToolReg == nil {
-				return nil, fmt.Errorf("node %q references tool %q but no tool registry is configured", nd.ID, name)
-			}
-			t, found := deps.ToolReg.Get(name)
-			if !found {
-				return nil, fmt.Errorf("node %q references unknown tool %q", nd.ID, name)
-			}
-			upalTools[name] = t
-			funcDecls = append(funcDecls, &genai.FunctionDeclaration{
-				Name:        t.Name(),
-				Description: t.Description(),
-				Parameters:  toGenaiSchema(t.InputSchema()),
-			})
+		}
+		var err2 error
+		nativeTools, upalTools, funcDecls, err2 = tools.ResolveToolSet(deps.ToolReg, named.LLM, names)
+		if err2 != nil {
+			return nil, fmt.Errorf("node %q: %w", nd.ID, err2)
 		}
 	}
 
@@ -247,43 +215,22 @@ func (b *LLMNodeBuilder) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.A
 	})
 }
 
-// executeToolCalls executes a list of function calls against the tool registry
-// and returns a Content with FunctionResponse parts for feeding back to the LLM.
-func executeToolCalls(ctx agent.InvocationContext, calls []*genai.FunctionCall, upalTools map[string]tools.Tool) *genai.Content {
-	var toolResults []*genai.Part
+// executeToolCalls delegates to the shared tools.ExecuteToolCalls helper.
+func executeToolCalls(ctx context.Context, calls []*genai.FunctionCall, upalTools map[string]tools.Tool) *genai.Content {
+	resp := tools.ExecuteToolCalls(ctx, calls, upalTools)
+	if resp != nil {
+		return resp
+	}
+	// If no custom tool results (all native), return empty response content
+	// so the conversation flow continues correctly.
+	var parts []*genai.Part
 	for _, fc := range calls {
-		output := executeSingleTool(ctx, fc, upalTools)
-		toolResults = append(toolResults, &genai.Part{
+		parts = append(parts, &genai.Part{
 			FunctionResponse: &genai.FunctionResponse{
 				Name:     fc.Name,
-				Response: output,
+				Response: map[string]any{},
 			},
 		})
 	}
-	return &genai.Content{
-		Role:  genai.RoleUser,
-		Parts: toolResults,
-	}
-}
-
-// executeSingleTool runs a single tool call with panic recovery.
-func executeSingleTool(ctx agent.InvocationContext, fc *genai.FunctionCall, upalTools map[string]tools.Tool) (output map[string]any) {
-	defer func() {
-		if r := recover(); r != nil {
-			output = map[string]any{"error": fmt.Sprintf("tool %q panicked: %v", fc.Name, r)}
-		}
-	}()
-
-	t, ok := upalTools[fc.Name]
-	if !ok {
-		return map[string]any{"error": fmt.Sprintf("unknown tool %q", fc.Name)}
-	}
-	result, err := t.Execute(ctx, fc.Args)
-	if err != nil {
-		return map[string]any{"error": err.Error()}
-	}
-	if m, ok := result.(map[string]any); ok {
-		return m
-	}
-	return map[string]any{"result": fmt.Sprintf("%v", result)}
+	return &genai.Content{Role: genai.RoleUser, Parts: parts}
 }
