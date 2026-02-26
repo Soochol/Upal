@@ -11,7 +11,9 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/mmcdole/gofeed"
+	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,7 +28,7 @@ type CollectStageExecutor struct {
 	fetchers map[string]SourceFetcher
 }
 
-func NewCollectStageExecutor() *CollectStageExecutor {
+func NewCollectStageExecutor(resolver ports.LLMResolver, skills skills.Provider) *CollectStageExecutor {
 	e := &CollectStageExecutor{
 		fetchers: make(map[string]SourceFetcher),
 	}
@@ -35,6 +37,9 @@ func NewCollectStageExecutor() *CollectStageExecutor {
 	e.RegisterFetcher(&httpFetcher{client: client})
 	e.RegisterFetcher(&scrapeFetcher{client: client})
 	e.RegisterFetcher(NewSocialFetcher(client))
+	if resolver != nil {
+		e.RegisterFetcher(NewResearchFetcher(resolver, skills))
+	}
 	return e
 }
 

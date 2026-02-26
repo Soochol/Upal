@@ -24,7 +24,7 @@ func (s *stubFetcher) Fetch(_ context.Context, _ upal.CollectSource) (string, an
 }
 
 func TestCollectStageExecutor_CustomFetcher(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	exec.RegisterFetcher(&stubFetcher{typ: "mock", text: "hello", data: "data"})
 
 	stage := upal.Stage{
@@ -44,7 +44,7 @@ func TestCollectStageExecutor_CustomFetcher(t *testing.T) {
 }
 
 func TestCollectStageExecutor_UnknownSourceType(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	stage := upal.Stage{
 		ID:   "s1",
 		Type: "collect",
@@ -63,7 +63,7 @@ func TestCollectStageExecutor_UnknownSourceType(t *testing.T) {
 }
 
 func TestCollectStageExecutor_EmptySources(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	stage := upal.Stage{
 		ID:     "s1",
 		Type:   "collect",
@@ -82,7 +82,7 @@ func TestCollectStageExecutor_EmptySources(t *testing.T) {
 }
 
 func TestCollectStageExecutor_MultiSource(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	exec.RegisterFetcher(&stubFetcher{typ: "mock", text: "hello", data: "d1"})
 
 	stage := upal.Stage{
@@ -113,7 +113,7 @@ func TestCollectStageExecutor_MultiSource(t *testing.T) {
 }
 
 func TestCollectStageExecutor_PartialFailure(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	exec.RegisterFetcher(&stubFetcher{typ: "ok", text: "good", data: "d"})
 	exec.RegisterFetcher(&stubFetcher{typ: "bad", err: fmt.Errorf("fetch failed")})
 
@@ -141,7 +141,7 @@ func TestCollectStageExecutor_PartialFailure(t *testing.T) {
 }
 
 func TestCollectStageExecutor_FetcherReplacement(t *testing.T) {
-	exec := services.NewCollectStageExecutor()
+	exec := services.NewCollectStageExecutor(nil, nil)
 	exec.RegisterFetcher(&stubFetcher{typ: "mock", text: "first"})
 	exec.RegisterFetcher(&stubFetcher{typ: "mock", text: "second"})
 
