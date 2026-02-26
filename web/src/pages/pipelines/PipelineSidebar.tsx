@@ -85,7 +85,7 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
       {/* Header */}
       <div className="px-3 py-3 border-b border-border/50 shrink-0 bg-background/50 backdrop-blur-md shadow-sm z-10 space-y-2">
         <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pipelines</span>
-        {!isLoading && pipelines.length > 0 ? (
+        {!isLoading && pipelines.length > 0 && (
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -100,16 +100,6 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
             <button
               onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
               className="flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
-            >
-              <Plus className="h-3 w-3" />
-              New
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-end">
-            <button
-              onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
             >
               <Plus className="h-3 w-3" />
               New
@@ -158,11 +148,14 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
             <Loader2 className="w-5 h-5 animate-spin text-primary/50" />
           </div>
         ) : pipelines.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-muted-foreground p-4 gap-3 text-center pt-12">
-            <div className="w-10 h-10 rounded-xl bg-muted/20 flex items-center justify-center">
-              <GitBranch className="w-4 h-4 opacity-30" />
-            </div>
-            <p className="text-xs">No pipelines yet</p>
+          <div className="flex flex-col items-center justify-center text-muted-foreground p-4 gap-4 text-center pt-12">
+            <button
+              onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Pipeline
+            </button>
           </div>
         ) : (
           filteredPipelines.map((p) => {
