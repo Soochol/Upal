@@ -348,4 +348,47 @@ CREATE INDEX IF NOT EXISTS idx_published_content_user_id ON published_content(us
 CREATE INDEX IF NOT EXISTS idx_surge_events_user_id ON surge_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_results_user_id ON workflow_results(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_providers_user_id ON ai_providers(user_id);
+
+CREATE TABLE IF NOT EXISTS upal_sessions (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    name            TEXT NOT NULL DEFAULT '',
+    description     TEXT NOT NULL DEFAULT '',
+    sources         JSONB NOT NULL DEFAULT '[]',
+    schedule        TEXT NOT NULL DEFAULT '',
+    model           TEXT NOT NULL DEFAULT '',
+    workflows       JSONB NOT NULL DEFAULT '[]',
+    context         JSONB,
+    stages          JSONB NOT NULL DEFAULT '[]',
+    status          TEXT NOT NULL DEFAULT 'draft',
+    thumbnail_svg   TEXT NOT NULL DEFAULT '',
+    last_collected_at TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_upal_sessions_user_id ON upal_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_upal_sessions_status ON upal_sessions(status);
+
+CREATE TABLE IF NOT EXISTS upal_runs (
+    id           TEXT PRIMARY KEY,
+    user_id      TEXT NOT NULL DEFAULT 'default',
+    session_id   TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'collecting',
+    trigger_type TEXT NOT NULL DEFAULT 'manual',
+    source_count INTEGER NOT NULL DEFAULT 0,
+    schedule_id  TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reviewed_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_upal_runs_user_id ON upal_runs(user_id);
+CREATE INDEX IF NOT EXISTS idx_upal_runs_session_id ON upal_runs(session_id);
+CREATE INDEX IF NOT EXISTS idx_upal_runs_status ON upal_runs(status);
+
+CREATE TABLE IF NOT EXISTS upal_workflow_runs (
+    run_id      TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
+    results     JSONB NOT NULL DEFAULT '[]',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_upal_workflow_runs_user_id ON upal_workflow_runs(user_id);
 `

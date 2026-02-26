@@ -374,6 +374,12 @@ func serve() {
 	memWFRunRepo := repository.NewMemoryWorkflowRunRepository()
 	var wfRunRepo repository.WorkflowRunRepository = memWFRunRepo
 
+	if database != nil {
+		sessionRepo = repository.NewPersistentSessionRepository(memSessionRepo, database)
+		sessionRunRepo = repository.NewPersistentSessionRunRepository(memSessionRunRepo, database)
+		wfRunRepo = repository.NewPersistentWorkflowRunRepository(memWFRunRepo, database)
+	}
+
 	sessionSvc := services.NewSessionService(sessionRepo)
 	runSvc := services.NewRunService(sessionRunRepo, sessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo, wfRunRepo)
 	srv.SetSessionService(sessionSvc)
