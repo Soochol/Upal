@@ -1,5 +1,6 @@
 import { apiFetch } from '@/shared/api/client'
 import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
+import type { ConfigurePipelineRequest, ConfigurePipelineResponse } from '@/shared/types'
 import type { ContentSession, ContentAngle, LLMAnalysis } from './types'
 
 const BASE = '/api/content-sessions'
@@ -151,4 +152,18 @@ export async function runSessionInstance(id: string, options?: { isTest?: boolea
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options ?? {}),
   })
+}
+
+export async function configureSession(
+  id: string,
+  req: ConfigurePipelineRequest,
+): Promise<ConfigurePipelineResponse> {
+  return apiFetch<ConfigurePipelineResponse>(
+    `${BASE}/${encodeURIComponent(id)}/configure`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    },
+  )
 }

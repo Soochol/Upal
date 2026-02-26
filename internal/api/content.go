@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -566,7 +566,7 @@ func (s *Server) generateAngleWorkflow(w http.ResponseWriter, r *http.Request) {
 
 	angle, err := s.collector.GenerateWorkflowForAngle(r.Context(), id, body.AngleID)
 	if err != nil {
-		log.Printf("generate-workflow: %v", err)
+		slog.Error("generate-workflow failed", "error", err)
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusInternalServerError)
 		return
 	}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, Loader2, Play, Pencil, ChevronDown, RotateCcw, GitBranch, Power,
@@ -6,12 +6,15 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
+import { ConfigureChat } from '@/shared/ui/ConfigureChat'
+import type { ChatMessage } from '@/shared/ui/ConfigureChat'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import { WorkflowPicker } from '../WorkflowPicker'
 import {
   fetchContentSession,
   updateSessionSettings,
+  configureSession,
   activateSession,
   deactivateSession,
   runSessionInstance,
@@ -179,6 +182,32 @@ export function SessionSetupView({ sessionId }: Props) {
     }
   }
 
+  // ─── AI Configure ───────────────────────────────────────────────────
+
+  const handleConfigure = useCallback(async ({ message, model, thinking, history }: {
+    message: string; model: string; thinking: boolean; history: ChatMessage[]
+  }) => {
+    const response = await configureSession(sessionId, {
+      message,
+      model: model || undefined,
+      thinking,
+      history,
+      current_sources: localSources,
+      current_schedule: localSchedule,
+      current_workflows: localWorkflows,
+      current_model: localModel,
+      current_context: localContext,
+    })
+
+    if (response.sources) setLocalSources(response.sources)
+    if (response.schedule !== undefined && response.schedule !== null) setLocalSchedule(response.schedule)
+    if (response.workflows) setLocalWorkflows(response.workflows)
+    if (response.model !== undefined && response.model !== null) setLocalModel(response.model)
+    if (response.context) setLocalContext(response.context)
+
+    return { explanation: response.explanation || 'Settings updated.' }
+  }, [sessionId, localSources, localSchedule, localWorkflows, localModel, localContext])
+
   // ─── Derived ──────────────────────────────────────────────────────────
 
   const signalCount = localSources.filter(s => s.source_type === 'signal').length
@@ -250,6 +279,15 @@ export function SessionSetupView({ sessionId }: Props) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ── AI Assistant ── */}
+      <div className="border-b border-border/50 px-4">
+        <ConfigureChat
+          onSubmit={handleConfigure}
+          placeholder="Describe your session settings..."
+          loadingText="Configuring session..."
+        />
       </div>
 
       {/* ── Scrollable content ── */}

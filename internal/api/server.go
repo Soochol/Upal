@@ -131,6 +131,7 @@ func (s *Server) Handler() http.Handler {
 				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
 				r.Post("/{id}/publish", s.publishContentSession)
 				r.Post("/{id}/reject-result", s.rejectWorkflowResult)
+			r.Post("/{id}/configure", s.configureSession)
 			})
 			r.Route("/published", func(r chi.Router) {
 				r.Get("/", s.listPublished)

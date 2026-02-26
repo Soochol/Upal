@@ -104,7 +104,16 @@ func (g *Generator) ConfigureNode(ctx context.Context, in ConfigureNodeInput) (*
 
 // ---------- pipeline configuration ----------
 
-// ConfigurePipelineInput holds the domain parameters for configuring a pipeline via LLM.
+// SessionContext provides session-specific metadata for LLM context.
+// When set on ConfigurePipelineInput, the LLM receives session info and
+// uses the session-configure skill (with pipeline-configure as fallback).
+type SessionContext struct {
+	Name       string
+	Status     string
+	IsTemplate bool
+}
+
+// ConfigurePipelineInput holds the domain parameters for configuring a pipeline or session via LLM.
 type ConfigurePipelineInput struct {
 	Message          string
 	Model            string // optional per-request model override
@@ -118,6 +127,7 @@ type ConfigurePipelineInput struct {
 	// Injected by the caller (HTTP handler) to enrich the system prompt.
 	StageTypes         []string       // distinct stage types for skill injection
 	AvailableWorkflows []WorkflowRef  // for workflow name reference
+	Session            *SessionContext // non-nil when configuring a session
 }
 
 // ConfigurePipelineOutput is the LLM-generated pipeline configuration result.
@@ -130,26 +140,44 @@ type ConfigurePipelineOutput struct {
 	Explanation string          `json:"explanation"`
 }
 
-// ConfigurePipeline asks the LLM to configure a pipeline based on the user's message.
+// ConfigurePipeline asks the LLM to configure a pipeline (or session) based on the user's message.
+// When in.Session is set, session metadata is included in the LLM context and the
+// session-configure skill is preferred (falling back to pipeline-configure).
 func (g *Generator) ConfigurePipeline(ctx context.Context, in ConfigurePipelineInput) (*ConfigurePipelineOutput, error) {
 	llm, modelName := g.resolveLLM(in.Model)
 
-	contextMsg := fmt.Sprintf(
-		"Current pipeline settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
-		string(in.CurrentSources),
-		in.CurrentSchedule,
-		string(in.CurrentWorkflows),
-		in.CurrentModel,
-		string(in.CurrentContext),
-		in.Message,
-	)
+	var contextMsg string
+	if in.Session != nil {
+		sessionType := "instance"
+		if in.Session.IsTemplate {
+			sessionType = "template"
+		}
+		contextMsg = fmt.Sprintf(
+			"Session: name=%q, status=%q, type=%s\nCurrent settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
+			in.Session.Name, in.Session.Status, sessionType,
+			string(in.CurrentSources), in.CurrentSchedule, string(in.CurrentWorkflows),
+			in.CurrentModel, string(in.CurrentContext), in.Message,
+		)
+	} else {
+		contextMsg = fmt.Sprintf(
+			"Current pipeline settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
+			string(in.CurrentSources), in.CurrentSchedule, string(in.CurrentWorkflows),
+			in.CurrentModel, string(in.CurrentContext), in.Message,
+		)
+	}
 
 	contents := buildChatHistory(in.History)
 	contents = append(contents, genai.NewContentFromText(contextMsg, genai.RoleUser))
 
 	sysPrompt := ""
 	if g.skills != nil {
-		sysPrompt = g.skills.GetPrompt("pipeline-configure")
+		// Use session-specific skill when available, otherwise fall back to pipeline.
+		if in.Session != nil {
+			sysPrompt = g.skills.GetPrompt("session-configure")
+		}
+		if sysPrompt == "" {
+			sysPrompt = g.skills.GetPrompt("pipeline-configure")
+		}
 
 		// Inject stage-type skills for the pipeline's stages.
 		seen := map[string]bool{}
