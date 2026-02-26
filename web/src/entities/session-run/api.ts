@@ -1,6 +1,5 @@
 import { apiFetch } from '@/shared/api/client'
-import type { Run } from './types'
-import type { SourceFetch, LLMAnalysis } from '@/entities/content-session'
+import type { Run, SourceFetch, LLMAnalysis } from './types'
 
 const SESSIONS_BASE = '/api/sessions'
 const RUNS_BASE = '/api/session-runs'

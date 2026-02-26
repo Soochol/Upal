@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Settings, History } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { fetchSession } from '@/entities/session'
-// Reuse old setup view during coexistence period
-import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
+import { SessionConfigView } from './SessionConfigView'
 import { RunHistoryPanel } from './RunHistoryPanel'
 
 type Tab = 'setup' | 'runs'
@@ -60,7 +59,7 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {activeTab === 'setup' && (
-          <SessionSetupView sessionId={sessionId} />
+          <SessionConfigView sessionId={sessionId} />
         )}
         {activeTab === 'runs' && (
           <RunHistoryPanel sessionId={sessionId} />

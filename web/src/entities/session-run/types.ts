@@ -1,10 +1,44 @@
-import type { SourceFetch, LLMAnalysis } from '@/entities/content-session'
-
 export type RunStatus =
   | 'collecting' | 'analyzing' | 'pending_review'
   | 'approved' | 'rejected' | 'producing' | 'published' | 'error'
 
 export type WorkflowRunStatus = 'pending' | 'running' | 'success' | 'failed' | 'published' | 'rejected'
+
+export type SourceItem = {
+  title: string
+  url?: string
+  score?: number
+  extra?: string
+}
+
+export type SourceFetch = {
+  id: string
+  tool: string
+  source_type: 'static' | 'signal'
+  label: string
+  count: number
+  items: SourceItem[]
+  fetched_at: string
+}
+
+export type ContentAngle = {
+  id: string
+  format: string
+  title: string
+  selected: boolean
+  workflow_name?: string
+  match_type?: 'matched' | 'generated' | 'none'
+  rationale?: string
+}
+
+export type LLMAnalysis = {
+  summary: string
+  insights: string[]
+  angles: ContentAngle[]
+  score: number
+  total_collected: number
+  total_selected: number
+}
 
 export type WorkflowRun = {
   workflow_name: string
