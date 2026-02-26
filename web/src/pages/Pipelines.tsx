@@ -1,21 +1,14 @@
-// web/src/pages/Pipelines.tsx — Pipeline settings page
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+// web/src/pages/Pipelines.tsx — Pipeline management page (3-column layout)
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  Plus, Loader2, ArrowLeft, Settings,
-  X,
-} from 'lucide-react'
+import { Loader2, X, Settings, ArrowLeft } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
 import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipeline'
-import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
-import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
-import { PipelineSettingsPanel } from '@/pages/pipelines/PipelineSettingsPanel'
-import { useUIStore } from '@/entities/ui'
-import { useAutoSave } from '@/shared/hooks/useAutoSave'
-import type { PipelineSource, PipelineWorkflow } from '@/entities/pipeline'
+import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
+import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
 
 // ─── New Session modal ──────────────────────────────────────────────────────
 
@@ -75,14 +68,22 @@ function NewSessionModal({
 export default function PipelinesPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const addToast = useUIStore((s) => s.addToast)
 
   const selectedPipelineId = searchParams.get('p')
+  const selectedSessionId = searchParams.get('s')
 
   const selectPipeline = useCallback((id: string) => {
-    setSearchParams({ p: id })
+    setSearchParams({ p: id }) // clears ?s= when switching pipeline
   }, [setSearchParams])
+
+  const selectSession = useCallback((id: string) => {
+    if (!selectedPipelineId) return
+    if (id) {
+      setSearchParams({ p: selectedPipelineId, s: id })
+    } else {
+      setSearchParams({ p: selectedPipelineId })
+    }
+  }, [selectedPipelineId, setSearchParams])
 
   const [showNewSession, setShowNewSession] = useState(false)
 
@@ -99,83 +100,17 @@ export default function PipelinesPage() {
     enabled: !!selectedPipelineId,
   })
 
-  const { data: channels = [] } = useQuery({
-    queryKey: ['publish-channels'],
-    queryFn: fetchPublishChannels,
-  })
-
-  // Fetch template session for the selected pipeline (holds settings)
-  const { data: templateSessions = [] } = useQuery({
-    queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }],
-    queryFn: () => fetchContentSessions({ pipelineId: selectedPipelineId!, templateOnly: true }),
-    enabled: !!selectedPipelineId,
-  })
-  const templateSession = templateSessions[0] ?? null
-
   const collectMutation = useMutation({
     mutationFn: (config?: { isTest: boolean; limit: number }) =>
       collectPipeline(selectedPipelineId!, config),
     onSuccess: (newSession) => {
       setShowNewSession(false)
-      navigate(newSession?.session_id ? `/inbox?s=${newSession.session_id}` : '/inbox')
+      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId }] })
+      if (newSession?.session_id && selectedPipelineId) {
+        setSearchParams({ p: selectedPipelineId, s: newSession.session_id })
+      }
     },
   })
-
-  // ─── Local settings state + auto-save (reads from template session) ───
-
-  const [localSources, setLocalSources] = useState<PipelineSource[]>([])
-  const [localSchedule, setLocalSchedule] = useState('')
-  const [localWorkflows, setLocalWorkflows] = useState<PipelineWorkflow[]>([])
-  const [localModel, setLocalModel] = useState('')
-
-  // Bundle settings into one object for auto-save
-  const settingsData = useMemo(() => ({
-    sources: localSources,
-    schedule: localSchedule,
-    workflows: localWorkflows,
-    model: localModel,
-  }), [localSources, localSchedule, localWorkflows, localModel])
-
-  const { saveStatus: autoSaveStatus, markClean } = useAutoSave({
-    data: settingsData,
-    onSave: async (data) => {
-      if (!templateSession) return
-      await updateSessionSettings(templateSession.id, data)
-      queryClient.invalidateQueries({
-        queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }],
-      })
-    },
-    delay: 2000,
-    enabled: !!templateSession,
-    saveOnUnmount: true,
-    onBeforeUnloadSave: (data) => {
-      if (!templateSession) return
-      fetch(`/api/content-sessions/${templateSession.id}/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        keepalive: true,
-        body: JSON.stringify(data),
-      })
-    },
-    onError: (err) =>
-      addToast(`Failed to save session settings: ${err instanceof Error ? err.message : 'unknown error'}`),
-  })
-
-  // Sync server → local state when template session changes
-  useEffect(() => {
-    if (templateSession) {
-      setLocalSources(templateSession.session_sources ?? []) // eslint-disable-line react-hooks/set-state-in-effect
-      setLocalSchedule(templateSession.schedule ?? '')
-      setLocalWorkflows(templateSession.session_workflows ?? [])
-      setLocalModel(templateSession.model ?? '')
-    }
-  }, [templateSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // markClean after state settles (settingsData reflects new values)
-  const serverFingerprint = templateSession?.id
-  useEffect(() => {
-    if (serverFingerprint) markClean()
-  }, [settingsData, serverFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select first pipeline on load
   useEffect(() => {
@@ -186,10 +121,15 @@ export default function PipelinesPage() {
 
   // ─── Mobile level ──────────────────────────────────────────────────────
 
-  type MobileLevel = 'pipelines' | 'detail'
-  const mobileLevel: MobileLevel = selectedPipelineId ? 'detail' : 'pipelines'
+  type MobileLevel = 'pipelines' | 'sessions' | 'detail'
+  const mobileLevel: MobileLevel =
+    selectedSessionId ? 'detail' :
+    selectedPipelineId ? 'sessions' : 'pipelines'
 
   const goBackToPipelines = () => setSearchParams({})
+  const goBackToSessions = () => {
+    if (selectedPipelineId) setSearchParams({ p: selectedPipelineId })
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -199,11 +139,10 @@ export default function PipelinesPage() {
     >
       <div className="flex h-full w-full overflow-hidden bg-background">
 
-        {/* ── Pipeline List Sidebar ── */}
+        {/* ── Column 1: Pipeline List ── */}
         <div className={cn(
-          'w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border',
-          'bg-sidebar/30 backdrop-blur-xl z-20 flex flex-col',
-          'md:shadow-[4px_0_24px_-12px_rgba(0,0,0,0.5)]',
+          'w-full md:w-[200px] shrink-0 md:border-r border-border',
+          'bg-sidebar/30 backdrop-blur-xl flex flex-col',
           mobileLevel === 'pipelines' ? 'flex' : 'hidden md:flex',
         )}>
           <PipelineSidebar
@@ -214,75 +153,59 @@ export default function PipelinesPage() {
           />
         </div>
 
-        {/* ── Main content: pipeline header + settings ── */}
+        {/* ── Column 2: Session List ── */}
         <div className={cn(
-          'flex-1 min-w-0 flex flex-col',
-          mobileLevel === 'pipelines' ? 'hidden md:flex' : 'flex',
+          'w-full md:w-[300px] shrink-0 md:border-r border-border',
+          'bg-sidebar/30 backdrop-blur-xl flex flex-col',
+          mobileLevel === 'sessions' ? 'flex' : 'hidden md:flex',
         )}>
           {selectedPipelineId ? (
+            <SessionListPanel
+              pipelineId={selectedPipelineId}
+              pipelineName={selectedPipeline?.name}
+              selectedSessionId={selectedSessionId}
+              onSelectSession={selectSession}
+              onStartSession={() => setShowNewSession(true)}
+              onBack={goBackToPipelines}
+              className="h-full"
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground p-4">
+              <p className="text-sm text-center">Select a pipeline</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Column 3: Session Settings ── */}
+        <div className={cn(
+          'flex-1 min-w-0 flex flex-col',
+          mobileLevel === 'detail' ? 'flex' : 'hidden md:flex',
+        )}>
+          {selectedSessionId && selectedPipelineId ? (
             <>
-              {/* Pipeline header strip */}
-              <div className="px-4 md:px-6 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex items-center justify-between gap-3">
-                {/* Mobile back button */}
+              {/* Mobile back button */}
+              <div className="md:hidden px-4 py-2 border-b border-border/50 shrink-0">
                 <button
-                  onClick={goBackToPipelines}
-                  className="md:hidden flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                  onClick={goBackToSessions}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" />
+                  Back
                 </button>
-
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold tracking-tight truncate">
-                    {selectedPipeline?.name ?? 'Loading...'}
-                  </h2>
-                  {selectedPipeline?.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{selectedPipeline.description}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setShowNewSession(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Start Session</span>
-                  </button>
-                </div>
               </div>
-
-              {/* Settings panel as main content */}
-              <div className="flex-1 overflow-hidden">
-                <PipelineSettingsPanel
-                  pipelineId={selectedPipelineId}
-                  sources={localSources}
-                  schedule={localSchedule}
-                  context={templateSession?.context}
-                  workflows={localWorkflows}
-                  model={localModel}
-                  channels={channels}
-                  onSourcesChange={setLocalSources}
-                  onScheduleChange={setLocalSchedule}
-                  onContextSave={async (ctx) => {
-                    if (!templateSession) return
-                    await updateSessionSettings(templateSession.id, { context: ctx })
-                    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
-                  }}
-                  onWorkflowsChange={setLocalWorkflows}
-                  onModelChange={setLocalModel}
-                  autoSaveStatus={autoSaveStatus}
-                />
-              </div>
+              <SessionSetupView
+                sessionId={selectedSessionId}
+                pipelineId={selectedPipelineId}
+              />
             </>
           ) : (
-            // No pipeline selected
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
               <div className="size-14 rounded-full bg-muted/30 flex items-center justify-center shrink-0 border border-border/50">
                 <Settings className="w-6 h-6 opacity-30" />
               </div>
               <div className="text-center">
-                <p className="font-medium text-foreground">Select a pipeline</p>
-                <p className="text-sm">Choose a pipeline from the list to configure its settings.</p>
+                <p className="font-medium text-foreground">Select a session</p>
+                <p className="text-sm">Choose a session to view and edit its settings.</p>
               </div>
             </div>
           )}

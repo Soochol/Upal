@@ -16,9 +16,8 @@ const SettingsPage = lazy(() => import('@/pages/settings'))
 
 function PipelineRedirect() {
   const { id, sessionId } = useParams()
-  // Session URLs now go to inbox
   if (sessionId) {
-    return <Navigate to={`/inbox?s=${sessionId}`} replace />
+    return <Navigate to={`/pipelines?p=${id}&s=${sessionId}`} replace />
   }
   return <Navigate to={`/pipelines?p=${id}`} replace />
 }

@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, Archive, ArchiveRestore, Trash2, FileText,
+  Plus, ArrowLeft, Settings,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
@@ -36,15 +37,21 @@ const FILTER_TABS: { value: SessionFilter; label: string }[] = [
 
 interface SessionListPanelProps {
   pipelineId: string
+  pipelineName?: string
   selectedSessionId: string | null
   onSelectSession: (id: string) => void
+  onStartSession?: () => void
+  onBack?: () => void
   className?: string
 }
 
 export function SessionListPanel({
   pipelineId,
+  pipelineName,
   selectedSessionId,
   onSelectSession,
+  onStartSession,
+  onBack,
   className,
 }: SessionListPanelProps) {
   const queryClient = useQueryClient()
@@ -65,39 +72,41 @@ export function SessionListPanel({
     enabled: !!pipelineId && activeFilter === 'archived',
   })
 
+  const { data: templateSessions = [] } = useQuery({
+    queryKey: ['content-sessions', { pipelineId, templateOnly: true }],
+    queryFn: () => fetchContentSessions({ pipelineId, templateOnly: true }),
+    enabled: !!pipelineId,
+  })
+  const templateSession = templateSessions[0] ?? null
+
   // ─── Mutations ───────────────────────────────────────────────────────────
+
+  const invalidateSessions = () => {
+    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
+  }
 
   const archiveMutation = useMutation({
     mutationFn: (sessionId: string) => archiveSession(sessionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
-    },
+    onSuccess: invalidateSessions,
   })
 
   const unarchiveMutation = useMutation({
     mutationFn: (sessionId: string) => unarchiveSession(sessionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
-    },
+    onSuccess: invalidateSessions,
   })
 
   const deleteMutation = useMutation({
     mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSuccess: () => {
       onSelectSession('')
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
+      invalidateSessions()
     },
   })
 
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
-    },
+    onSuccess: invalidateSessions,
   })
 
   // ─── Derived data ────────────────────────────────────────────────────────
@@ -124,19 +133,32 @@ export function SessionListPanel({
         s.status.includes(q)
     })
 
-  // Auto-select first session
-  useEffect(() => {
-    if (!selectedSessionId && filteredSessions.length > 0) {
-      const pending = filteredSessions.find(s => s.status === 'pending_review')
-      onSelectSession((pending ?? filteredSessions[0]).id)
-    }
-  }, [filteredSessions, selectedSessionId, onSelectSession])
-
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Header: Search + Filters */}
+      {/* Pipeline header */}
+      <div className="px-4 py-3 border-b border-border/50 bg-background/50 backdrop-blur-md shrink-0 flex items-center justify-between gap-2">
+        {onBack && (
+          <button onClick={onBack} className="md:hidden text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        )}
+        <h2 className="text-sm font-semibold truncate flex-1 min-w-0">
+          {pipelineName ?? 'Sessions'}
+        </h2>
+        {onStartSession && (
+          <button
+            onClick={onStartSession}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+          >
+            <Plus className="h-3 w-3" />
+            <span className="hidden sm:inline">Start</span>
+          </button>
+        )}
+      </div>
+
+      {/* Search + Filters */}
       <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -180,6 +202,38 @@ export function SessionListPanel({
 
       {/* Session list */}
       <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
+        {/* Template session (pinned "Defaults") */}
+        {templateSession && activeFilter !== 'archived' && (
+          <>
+            <button
+              onClick={() => onSelectSession(templateSession.id)}
+              className={cn(
+                'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border',
+                selectedSessionId === templateSession.id
+                  ? 'bg-primary/5 border-primary/20 shadow-sm'
+                  : 'bg-transparent border-transparent hover:bg-muted/50',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                <span className={cn(
+                  'text-sm font-semibold',
+                  selectedSessionId === templateSession.id ? 'text-primary' : 'text-foreground',
+                )}>
+                  Pipeline Defaults
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground/50 mt-1 ml-5.5">
+                New sessions inherit these settings
+              </p>
+            </button>
+            {filteredSessions.length > 0 && (
+              <div className="border-b border-border/30 mx-2 my-1" />
+            )}
+          </>
+        )}
+
+        {/* Regular sessions */}
         {(activeFilter === 'archived' ? archivedLoading : sessionsLoading) ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
