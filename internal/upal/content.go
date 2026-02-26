@@ -2,8 +2,6 @@ package upal
 
 import "time"
 
-// --- ContentSession ---
-
 // ContentSessionStatus represents the lifecycle of a content collection session.
 type ContentSessionStatus string
 
@@ -61,8 +59,6 @@ type SessionSettings struct {
 	Context       *PipelineContext
 }
 
-// --- SourceFetch ---
-
 // SourceItem is a single piece of content collected from a source.
 type SourceItem struct {
 	Title       string `json:"title"`
@@ -85,8 +81,6 @@ type SourceFetch struct {
 	Error      *string      `json:"error,omitempty"`       // non-nil means this source failed
 	FetchedAt  time.Time    `json:"fetched_at"`
 }
-
-// --- LLMAnalysis ---
 
 // ContentAngle is a suggested content angle from the LLM analysis.
 type ContentAngle struct {
@@ -112,8 +106,6 @@ type LLMAnalysis struct {
 	CreatedAt       time.Time      `json:"created_at"`
 }
 
-// --- PublishedContent ---
-
 // PublishedContent records a single piece of content published to an external channel.
 type PublishedContent struct {
 	ID            string    `json:"id"`
@@ -124,8 +116,6 @@ type PublishedContent struct {
 	Title         string    `json:"title,omitempty"`
 	PublishedAt   time.Time `json:"published_at"`
 }
-
-// --- SurgeEvent ---
 
 // SurgeEvent records a detected spike in keyword mentions (notify-only; no auto-session).
 type SurgeEvent struct {
@@ -138,8 +128,6 @@ type SurgeEvent struct {
 	SessionID  *string   `json:"session_id,omitempty"` // set when user creates a session from surge
 	CreatedAt  time.Time `json:"created_at"`
 }
-
-// --- WorkflowResult ---
 
 // WorkflowResultStatus represents the lifecycle state of a workflow result in the produce stage.
 type WorkflowResultStatus string
@@ -165,8 +153,6 @@ type WorkflowResult struct {
 	FailedNodeID string               `json:"failed_node_id,omitempty"`
 }
 
-// --- ContentSessionDetail ---
-
 // ContentSessionDetail is a composed response type that includes all related
 // data inline for the frontend GET endpoint. It is NOT an embedded struct —
 // field names are kept flat to match the frontend's expected JSON shape.
@@ -175,6 +161,7 @@ type ContentSessionDetail struct {
 	PipelineID      string               `json:"pipeline_id"`
 	Name            string               `json:"name,omitempty"`
 	PipelineName    string               `json:"pipeline_name,omitempty"`
+	SessionName     string               `json:"session_name,omitempty"`
 	SessionNumber   int                  `json:"session_number,omitempty"`
 	Status          ContentSessionStatus `json:"status"`
 	TriggerType     string               `json:"trigger_type"`

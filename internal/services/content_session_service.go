@@ -14,7 +14,6 @@ import (
 
 var _ ports.ContentSessionPort = (*ContentSessionService)(nil)
 
-// ContentSessionService manages content collection sessions and related records.
 type ContentSessionService struct {
 	sessions        repository.ContentSessionRepository
 	fetches         repository.SourceFetchRepository
@@ -25,7 +24,6 @@ type ContentSessionService struct {
 	pipelineRepo    repository.PipelineRepository
 }
 
-// SetPipelineRepository configures the pipeline repo for resolving pipeline names.
 func (s *ContentSessionService) SetPipelineRepository(repo repository.PipelineRepository) {
 	s.pipelineRepo = repo
 }
@@ -48,8 +46,6 @@ func NewContentSessionService(
 	}
 }
 
-// --- ContentSession ---
-
 func (s *ContentSessionService) CreateSession(ctx context.Context, sess *upal.ContentSession) error {
 	if sess.PipelineID == "" {
 		return fmt.Errorf("pipeline_id is required")
@@ -63,7 +59,6 @@ func (s *ContentSessionService) CreateSession(ctx context.Context, sess *upal.Co
 	if sess.TriggerType == "" {
 		sess.TriggerType = "manual"
 	}
-	// Auto-generate a default name when not provided (e.g. scheduled/surge sessions).
 	if sess.Name == "" {
 		allSessions := s.allPipelineSessions(ctx, sess.PipelineID)
 		sess.Name = fmt.Sprintf("Session %d", len(allSessions)+1)
@@ -88,8 +83,6 @@ func (s *ContentSessionService) ListSessionsByStatus(ctx context.Context, status
 	return s.sessions.ListByStatus(ctx, status)
 }
 
-// ListSessionDetailsByStatus returns composed ContentSessionDetail records
-// for all sessions matching the given status, across all pipelines.
 func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error) {
 	sessions, err := s.sessions.ListByStatus(ctx, status)
 	if err != nil {
@@ -99,7 +92,6 @@ func (s *ContentSessionService) ListSessionDetailsByStatus(ctx context.Context, 
 	return s.buildDetails(ctx, sessions, names), nil
 }
 
-// ListSessionDetailsByStatusIncludeArchived returns composed details including archived sessions.
 func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx context.Context, status upal.ContentSessionStatus) ([]*upal.ContentSessionDetail, error) {
 	sessions, err := s.sessions.ListAllByStatus(ctx, status)
 	if err != nil {
@@ -109,15 +101,11 @@ func (s *ContentSessionService) ListSessionDetailsByStatusIncludeArchived(ctx co
 	return s.buildDetails(ctx, sessions, names), nil
 }
 
-// ListAllInstanceSessionDetails returns composed ContentSessionDetail records
-// for all non-template, non-archived sessions across all pipelines, sorted newest first.
-// This powers the unified inbox with a single query instead of per-status calls.
 func (s *ContentSessionService) ListAllInstanceSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
 	allSessions, err := s.sessions.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	// Filter out templates -- session numbers only apply to execution instances.
 	instances := make([]*upal.ContentSession, 0, len(allSessions))
 	for _, sess := range allSessions {
 		if !sess.IsTemplate {
@@ -126,9 +114,7 @@ func (s *ContentSessionService) ListAllInstanceSessionDetails(ctx context.Contex
 	}
 	names := s.newPipelineNameCache(ctx)
 	details := s.buildDetails(ctx, instances, names)
-	sort.Slice(details, func(i, j int) bool {
-		return details[i].CreatedAt.After(details[j].CreatedAt)
-	})
+	sortDetailsNewestFirst(details)
 	return details, nil
 }
 
@@ -136,9 +122,6 @@ func (s *ContentSessionService) ListSessionsByPipelineAndStatus(ctx context.Cont
 	return s.sessions.ListByPipelineAndStatus(ctx, pipelineID, status)
 }
 
-// UpdateSessionSettings conditionally updates session configuration fields.
-// Only non-zero fields are applied so that partial saves don't destroy data.
-// Settings can only be changed while the session is in draft or active status.
 func (s *ContentSessionService) UpdateSessionSettings(ctx context.Context, id string, settings upal.SessionSettings) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
@@ -184,7 +167,6 @@ func (s *ContentSessionService) UpdateSessionStatus(ctx context.Context, id stri
 	return s.sessions.Update(ctx, sess)
 }
 
-// UpdateSessionSourceCount sets the SourceCount field on a session and persists it.
 func (s *ContentSessionService) UpdateSessionSourceCount(ctx context.Context, id string, count int) error {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
@@ -216,8 +198,6 @@ func (s *ContentSessionService) RejectSession(ctx context.Context, id string) er
 	return s.sessions.Update(ctx, sess)
 }
 
-// --- SourceFetch ---
-
 func (s *ContentSessionService) RecordSourceFetch(ctx context.Context, sf *upal.SourceFetch) error {
 	if sf.ID == "" {
 		sf.ID = upal.GenerateID("sfetch")
@@ -234,8 +214,6 @@ func (s *ContentSessionService) ListSourceFetches(ctx context.Context, sessionID
 	return s.fetches.ListBySession(ctx, sessionID)
 }
 
-// --- LLMAnalysis ---
-
 func (s *ContentSessionService) RecordAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
 	if a.ID == "" {
 		a.ID = upal.GenerateID("anlys")
@@ -248,7 +226,6 @@ func (s *ContentSessionService) GetAnalysis(ctx context.Context, sessionID strin
 	return s.analyses.GetBySession(ctx, sessionID)
 }
 
-// UpdateAnalysis updates the summary and insights of an existing analysis.
 func (s *ContentSessionService) UpdateAnalysis(ctx context.Context, sessionID string, summary string, insights []string) error {
 	analysis, err := s.analyses.GetBySession(ctx, sessionID)
 	if err != nil {
@@ -262,7 +239,6 @@ func (s *ContentSessionService) UpdateAnalysis(ctx context.Context, sessionID st
 	return s.analyses.Update(ctx, analysis)
 }
 
-// UpdateAnalysisAngles updates the suggested angles of an existing analysis.
 func (s *ContentSessionService) UpdateAnalysisAngles(ctx context.Context, sessionID string, angles []upal.ContentAngle) error {
 	analysis, err := s.analyses.GetBySession(ctx, sessionID)
 	if err != nil {
@@ -275,7 +251,6 @@ func (s *ContentSessionService) UpdateAnalysisAngles(ctx context.Context, sessio
 	return s.analyses.Update(ctx, analysis)
 }
 
-// UpdateAngleWorkflow updates the workflow_name and match_type of a single angle by ID.
 func (s *ContentSessionService) UpdateAngleWorkflow(ctx context.Context, sessionID, angleID, workflowName string) error {
 	analysis, err := s.analyses.GetBySession(ctx, sessionID)
 	if err != nil {
@@ -299,8 +274,6 @@ func (s *ContentSessionService) UpdateAngleWorkflow(ctx context.Context, session
 	return s.analyses.Update(ctx, analysis)
 }
 
-// --- PublishedContent ---
-
 func (s *ContentSessionService) RecordPublished(ctx context.Context, pc *upal.PublishedContent) error {
 	if pc.ID == "" {
 		pc.ID = upal.GenerateID("pub")
@@ -320,8 +293,6 @@ func (s *ContentSessionService) ListPublishedBySession(ctx context.Context, sess
 func (s *ContentSessionService) ListPublishedByChannel(ctx context.Context, channel string) ([]*upal.PublishedContent, error) {
 	return s.published.ListByChannel(ctx, channel)
 }
-
-// --- SurgeEvent ---
 
 func (s *ContentSessionService) CreateSurge(ctx context.Context, se *upal.SurgeEvent) error {
 	if se.ID == "" {
@@ -347,8 +318,6 @@ func (s *ContentSessionService) DismissSurge(ctx context.Context, id string) err
 	se.Dismissed = true
 	return s.surges.Update(ctx, se)
 }
-
-// --- Archive / Unarchive / Delete ---
 
 func (s *ContentSessionService) ArchiveSession(ctx context.Context, id string) error {
 	sess, err := s.sessions.Get(ctx, id)
@@ -384,17 +353,12 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 		return fmt.Errorf("session %q: %w", id, upal.ErrMustBeArchived)
 	}
 
-	// Clean up published_content (no FK cascade)
 	if err := s.published.DeleteBySession(ctx, id); err != nil {
 		return fmt.Errorf("delete published content: %w", err)
 	}
-
-	// Delete session (source_fetches + llm_analyses cascade in DB)
 	if err := s.sessions.Delete(ctx, id); err != nil {
 		return err
 	}
-
-	// Clean up workflow results (best-effort — session already deleted)
 	if err := s.workflowResults.DeleteBySession(ctx, id); err != nil {
 		slog.Warn("failed to clean up workflow results", "session_id", id, "err", err)
 	}
@@ -402,13 +366,19 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 	return nil
 }
 
-// DeleteSessionsByPipeline removes all sessions (active, archived, templates)
-// belonging to a pipeline and their associated data. Used during pipeline deletion.
 func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pipelineID string) error {
-	// Collect all session IDs: active + archived + templates
-	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
-	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
-	templates, _ := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
+	active, err := s.sessions.ListByPipeline(ctx, pipelineID)
+	if err != nil {
+		return fmt.Errorf("list active sessions for pipeline %s: %w", pipelineID, err)
+	}
+	archived, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
+	if err != nil {
+		return fmt.Errorf("list archived sessions for pipeline %s: %w", pipelineID, err)
+	}
+	templates, err := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
+	if err != nil {
+		return fmt.Errorf("list template sessions for pipeline %s: %w", pipelineID, err)
+	}
 
 	seen := make(map[string]bool)
 	var ids []string
@@ -435,8 +405,6 @@ func (s *ContentSessionService) ListArchivedByPipeline(ctx context.Context, pipe
 	return s.sessions.ListArchivedByPipeline(ctx, pipelineID)
 }
 
-// ListArchivedSessionDetails returns composed ContentSessionDetail records for
-// archived sessions belonging to a pipeline, sorted newest first.
 func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
 	archivedSessions, err := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
 	if err != nil {
@@ -448,14 +416,10 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(details, func(i, j int) bool {
-		return details[i].CreatedAt.After(details[j].CreatedAt)
-	})
+	sortDetailsNewestFirst(details)
 	return details, nil
 }
 
-// ListAllArchivedSessionDetails returns composed ContentSessionDetail records
-// for ALL archived sessions across all pipelines, sorted newest first.
 func (s *ContentSessionService) ListAllArchivedSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
 	archivedSessions, err := s.sessions.ListArchived(ctx)
 	if err != nil {
@@ -463,20 +427,16 @@ func (s *ContentSessionService) ListAllArchivedSessionDetails(ctx context.Contex
 	}
 	names := s.newPipelineNameCache(ctx)
 	details := s.buildDetails(ctx, archivedSessions, names)
-	sort.Slice(details, func(i, j int) bool {
-		return details[i].CreatedAt.After(details[j].CreatedAt)
-	})
+	sortDetailsNewestFirst(details)
 	return details, nil
 }
 
-// --- Detail-building helpers ---
-//
-// These extract the repeated pattern of mapping ContentSession → ContentSessionDetail.
-// Two variants exist:
-//   - buildDetails: lightweight (no source fetches, no session numbers)
-//   - buildFullDetails: includes source fetches and session numbers (may return error)
+func sortDetailsNewestFirst(details []*upal.ContentSessionDetail) {
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].CreatedAt.After(details[j].CreatedAt)
+	})
+}
 
-// pipelineNameCache caches pipeline ID → name lookups within a single request.
 type pipelineNameCache struct {
 	svc   *ContentSessionService
 	ctx   context.Context
@@ -501,9 +461,6 @@ func (c *pipelineNameCache) lookup(pipelineID string) string {
 	return ""
 }
 
-// sessionNumberMap returns a map of session ID → 1-based position among all
-// pipeline sessions (active + archived), so archived sessions keep their
-// original number. Returns nil for empty pipelineID (cross-pipeline queries).
 func (s *ContentSessionService) sessionNumberMap(ctx context.Context, pipelineID string) map[string]int {
 	if pipelineID == "" {
 		return nil
@@ -516,18 +473,25 @@ func (s *ContentSessionService) sessionNumberMap(ctx context.Context, pipelineID
 	return numbers
 }
 
-// sessionToDetail maps a ContentSession to a ContentSessionDetail with analysis
-// and workflow results, but without source fetches or session numbers.
 func (s *ContentSessionService) sessionToDetail(
 	ctx context.Context, sess *upal.ContentSession, names *pipelineNameCache,
 ) *upal.ContentSessionDetail {
 	analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
 	wfResults := s.GetWorkflowResults(ctx, sess.ID)
+
+	var sessionName string
+	if sess.ParentSessionID != "" {
+		if parent, err := s.sessions.Get(ctx, sess.ParentSessionID); err == nil {
+			sessionName = parent.Name
+		}
+	}
+
 	return &upal.ContentSessionDetail{
 		ID:               sess.ID,
 		PipelineID:       sess.PipelineID,
 		Name:             sess.Name,
 		PipelineName:     names.lookup(sess.PipelineID),
+		SessionName:      sessionName,
 		Status:           sess.Status,
 		TriggerType:      sess.TriggerType,
 		SourceCount:      sess.SourceCount,
@@ -547,7 +511,6 @@ func (s *ContentSessionService) sessionToDetail(
 	}
 }
 
-// buildDetails maps a slice of sessions to lightweight details (no source fetches, no session numbers).
 func (s *ContentSessionService) buildDetails(
 	ctx context.Context, sessions []*upal.ContentSession, names *pipelineNameCache,
 ) []*upal.ContentSessionDetail {
@@ -558,7 +521,6 @@ func (s *ContentSessionService) buildDetails(
 	return details
 }
 
-// buildFullDetails maps sessions to full details including source fetches and session numbers.
 func (s *ContentSessionService) buildFullDetails(
 	ctx context.Context, sessions []*upal.ContentSession,
 	names *pipelineNameCache, numbers map[string]int,
@@ -579,10 +541,6 @@ func (s *ContentSessionService) buildFullDetails(
 	return details, nil
 }
 
-// allPipelineSessions returns active + archived instance sessions for a pipeline,
-// sorted by created_at ascending, so session numbers are stable.
-// Templates are excluded (ListByPipeline filters !IsTemplate) because session
-// numbers only apply to execution instances, not reusable templates.
 func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelineID string) []*upal.ContentSession {
 	active, _ := s.sessions.ListByPipeline(ctx, pipelineID)
 	archived, _ := s.sessions.ListArchivedByPipeline(ctx, pipelineID)
@@ -593,23 +551,15 @@ func (s *ContentSessionService) allPipelineSessions(ctx context.Context, pipelin
 	return all
 }
 
-// --- WorkflowResults ---
-
-// SetWorkflowResults stores workflow results for a session, replacing any existing results.
 func (s *ContentSessionService) SetWorkflowResults(ctx context.Context, sessionID string, results []upal.WorkflowResult) {
 	_ = s.workflowResults.Save(ctx, sessionID, results)
 }
 
-// GetWorkflowResults retrieves workflow results for a session.
-// Returns an empty slice (not nil) if no results are stored.
 func (s *ContentSessionService) GetWorkflowResults(ctx context.Context, sessionID string) []upal.WorkflowResult {
 	results, _ := s.workflowResults.GetBySession(ctx, sessionID)
 	return results
 }
 
-// --- Session Detail (composed views) ---
-
-// GetSessionDetail composes a full ContentSessionDetail from related data.
 func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string) (*upal.ContentSessionDetail, error) {
 	sess, err := s.sessions.Get(ctx, id)
 	if err != nil {
@@ -624,8 +574,6 @@ func (s *ContentSessionService) GetSessionDetail(ctx context.Context, id string)
 	return details[0], nil
 }
 
-// ListSessionDetails returns composed ContentSessionDetail records for all
-// sessions belonging to a pipeline, sorted by created_at descending (newest first).
 func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
 	sessions, err := s.sessions.ListByPipeline(ctx, pipelineID)
 	if err != nil {
@@ -637,15 +585,10 @@ func (s *ContentSessionService) ListSessionDetails(ctx context.Context, pipeline
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(details, func(i, j int) bool {
-		return details[i].CreatedAt.After(details[j].CreatedAt)
-	})
+	sortDetailsNewestFirst(details)
 	return details, nil
 }
 
-// ListSessionDetailsByPipelineAndStatus returns composed session details for a
-// pipeline, optionally filtered by status. If status is empty, all sessions
-// are returned (equivalent to ListSessionDetails).
 func (s *ContentSessionService) ListSessionDetailsByPipelineAndStatus(
 	ctx context.Context, pipelineID string, status upal.ContentSessionStatus,
 ) ([]*upal.ContentSessionDetail, error) {
@@ -665,15 +608,10 @@ func (s *ContentSessionService) ListSessionDetailsByPipelineAndStatus(
 	return filtered, nil
 }
 
-// --- Template Sessions ---
-
-// ListTemplatesByPipeline returns template sessions belonging to a pipeline.
 func (s *ContentSessionService) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
 }
 
-// ListTemplateDetailsByPipeline returns composed ContentSessionDetail records
-// for template sessions belonging to a pipeline, sorted newest first.
 func (s *ContentSessionService) ListTemplateDetailsByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSessionDetail, error) {
 	sessions, err := s.sessions.ListTemplatesByPipeline(ctx, pipelineID)
 	if err != nil {
@@ -685,8 +623,6 @@ func (s *ContentSessionService) ListTemplateDetailsByPipeline(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(details, func(i, j int) bool {
-		return details[i].CreatedAt.After(details[j].CreatedAt)
-	})
+	sortDetailsNewestFirst(details)
 	return details, nil
 }
