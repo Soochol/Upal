@@ -47,6 +47,8 @@ type Server struct {
 	generationManager    *services.GenerationManager
 	aiProviderSvc        *services.AIProviderService
 	authSvc              *services.AuthService
+	sessionSvc           *services.SessionService
+	runSvc               *services.RunService
 	corsOrigins          []string
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
@@ -194,6 +196,36 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/{id}/default", s.setAIProviderDefault)
 			})
 		}
+		// New Session/Run routes (coexist with old pipeline/content-session routes).
+		if s.sessionSvc != nil {
+			r.Route("/sessions", func(r chi.Router) {
+				r.Post("/", s.createNewSession)
+				r.Get("/", s.listNewSessions)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", s.getNewSession)
+					r.Put("/", s.updateNewSession)
+					r.Delete("/", s.deleteNewSession)
+					r.Post("/activate", s.activateNewSession)
+					r.Post("/deactivate", s.deactivateNewSession)
+					r.Post("/runs", s.createNewRun)
+					r.Get("/runs", s.listNewSessionRuns)
+				})
+			})
+		}
+		if s.runSvc != nil {
+			r.Route("/session-runs", func(r chi.Router) {
+				r.Get("/", s.listAllNewRuns)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", s.getNewRunDetail)
+					r.Post("/produce", s.produceNewRun)
+					r.Post("/publish", s.publishNewRun)
+					r.Post("/reject", s.rejectNewRun)
+					r.Get("/sources", s.listNewRunSources)
+					r.Get("/analysis", s.getNewRunAnalysis)
+					r.Patch("/analysis", s.patchNewRunAnalysis)
+				})
+			})
+		}
 	})
 
 	// A2A protocol endpoints (agent card + JSON-RPC).
@@ -235,6 +267,8 @@ func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector
 func (s *Server) SetGenerationManager(gm *services.GenerationManager) { s.generationManager = gm }
 func (s *Server) SetAIProviderService(svc *services.AIProviderService) { s.aiProviderSvc = svc }
 func (s *Server) SetAuthService(svc *services.AuthService)             { s.authSvc = svc }
+func (s *Server) SetSessionService(svc *services.SessionService)       { s.sessionSvc = svc }
+func (s *Server) SetRunService(svc *services.RunService)               { s.runSvc = svc }
 
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
