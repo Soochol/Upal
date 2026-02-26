@@ -16,7 +16,8 @@ var modelCategoryByType = map[string]upal.ModelCategory{
 	"openai":       upal.ModelCategoryText,
 	"claude-code":  upal.ModelCategoryText,
 	"gemini-image": upal.ModelCategoryImage,
-	"zimage": upal.ModelCategoryImage,
+	"openai-image": upal.ModelCategoryImage,
+	"zimage":       upal.ModelCategoryImage,
 	"openai-tts":   upal.ModelCategoryTTS,
 }
 

@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 
-export type NodeType = 'input' | 'agent' | 'output' | 'asset'
+export type NodeType = 'input' | 'agent' | 'output' | 'asset' | 'tool'
 
 export type NodeEditorProps<C = Record<string, unknown>> = {
   nodeId: string

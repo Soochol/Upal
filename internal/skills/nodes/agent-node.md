@@ -31,6 +31,7 @@ When using an image generation model, these additional fields apply:
 |-------|------|----------|-------------|
 | `aspect_ratio` | string | No | Image aspect ratio (e.g. `"16:9"`, `"1:1"`, `"9:16"`) |
 | `steps` | number | No | Number of diffusion steps (higher = better quality, slower) |
+| `quality` | string | No | Image quality (`"standard"` or `"hd"`, default `"standard"`) |
 
 {{include system-prompt}}
 
@@ -56,15 +57,25 @@ For full parameter schemas, return shapes, prompt patterns, and pitfalls, refer 
 
 ### TTS model nodes
 
-When the task requires speech synthesis, use a TTS model instead of a text model:
+When the task requires speech synthesis, use a TTS model instead of a text model. Select a TTS-category model from the "Available models" list provided in the system prompt.
 
 | Field | Value |
 |-------|-------|
-| `model` | `"openai/tts-1-hd"` or `"openai/tts-1"` |
+| `model` | A TTS model from the available models list (TTS category) |
 | `system_prompt` | Speaking instructions: tone, pace, emotion per section |
 | `prompt` | Text to speak — always reference upstream script via `{{script_node}}` |
 
 TTS nodes do NOT support `tools`. The output is stored as a file path string in session state.
+
+### Model categories
+
+The system prompt provides an "Available models" list grouped by category. Models are identified by `"provider/model-name"` format. Common provider types:
+
+- **Text**: anthropic, openai, gemini, claude-code, ollama — for analysis, generation, conversation, tool-use
+- **Image**: gemini-image, openai-image, zimage — only for creating/generating images
+- **TTS**: openai-tts — only for text-to-speech synthesis
+
+Select the appropriate category based on the node's purpose. Within text models, match tier (high/mid/low) to task complexity.
 
 ---
 
@@ -73,6 +84,6 @@ TTS nodes do NOT support `tools`. The output is stored as a file path string in 
 1. ALWAYS set `label`, `model`, `system_prompt`, `prompt`, and `output`. Choose an appropriate model if the user doesn't specify one.
 2. The `system_prompt` MUST follow the SYSTEM PROMPT FRAMEWORK above — generic or shallow prompts are not acceptable.
 3. The `prompt` MUST follow the USER PROMPT FRAMEWORK above — always use `{{node_id}}` template references for upstream data.
-4. For `model`, use the default model listed in "Available models" above unless the user specifies otherwise or a lighter model is clearly appropriate. Match model tier to task complexity.
+4. For `model`, use the default model from the available models list provided in the system prompt unless the user specifies otherwise or a lighter model is clearly appropriate. Match model tier to task complexity.
 5. For `output`, if the node feeds into another agent (mid-pipeline), prepend "You are working as part of an AI system, so no chit-chat and no explaining what you're doing and why." to enforce clean, parseable output. For user-facing final nodes, use natural tone.
 6. Only add tools the task genuinely requires. When a tool is enabled, the `prompt` MUST include explicit instructions for how and when to use it.

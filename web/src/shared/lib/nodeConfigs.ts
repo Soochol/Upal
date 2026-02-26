@@ -35,6 +35,11 @@ export type OutputNodeConfig = {
   description?: string
 }
 
+export type ToolNodeConfig = {
+  tool?: string
+  input?: Record<string, unknown>
+}
+
 export type AssetNodeConfig = {
   file_id?: string
   filename?: string

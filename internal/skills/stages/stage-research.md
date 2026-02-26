@@ -1,6 +1,6 @@
 ---
 name: stage-research
-description: LLM-powered topic research — light (single search) and deep (agent loop) modes
+description: System prompts for "research" source type within collect stages — light (single search) and deep (agent loop) modes. This is NOT a standalone stage type; research is a source type used inside collect stages.
 ---
 
 ## Light Mode — System Prompt

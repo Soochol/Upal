@@ -409,6 +409,65 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
             </div>
           </section>
 
+          {/* ════ EDITORIAL BRIEF ════ */}
+          <section className="mb-8">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Editorial Brief
+            </h3>
+            <div className="border-t border-border/40">
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Purpose</span>
+                <input
+                  type="text"
+                  value={localContext.purpose || ''}
+                  onChange={(e) => setLocalContext({ ...localContext, purpose: e.target.value })}
+                  placeholder="e.g. AI 뉴스 큐레이션, 기술 트렌드 분석"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                />
+              </div>
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Audience</span>
+                <input
+                  type="text"
+                  value={localContext.target_audience || ''}
+                  onChange={(e) => setLocalContext({ ...localContext, target_audience: e.target.value })}
+                  placeholder="e.g. 개발자, 마케터, 경영진"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                />
+              </div>
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Tone</span>
+                <input
+                  type="text"
+                  value={localContext.tone_style || ''}
+                  onChange={(e) => setLocalContext({ ...localContext, tone_style: e.target.value })}
+                  placeholder="e.g. 전문적이고 간결한, 친근한 대화체"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                />
+              </div>
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Keywords</span>
+                <input
+                  type="text"
+                  value={(localContext.focus_keywords ?? []).join(', ')}
+                  onChange={(e) => setLocalContext({ ...localContext, focus_keywords: e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(Boolean) : [] })}
+                  placeholder="Comma separated: AI, LLM, automation"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                />
+              </div>
+              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Exclude</span>
+                <input
+                  type="text"
+                  value={(localContext.exclude_keywords ?? []).join(', ')}
+                  onChange={(e) => setLocalContext({ ...localContext, exclude_keywords: e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(Boolean) : [] })}
+                  placeholder="Comma separated: crypto, NFT"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
+                />
+              </div>
+            </div>
+          </section>
+
           {/* ════ PROCESSING ════ */}
           <section className="mb-8">
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">

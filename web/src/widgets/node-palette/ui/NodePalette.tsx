@@ -17,6 +17,7 @@ const iconColor: Record<string, string> = {
   '--node-input': 'text-node-input',
   '--node-agent': 'text-node-agent',
   '--node-output': 'text-node-output',
+  '--node-tool': 'text-node-tool',
   '--node-asset': 'text-node-asset',
 }
 
@@ -24,6 +25,7 @@ const hoverAccent: Record<string, string> = {
   '--node-input': 'hover:bg-node-input/10',
   '--node-agent': 'hover:bg-node-agent/10',
   '--node-output': 'hover:bg-node-output/10',
+  '--node-tool': 'hover:bg-node-tool/10',
   '--node-asset': 'hover:bg-node-asset/10',
 }
 

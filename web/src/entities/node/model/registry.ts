@@ -1,4 +1,4 @@
-import { Inbox, Bot, ArrowRightFromLine, FileBox } from 'lucide-react'
+import { Inbox, Bot, ArrowRightFromLine, FileBox, Wrench } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { NodeType, NodeTypeDefinition, NodeEditorProps } from '../types'
 
@@ -69,6 +69,20 @@ registerNode({
   glow: 'shadow-[0_0_20px_var(--color-node-output)/0.25]',
   paletteBg: 'bg-node-output/10 text-node-output border-node-output/20 hover:bg-node-output/20',
   cssVar: 'var(--node-output)',
+})
+
+registerNode({
+  type: 'tool',
+  label: 'Tool',
+  description: 'Direct tool execution (no LLM)',
+  icon: Wrench,
+  border: 'border-node-tool/20',
+  borderSelected: 'border-node-tool/60',
+  headerBg: 'bg-node-tool/10',
+  accent: 'bg-node-tool text-node-tool-foreground',
+  glow: 'shadow-[0_0_20px_var(--color-node-tool)/0.25]',
+  paletteBg: 'bg-node-tool/10 text-node-tool border-node-tool/20 hover:bg-node-tool/20',
+  cssVar: 'var(--node-tool)',
 })
 
 registerNode({

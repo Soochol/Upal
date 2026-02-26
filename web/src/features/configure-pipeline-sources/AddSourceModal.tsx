@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from 'react'
-import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
+import { X, Rss, Flame, MessageCircle, TrendingUp, Globe, Search } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
 
 type SourceTypeDef = {
   type: PipelineSourceType
-  source_type: 'static' | 'signal'
+  source_type: 'static' | 'signal' | 'research'
   label: string
   description: string
   icon: ReactNode
@@ -21,8 +21,12 @@ export const STATIC_SOURCES: SourceTypeDef[] = [
 
 export const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'reddit',        source_type: 'signal', label: 'Reddit',         description: 'Subreddit hot posts',        icon: <MessageCircle className="h-4 w-4" />, accent: 'bg-[oklch(0.7_0.15_25)]/12', accentText: 'text-[oklch(0.6_0.15_25)]' },
-  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',  description: 'Keyword search spikes',      icon: <TrendingUp className="h-4 w-4" />,    accent: 'bg-info/12', accentText: 'text-info' },
+  { type: 'google_trends', source_type: 'signal', label: 'Google Trends',  description: 'Trending topics by region',  icon: <TrendingUp className="h-4 w-4" />,    accent: 'bg-info/12', accentText: 'text-info' },
   { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
+]
+
+export const RESEARCH_SOURCES: SourceTypeDef[] = [
+  { type: 'research', source_type: 'research', label: 'Web Research', description: 'LLM-powered topic investigation', icon: <Search className="h-4 w-4" />, accent: 'bg-success/12', accentText: 'text-success' },
 ]
 
 type Props = {
@@ -35,7 +39,7 @@ function generateId() {
   return `src-${crypto.randomUUID()}`
 }
 
-const ALL_SOURCES = [...STATIC_SOURCES, ...SIGNAL_SOURCES]
+const ALL_SOURCES = [...STATIC_SOURCES, ...SIGNAL_SOURCES, ...RESEARCH_SOURCES]
 
 type SourceGroupProps = {
   label: string
@@ -126,6 +130,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
             <div className="space-y-5">
               <SourceGroup label="Data Sources" sources={STATIC_SOURCES} onSelect={handleSelectType} />
               <SourceGroup label="Signals" sources={SIGNAL_SOURCES} onSelect={handleSelectType} />
+              <SourceGroup label="Research" sources={RESEARCH_SOURCES} onSelect={handleSelectType} />
             </div>
           ) : (
             <div className="space-y-4">
@@ -167,7 +172,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
               )}
 
-              {(draft.type === 'google_trends' || draft.type === 'social') && (
+              {draft.type === 'social' && (
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">Keywords to monitor</label>
                   <KeywordTagInput
@@ -214,6 +219,32 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
               )}
 
+              {draft.type === 'research' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Topic</label>
+                    <input
+                      type="text"
+                      value={draft.topic ?? ''}
+                      onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
+                      placeholder="EV battery technology trends 2026"
+                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Depth</label>
+                    <select
+                      value={draft.depth ?? 'deep'}
+                      onChange={(e) => setDraft({ ...draft, depth: e.target.value as 'light' | 'deep' })}
+                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="light">Light — single search pass</option>
+                      <option value="deep">Deep — iterative sub-question decomposition</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
               {(draft.type === 'reddit' || draft.type === 'hn') && (
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1.5">Min score</label>
@@ -227,6 +258,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
               )}
 
+              {draft.type !== 'research' && (
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
                 <input
@@ -236,6 +268,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                   className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
+              )}
             </div>
           )}
         </div>

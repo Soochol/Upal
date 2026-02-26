@@ -68,6 +68,8 @@
   --color-node-subworkflow-foreground: var(--node-subworkflow-foreground);
   --color-node-asset: var(--node-asset);
   --color-node-asset-foreground: var(--node-asset-foreground);
+  --color-node-tool: var(--node-tool);
+  --color-node-tool-foreground: var(--node-tool-foreground);
 
   /* ── Radius ── */
   --radius-sm: calc(var(--radius) - 4px);
@@ -143,6 +145,8 @@
   --node-subworkflow-foreground: oklch(0.985 0 0);
   --node-asset: oklch(0.75 0.08 200);
   --node-asset-foreground: oklch(0.985 0 0);
+  --node-tool: oklch(0.65 0.17 25);
+  --node-tool-foreground: oklch(0.985 0 0);
 
   /* ── Hero gradient (light) ── */
   --hero-gradient-1: oklch(0.88 0.06 290 / 55%);
@@ -217,6 +221,8 @@
   --node-subworkflow-foreground: oklch(0.985 0 0);
   --node-asset: oklch(0.65 0.10 200);
   --node-asset-foreground: oklch(0.985 0 0);
+  --node-tool: oklch(0.65 0.17 25);
+  --node-tool-foreground: oklch(0.985 0 0);
 
   /* ── Hero gradient (dark) ── */
   --hero-gradient-1: oklch(0.28 0.09 290 / 70%);

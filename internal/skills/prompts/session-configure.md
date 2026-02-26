@@ -17,7 +17,7 @@ Array of data sources. Each source has:
 ```json
 {
   "id": "unique-string",
-  "type": "rss|hn|reddit|google_trends|social|http|research",
+  "type": "rss|hn|reddit|google_trends|social|http|scrape|research",
   "source_type": "static|signal|research",
   "label": "한국어 표시 이름",
   "url": "...",
@@ -32,7 +32,7 @@ Array of data sources. Each source has:
 ```
 
 Source type classification:
-- `static`: RSS, HTTP — fetch content directly from URL
+- `static`: RSS, HTTP, Scrape — fetch content directly from URL
 - `signal`: HN, Reddit, Google Trends, Social — discover trending/popular content
 - `research`: LLM-powered web research — no URL needed, performs web searches automatically
 
@@ -40,9 +40,10 @@ Type-specific required fields:
 - **rss**: `url` (feed URL), `limit` (max items, default 20)
 - **hn**: `min_score` (minimum points, default 10), `limit`
 - **reddit**: `subreddit` (name without r/), `min_score`, `limit`
-- **google_trends**: `keywords` (array of search terms), `geo` (country code, optional), `limit`
+- **google_trends**: `geo` (country code, default "US"), `limit` (max items). Fetches trending topics via Google Trends RSS — no keyword filtering available.
 - **social**: `keywords` (array of search terms), `accounts` (array of Bluesky/Mastodon handles), `limit`
 - **http**: `url` (endpoint URL), `limit`
+- **scrape**: `url` (page URL), `selector` (CSS selector, required), `attribute` (HTML attribute to extract; omit for text content), `scrape_limit` (max elements, default 30). Prefer `rss` over scraping when a feed is available.
 - **research**: `topic` (subject to investigate, required), `depth` ("light" | "deep", default "deep"), `model` (required, must support native web_search — Anthropic/Gemini/OpenAI only, NOT Ollama). Light mode does a single search pass; deep mode runs iterative sub-question decomposition.
 
 Source `id` format: `"src-{type}-{index}"` (e.g. `"src-rss-1"`, `"src-hn-1"`, `"src-research-1"`).
@@ -96,7 +97,7 @@ Note: `description` and `prompt` are display-only fields set during session crea
 
 1. **Partial updates**: Only include fields that the user's request affects. If the user only asks about sources, only return `sources`. If they describe a full session, return all relevant fields.
 2. **Source IDs**: Always generate unique `id` values for new sources using `"src-{type}-{index}"` format.
-3. **Source type**: Always set `source_type` correctly — `"static"` for RSS/HTTP, `"signal"` for HN/Reddit/Google Trends/Social, `"research"` for research.
+3. **Source type**: Always set `source_type` correctly — `"static"` for RSS/HTTP/Scrape, `"signal"` for HN/Reddit/Google Trends/Social, `"research"` for research.
 4. **Workflow names**: ONLY reference workflows from the "Available workflows" list. NEVER invent workflow names.
 5. **Model selection**: ONLY use models from the "Available models" list. Match model capability to the session's analysis needs.
 6. **Language**: ALL user-facing text (labels, purpose, descriptions, explanation) MUST be in Korean (한국어).
