@@ -241,6 +241,21 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 			})
 		}
 		return result
+
+	case "research":
+		items, ok := data.([]map[string]any)
+		if !ok {
+			return nil
+		}
+		result := make([]upal.SourceItem, 0, len(items))
+		for _, item := range items {
+			result = append(result, upal.SourceItem{
+				Title:   stringVal(item, "title"),
+				URL:     stringVal(item, "url"),
+				Content: stringVal(item, "summary"),
+			})
+		}
+		return result
 	}
 
 	return nil
@@ -829,6 +844,15 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 			cs.Keywords = ps.Keywords
 			cs.Accounts = ps.Accounts
 			cs.Limit = ps.Limit
+
+		case "research":
+			cs.Type = "research"
+			cs.Topic = ps.Topic
+			cs.Model = ps.Model
+			cs.Depth = ps.Depth
+			if cs.Depth == "" {
+				cs.Depth = "deep"
+			}
 
 		default:
 			log.Printf("content_collector: skipping unknown source type %q (source %s)", ps.Type, ps.ID)
