@@ -1,18 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, FileText,
-  Plus, ArrowLeft, Settings, GitBranch,
+  Plus, ArrowLeft, GitBranch,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { EditableName } from '@/shared/ui/EditableName'
 import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
-import {
-  SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter,
-  sessionDisplayName, computeFilterCounts,
-} from '@/entities/content-session/constants'
-import type { SessionFilter } from '@/entities/content-session/constants'
+import { sessionDisplayName } from '@/entities/content-session/constants'
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -22,7 +17,7 @@ interface SessionListPanelProps {
   isContentPipeline?: boolean
   selectedSessionId: string | null
   onSelectSession: (id: string) => void
-  onStartSession?: () => void
+  onNewSession?: () => void
   onBack?: () => void
   className?: string
 }
@@ -33,33 +28,26 @@ export function SessionListPanel({
   isContentPipeline = true,
   selectedSessionId,
   onSelectSession,
-  onStartSession,
+  onNewSession,
   onBack,
   className,
 }: SessionListPanelProps) {
   const queryClient = useQueryClient()
-  const [activeFilter, setActiveFilter] = useState<SessionFilter>('all')
   const [search, setSearch] = useState('')
 
   // ─── Data fetching ───────────────────────────────────────────────────────
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
-    queryKey: ['content-sessions', { pipelineId }],
-    queryFn: () => fetchContentSessions({ pipelineId }),
-    enabled: !!pipelineId,
-  })
-
-  const { data: templateSessions = [] } = useQuery({
     queryKey: ['content-sessions', { pipelineId, templateOnly: true }],
     queryFn: () => fetchContentSessions({ pipelineId, templateOnly: true }),
     enabled: !!pipelineId,
   })
-  const templateSession = templateSessions[0] ?? null
+
 
   // ─── Mutations ───────────────────────────────────────────────────────────
 
   const invalidateSessions = () => {
-    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, templateOnly: true }] })
   }
 
   const renameMutation = useMutation({
@@ -69,27 +57,14 @@ export function SessionListPanel({
 
   // ─── Derived data ────────────────────────────────────────────────────────
 
-  const pipelineFilterTabs = useMemo(
-    () => SESSION_FILTER_TABS.filter(tab => tab.value !== 'archived'),
-    [],
-  )
-
-  const filterCounts = useMemo(
-    () => computeFilterCounts(sessions, []),
-    [sessions],
-  )
-
   const filteredSessions = useMemo(() => {
-    return sessions
-      .filter(s => matchesSessionFilter(s.status, activeFilter))
-      .filter(s => {
-        if (!search) return true
-        const q = search.toLowerCase()
-        return sessionDisplayName(s).toLowerCase().includes(q) ||
-          s.analysis?.summary?.toLowerCase().includes(q) ||
-          s.status.includes(q)
-      })
-  }, [sessions, activeFilter, search])
+    if (!search) return sessions
+    const q = search.toLowerCase()
+    return sessions.filter(s =>
+      sessionDisplayName(s).toLowerCase().includes(q) ||
+      s.schedule?.toLowerCase().includes(q),
+    )
+  }, [sessions, search])
 
   const showSessionList = isContentPipeline || sessions.length > 0 || sessionsLoading
 
@@ -107,13 +82,13 @@ export function SessionListPanel({
         <h2 className="text-sm font-semibold truncate flex-1 min-w-0">
           {pipelineName ?? 'Sessions'}
         </h2>
-        {onStartSession && (
+        {onNewSession && (
           <button
-            onClick={onStartSession}
+            onClick={onNewSession}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
           >
             <Plus className="h-3 w-3" />
-            <span className="hidden sm:inline">Start</span>
+            <span className="hidden sm:inline">New</span>
           </button>
         )}
       </div>
@@ -132,43 +107,17 @@ export function SessionListPanel({
       {/* Search + Filters */}
       {showSessionList && (
         <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search sessions..."
-              className="w-full h-9 pl-9 pr-4 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
-            {pipelineFilterTabs.map(tab => {
-              const count = filterCounts[tab.value]
-              const isActive = activeFilter === tab.value
-              return (
-                <button
-                  key={tab.value}
-                  onClick={() => setActiveFilter(tab.value)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0',
-                    isActive
-                      ? 'bg-foreground text-background'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                  )}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span className={cn(
-                      'text-[10px] font-bold tabular-nums px-1 rounded-full',
-                      tab.value === 'pending' ? 'bg-warning/20 text-warning' : 'bg-muted-foreground/20',
-                    )}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search sessions..."
+                className="w-full h-9 pl-9 pr-4 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -176,37 +125,6 @@ export function SessionListPanel({
       {/* Session list */}
       {showSessionList && (
         <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
-          {/* Template session (pinned "Defaults") */}
-          {templateSession && (
-            <>
-              <button
-                onClick={() => onSelectSession(templateSession.id)}
-                className={cn(
-                  'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border',
-                  selectedSessionId === templateSession.id
-                    ? 'bg-primary/5 border-primary/20 shadow-sm'
-                    : 'bg-transparent border-transparent hover:bg-muted/50',
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <Settings className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                  <span className={cn(
-                    'text-sm font-semibold',
-                    selectedSessionId === templateSession.id ? 'text-primary' : 'text-foreground',
-                  )}>
-                    Pipeline Defaults
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground/50 mt-1 ml-6">
-                  New sessions inherit these settings
-                </p>
-              </button>
-              {filteredSessions.length > 0 && (
-                <div className="border-b border-border/30 mx-2 my-1" />
-              )}
-            </>
-          )}
-
           {/* Regular sessions */}
           {sessionsLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -232,7 +150,10 @@ export function SessionListPanel({
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', SESSION_STATUS_DOT[s.status] ?? 'bg-muted')} />
+                      <span className={cn(
+                        'w-1.5 h-1.5 rounded-full shrink-0',
+                        s.status === 'active' ? 'bg-success' : 'bg-muted-foreground/30',
+                      )} />
                       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                       <EditableName
                         value={sessionDisplayName(s)}
@@ -245,19 +166,11 @@ export function SessionListPanel({
                       {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
-                  {s.analysis?.summary ? (
-                    <p className={cn('text-sm line-clamp-2', isSelected ? 'text-foreground/80' : 'text-muted-foreground')}>
-                      {s.analysis.summary}
-                    </p>
+                  {s.schedule ? (
+                    <p className="text-xs text-muted-foreground/70 truncate">{s.schedule}</p>
                   ) : (
-                    <p className="text-xs text-muted-foreground/50 italic">Processing...</p>
+                    <p className="text-xs text-muted-foreground/50 italic">No schedule set</p>
                   )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <StatusBadge status={s.status} />
-                    {s.status === 'pending_review' && (
-                      <span className="flex h-2 w-2 rounded-full bg-warning animate-pulse ml-auto" title="Needs Review" />
-                    )}
-                  </div>
                 </button>
               )
             })
