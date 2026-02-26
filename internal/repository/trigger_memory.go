@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryTriggerRepository stores triggers in memory.
 type MemoryTriggerRepository struct {
 	store *memstore.Store[*upal.Trigger]
 }
@@ -26,7 +26,7 @@ func (r *MemoryTriggerRepository) Create(ctx context.Context, trigger *upal.Trig
 func (r *MemoryTriggerRepository) Get(ctx context.Context, id string) (*upal.Trigger, error) {
 	t, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("trigger %q: %w", id, ErrNotFound)
 	}
 	return t, err
 }
@@ -34,7 +34,7 @@ func (r *MemoryTriggerRepository) Get(ctx context.Context, id string) (*upal.Tri
 func (r *MemoryTriggerRepository) Delete(ctx context.Context, id string) error {
 	err := r.store.Delete(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return ErrNotFound
+		return fmt.Errorf("trigger %q: %w", id, ErrNotFound)
 	}
 	return err
 }

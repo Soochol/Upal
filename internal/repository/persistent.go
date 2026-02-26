@@ -9,15 +9,11 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PersistentRepository wraps a MemoryRepository with a PostgreSQL backend.
-// Writes go to both stores (DB failure is logged but non-fatal).
-// Reads try memory first, falling back to the database.
 type PersistentRepository struct {
 	mem *MemoryRepository
 	db  *db.DB
 }
 
-// NewPersistent creates a repository backed by both memory and PostgreSQL.
 func NewPersistent(mem *MemoryRepository, database *db.DB) *PersistentRepository {
 	return &PersistentRepository{mem: mem, db: database}
 }
@@ -31,25 +27,21 @@ func (r *PersistentRepository) Create(ctx context.Context, wf *upal.WorkflowDefi
 }
 
 func (r *PersistentRepository) Get(ctx context.Context, name string) (*upal.WorkflowDefinition, error) {
-	// Fast path: in-memory.
 	wf, err := r.mem.Get(ctx, name)
 	if err == nil {
 		return wf, nil
 	}
 
-	// Fallback: database.
 	row, dbErr := r.db.GetWorkflow(ctx, name)
 	if dbErr != nil {
-		return nil, err // return original ErrNotFound
+		return nil, err
 	}
 
-	// Cache in memory for future lookups.
 	_ = r.mem.Create(ctx, &row.Definition)
 	return &row.Definition, nil
 }
 
 func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefinition, error) {
-	// Prefer DB for durable listing.
 	rows, err := r.db.ListWorkflows(ctx)
 	if err == nil {
 		result := make([]*upal.WorkflowDefinition, len(rows))
@@ -64,9 +56,7 @@ func (r *PersistentRepository) List(ctx context.Context) ([]*upal.WorkflowDefini
 
 func (r *PersistentRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
 	_ = r.mem.Update(ctx, name, wf)
-	// Use upsert semantics: CreateWorkflow uses INSERT ON CONFLICT DO UPDATE,
-	// so it succeeds whether the row exists in DB or not. This handles the
-	// race where the workflow exists in memory but not yet in DB.
+	// CreateWorkflow uses upsert (INSERT ON CONFLICT DO UPDATE).
 	if _, err := r.db.CreateWorkflow(ctx, wf); err != nil {
 		return fmt.Errorf("db persist failed: %w", err)
 	}

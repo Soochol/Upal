@@ -35,6 +35,5 @@ func (s *Server) resumeNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "resumed"})
+	writeJSON(w, map[string]string{"status": "resumed"})
 }

@@ -4,6 +4,7 @@ import { Loader2, Archive } from 'lucide-react'
 
 import { fetchPipeline } from '@/entities/pipeline/api'
 import { fetchContentSession, publishSession, produceSession, archiveSession as archiveSessionApi } from '@/entities/content-session/api'
+
 import { useContentSessionStore } from '@/entities/content-session/store'
 import type { Pipeline } from '@/entities/pipeline'
 import type { ContentSession } from '@/entities/content-session'
@@ -33,10 +34,11 @@ function getStageState(stage: Stage, session: ContentSession): StageState {
 type Props = {
     pipelineId: string
     sessionId: string
+    showArchive?: boolean
     onMutate?: () => void
 }
 
-export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props) {
+export function SessionDetailPreview({ pipelineId, sessionId, showArchive = false, onMutate }: Props) {
     const queryClient = useQueryClient()
     const { approveSession, rejectSession } = useContentSessionStore()
 
@@ -81,7 +83,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
                 }
                 await approveSession(sessionId, selectedWorkflows, channelMap)
                 await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+                await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
                 onMutate?.()
             } finally {
                 setIsApproving(false)
@@ -96,7 +98,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
         try {
             await rejectSession(sessionId)
             await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-            await queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+            await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
             onMutate?.()
         } finally {
             setIsRejecting(false)
@@ -110,7 +112,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
             try {
                 await publishSession(sessionId, approvedRunIds)
                 await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-                await queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+                await queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
                 onMutate?.()
             } finally {
                 setIsPublishing(false)
@@ -124,12 +126,12 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
         const angles = session.analysis?.angles?.filter(a => a.selected && a.workflow_name) ?? []
         if (angles.length === 0) return
         const sessionWfs = session.session_workflows ?? []
-        const workflows = angles.map(a => ({
-            name: a.workflow_name!,
-            ...(sessionWfs.find(pw => pw.workflow_name === a.workflow_name)?.channel_id
-                ? { channel_id: sessionWfs.find(pw => pw.workflow_name === a.workflow_name)!.channel_id }
-                : {}),
-        }))
+        const workflows = angles.map(a => {
+            const channelId = sessionWfs.find(pw => pw.workflow_name === a.workflow_name)?.channel_id
+            return channelId
+                ? { name: a.workflow_name!, channel_id: channelId }
+                : { name: a.workflow_name! }
+        })
         await produceSession(sessionId, workflows)
         await queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
     }, [session, pipeline, sessionId, queryClient])
@@ -138,8 +140,9 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
         mutationFn: () => archiveSessionApi(sessionId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-            queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
-            queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId, archived: true }] })
+            queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
+            queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
+            queryClient.invalidateQueries({ queryKey: ['inbox-sessions-archived'] })
             onMutate?.()
         },
     })
@@ -161,7 +164,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, onMutate }: Props)
             {/* Sticky progress stepper + actions */}
             <div className="relative">
                 <StickyProgressBar session={session} />
-                {!session.archived_at && (
+                {showArchive && !session.archived_at && (
                     <button
                         onClick={() => archiveMutation.mutate()}
                         disabled={archiveMutation.isPending}

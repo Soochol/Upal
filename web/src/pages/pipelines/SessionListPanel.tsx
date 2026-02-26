@@ -7,7 +7,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { EditableName } from '@/shared/ui/EditableName'
 import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
-import { sessionDisplayName } from '@/entities/content-session/constants'
+import { sessionDisplayName, SESSION_STATUS_DOT } from '@/entities/content-session/constants'
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -152,7 +152,7 @@ export function SessionListPanel({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className={cn(
                         'w-1.5 h-1.5 rounded-full shrink-0',
-                        s.status === 'active' ? 'bg-success' : 'bg-muted-foreground/30',
+                        SESSION_STATUS_DOT[s.status] ?? 'bg-muted-foreground/30',
                       )} />
                       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                       <EditableName

@@ -3,7 +3,6 @@ package ports
 import "github.com/soochol/upal/internal/upal"
 
 // RunManagerPort defines the run event buffering and streaming boundary.
-// The API layer uses Register + Subscribe; the RunPublisher uses Append/Complete/Fail.
 type RunManagerPort interface {
 	Register(runID string)
 	Append(runID string, ev upal.EventRecord)

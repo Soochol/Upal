@@ -10,7 +10,6 @@ import (
 
 const maxRunRecords = 1000
 
-// MemoryRunRepository stores run records in memory with FIFO eviction.
 type MemoryRunRepository struct {
 	mu      sync.RWMutex
 	records map[string]*upal.RunRecord
@@ -27,7 +26,6 @@ func (r *MemoryRunRepository) Create(_ context.Context, record *upal.RunRecord) 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// FIFO eviction when at capacity.
 	if len(r.order) >= maxRunRecords {
 		oldest := r.order[0]
 		r.order = r.order[1:]
@@ -72,20 +70,7 @@ func (r *MemoryRunRepository) ListByWorkflow(_ context.Context, workflowName str
 		}
 	}
 
-	// Sort by created_at descending (newest first).
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].CreatedAt.After(filtered[j].CreatedAt)
-	})
-
-	total := len(filtered)
-	if offset >= total {
-		return nil, total, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-	return filtered[offset:end], total, nil
+	return sortAndPaginate(filtered, limit, offset), len(filtered), nil
 }
 
 func (r *MemoryRunRepository) ListAll(_ context.Context, limit, offset int, status string) ([]*upal.RunRecord, int, error) {
@@ -99,18 +84,21 @@ func (r *MemoryRunRepository) ListAll(_ context.Context, limit, offset int, stat
 		}
 	}
 
-	// Sort by created_at descending.
-	sort.Slice(all, func(i, j int) bool {
-		return all[i].CreatedAt.After(all[j].CreatedAt)
+	return sortAndPaginate(all, limit, offset), len(all), nil
+}
+
+// sortAndPaginate sorts runs by CreatedAt descending and returns the requested page.
+func sortAndPaginate(runs []*upal.RunRecord, limit, offset int) []*upal.RunRecord {
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].CreatedAt.After(runs[j].CreatedAt)
 	})
 
-	total := len(all)
-	if offset >= total {
-		return nil, total, nil
+	if offset >= len(runs) {
+		return nil
 	}
 	end := offset + limit
-	if end > total {
-		end = total
+	if end > len(runs) {
+		end = len(runs)
 	}
-	return all[offset:end], total, nil
+	return runs[offset:end]
 }

@@ -7,6 +7,24 @@ export interface ContentSessionFilters {
   pipelineId?: string
 }
 
+/** Derive badge counts from a sessions list. */
+function badgeCounts(sessions: ContentSession[]): { pendingCount: number; publishReadyCount: number } {
+  return {
+    pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
+    publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
+  }
+}
+
+/** Replace a single session in the list and recompute badge counts. */
+function replaceSession(
+  sessions: ContentSession[],
+  id: string,
+  updated: ContentSession,
+): { sessions: ContentSession[]; pendingCount: number; publishReadyCount: number } {
+  const next = sessions.map((s) => (s.id === id ? updated : s))
+  return { sessions: next, ...badgeCounts(next) }
+}
+
 interface ContentSessionStore {
   sessions: ContentSession[]
   filters: ContentSessionFilters
@@ -15,12 +33,10 @@ interface ContentSessionStore {
 
   setFilters: (filters: ContentSessionFilters) => void
   fetchSessions: () => Promise<void>
-  // Fetches badge counts (pending_review + approved) — safe for sidebar polling
   syncBadgeCounts: () => Promise<void>
   approveSession: (id: string, selectedAngles: string[], channelMap?: Record<string, string>) => Promise<void>
-  rejectSession: (id: string, reason?: string) => Promise<void>
+  rejectSession: (id: string) => Promise<void>
 
-  // Derived
   pendingCount: number
   publishReadyCount: number
 }
@@ -43,7 +59,6 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
         pipelineId: filters.pipelineId,
         status: filters.status,
       })
-      // Only update pendingCount when fetching unfiltered (status not specified)
       const updates: Partial<ContentSessionStore> = { sessions, loading: false }
       if (!filters.status) {
         updates.pendingCount = sessions.filter((s) => s.status === 'pending_review').length
@@ -64,23 +79,16 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
       ])
       set({ pendingCount: pending.length, publishReadyCount: approved.length + producing.length + errored.length })
     } catch {
-      // Badge polling failure is non-critical — fail silently
+      // Badge polling failure is non-critical
     }
   },
 
   approveSession: async (id, selectedAngles, channelMap) => {
     const updated = await approveSession(id, selectedAngles)
-    set((state) => {
-      const sessions = state.sessions.map((s) => (s.id === id ? updated : s))
-      return {
-        sessions,
-        pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
-        publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
-      }
-    })
-    // Chain: trigger production with the selected workflows
+    set((state) => replaceSession(state.sessions, id, updated))
+
     if (selectedAngles.length > 0) {
-      const workflowRequests = selectedAngles.map(name => ({
+      const workflowRequests = selectedAngles.map((name) => ({
         name,
         ...(channelMap?.[name] ? { channel_id: channelMap[name] } : {}),
       }))
@@ -90,15 +98,8 @@ export const useContentSessionStore = create<ContentSessionStore>((set, get) => 
     }
   },
 
-  rejectSession: async (id, reason) => {
-    const updated = await rejectSession(id, reason)
-    set((state) => {
-      const sessions = state.sessions.map((s) => (s.id === id ? updated : s))
-      return {
-        sessions,
-        pendingCount: sessions.filter((s) => s.status === 'pending_review').length,
-        publishReadyCount: sessions.filter((s) => s.status === 'approved' || s.status === 'producing').length,
-      }
-    })
+  rejectSession: async (id) => {
+    const updated = await rejectSession(id)
+    set((state) => replaceSession(state.sessions, id, updated))
   },
 }))

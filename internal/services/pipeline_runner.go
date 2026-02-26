@@ -13,14 +13,11 @@ import (
 
 var _ ports.PipelineRunner = (*PipelineRunner)(nil)
 
-// StageExecutor is the interface for executing a pipeline stage.
-// Implement this interface to add new stage types.
 type StageExecutor interface {
 	Type() string
 	Execute(ctx context.Context, pipeline *upal.Pipeline, stage upal.Stage, prevResult *upal.StageResult) (*upal.StageResult, error)
 }
 
-// PipelineRunner orchestrates sequential execution of pipeline stages.
 type PipelineRunner struct {
 	executors map[string]StageExecutor
 	runRepo   repository.PipelineRunRepository
@@ -54,7 +51,6 @@ func (r *PipelineRunner) Start(ctx context.Context, pipeline *upal.Pipeline, inp
 	return run, nil
 }
 
-// Resume continues a paused pipeline run from the stage after run.CurrentStage.
 func (r *PipelineRunner) Resume(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun) error {
 	currentIdx := -1
 	for i, stage := range pipeline.Stages {
@@ -69,10 +65,7 @@ func (r *PipelineRunner) Resume(ctx context.Context, pipeline *upal.Pipeline, ru
 	return r.executeFrom(ctx, pipeline, run, currentIdx+1, nil)
 }
 
-// executeFrom runs pipeline stages sequentially starting from startIdx.
-// It updates run in the repository at each transition.
 func (r *PipelineRunner) executeFrom(ctx context.Context, pipeline *upal.Pipeline, run *upal.PipelineRun, startIdx int, inputs map[string]any) error {
-	// Seed prevResult from webhook/trigger inputs or from the last completed stage.
 	var prevResult *upal.StageResult
 	if inputs != nil {
 		prevResult = &upal.StageResult{Output: inputs, Status: upal.StageStatusCompleted}

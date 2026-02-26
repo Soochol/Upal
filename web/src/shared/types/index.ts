@@ -94,37 +94,8 @@ export type ConfigurePipelineResponse = {
   created_workflows?: CreatedWorkflowInfo[]
 }
 
-// --- Run (re-exported from entity) ---
-export type {
-  RunRecord, NodeRunRecord, RunListResponse,
-  ToolCall, ToolResult, TokenUsage,
-  NodeStartedEvent, ToolCallEvent, ToolResultEvent, NodeCompletedEvent,
-  NodeSkippedEvent, NodeWaitingEvent, NodeResumedEvent,
-  WorkflowDoneEvent, WorkflowErrorEvent, InfoEvent, LogEvent, RunEvent,
-} from '@/entities/run/types'
-
-// --- Schedules ---
-
-export type Schedule = {
-  id: string
-  workflow_name: string
-  cron_expr: string
-  inputs?: Record<string, unknown>
-  enabled: boolean
-  timezone: string
-  retry_policy?: RetryPolicy
-  next_run_at: string
-  last_run_at?: string
-  created_at: string
-  updated_at: string
-}
-
-export type RetryPolicy = {
-  max_retries: number
-  initial_delay: number
-  max_delay: number
-  backoff_factor: number
-}
+// --- Run (re-exported for use within shared layer) ---
+export type { RunEvent } from '@/entities/run/types'
 
 // --- Triggers ---
 
@@ -138,22 +109,5 @@ export type Trigger = {
   created_at: string
 }
 
-// --- Scheduler Stats ---
-
-export type SchedulerStats = {
-  concurrency?: { active_runs: number; global_max: number; per_workflow: number }
-}
-
 // --- Content Session (re-exported from entity) ---
 export type { ContentSessionStatus, SourceType } from '@/entities/content-session'
-
-// --- Pipeline (re-exported from entity) ---
-export type {
-  PipelineSourceType, PipelineSource, PipelineContext, PipelineWorkflow,
-  Pipeline, Stage, CollectSource, StageConfig, PipelineRun, StageResult,
-  SessionStage, SessionStatus, PipelineSession,
-} from '@/entities/pipeline/types'
-
-
-// --- Connection (re-exported from entity) ---
-export type { ConnectionType, Connection, ConnectionCreate } from '@/entities/connection'

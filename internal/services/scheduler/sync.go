@@ -1,9 +1,5 @@
 package scheduler
 
-// sync.go — PipelineScheduleSync responsibility layer.
-// Synchronises cron entries with pipeline schedule stages, implemented as
-// methods on SchedulerService (same package, no circular import).
-
 import (
 	"context"
 	"log/slog"
@@ -12,12 +8,8 @@ import (
 )
 
 // SyncPipelineSchedules synchronizes cron jobs with a pipeline's schedule stages.
-// Call after creating or updating a pipeline.
-// Stages with existing schedule_id are kept; new stages get a cron job registered.
-// Orphaned pipeline schedules (no longer referenced) are removed.
-// NOTE: pipeline.Stages is modified in-place; caller must re-save the pipeline.
+// Pipeline.Stages is modified in-place; caller must re-save the pipeline.
 func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *upal.Pipeline) error {
-	// Collect schedule IDs still referenced by stages.
 	inUse := map[string]bool{}
 	for _, stage := range pipeline.Stages {
 		if stage.Config.ScheduleID != "" {
@@ -25,7 +17,6 @@ func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *
 		}
 	}
 
-	// Remove orphaned schedules for this pipeline.
 	existing, err := s.scheduleRepo.ListByPipeline(ctx, pipeline.ID)
 	if err != nil {
 		slog.Warn("scheduler: failed to list existing pipeline schedules", "pipeline", pipeline.ID, "err", err)
@@ -38,7 +29,6 @@ func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *
 		}
 	}
 
-	// Create cron jobs for new schedule stages without a schedule_id.
 	for i := range pipeline.Stages {
 		stage := &pipeline.Stages[i]
 		if stage.Type != "schedule" || stage.Config.Cron == "" || stage.Config.ScheduleID != "" {
@@ -64,8 +54,6 @@ func (s *SchedulerService) SyncPipelineSchedules(ctx context.Context, pipeline *
 	return nil
 }
 
-// RemovePipelineSchedules removes all cron jobs associated with a pipeline.
-// Call before deleting a pipeline.
 func (s *SchedulerService) RemovePipelineSchedules(ctx context.Context, pipelineID string) error {
 	schedules, err := s.scheduleRepo.ListByPipeline(ctx, pipelineID)
 	if err != nil {

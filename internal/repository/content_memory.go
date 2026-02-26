@@ -10,8 +10,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// --- ContentSession ---
-
 type MemoryContentSessionRepository struct {
 	store *memstore.Store[*upal.ContentSession]
 }
@@ -100,8 +98,6 @@ func (r *MemoryContentSessionRepository) Update(ctx context.Context, s *upal.Con
 	return r.store.Set(ctx, s)
 }
 
-// --- SourceFetch ---
-
 type MemorySourceFetchRepository struct {
 	store *memstore.Store[*upal.SourceFetch]
 }
@@ -129,8 +125,6 @@ func (r *MemorySourceFetchRepository) ListBySession(ctx context.Context, session
 	})
 }
 
-// --- LLMAnalysis ---
-
 type MemoryLLMAnalysisRepository struct {
 	store *memstore.Store[*upal.LLMAnalysis]
 }
@@ -155,7 +149,6 @@ func (r *MemoryLLMAnalysisRepository) GetBySession(ctx context.Context, sessionI
 	if len(all) == 0 {
 		return nil, fmt.Errorf("llm analysis for session %q: %w", sessionID, ErrNotFound)
 	}
-	// Return most recently created (deterministic: latest CreatedAt wins).
 	latest := all[0]
 	for _, a := range all[1:] {
 		if a.CreatedAt.After(latest.CreatedAt) {
@@ -171,8 +164,6 @@ func (r *MemoryLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAna
 	}
 	return r.store.Set(ctx, a)
 }
-
-// --- PublishedContent ---
 
 type MemoryPublishedContentRepository struct {
 	store *memstore.Store[*upal.PublishedContent]
@@ -219,8 +210,6 @@ func (r *MemoryPublishedContentRepository) DeleteBySession(ctx context.Context, 
 	return nil
 }
 
-// --- SurgeEvent ---
-
 type MemorySurgeEventRepository struct {
 	store *memstore.Store[*upal.SurgeEvent]
 }
@@ -259,8 +248,6 @@ func (r *MemorySurgeEventRepository) Update(ctx context.Context, se *upal.SurgeE
 	}
 	return r.store.Set(ctx, se)
 }
-
-// --- WorkflowResult ---
 
 type MemoryWorkflowResultRepository struct {
 	mu      sync.RWMutex

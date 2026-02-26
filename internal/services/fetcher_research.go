@@ -16,26 +16,18 @@ import (
 	"google.golang.org/genai"
 )
 
-// ResearchProgressFn is called during research to report live progress.
 type ResearchProgressFn func(progress upal.ResearchProgress)
 
-// researchFetcher uses an LLM with web_search and get_webpage tools to
-// research a topic. It supports two modes: "light" (single search pass) and
-// "deep" (multi-round investigation loop).
 type researchFetcher struct {
 	resolver   ports.LLMResolver
 	skills     skills.Provider
 	progressFn ResearchProgressFn
 }
 
-// SetProgressFn sets an optional callback that receives live progress updates
-// during deep research. Safe to call before Fetch.
 func (f *researchFetcher) SetProgressFn(fn ResearchProgressFn) {
 	f.progressFn = fn
 }
 
-// NewResearchFetcher creates a researchFetcher that drives an LLM through a
-// manual tool-call loop (no ADK agent framework) to perform web research.
 func NewResearchFetcher(resolver ports.LLMResolver, skills skills.Provider) *researchFetcher {
 	return &researchFetcher{resolver: resolver, skills: skills}
 }
@@ -53,7 +45,6 @@ func (f *researchFetcher) Fetch(ctx context.Context, src upal.CollectSource) (st
 		return "", nil, fmt.Errorf("resolve model %q: %w", modelID, err)
 	}
 
-	// Validate model supports native tools (web_search).
 	if _, ok := llm.(upalmodel.NativeToolProvider); !ok {
 		return "", nil, fmt.Errorf("model %q does not support web search (native tools required)", modelID)
 	}
@@ -77,9 +68,6 @@ func (f *researchFetcher) Fetch(ctx context.Context, src upal.CollectSource) (st
 	}
 }
 
-// runResearch drives the LLM in a generate-content loop, executing tool calls
-// manually (same pattern as llm_builder.go). It counts web_search invocations
-// and stops when maxSearches is reached or the LLM returns a final text answer.
 func (f *researchFetcher) runResearch(
 	ctx context.Context,
 	src upal.CollectSource,
@@ -91,11 +79,9 @@ func (f *researchFetcher) runResearch(
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// --- system prompt from skill file ---
 	skillContent := f.skills.Get("stage-research")
 	systemPrompt := buildResearchSystemPrompt(skillContent, src.Depth)
 
-	// --- build tools ---
 	var nativeTools []*genai.Tool
 	if spec, isGlobalNative := upalmodel.LookupNativeTool("web_search"); isGlobalNative {
 		if provider, ok := llm.(upalmodel.NativeToolProvider); ok {
@@ -128,9 +114,6 @@ func (f *researchFetcher) runResearch(
 		{Role: genai.RoleUser, Parts: []*genai.Part{genai.NewPartFromText(userPrompt)}},
 	}
 
-	// --- agent loop ---
-	// Each "search" may need multiple turns (search + read pages), so allow
-	// generous headroom on total loop iterations.
 	maxLoopTurns := max(maxSearches*3, 6)
 	searchCount := 0
 	findingsCount := 0
@@ -155,7 +138,6 @@ func (f *researchFetcher) runResearch(
 			return "", nil, fmt.Errorf("empty LLM response")
 		}
 
-		// Check for tool calls.
 		var toolCalls []*genai.FunctionCall
 		for _, p := range resp.Content.Parts {
 			if p.FunctionCall != nil {
@@ -164,15 +146,11 @@ func (f *researchFetcher) runResearch(
 		}
 
 		if len(toolCalls) == 0 {
-			// No tool calls -- extract final text result.
 			text := researchExtractText(resp.Content)
 			sources := parseResearchSources(text)
 			return fmt.Sprintf("=== Research: %s ===\n\n%s", src.Topic, text), sources, nil
 		}
 
-		// Count web_search calls. The LLM provider handles web_search
-		// natively so we don't execute it ourselves, but we still track
-		// how many times the model invoked it.
 		lastQuery := ""
 		for _, fc := range toolCalls {
 			if fc.Name == "web_search" || fc.Name == "google_search" {
@@ -186,7 +164,6 @@ func (f *researchFetcher) runResearch(
 			}
 		}
 
-		// Report progress to the callback if set.
 		if f.progressFn != nil && searchCount > 0 {
 			f.progressFn(upal.ResearchProgress{
 				CurrentStep:   searchCount,
@@ -196,13 +173,11 @@ func (f *researchFetcher) runResearch(
 			})
 		}
 
-		// Execute tool calls and append results.
 		contents = append(contents, resp.Content)
 		if toolResults := executeResearchToolCalls(ctx, toolCalls, webpageTool); toolResults != nil {
 			contents = append(contents, toolResults)
 		}
 
-		// If we've exhausted the search budget, ask the LLM to wrap up (once).
 		if searchCount >= maxSearches && !budgetMsgSent {
 			budgetMsgSent = true
 			contents = append(contents, &genai.Content{
@@ -215,8 +190,6 @@ func (f *researchFetcher) runResearch(
 	return "", nil, fmt.Errorf("research exceeded max turns (%d)", maxLoopTurns)
 }
 
-// buildResearchSystemPrompt extracts the appropriate section (light or deep)
-// from the stage-research skill markdown.
 func buildResearchSystemPrompt(skillContent, depth string) string {
 	if skillContent == "" {
 		// Fallback if skill file is missing.
@@ -226,16 +199,12 @@ func buildResearchSystemPrompt(skillContent, depth string) string {
 		return "You are a research analyst. Use web_search and get_webpage to find information about the topic. Provide a concise markdown report with sources."
 	}
 
-	// The skill file has two sections:
-	//   "## Light Mode — System Prompt" and "## Deep Mode — System Prompt"
-	// Each section contains the system prompt for that mode.
 	if depth == "deep" {
 		if _, after, ok := strings.Cut(skillContent, "## Deep Mode — System Prompt"); ok {
 			return strings.TrimSpace(after)
 		}
 	} else {
 		if _, after, ok := strings.Cut(skillContent, "## Light Mode — System Prompt"); ok {
-			// Trim at the next top-level heading.
 			if before, _, ok := strings.Cut(after, "## Deep Mode — System Prompt"); ok {
 				return strings.TrimSpace(before)
 			}
@@ -243,11 +212,9 @@ func buildResearchSystemPrompt(skillContent, depth string) string {
 		}
 	}
 
-	// If parsing fails, return the entire skill content.
 	return strings.TrimSpace(skillContent)
 }
 
-// researchExtractText concatenates all text parts from a genai.Content.
 func researchExtractText(content *genai.Content) string {
 	if content == nil {
 		return ""
@@ -261,11 +228,8 @@ func researchExtractText(content *genai.Content) string {
 	return strings.TrimSpace(sb.String())
 }
 
-// markdownLinkRe matches [Title](URL) patterns in markdown text.
 var markdownLinkRe = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)]+)\)`)
 
-// parseResearchSources extracts URLs and titles from markdown-formatted
-// source links in the LLM's research output.
 func parseResearchSources(text string) []map[string]any {
 	matches := markdownLinkRe.FindAllStringSubmatch(text, -1)
 	if len(matches) == 0 {
@@ -283,18 +247,12 @@ func parseResearchSources(text string) []map[string]any {
 		sources = append(sources, map[string]any{
 			"title":   m[1],
 			"url":     url,
-			"summary": m[1], // use link text as summary; convertToSourceItems maps this to Content
+			"summary": m[1],
 		})
 	}
 	return sources
 }
 
-// executeResearchToolCalls executes tool calls and returns a Content with
-// FunctionResponse parts for feeding back to the LLM.
-//
-// web_search is handled natively by the provider, so we only execute
-// get_webpage calls ourselves. For any other tool name the result indicates
-// it's provider-managed.
 func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, webpageTool *tools.GetWebpageTool) *genai.Content {
 	var parts []*genai.Part
 	for _, fc := range calls {
@@ -310,8 +268,6 @@ func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, 
 				output = map[string]any{"result": fmt.Sprintf("%v", result)}
 			}
 		default:
-			// Native tools (web_search, google_search) are handled by the
-			// provider; we don't need to return a FunctionResponse for them.
 			continue
 		}
 		parts = append(parts, &genai.Part{
@@ -322,7 +278,6 @@ func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, 
 		})
 	}
 	if len(parts) == 0 {
-		// All calls were native — no FunctionResponse needed; return nil.
 		return nil
 	}
 	return &genai.Content{
@@ -331,8 +286,6 @@ func executeResearchToolCalls(ctx context.Context, calls []*genai.FunctionCall, 
 	}
 }
 
-// researchToGenaiSchema converts a map[string]any JSON schema to a *genai.Schema.
-// This is a simplified version of the same conversion in internal/agents/builders.go.
 func researchToGenaiSchema(schema map[string]any) *genai.Schema {
 	if schema == nil {
 		return nil

@@ -8,7 +8,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PersistentConnectionRepository wraps MemoryConnectionRepository with PostgreSQL.
 type PersistentConnectionRepository struct {
 	mem *MemoryConnectionRepository
 	db  *db.DB

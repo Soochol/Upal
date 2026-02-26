@@ -20,10 +20,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// ContentCollector orchestrates content collection, LLM analysis, and
-// workflow production for content pipelines. It bridges the CollectStageExecutor
-// (source fetching) with the ContentSessionService (recording) and WorkflowService
-// (production).
 type ContentCollector struct {
 	contentSvc    ports.ContentSessionPort
 	collectExec   *CollectStageExecutor
@@ -36,7 +32,6 @@ type ContentCollector struct {
 	runHistorySvc ports.RunHistoryPort
 }
 
-// NewContentCollector creates a ContentCollector with all required dependencies.
 func NewContentCollector(
 	contentSvc ports.ContentSessionPort,
 	collectExec *CollectStageExecutor,
@@ -59,20 +54,16 @@ func NewContentCollector(
 	}
 }
 
-// SetGenerator injects the workflow generator (called after both collector and generator are created).
 func (c *ContentCollector) SetGenerator(g ports.WorkflowGenerator) {
 	c.generator = g
 }
 
-// CollectPipeline finds the active template session for a pipeline, creates an
-// instance session with copied settings, and launches background collection + analysis.
 func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID string) error {
 	pipeline, err := c.pipelineRepo.Get(ctx, pipelineID)
 	if err != nil {
 		return fmt.Errorf("pipeline %s: %w", pipelineID, err)
 	}
 
-	// Find the active template session to copy settings from.
 	templates, err := c.contentSvc.ListTemplatesByPipeline(ctx, pipelineID)
 	if err != nil || len(templates) == 0 {
 		return fmt.Errorf("no template session for pipeline %s", pipelineID)
@@ -96,14 +87,9 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 	return nil
 }
 
-// CollectAndAnalyze fetches content from pipeline sources, records the results,
-// runs LLM analysis on the collected data, and transitions the session to
-// pending_review. This is designed to run in a background goroutine.
-//
-// If isTest is true, each source's item limit is overridden with the provided
-// limit value for faster iteration.
+// CollectAndAnalyze fetches content from pipeline sources, runs LLM analysis,
+// and transitions the session to pending_review. Designed for background execution.
 func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession, isTest bool, limit int) {
-	// Map session sources to collect sources.
 	sources := mapPipelineSources(session.Sources, isTest, limit)
 
 	if len(sources) == 0 {
@@ -114,7 +100,6 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 		return
 	}
 
-	// Fetch each source and record results.
 	totalItems := 0
 	for _, mapped := range sources {
 		pipelineSrc := session.Sources[mapped.pipelineIndex]
@@ -124,7 +109,6 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 		}
 	}
 
-	// Persist source count and transition to analyzing.
 	if err := c.contentSvc.UpdateSessionSourceCount(ctx, session.ID, totalItems); err != nil {
 		log.Printf("content_collector: failed to update source count: %v", err)
 	}
@@ -132,20 +116,16 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 		log.Printf("content_collector: failed to transition to analyzing: %v", err)
 	}
 
-	// Run LLM analysis if we collected any items.
 	if totalItems > 0 {
 		c.runAnalysis(ctx, pipeline, session)
 	}
 
-	// Transition to pending_review regardless of analysis outcome.
 	if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionPendingReview); err != nil {
 		log.Printf("content_collector: failed to transition to pending_review: %v", err)
 	}
 }
 
-// RetryAnalysis re-runs LLM analysis for a session that is stuck in "analyzing"
-// state (e.g. due to server restart during analysis). It resolves the pipeline,
-// runs analysis, and always transitions the session to pending_review.
+// RetryAnalysis re-runs LLM analysis for a session stuck in "analyzing" state.
 func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) error {
 	session, err := c.contentSvc.GetSession(ctx, sessionID)
 	if err != nil {
@@ -166,8 +146,6 @@ func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) 
 	return nil
 }
 
-// fetchAndRecord calls the appropriate fetcher for a source and records
-// the SourceFetch result. Returns the recorded SourceFetch (may have Error set).
 func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string, pipelineSrc upal.PipelineSource, src upal.CollectSource) *upal.SourceFetch {
 	sf := &upal.SourceFetch{
 		SessionID:  sessionID,
@@ -186,7 +164,7 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		return sf
 	}
 
-	text, data, err := fetcher.Fetch(ctx, src)
+	_, data, err := fetcher.Fetch(ctx, src)
 	if err != nil {
 		errMsg := err.Error()
 		sf.Error = &errMsg
@@ -196,10 +174,8 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		return sf
 	}
 
-	// Convert fetcher data to SourceItems.
 	sf.RawItems = convertToSourceItems(src.Type, data)
 	sf.Count = len(sf.RawItems)
-	_ = text // text is used for prompt building via ListSourceFetches
 
 	if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
 		log.Printf("content_collector: failed to record source fetch: %v", err)
@@ -207,7 +183,6 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 	return sf
 }
 
-// convertToSourceItems converts fetcher output data into a slice of SourceItem.
 func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 	if data == nil {
 		return nil
@@ -215,24 +190,21 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 
 	switch sourceType {
 	case "rss":
-		// RSS fetcher returns []map[string]any with title, link, published, description.
 		items, ok := data.([]map[string]any)
 		if !ok {
 			return nil
 		}
 		result := make([]upal.SourceItem, 0, len(items))
 		for _, item := range items {
-			si := upal.SourceItem{
+			result = append(result, upal.SourceItem{
 				Title:   stringVal(item, "title"),
 				URL:     stringVal(item, "link"),
 				Content: stringVal(item, "description"),
-			}
-			result = append(result, si)
+			})
 		}
 		return result
 
 	case "http":
-		// HTTP fetcher returns map[string]any with status, body.
 		m, ok := data.(map[string]any)
 		if !ok {
 			return nil
@@ -244,7 +216,6 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 		return []upal.SourceItem{{Content: body}}
 
 	case "scrape":
-		// Scrape fetcher returns []string.
 		items, ok := data.([]string)
 		if !ok {
 			return nil
@@ -256,7 +227,6 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 		return result
 
 	case "social":
-		// Social fetcher returns []map[string]any with title, url, content, fetched_from.
 		items, ok := data.([]map[string]any)
 		if !ok {
 			return nil
@@ -276,7 +246,6 @@ func convertToSourceItems(sourceType string, data any) []upal.SourceItem {
 	return nil
 }
 
-// stringVal extracts a string value from a map, returning "" if not found or not a string.
 func stringVal(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok {
@@ -286,8 +255,6 @@ func stringVal(m map[string]any, key string) string {
 	return s
 }
 
-// runAnalysis calls the LLM to analyze collected source data and records
-// the analysis result. Errors are logged but do not block session progression.
 func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession) {
 	fetches, err := c.contentSvc.ListSourceFetches(ctx, session.ID)
 	if err != nil {
@@ -295,11 +262,9 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		return
 	}
 
-	// Fetch all available workflows for smart matching.
 	allWorkflows, err := c.workflowRepo.List(ctx)
 	if err != nil {
 		log.Printf("content_collector: failed to list workflows for analysis: %v", err)
-		allWorkflows = nil // non-fatal
 	}
 
 	llm, modelName, err := c.resolver.Resolve(session.Model)
@@ -360,13 +325,11 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		return
 	}
 
-	// Count total raw items across all fetches.
 	totalItems := 0
 	for _, sf := range fetches {
 		totalItems += len(sf.RawItems)
 	}
 
-	// Build a set of valid workflow names for validation.
 	validWorkflows := make(map[string]bool)
 	for _, wf := range allWorkflows {
 		validWorkflows[wf.Name] = true
@@ -376,8 +339,6 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 	for i, a := range parsed.SuggestedAngles {
 		workflowName := a.WorkflowName
 		matchType := "none"
-
-		// Validate that the LLM didn't hallucinate a workflow name.
 		if workflowName != "" && validWorkflows[workflowName] {
 			matchType = "matched"
 		} else {
@@ -410,7 +371,6 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 	}
 }
 
-// buildAnalysisPrompt constructs system and user prompts for the LLM analysis step.
 func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, session *upal.ContentSession, fetches []*upal.SourceFetch, workflows []*upal.WorkflowDefinition) (systemPrompt, userPrompt string) {
 	systemPrompt = systemPromptBase
 
@@ -514,16 +474,12 @@ func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, sessi
 	return
 }
 
-// WorkflowRequest represents a workflow to execute with an optional channel assignment.
 type WorkflowRequest struct {
 	Name      string
 	ChannelID string
 }
 
-// ProduceWorkflows executes the selected workflows with collected content as input.
-// This is designed to run in a background goroutine after session approval.
 func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID string, requests []WorkflowRequest) {
-	// Get session detail for analysis and sources.
 	detail, err := c.contentSvc.GetSessionDetail(ctx, sessionID)
 	if err != nil {
 		log.Printf("content_collector: failed to get session detail for production: %v", err)
@@ -533,7 +489,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 		return
 	}
 
-	// Initialize workflow results with pending status.
 	results := make([]upal.WorkflowResult, len(requests))
 	for i, req := range requests {
 		results[i] = upal.WorkflowResult{
@@ -544,12 +499,10 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	}
 	c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
 
-	// Transition session to producing.
 	if err := c.contentSvc.UpdateSessionStatus(ctx, sessionID, upal.SessionProducing); err != nil {
 		log.Printf("content_collector: failed to transition to producing: %v", err)
 	}
 
-	// Execute workflows in parallel.
 	var mu sync.Mutex
 	updateResult := func(i int, fn func(*upal.WorkflowResult)) {
 		mu.Lock()
@@ -563,7 +516,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 		g.Go(func() error {
 			updateResult(i, func(r *upal.WorkflowResult) { r.Status = upal.WFResultRunning })
 
-			// Look up workflow definition.
 			wf, err := c.workflowRepo.Get(gCtx, req.Name)
 			if err != nil {
 				log.Printf("content_collector: workflow %q not found: %v", req.Name, err)
@@ -574,10 +526,8 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				return nil
 			}
 
-			// Build inputs mapped to actual input node IDs.
 			inputs := buildProductionInputs(detail, wf)
 
-			// Create a RunRecord if history service is available.
 			var runRecordID string
 			if c.runHistorySvc != nil {
 				rec, startErr := c.runHistorySvc.StartRun(gCtx, req.Name, "pipeline", sessionID, inputs, wf)
@@ -588,7 +538,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				}
 			}
 
-			// Run the workflow.
 			eventCh, resultCh, err := c.workflowSvc.Run(gCtx, wf, inputs)
 			if err != nil {
 				errMsg := fmt.Sprintf("failed to start workflow: %v", err)
@@ -604,7 +553,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				return nil
 			}
 
-			// Drain event channel, tracking node runs and capturing errors.
 			var runErr string
 			var failedNodeID string
 			for evt := range eventCh {
@@ -625,7 +573,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				log.Printf("content_collector: workflow %q execution error: %s", req.Name, runErr)
 				if c.runHistorySvc != nil && runRecordID != "" {
 					c.runHistorySvc.FailRun(gCtx, runRecordID, runErr)
-					// If no failed node from events, check the RunRecord.
 					if failedNodeID == "" {
 						if rec, err := c.runHistorySvc.GetRun(gCtx, runRecordID); err == nil && rec != nil {
 							for _, nr := range rec.NodeRuns {
@@ -646,7 +593,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				return nil
 			}
 
-			// Wait for result.
 			runResult, ok := <-resultCh
 			if !ok {
 				errMsg := "result channel closed unexpectedly"
@@ -662,7 +608,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 				return nil
 			}
 
-			// Mark run as completed with outputs.
 			if c.runHistorySvc != nil && runRecordID != "" {
 				c.runHistorySvc.CompleteRun(gCtx, runRecordID, runResult.State)
 			}
@@ -678,8 +623,6 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	}
 	_ = g.Wait()
 
-	// Determine final status: if any succeeded, move to approved (awaiting publish);
-	// if all failed, move to error.
 	anySuccess := false
 	for _, r := range results {
 		if r.Status == upal.WFResultSuccess {
@@ -696,14 +639,11 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	}
 }
 
-// GenerateWorkflowForAngle creates a new workflow for an unmatched content angle
-// using the Generator, saves it to the workflow repo, and updates the analysis.
 func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, sessionID, angleID string) (*upal.ContentAngle, error) {
 	if c.generator == nil {
 		return nil, fmt.Errorf("workflow generator not available")
 	}
 
-	// Get the analysis and find the angle.
 	analysis, err := c.contentSvc.GetAnalysis(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("get analysis: %w", err)
@@ -712,7 +652,7 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 		return nil, fmt.Errorf("no analysis found for session %s", sessionID)
 	}
 
-	var targetIdx int = -1
+	targetIdx := -1
 	for i := range analysis.SuggestedAngles {
 		if analysis.SuggestedAngles[i].ID == angleID {
 			targetIdx = i
@@ -725,12 +665,10 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 
 	angle := &analysis.SuggestedAngles[targetIdx]
 
-	// Build a description enriched with pipeline context.
 	var desc strings.Builder
 	fmt.Fprintf(&desc, "Create a %s content production workflow that takes collected source material as input and produces a polished %s.\nTarget headline: %q\n",
 		angle.Format, angle.Format, angle.Headline)
 
-	// Inject session editorial brief so the generated workflow reflects the user's intent.
 	session, err := c.contentSvc.GetSession(ctx, sessionID)
 	if err == nil && session != nil {
 		if session.Context != nil {
@@ -755,38 +693,29 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 		}
 	}
 
-	// Generate the workflow.
 	wf, err := c.generator.GenerateWorkflow(ctx, desc.String())
 	if err != nil {
 		return nil, fmt.Errorf("generate workflow: %w", err)
 	}
 
-	// Save the workflow to the repo.
 	if err := c.workflowRepo.Create(ctx, wf); err != nil {
-		// Name conflict — try with a suffix.
 		wf.Name = wf.Name + "-" + upal.GenerateID("")[:6]
 		if err2 := c.workflowRepo.Create(ctx, wf); err2 != nil {
 			return nil, fmt.Errorf("save generated workflow: %w", err2)
 		}
 	}
 
-	// Update the angle in the analysis.
 	angle.WorkflowName = wf.Name
 	angle.MatchType = "generated"
 
 	if err := c.contentSvc.UpdateAnalysisAngles(ctx, sessionID, analysis.SuggestedAngles); err != nil {
 		log.Printf("content_collector: failed to update analysis angles: %v", err)
-		// Non-fatal: workflow was created, angle just won't persist the link
 	}
 
 	return angle, nil
 }
 
-// buildProductionInputs creates the input map for production workflows.
-// Keys are mapped to the workflow's actual input node IDs so the DAG
-// runner can inject them into the correct nodes.
 func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowDefinition) map[string]any {
-	// Build a combined brief from analysis + sources.
 	var sb strings.Builder
 
 	if detail.Analysis != nil {
@@ -833,7 +762,6 @@ func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowD
 
 	brief := sb.String()
 
-	// Map the combined brief to every input node in the workflow.
 	inputs := make(map[string]any)
 	for _, node := range wf.Nodes {
 		if node.Type == "input" {
@@ -844,15 +772,11 @@ func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowD
 	return inputs
 }
 
-// mappedSource pairs a CollectSource with its original index in the pipeline sources.
 type mappedSource struct {
 	collectSource upal.CollectSource
 	pipelineIndex int
 }
 
-// mapPipelineSources converts pipeline sources to collect sources using the
-// documented mapping rules. Sources with unsupported types are skipped with
-// a log warning.
 func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) []mappedSource {
 	var result []mappedSource
 
@@ -924,7 +848,6 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 	return result
 }
 
-// trackNodeRunFromEvent records node-level execution status from workflow events.
 func trackNodeRunFromEvent(ctx context.Context, svc ports.RunHistoryPort, runID string, ev upal.WorkflowEvent) {
 	if ev.NodeID == "" {
 		return

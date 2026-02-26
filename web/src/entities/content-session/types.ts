@@ -1,4 +1,3 @@
-// ContentSession entity types
 import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
 
 export type ContentSessionStatus =

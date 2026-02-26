@@ -58,6 +58,7 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                 <SessionDetailPreview
                     pipelineId={pipeline.id}
                     sessionId={sessionId}
+                    showArchive
                     onMutate={handleMutate}
                 />
             </div>

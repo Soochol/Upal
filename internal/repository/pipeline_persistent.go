@@ -1,4 +1,3 @@
-// internal/repository/pipeline_persistent.go
 package repository
 
 import (
@@ -9,8 +8,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PipelineDB defines the DB-layer methods needed by the persistent pipeline repo.
-// *db.DB satisfies this interface.
+// PipelineDB defines the database methods used by persistent pipeline repositories.
 type PipelineDB interface {
 	CreatePipeline(ctx context.Context, p *upal.Pipeline) error
 	GetPipeline(ctx context.Context, id string) (*upal.Pipeline, error)
@@ -19,7 +17,7 @@ type PipelineDB interface {
 	DeletePipeline(ctx context.Context, id string) error
 }
 
-// PipelineRunDB defines the DB-layer methods needed by the persistent run repo.
+// PipelineRunDB defines the database methods used by persistent pipeline run repositories.
 type PipelineRunDB interface {
 	CreatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
 	GetPipelineRun(ctx context.Context, id string) (*upal.PipelineRun, error)
@@ -27,8 +25,6 @@ type PipelineRunDB interface {
 	UpdatePipelineRun(ctx context.Context, run *upal.PipelineRun) error
 }
 
-// PersistentPipelineRepository wraps MemoryPipelineRepository with a PostgreSQL backend.
-// Writes go to both. Reads try memory first; on miss, fall back to DB and cache.
 type PersistentPipelineRepository struct {
 	mem *MemoryPipelineRepository
 	db  PipelineDB
@@ -83,7 +79,6 @@ func (r *PersistentPipelineRepository) Delete(ctx context.Context, id string) er
 	return nil
 }
 
-// PersistentPipelineRunRepository wraps MemoryPipelineRunRepository with a PostgreSQL backend.
 type PersistentPipelineRunRepository struct {
 	mem *MemoryPipelineRunRepository
 	db  PipelineRunDB

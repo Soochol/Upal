@@ -4,6 +4,7 @@ import {
   Plus, GitBranch, Rss, Loader2, Pencil, Check, X, Trash2,
 } from 'lucide-react'
 import { createPipeline, deletePipeline } from '@/entities/pipeline'
+import { createDraftSession } from '@/entities/content-session/api'
 import { cn } from '@/shared/lib/utils'
 import { EditableName } from '@/shared/ui/EditableName'
 import type { EditableNameHandle } from '@/shared/ui/EditableName'
@@ -38,7 +39,15 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
   })
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => createPipeline({ name, stages: [] }),
+    mutationFn: async (name: string) => {
+      const pipeline = await createPipeline({ name, stages: [] })
+      await createDraftSession({
+        pipeline_id: pipeline.id,
+        name: `${name} Template`,
+        is_template: true,
+      })
+      return pipeline
+    },
     onSuccess: (pipeline) => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] })
       setIsCreating(false)
@@ -57,7 +66,11 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
     mutationFn: (id: string) => deletePipeline(id),
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] })
+      queryClient.removeQueries({ queryKey: ['content-sessions', { pipelineId: id }] })
       if (selectedId === id) onDeselect()
+      setConfirmDeleteId(null)
+    },
+    onError: () => {
       setConfirmDeleteId(null)
     },
   })

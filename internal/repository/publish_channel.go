@@ -6,7 +6,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PublishChannelRepository stores and retrieves publish channels.
 type PublishChannelRepository interface {
 	Create(ctx context.Context, ch *upal.PublishChannel) error
 	Get(ctx context.Context, id string) (*upal.PublishChannel, error)

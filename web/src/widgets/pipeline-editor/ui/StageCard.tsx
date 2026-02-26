@@ -9,7 +9,6 @@ import type { WorkflowDefinition } from '@/entities/workflow'
 
 type Props = {
   stage: Stage
-  index: number
   isActive?: boolean
   pipelineId?: string
   workflowNames?: string[]
@@ -18,7 +17,6 @@ type Props = {
   onChange: (stage: Stage) => void
   onDelete: () => void
   onOpenWorkflow?: (name: string) => void
-  // drag-reorder
   isDragging?: boolean
   isDragOver?: boolean
   onDragStart?: () => void
@@ -27,8 +25,7 @@ type Props = {
   onDragEnd?: () => void
 }
 
-// ─── Notification field config ───────────────────────────────────────────────
-// To support a new connection type, add an entry here — no other code changes needed.
+const FIELD_CLASS = 'w-full text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none border border-transparent focus:border-border focus:ring-1 focus:ring-ring transition-all'
 
 type NotifField = {
   key: 'message' | 'subject'
@@ -69,14 +66,12 @@ function NotificationFields({
     ? (connTypeFields[selectedConn.type] ?? defaultNotifFields)
     : []
 
-  const fieldClass = 'w-full text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none border border-transparent focus:border-border focus:ring-1 focus:ring-ring transition-all'
-
   return (
     <>
       <select
         value={stage.config.connection_id || ''}
         onChange={(e) => onChange({ ...stage, config: { ...stage.config, connection_id: e.target.value } })}
-        className={fieldClass}
+        className={FIELD_CLASS}
       >
         <option value="">연결 선택…</option>
         {connections.map((c) => (
@@ -95,7 +90,7 @@ function NotificationFields({
               value={(stage.config[f.key] as string) || ''}
               placeholder={f.placeholder}
               onChange={(e) => onChange({ ...stage, config: { ...stage.config, [f.key]: e.target.value } })}
-              className={`${fieldClass} resize-none`}
+              className={`${FIELD_CLASS} resize-none`}
             />
           ) : (
             <input
@@ -103,7 +98,7 @@ function NotificationFields({
               value={(stage.config[f.key] as string) || ''}
               placeholder={f.placeholder}
               onChange={(e) => onChange({ ...stage, config: { ...stage.config, [f.key]: e.target.value } })}
-              className={fieldClass}
+              className={FIELD_CLASS}
             />
           )}
         </div>
@@ -111,8 +106,6 @@ function NotificationFields({
     </>
   )
 }
-
-// ─── Input mapping — reference picker ────────────────────────────────────────
 
 // Known output fields per stage type, shown as selectable references.
 const stageOutputFields: Record<string, { field: string; label: string }[]> = {
@@ -136,8 +129,6 @@ function InputMappingField({
   const isManual = value !== '' && !isRef
   const selectValue = isRef ? value : isManual ? '__manual__' : ''
 
-  const cls = 'w-full text-xs bg-muted/40 rounded-lg px-2 py-1.5 outline-none border border-transparent focus:border-border focus:ring-1 focus:ring-ring transition-all'
-
   const handleSelect = (v: string) => {
     if (v === '__manual__') { if (isRef) onChange('') }
     else onChange(v)
@@ -148,7 +139,7 @@ function InputMappingField({
       <label className="text-[10px] text-muted-foreground">{label}</label>
       {refFields.length > 0 ? (
         <div className="space-y-1">
-          <select value={selectValue} onChange={(e) => handleSelect(e.target.value)} className={cls}>
+          <select value={selectValue} onChange={(e) => handleSelect(e.target.value)} className={FIELD_CLASS}>
             <option value="">연결 안 함</option>
             {refFields.map(f => (
               <option key={f.field} value={`{{${f.field}}}`}>
@@ -163,7 +154,7 @@ function InputMappingField({
               value={value}
               placeholder={placeholder}
               onChange={(e) => onChange(e.target.value)}
-              className={`${cls} resize-none`}
+              className={`${FIELD_CLASS} resize-none`}
             />
           )}
         </div>
@@ -173,7 +164,7 @@ function InputMappingField({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className={`${cls} resize-none`}
+          className={`${FIELD_CLASS} resize-none`}
         />
       )}
     </div>

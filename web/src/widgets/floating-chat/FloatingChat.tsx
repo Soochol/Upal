@@ -36,7 +36,7 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+    queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
   }, [queryClient, sessionId, pipelineId])
 
   // Auto-scroll to bottom on new messages or loading

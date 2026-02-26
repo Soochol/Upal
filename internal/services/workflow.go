@@ -20,12 +20,10 @@ import (
 	"google.golang.org/genai"
 )
 
-// Compile-time assertion: WorkflowService must satisfy ports.WorkflowExecutor.
 var _ ports.WorkflowExecutor = (*WorkflowService)(nil)
 
-// WorkflowService encapsulates workflow execution orchestration:
-// DAG agent creation, ADK runner lifecycle, session management,
-// and event classification.
+// WorkflowService orchestrates workflow execution: DAG agent creation,
+// ADK runner lifecycle, session management, and event classification.
 type WorkflowService struct {
 	repo           repository.WorkflowRepository
 	llms           map[string]adkmodel.LLM
@@ -36,7 +34,6 @@ type WorkflowService struct {
 	buildDeps      agents.BuildDeps
 }
 
-// NewWorkflowService creates a WorkflowService with all required dependencies.
 func NewWorkflowService(
 	repo repository.WorkflowRepository,
 	llms map[string]adkmodel.LLM,
@@ -58,12 +55,10 @@ func NewWorkflowService(
 	}
 }
 
-// Lookup resolves a workflow by name via the repository.
 func (s *WorkflowService) Lookup(ctx context.Context, name string) (*upal.WorkflowDefinition, error) {
 	return s.repo.Get(ctx, name)
 }
 
-// Validate checks that all agent nodes have a valid model configured.
 func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 	for _, n := range wf.Nodes {
 		if n.Type != upal.NodeTypeAgent {
@@ -84,17 +79,12 @@ func (s *WorkflowService) Validate(wf *upal.WorkflowDefinition) error {
 	return nil
 }
 
-// Run executes a workflow and streams events through a channel.
-// The caller receives WorkflowEvents as they occur, and a RunResult
-// when execution completes. The events channel is closed when done.
 func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, inputs map[string]any) (<-chan upal.WorkflowEvent, <-chan upal.RunResult, error) {
-	// 1. Build DAGAgent from workflow.
 	dagAgent, err := agents.NewDAGAgent(wf, s.nodeRegistry, s.buildDeps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build DAG: %w", err)
 	}
 
-	// 2. Create ADK Runner.
 	adkRunner, err := runner.New(runner.Config{
 		AppName:        wf.Name,
 		Agent:          dagAgent,
@@ -104,7 +94,6 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 		return nil, nil, fmt.Errorf("create runner: %w", err)
 	}
 
-	// 3. Create session with user inputs.
 	sessionID := fmt.Sprintf("session-%d", time.Now().UnixNano())
 	userID := upal.UserIDFromContext(ctx)
 
@@ -123,7 +112,6 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 		return nil, nil, fmt.Errorf("create session: %w", err)
 	}
 
-	// 4. Stream events through channels.
 	eventCh := make(chan upal.WorkflowEvent, 64)
 	resultCh := make(chan upal.RunResult, 1)
 
@@ -131,16 +119,11 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 		defer close(eventCh)
 		defer close(resultCh)
 
-		// done is closed when this goroutine exits, signalling log
-		// callbacks that eventCh is no longer accepting sends.
+		// done is closed when this goroutine exits, guarding eventCh sends
+		// from log callbacks that may fire during teardown.
 		done := make(chan struct{})
 		defer close(done)
 
-		// Wire up model-level logging into the event stream.
-		// NOTE: select does NOT protect against sending on a closed channel
-		// — Go panics during case evaluation. We check done first and use
-		// recover() as a safety net for the race between done-check and
-		// eventCh closure.
 		nodeLogFn := agents.NodeLogFunc(func(nodeID, msg string) {
 			slog.Info("model-log", "node", nodeID, "msg", msg)
 			select {
@@ -173,7 +156,6 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 			eventCh <- wfEvent
 		}
 
-		// Collect final session state.
 		finalState := make(map[string]any)
 		getResp, err := s.sessionService.Get(ctx, &session.GetRequest{
 			AppName:   wf.Name,
@@ -188,9 +170,7 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 			}
 		}
 
-		// Expose output node results under a dedicated key so the frontend
-		// can locate the final output deterministically (Go map JSON
-		// serialization order is random).
+		// Collect output node results under __output__ for deterministic frontend access.
 		outputs := make(map[string]any)
 		for _, n := range wf.Nodes {
 			if n.Type == upal.NodeTypeOutput {
@@ -212,8 +192,6 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 	return eventCh, resultCh, nil
 }
 
-// classifyEvent inspects an ADK session.Event and returns a WorkflowEvent
-// with the appropriate type and normalized payload.
 func classifyEvent(event *session.Event) upal.WorkflowEvent {
 	nodeID := event.Author
 	content := event.LLMResponse.Content
@@ -228,9 +206,7 @@ func classifyEvent(event *session.Event) upal.WorkflowEvent {
 	}
 
 	if content == nil || len(content.Parts) == 0 {
-		// A final streaming flush event carries FinishReason but no content parts.
-		// Classifying it as NodeStarted would reset the node status from 'completed'
-		// back to 'running'. Treat it as NodeCompleted instead.
+		// Flush events with FinishReason but no content parts are completions, not starts.
 		if fr := event.LLMResponse.FinishReason; fr != "" && fr != genai.FinishReasonUnspecified {
 			flushOutput := ""
 			if a, ok := event.Actions.StateDelta[nodeID]; ok && a != nil {

@@ -9,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryConnectionRepository is a thread-safe in-memory connection store.
 type MemoryConnectionRepository struct {
 	store *memstore.Store[*upal.Connection]
 }

@@ -9,9 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PersistentScheduleRepository wraps a MemoryScheduleRepository with a PostgreSQL backend.
-// Writes go to both stores (DB failure is logged but non-fatal).
-// Reads try memory first, falling back to the database.
 type PersistentScheduleRepository struct {
 	mem *MemoryScheduleRepository
 	db  *db.DB

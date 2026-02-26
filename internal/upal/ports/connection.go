@@ -6,8 +6,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// ConnectionPort is the interface for managing external service connections.
-// Services should depend on this interface rather than *ConnectionService directly.
+// ConnectionPort defines the contract for managing external service connections.
 type ConnectionPort interface {
 	Create(ctx context.Context, conn *upal.Connection) error
 	Get(ctx context.Context, id string) (*upal.Connection, error)

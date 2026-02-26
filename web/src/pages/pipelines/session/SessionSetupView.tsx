@@ -52,14 +52,13 @@ const SOURCE_TYPE_MAP = Object.fromEntries(
 
 type Props = {
   sessionId: string
-  pipelineId: string
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function SessionSetupView({ sessionId, pipelineId }: Props) {
+export function SessionSetupView({ sessionId }: Props) {
   const queryClient = useQueryClient()
   const addToast = useUIStore((s) => s.addToast)
 
@@ -168,13 +167,17 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
   // ─── Activate / Deactivate / Run ─────────────────────────────────────
 
   const toggleMutation = useMutation({
-    mutationFn: () => session?.status === 'active'
-      ? deactivateSession(sessionId)
-      : activateSession(sessionId),
+    mutationFn: () => {
+      if (!session) throw new Error('Session not loaded')
+      return session.status === 'active'
+        ? deactivateSession(sessionId)
+        : activateSession(sessionId)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
       queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     },
+    onError: (err) => addToast(`Failed to toggle session: ${err instanceof Error ? err.message : 'unknown error'}`),
   })
 
   const runMutation = useMutation({
@@ -182,6 +185,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     },
+    onError: (err) => addToast(`Failed to run session: ${err instanceof Error ? err.message : 'unknown error'}`),
   })
 
   const isDraft = session?.status === 'draft'
@@ -194,7 +198,7 @@ export function SessionSetupView({ sessionId, pipelineId }: Props) {
     try {
       await updateSessionSettings(sessionId, { name: trimmed })
       queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId }] })
+      queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     } catch (err) {
       addToast(`Failed to rename: ${err instanceof Error ? err.message : 'unknown error'}`)
     }

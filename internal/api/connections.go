@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,8 +9,7 @@ import (
 
 func (s *Server) createConnection(w http.ResponseWriter, r *http.Request) {
 	var conn upal.Connection
-	if err := json.NewDecoder(r.Body).Decode(&conn); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &conn) {
 		return
 	}
 	if conn.Name == "" || conn.Type == "" {
@@ -22,9 +20,7 @@ func (s *Server) createConnection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(conn.Safe())
+	writeJSONStatus(w, http.StatusCreated, conn.Safe())
 }
 
 func (s *Server) listConnections(w http.ResponseWriter, r *http.Request) {
@@ -33,8 +29,7 @@ func (s *Server) listConnections(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(conns)
+	writeJSON(w, conns)
 }
 
 func (s *Server) getConnection(w http.ResponseWriter, r *http.Request) {
@@ -44,15 +39,13 @@ func (s *Server) getConnection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "connection not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(conn.Safe())
+	writeJSON(w, conn.Safe())
 }
 
 func (s *Server) updateConnection(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var conn upal.Connection
-	if err := json.NewDecoder(r.Body).Decode(&conn); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &conn) {
 		return
 	}
 	conn.ID = id
@@ -60,8 +53,7 @@ func (s *Server) updateConnection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(conn.Safe())
+	writeJSON(w, conn.Safe())
 }
 
 func (s *Server) deleteConnection(w http.ResponseWriter, r *http.Request) {

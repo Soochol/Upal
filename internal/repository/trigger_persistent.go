@@ -8,9 +8,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PersistentTriggerRepository wraps a MemoryTriggerRepository with a PostgreSQL backend.
-// Writes go to both stores (DB failure is logged but non-fatal).
-// Reads try memory first, falling back to the database.
 type PersistentTriggerRepository struct {
 	mem *MemoryTriggerRepository
 	db  *db.DB

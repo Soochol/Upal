@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -50,7 +49,6 @@ type Server struct {
 	uploadMaxSize        int64
 }
 
-// SetProviderConfigs stores the provider configuration for model discovery.
 func (s *Server) SetProviderConfigs(configs map[string]config.ProviderConfig) {
 	s.providerConfigs = configs
 }
@@ -188,107 +186,44 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
-// SetGenerator configures the natural language workflow generator.
 func (s *Server) SetGenerator(gen *generate.Generator, defaultModel string) {
 	s.generator = gen
 	s.defaultGenerateModel = defaultModel
 }
 
-// Generator returns the configured generator, or nil if not set.
 func (s *Server) Generator() *generate.Generator {
 	return s.generator
 }
 
-// SetStorage configures the file storage backend.
-func (s *Server) SetStorage(store storage.Storage) {
-	s.storage = store
-}
+func (s *Server) SetStorage(store storage.Storage)               { s.storage = store }
+func (s *Server) SetSkills(provider skills.Provider)              { s.skills = provider }
+func (s *Server) SetRunHistoryService(svc ports.RunHistoryPort)   { s.runHistorySvc = svc }
+func (s *Server) SetSchedulerService(svc ports.SchedulerPort)     { s.schedulerSvc = svc }
+func (s *Server) SetConcurrencyLimiter(limiter *services.ConcurrencyLimiter) { s.limiter = limiter }
+func (s *Server) SetRetryExecutor(executor ports.RetryExecutor)   { s.retryExecutor = executor }
+func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) { s.triggerRepo = repo }
+func (s *Server) SetConnectionService(svc ports.ConnectionPort)   { s.connectionSvc = svc }
+func (s *Server) SetPublishChannelRepo(repo repository.PublishChannelRepository) { s.publishChannelRepo = repo }
+func (s *Server) SetExecutionRegistry(reg ports.ExecutionRegistryPort) { s.executionReg = reg }
+func (s *Server) SetRunManager(rm ports.RunManagerPort)           { s.runManager = rm }
+func (s *Server) SetRunPublisher(pub *runpub.RunPublisher)        { s.runPublisher = pub }
+func (s *Server) SetPipelineService(svc ports.PipelineServicePort) { s.pipelineSvc = svc }
+func (s *Server) SetPipelineRunner(runner ports.PipelineRunner)   { s.pipelineRunner = runner }
+func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) { s.contentSvc = svc }
+func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector = c }
+func (s *Server) SetLLMResolver(r ports.LLMResolver)              { s.llmResolver = r }
 
-// SetSkills configures the skill provider for LLM-guided node configuration.
-func (s *Server) SetSkills(provider skills.Provider) {
-	s.skills = provider
-}
-
-// SetRunHistoryService configures the run history service.
-func (s *Server) SetRunHistoryService(svc ports.RunHistoryPort) {
-	s.runHistorySvc = svc
-}
-
-// SetSchedulerService configures the scheduler service.
-func (s *Server) SetSchedulerService(svc ports.SchedulerPort) {
-	s.schedulerSvc = svc
-}
-
-// SetConcurrencyLimiter configures the concurrency limiter.
-func (s *Server) SetConcurrencyLimiter(limiter *services.ConcurrencyLimiter) {
-	s.limiter = limiter
-}
-
-// SetRetryExecutor configures the retry executor.
-func (s *Server) SetRetryExecutor(executor ports.RetryExecutor) {
-	s.retryExecutor = executor
-}
-
-// SetTriggerRepository configures the trigger repository.
-func (s *Server) SetTriggerRepository(repo repository.TriggerRepository) {
-	s.triggerRepo = repo
-}
-
-// SetConnectionService configures the connection management service.
-func (s *Server) SetConnectionService(svc ports.ConnectionPort) {
-	s.connectionSvc = svc
-}
-
-// SetPublishChannelRepo configures the publish channel repository.
-func (s *Server) SetPublishChannelRepo(repo repository.PublishChannelRepository) {
-	s.publishChannelRepo = repo
-}
-
-// SetExecutionRegistry configures the execution registry for pause/resume.
-func (s *Server) SetExecutionRegistry(reg ports.ExecutionRegistryPort) {
-	s.executionReg = reg
-}
-
-// SetRunManager configures the run manager for background execution.
-func (s *Server) SetRunManager(rm ports.RunManagerPort) {
-	s.runManager = rm
-}
-
-// SetRunPublisher configures the publisher that drives background workflow executions.
-func (s *Server) SetRunPublisher(pub *runpub.RunPublisher) {
-	s.runPublisher = pub
-}
-
-// SetPipelineService configures the pipeline management service.
-func (s *Server) SetPipelineService(svc ports.PipelineServicePort) {
-	s.pipelineSvc = svc
-}
-
-// SetPipelineRunner configures the pipeline runner for stage execution.
-func (s *Server) SetPipelineRunner(runner ports.PipelineRunner) {
-	s.pipelineRunner = runner
-}
-
-// SetContentSessionService configures the content session management service.
-func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) {
-	s.contentSvc = svc
-}
-
-// SetContentCollector configures the content collector for background collection and production.
-func (s *Server) SetContentCollector(c *services.ContentCollector) {
-	s.collector = c
-}
-
-// SetLLMResolver configures the LLM resolver for "provider/model" lookups.
-func (s *Server) SetLLMResolver(r ports.LLMResolver) { s.llmResolver = r }
-
-// SetServerConfig applies server-level configuration values.
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
 	s.uploadMaxSize = cfg.UploadMaxSize
 }
 
-// ThumbnailTimeout returns the configured timeout, falling back to 60s.
+// SetA2ABaseURL enables A2A protocol endpoints.
+// The URL is used in the AgentCard to advertise the invoke endpoint.
+func (s *Server) SetA2ABaseURL(url string) {
+	s.a2aBaseURL = url
+}
+
 func (s *Server) thumbnailTimeoutOrDefault() time.Duration {
 	if s.thumbnailTimeout > 0 {
 		return s.thumbnailTimeout
@@ -296,7 +231,6 @@ func (s *Server) thumbnailTimeoutOrDefault() time.Duration {
 	return 60 * time.Second
 }
 
-// UploadMaxSize returns the configured max upload size, falling back to 50MB.
 func (s *Server) uploadMaxSizeOrDefault() int64 {
 	if s.uploadMaxSize > 0 {
 		return s.uploadMaxSize
@@ -304,20 +238,11 @@ func (s *Server) uploadMaxSizeOrDefault() int64 {
 	return 50 << 20
 }
 
-// SetA2ABaseURL enables A2A protocol endpoints on the server.
-// The URL is used in the AgentCard to advertise the invoke endpoint.
-func (s *Server) SetA2ABaseURL(url string) {
-	s.a2aBaseURL = url
-}
-
-// listAvailableTools returns all tools available for agent nodes.
 func (s *Server) listAvailableTools(w http.ResponseWriter, r *http.Request) {
 	var result []tools.ToolInfo
 	if s.toolReg != nil {
 		result = s.toolReg.AllTools()
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	writeJSON(w, result)
 }
 

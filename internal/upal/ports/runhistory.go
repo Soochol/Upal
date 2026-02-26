@@ -6,8 +6,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// RunHistoryPort is the interface for recording and querying workflow run history.
-// Services should depend on this interface rather than *RunHistoryService directly.
+// RunHistoryPort defines the contract for recording and querying workflow run history.
 type RunHistoryPort interface {
 	StartRun(ctx context.Context, workflowName string, triggerType, triggerRef string, inputs map[string]any, wfDef *upal.WorkflowDefinition) (*upal.RunRecord, error)
 	CompleteRun(ctx context.Context, id string, outputs map[string]any) error

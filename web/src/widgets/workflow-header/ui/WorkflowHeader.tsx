@@ -1,7 +1,7 @@
 import { Loader2, Check, AlertCircle, Clock, Copy } from 'lucide-react'
 import { Input } from '@/shared/ui/input'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
-import type { SaveStatus } from '@/features/manage-canvas'
+import type { SaveStatus } from '@/shared/hooks/useAutoSave'
 import { RunWorkflowButton } from './RunWorkflowButton'
 
 type WorkflowHeaderProps = {

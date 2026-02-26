@@ -7,8 +7,8 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// PassthroughStageExecutor is a no-op executor for declarative stages (schedule, trigger)
-// that configure when a pipeline runs but require no processing during execution.
+// PassthroughStageExecutor is a no-op executor for declarative stages
+// (schedule, trigger) that require no processing during execution.
 type PassthroughStageExecutor struct {
 	stageType string
 }

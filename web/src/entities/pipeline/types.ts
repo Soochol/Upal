@@ -1,5 +1,3 @@
-// --- Pipeline ---
-
 export type PipelineSourceType =
   | 'rss'
   | 'hn'
@@ -106,25 +104,3 @@ export type StageResult = {
   completed_at?: string
 }
 
-// --- Multi-Workflow Session (Phase 6 Architecture) ---
-
-export type SessionStage = 'collect' | 'analyze' | 'workflow' | 'publish'
-export type SessionStatus = 'pending' | 'running' | 'pending_approval' | 'completed' | 'failed' | 'cancelled'
-
-export type PipelineSession = {
-  id: string
-  pipeline_id: string
-  status: SessionStatus
-  current_stage: SessionStage
-
-  // Data Context throughout the session stages
-  source_data?: Record<string, unknown>[]         // Stage 1: Collect
-  analyzed_data?: Record<string, unknown>         // Stage 2: Analyze
-  injected_context?: Record<string, unknown>      // User-overriden context/secrets
-  workflow_runs?: Record<string, string>          // Stage 3: map of ContentType -> RunRecord ID
-  publish_results?: Record<string, unknown>       // Stage 4: Execution/Post URLs
-
-  error?: string
-  created_at: string
-  updated_at: string
-}

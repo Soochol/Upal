@@ -39,7 +39,6 @@ export function useExecuteRun() {
   const addRunEvent = useExecutionStore((s) => s.addRunEvent)
   const clearRunEvents = useExecutionStore((s) => s.clearRunEvents)
   const clearNodeStatuses = useExecutionStore((s) => s.clearNodeStatuses)
-  const setSessionState = useExecutionStore((s) => s.setSessionState)
   const setRunStartTime = useExecutionStore((s) => s.setRunStartTime)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -90,7 +89,7 @@ export function useExecuteRun() {
       clearActiveRun()
       setIsRunning(false)
     }
-  }, [workflowName, clearRunEvents, clearNodeStatuses, setIsRunning, addRunEvent, setSessionState, setRunStartTime])
+  }, [workflowName, clearRunEvents, clearNodeStatuses, setIsRunning, addRunEvent, setRunStartTime])
 
   return { executeRun, isRunning }
 }

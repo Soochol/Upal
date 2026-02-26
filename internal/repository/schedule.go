@@ -7,7 +7,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// ScheduleRepository abstracts persistence for cron schedules.
 type ScheduleRepository interface {
 	Create(ctx context.Context, schedule *upal.Schedule) error
 	Get(ctx context.Context, id string) (*upal.Schedule, error)

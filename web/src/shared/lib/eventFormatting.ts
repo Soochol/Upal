@@ -14,7 +14,15 @@ export const eventColorMap: Record<string, string> = {
   log:            'text-muted-foreground/60 text-[11px]',
 }
 
-export function formatEvent(event: RunEvent): string {
+function truncate(text: string, maxLen: number): string {
+  return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
+}
+
+/**
+ * Format a run event as a log line.
+ * When `verbose` is true, outputs full content without truncation.
+ */
+export function formatEvent(event: RunEvent, verbose = false): string {
   switch (event.type) {
     case 'node_started':
       return `[${event.nodeId}] started`
@@ -26,20 +34,21 @@ export function formatEvent(event: RunEvent): string {
       return event.results
         .map((r) => {
           const resp = JSON.stringify(r.response ?? {})
-          const truncated = resp.length > 200 ? resp.slice(0, 200) + '...' : resp
-          return `[${event.nodeId}] ${r.name} \u2192 ${truncated}`
+          return `[${event.nodeId}] ${r.name} \u2192 ${verbose ? resp : truncate(resp, 200)}`
         })
         .join('\n')
     case 'node_completed': {
-      // Replace data URIs with compact summaries for log readability
-      let output = event.output.replace(
-        /data:(image\/[\w+-]+);base64,[A-Za-z0-9+/=]+/g,
-        (_match, mimeType: string) => {
-          const sizeKB = Math.round((_match.length * 3) / 4 / 1024)
-          return `[image: ${mimeType}, ~${sizeKB}KB]`
-        },
-      )
-      output = output.length > 300 ? output.slice(0, 300) + '...' : output
+      let output = event.output
+      if (!verbose) {
+        output = output.replace(
+          /data:(image\/[\w+-]+);base64,[A-Za-z0-9+/=]+/g,
+          (_match, mimeType: string) => {
+            const sizeKB = Math.round((_match.length * 3) / 4 / 1024)
+            return `[image: ${mimeType}, ~${sizeKB}KB]`
+          },
+        )
+        output = truncate(output, 300)
+      }
       const deltaKeys = Object.keys(event.stateDelta ?? {})
       const suffix = deltaKeys.length > 0 ? ` state: {${deltaKeys.join(', ')}}` : ''
       return `[${event.nodeId}] ${output}${suffix}`
@@ -67,40 +76,4 @@ export function formatRelativeTime(eventMs: number | undefined, runStartMs: numb
   const delta = (eventMs - runStartMs) / 1000
   if (delta < 0) return ''
   return `+${delta.toFixed(1)}s`
-}
-
-/** Same as formatEvent but without any character truncation.
- *  Use for "verbose" log level where the user wants to see the full content. */
-export function formatEventVerbose(event: RunEvent): string {
-  switch (event.type) {
-    case 'node_started':
-      return `[${event.nodeId}] started`
-    case 'tool_call':
-      return event.calls
-        .map((c) => `[${event.nodeId}] ${c.name}(${JSON.stringify(c.args ?? {})})`)
-        .join('\n')
-    case 'tool_result':
-      return event.results
-        .map((r) => `[${event.nodeId}] ${r.name} \u2192 ${JSON.stringify(r.response ?? {})}`)
-        .join('\n')
-    case 'node_completed': {
-      const deltaKeys = Object.keys(event.stateDelta ?? {})
-      const suffix = deltaKeys.length > 0 ? ` state: {${deltaKeys.join(', ')}}` : ''
-      return `[${event.nodeId}] ${event.output}${suffix}`
-    }
-    case 'done':
-      return event.error ? `status=${event.status}: ${event.error}` : `status=${event.status}`
-    case 'error':
-      return event.message
-    case 'info':
-      return event.message
-    case 'node_skipped':
-      return `[${event.nodeId}] skipped`
-    case 'node_waiting':
-      return `[${event.nodeId}] waiting`
-    case 'node_resumed':
-      return `[${event.nodeId}] resumed`
-    case 'log':
-      return `[${event.nodeId}] ${event.message}`
-  }
 }

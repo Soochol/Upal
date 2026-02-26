@@ -9,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal/ports"
 )
 
-// WorkflowStageExecutor runs a workflow by name.
 type WorkflowStageExecutor struct {
 	workflowSvc ports.WorkflowExecutor
 }
@@ -26,10 +25,6 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, s
 		return nil, fmt.Errorf("workflow_name is required for workflow stage")
 	}
 
-	// Build inputs from input mapping.
-	// For each mapping entry: if srcExpr matches a key in the previous stage's
-	// output, use that value (dynamic reference). Otherwise treat srcExpr as a
-	// static literal value entered at pipeline design time.
 	inputs := make(map[string]any)
 	for destKey, srcExpr := range stage.Config.InputMapping {
 		if srcExpr == "" {
@@ -41,11 +36,9 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, s
 				continue
 			}
 		}
-		// Static value
 		inputs[destKey] = srcExpr
 	}
 
-	// Look up and run the workflow
 	wf, err := e.workflowSvc.Lookup(ctx, wfName)
 	if err != nil {
 		return nil, fmt.Errorf("workflow %q not found: %w", wfName, err)
@@ -56,7 +49,6 @@ func (e *WorkflowStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, s
 		return nil, fmt.Errorf("failed to start workflow %q: %w", wfName, err)
 	}
 
-	// Drain events
 	for range eventCh {
 	}
 

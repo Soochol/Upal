@@ -11,8 +11,8 @@ import (
 
 var _ ports.ConcurrencyControl = (*ConcurrencyLimiter)(nil)
 
-// ConcurrencyLimiter controls how many workflows can execute simultaneously.
-// It uses channel-based counting semaphores at two levels: global and per-workflow.
+// ConcurrencyLimiter controls how many workflows can execute simultaneously
+// using channel-based semaphores at global and per-workflow levels.
 type ConcurrencyLimiter struct {
 	global      chan struct{}
 	perWorkflow map[string]chan struct{}
@@ -21,7 +21,6 @@ type ConcurrencyLimiter struct {
 	activeCount atomic.Int64
 }
 
-// NewConcurrencyLimiter creates a limiter with the given limits.
 func NewConcurrencyLimiter(limits upal.ConcurrencyLimits) *ConcurrencyLimiter {
 	if limits.GlobalMax <= 0 {
 		limits.GlobalMax = 10
@@ -37,34 +36,27 @@ func NewConcurrencyLimiter(limits upal.ConcurrencyLimits) *ConcurrencyLimiter {
 	}
 }
 
-// Acquire blocks until both global and per-workflow slots are available,
-// or returns an error if the context is cancelled.
 func (c *ConcurrencyLimiter) Acquire(ctx context.Context, workflowName string) error {
-	// 1. Acquire global slot.
 	select {
 	case c.global <- struct{}{}:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 
-	// 2. Acquire per-workflow slot.
 	wfCh := c.getOrCreateWorkflowChan(workflowName)
 	select {
 	case wfCh <- struct{}{}:
 		c.activeCount.Add(1)
 		return nil
 	case <-ctx.Done():
-		// Release global slot since we couldn't get per-workflow.
 		<-c.global
 		return ctx.Err()
 	}
 }
 
-// Release returns both the global and per-workflow slots.
 func (c *ConcurrencyLimiter) Release(workflowName string) {
 	c.activeCount.Add(-1)
 
-	// Release per-workflow slot.
 	c.mu.Lock()
 	if ch, ok := c.perWorkflow[workflowName]; ok {
 		select {
@@ -74,21 +66,18 @@ func (c *ConcurrencyLimiter) Release(workflowName string) {
 	}
 	c.mu.Unlock()
 
-	// Release global slot.
 	select {
 	case <-c.global:
 	default:
 	}
 }
 
-// ConcurrencyStats reports current usage.
 type ConcurrencyStats struct {
 	ActiveRuns int `json:"active_runs"`
 	GlobalMax  int `json:"global_max"`
 	PerWorkflow int `json:"per_workflow"`
 }
 
-// Stats returns the current concurrency statistics.
 func (c *ConcurrencyLimiter) Stats() ConcurrencyStats {
 	return ConcurrencyStats{
 		ActiveRuns:  int(c.activeCount.Load()),

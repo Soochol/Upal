@@ -9,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// TransformStageExecutor processes previous stage output without LLM.
 type TransformStageExecutor struct{}
 
 func (e *TransformStageExecutor) Type() string { return "transform" }
@@ -18,7 +17,6 @@ func (e *TransformStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, st
 	output := make(map[string]any)
 
 	if prevResult != nil {
-		// Pass through previous output, applying input mapping if configured
 		if stage.Config.InputMapping != nil {
 			for destKey, srcKey := range stage.Config.InputMapping {
 				if val, ok := prevResult.Output[srcKey]; ok {
@@ -26,14 +24,12 @@ func (e *TransformStageExecutor) Execute(_ context.Context, _ *upal.Pipeline, st
 				}
 			}
 		} else {
-			// Pass through all
 			for k, v := range prevResult.Output {
 				output[k] = v
 			}
 		}
 	}
 
-	// If expression is set, evaluate it (basic JSON parse for now)
 	if stage.Config.Expression != "" {
 		var parsed any
 		if err := json.Unmarshal([]byte(stage.Config.Expression), &parsed); err != nil {

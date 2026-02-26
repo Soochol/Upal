@@ -27,16 +27,16 @@ func sanitizeSlug(s string) string {
 
 func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 	var wf upal.WorkflowDefinition
-	if err := json.NewDecoder(r.Body).Decode(&wf); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &wf) {
 		return
 	}
 
+	respondWithName := func(name string) {
+		writeJSON(w, map[string]string{"name": name})
+	}
+
 	if s.generator == nil {
-		// Fallback: build name from node labels
-		name := buildFallbackName(wf)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"name": name})
+		respondWithName(buildFallbackName(wf))
 		return
 	}
 
@@ -55,29 +55,21 @@ func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 	var resp *adkmodel.LLMResponse
 	for r, err := range s.generator.LLM().GenerateContent(r.Context(), llmReq, false) {
 		if err != nil {
-			// Fallback on LLM error
-			name := buildFallbackName(wf)
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"name": name})
+			respondWithName(buildFallbackName(wf))
 			return
 		}
 		resp = r
 	}
 
 	if resp == nil || resp.Content == nil {
-		name := buildFallbackName(wf)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"name": name})
+		respondWithName(buildFallbackName(wf))
 		return
 	}
 
-	// Extract text from response and strip markdown fences
 	text := llmutil.ExtractText(resp)
 	content, err := llmutil.StripMarkdownJSON(text)
 	if err != nil {
-		name := buildFallbackName(wf)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"name": name})
+		respondWithName(buildFallbackName(wf))
 		return
 	}
 
@@ -85,14 +77,11 @@ func (s *Server) suggestWorkflowName(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(strings.NewReader(content)).Decode(&result); err != nil || result.Name == "" {
-		name := buildFallbackName(wf)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"name": name})
+		respondWithName(buildFallbackName(wf))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"name": sanitizeSlug(result.Name)})
+	respondWithName(sanitizeSlug(result.Name))
 }
 
 // buildFallbackName creates a deterministic name from node labels when LLM is unavailable.
@@ -113,6 +102,5 @@ func buildFallbackName(wf upal.WorkflowDefinition) string {
 	if len(parts) == 0 {
 		return fmt.Sprintf("workflow-%d-nodes", len(wf.Nodes))
 	}
-	name := strings.Join(parts, "-")
-	return sanitizeSlug(name)
+	return sanitizeSlug(strings.Join(parts, "-"))
 }

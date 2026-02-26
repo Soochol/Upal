@@ -8,8 +8,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// ContentDB defines the DB-layer methods needed by the persistent content repos.
-// *db.DB satisfies this interface.
+// ContentDB defines the database methods used by persistent content repositories.
 type ContentDB interface {
 	CreateContentSession(ctx context.Context, s *upal.ContentSession) error
 	GetContentSession(ctx context.Context, id string) (*upal.ContentSession, error)
@@ -41,7 +40,6 @@ type ContentDB interface {
 	DeleteWorkflowResultsBySession(ctx context.Context, sessionID string) error
 }
 
-// PersistentContentSessionRepository wraps MemoryContentSessionRepository with DB backend.
 type PersistentContentSessionRepository struct {
 	mem *MemoryContentSessionRepository
 	db  ContentDB
@@ -126,12 +124,10 @@ func (r *PersistentContentSessionRepository) ListArchivedByPipeline(ctx context.
 }
 
 func (r *PersistentContentSessionRepository) ListArchived(ctx context.Context) ([]*upal.ContentSession, error) {
-	// No DB method yet — fall back to in-memory.
 	return r.mem.ListArchived(ctx)
 }
 
 func (r *PersistentContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
-	// No DB method yet — fall back to in-memory filtering.
 	return r.mem.ListTemplatesByPipeline(ctx, pipelineID)
 }
 
@@ -151,7 +147,6 @@ func (r *PersistentContentSessionRepository) Delete(ctx context.Context, id stri
 	return nil
 }
 
-// PersistentSourceFetchRepository wraps MemorySourceFetchRepository with DB backend.
 type PersistentSourceFetchRepository struct {
 	mem *MemorySourceFetchRepository
 	db  ContentDB
@@ -170,7 +165,6 @@ func (r *PersistentSourceFetchRepository) Create(ctx context.Context, sf *upal.S
 }
 
 func (r *PersistentSourceFetchRepository) Update(ctx context.Context, sf *upal.SourceFetch) error {
-	// No DB update method yet — update in-memory only.
 	return r.mem.Update(ctx, sf)
 }
 
@@ -183,7 +177,6 @@ func (r *PersistentSourceFetchRepository) ListBySession(ctx context.Context, ses
 	return r.mem.ListBySession(ctx, sessionID)
 }
 
-// PersistentLLMAnalysisRepository wraps MemoryLLMAnalysisRepository with DB backend.
 type PersistentLLMAnalysisRepository struct {
 	mem *MemoryLLMAnalysisRepository
 	db  ContentDB
@@ -216,7 +209,6 @@ func (r *PersistentLLMAnalysisRepository) Update(ctx context.Context, a *upal.LL
 	return nil
 }
 
-// PersistentPublishedContentRepository wraps MemoryPublishedContentRepository with DB backend.
 type PersistentPublishedContentRepository struct {
 	mem *MemoryPublishedContentRepository
 	db  ContentDB
@@ -269,7 +261,6 @@ func (r *PersistentPublishedContentRepository) DeleteBySession(ctx context.Conte
 	return nil
 }
 
-// PersistentSurgeEventRepository wraps MemorySurgeEventRepository with DB backend.
 type PersistentSurgeEventRepository struct {
 	mem *MemorySurgeEventRepository
 	db  ContentDB
@@ -325,7 +316,6 @@ func (r *PersistentSurgeEventRepository) Update(ctx context.Context, se *upal.Su
 	return nil
 }
 
-// PersistentWorkflowResultRepository wraps MemoryWorkflowResultRepository with DB backend.
 type PersistentWorkflowResultRepository struct {
 	mem *MemoryWorkflowResultRepository
 	db  ContentDB

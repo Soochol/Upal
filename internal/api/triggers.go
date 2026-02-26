@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// createTrigger creates a new webhook trigger for a workflow.
-// POST /api/triggers
 func (s *Server) createTrigger(w http.ResponseWriter, r *http.Request) {
 	if s.triggerRepo == nil {
 		http.Error(w, "triggers not available", http.StatusServiceUnavailable)
@@ -20,11 +17,9 @@ func (s *Server) createTrigger(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var trigger upal.Trigger
-	if err := json.NewDecoder(r.Body).Decode(&trigger); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &trigger) {
 		return
 	}
-
 	if trigger.WorkflowName == "" && trigger.PipelineID == "" {
 		http.Error(w, "workflow_name or pipeline_id is required", http.StatusBadRequest)
 		return
@@ -35,7 +30,6 @@ func (s *Server) createTrigger(w http.ResponseWriter, r *http.Request) {
 	trigger.Enabled = true
 	trigger.CreatedAt = time.Now()
 
-	// Auto-generate secret if not provided.
 	if trigger.Config.Secret == "" {
 		b := make([]byte, 32)
 		rand.Read(b)
@@ -47,20 +41,15 @@ func (s *Server) createTrigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
+	writeJSONStatus(w, http.StatusCreated, map[string]any{
 		"trigger":     trigger,
 		"webhook_url": "/api/hooks/" + trigger.ID,
 	})
 }
 
-// listTriggers returns triggers for a specific workflow.
-// GET /api/workflows/{name}/triggers
 func (s *Server) listTriggers(w http.ResponseWriter, r *http.Request) {
 	if s.triggerRepo == nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]any{})
+		writeJSON(w, []any{})
 		return
 	}
 
@@ -70,16 +59,9 @@ func (s *Server) listTriggers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if triggers == nil {
-		triggers = []*upal.Trigger{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(triggers)
+	writeJSON(w, orEmpty(triggers))
 }
 
-// deleteTrigger removes a trigger.
-// DELETE /api/triggers/{id}
 func (s *Server) deleteTrigger(w http.ResponseWriter, r *http.Request) {
 	if s.triggerRepo == nil {
 		http.Error(w, "triggers not available", http.StatusServiceUnavailable)
@@ -91,6 +73,5 @@ func (s *Server) deleteTrigger(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusNoContent)
 }

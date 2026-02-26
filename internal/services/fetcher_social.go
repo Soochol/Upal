@@ -21,8 +21,6 @@ const (
 	defaultMastodonBase      = "https://mastodon.social"
 )
 
-// SocialEndpoints holds API endpoints for Bluesky and Mastodon.
-// Exported so tests can inject httptest servers.
 type SocialEndpoints struct {
 	BlueskyTrending   string
 	BlueskySearch     string
@@ -32,14 +30,11 @@ type SocialEndpoints struct {
 	MastodonBase      string
 }
 
-// socialFetcher fetches trending topics, keyword searches, and account feeds
-// from Bluesky and Mastodon public APIs.
 type socialFetcher struct {
 	client    *http.Client
 	endpoints SocialEndpoints
 }
 
-// NewSocialFetcher creates a socialFetcher with production API endpoints.
 func NewSocialFetcher(client *http.Client) *socialFetcher {
 	return &socialFetcher{
 		client: client,
@@ -54,7 +49,6 @@ func NewSocialFetcher(client *http.Client) *socialFetcher {
 	}
 }
 
-// NewSocialFetcherWithEndpoints creates a socialFetcher with custom endpoints (for testing).
 func NewSocialFetcherWithEndpoints(client *http.Client, endpoints SocialEndpoints) *socialFetcher {
 	return &socialFetcher{
 		client:    client,
@@ -69,23 +63,15 @@ func (f *socialFetcher) Fetch(ctx context.Context, src upal.CollectSource) (stri
 	if limit <= 0 {
 		limit = 20
 	}
-	// Per-category limit to avoid early sources starving later ones.
 	perCategoryLimit := max(limit/3, 5)
 
 	var sb strings.Builder
 	var allItems []map[string]any
 
-	// 1. Bluesky trending topics
 	f.fetchBlueskyTrending(ctx, &sb, &allItems)
-
-	// 2. Bluesky keyword search
 	for _, kw := range src.Keywords {
 		f.fetchBlueskySearch(ctx, kw, &sb, &allItems)
 	}
-
-	// 3. Account feeds
-	// Routing: handles containing "@" (e.g. user@mastodon.social) → Mastodon,
-	// handles without "@" (e.g. alice.bsky.social) → Bluesky.
 	for _, acct := range src.Accounts {
 		if strings.Contains(acct, "@") {
 			f.fetchMastodonAccount(ctx, acct, perCategoryLimit, &sb, &allItems)
@@ -94,13 +80,9 @@ func (f *socialFetcher) Fetch(ctx context.Context, src upal.CollectSource) (stri
 		}
 	}
 
-	// 4. Mastodon trending tags
 	f.fetchMastodonTags(ctx, &sb, &allItems)
-
-	// 5. Mastodon trending links
 	f.fetchMastodonLinks(ctx, &sb, &allItems)
 
-	// Apply limit to total items
 	if len(allItems) > limit {
 		allItems = allItems[:limit]
 	}
@@ -108,7 +90,6 @@ func (f *socialFetcher) Fetch(ctx context.Context, src upal.CollectSource) (stri
 	return sb.String(), allItems, nil
 }
 
-// fetchBlueskyTrending fetches trending topics from Bluesky.
 func (f *socialFetcher) fetchBlueskyTrending(ctx context.Context, sb *strings.Builder, items *[]map[string]any) {
 	var result struct {
 		Topics []struct {
@@ -133,7 +114,6 @@ func (f *socialFetcher) fetchBlueskyTrending(ctx context.Context, sb *strings.Bu
 	sb.WriteString("\n")
 }
 
-// fetchBlueskySearch searches Bluesky posts by keyword.
 func (f *socialFetcher) fetchBlueskySearch(ctx context.Context, keyword string, sb *strings.Builder, items *[]map[string]any) {
 	u := f.endpoints.BlueskySearch + "?q=" + url.QueryEscape(keyword)
 	var result struct {
@@ -165,7 +145,6 @@ func (f *socialFetcher) fetchBlueskySearch(ctx context.Context, keyword string, 
 	sb.WriteString("\n")
 }
 
-// fetchBlueskyAuthorFeed fetches recent posts from a Bluesky account.
 func (f *socialFetcher) fetchBlueskyAuthorFeed(ctx context.Context, handle string, limit int, sb *strings.Builder, items *[]map[string]any) {
 	u := fmt.Sprintf("%s?actor=%s&limit=%d", f.endpoints.BlueskyAuthorFeed, url.QueryEscape(handle), limit)
 	var result struct {
@@ -200,9 +179,7 @@ func (f *socialFetcher) fetchBlueskyAuthorFeed(ctx context.Context, handle strin
 	sb.WriteString("\n")
 }
 
-// fetchMastodonAccount looks up a Mastodon account and fetches recent statuses.
 func (f *socialFetcher) fetchMastodonAccount(ctx context.Context, acct string, limit int, sb *strings.Builder, items *[]map[string]any) {
-	// Step 1: Look up account ID
 	lookupURL := fmt.Sprintf("%s/api/v1/accounts/lookup?acct=%s", f.endpoints.MastodonBase, url.QueryEscape(acct))
 	var account struct {
 		ID string `json:"id"`
@@ -212,7 +189,6 @@ func (f *socialFetcher) fetchMastodonAccount(ctx context.Context, acct string, l
 		return
 	}
 
-	// Step 2: Fetch statuses
 	statusesURL := fmt.Sprintf("%s/api/v1/accounts/%s/statuses?limit=%d", f.endpoints.MastodonBase, account.ID, limit)
 	var statuses []struct {
 		Content   string `json:"content"`
@@ -238,7 +214,6 @@ func (f *socialFetcher) fetchMastodonAccount(ctx context.Context, acct string, l
 	sb.WriteString("\n")
 }
 
-// fetchMastodonTags fetches trending tags from Mastodon.
 func (f *socialFetcher) fetchMastodonTags(ctx context.Context, sb *strings.Builder, items *[]map[string]any) {
 	var tags []struct {
 		Name string `json:"name"`
@@ -261,7 +236,6 @@ func (f *socialFetcher) fetchMastodonTags(ctx context.Context, sb *strings.Build
 	sb.WriteString("\n")
 }
 
-// fetchMastodonLinks fetches trending links from Mastodon.
 func (f *socialFetcher) fetchMastodonLinks(ctx context.Context, sb *strings.Builder, items *[]map[string]any) {
 	var links []struct {
 		Title       string `json:"title"`
@@ -286,7 +260,6 @@ func (f *socialFetcher) fetchMastodonLinks(ctx context.Context, sb *strings.Buil
 	sb.WriteString("\n")
 }
 
-// fetchJSON performs a GET request and unmarshals the JSON response into out.
 func (f *socialFetcher) fetchJSON(ctx context.Context, rawURL string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
@@ -314,7 +287,6 @@ func (f *socialFetcher) fetchJSON(ctx context.Context, rawURL string, out any) e
 	return nil
 }
 
-// truncate cuts a string to n characters, appending "…" if truncated.
 func truncate(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {
@@ -323,7 +295,6 @@ func truncate(s string, n int) string {
 	return string(runes[:n]) + "…"
 }
 
-// stripHTMLTags removes HTML tags from a string (simple approach for Mastodon content).
 func stripHTMLTags(s string) string {
 	var b strings.Builder
 	inTag := false

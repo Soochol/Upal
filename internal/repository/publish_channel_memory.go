@@ -9,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryPublishChannelRepository is a thread-safe in-memory publish channel store.
 type MemoryPublishChannelRepository struct {
 	store *memstore.Store[*upal.PublishChannel]
 }

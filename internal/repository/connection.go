@@ -6,7 +6,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// ConnectionRepository stores and retrieves external service connections.
 type ConnectionRepository interface {
 	Create(ctx context.Context, conn *upal.Connection) error
 	Get(ctx context.Context, id string) (*upal.Connection, error)

@@ -9,12 +9,10 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryRepository is a thread-safe in-memory WorkflowRepository.
 type MemoryRepository struct {
 	store *memstore.Store[*upal.WorkflowDefinition]
 }
 
-// NewMemory creates an empty in-memory repository.
 func NewMemory() *MemoryRepository {
 	return &MemoryRepository{
 		store: memstore.New(func(w *upal.WorkflowDefinition) string { return w.Name }),
@@ -38,7 +36,6 @@ func (r *MemoryRepository) List(ctx context.Context) ([]*upal.WorkflowDefinition
 }
 
 func (r *MemoryRepository) Update(ctx context.Context, name string, wf *upal.WorkflowDefinition) error {
-	// If the name changed, remove the old key first.
 	if name != wf.Name {
 		_ = r.store.Delete(ctx, name)
 	}
@@ -46,7 +43,6 @@ func (r *MemoryRepository) Update(ctx context.Context, name string, wf *upal.Wor
 }
 
 func (r *MemoryRepository) Delete(ctx context.Context, name string) error {
-	// Workflow Delete is a no-op on missing keys (original behaviour).
 	_ = r.store.Delete(ctx, name)
 	return nil
 }

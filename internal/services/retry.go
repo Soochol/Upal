@@ -14,13 +14,11 @@ import (
 
 var _ ports.RetryExecutor = (*RetryExecutor)(nil)
 
-// RetryExecutor wraps ports.WorkflowExecutor.Run with configurable retry and backoff.
 type RetryExecutor struct {
 	workflowExec  ports.WorkflowExecutor
 	runHistorySvc ports.RunHistoryPort
 }
 
-// NewRetryExecutor creates a RetryExecutor.
 func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc ports.RunHistoryPort) *RetryExecutor {
 	return &RetryExecutor{
 		workflowExec:  workflowExec,
@@ -28,9 +26,6 @@ func NewRetryExecutor(workflowExec ports.WorkflowExecutor, runHistorySvc ports.R
 	}
 }
 
-// ExecuteWithRetry runs a workflow with retry on failure.
-// It returns channels for events and the final result, same as WorkflowExecutor.Run.
-// On retry, previous attempt is marked as failed and a new run record is created.
 func (r *RetryExecutor) ExecuteWithRetry(
 	ctx context.Context,
 	wf *upal.WorkflowDefinition,
@@ -48,7 +43,6 @@ func (r *RetryExecutor) ExecuteWithRetry(
 		var firstRunID string
 
 		for attempt := 0; attempt <= policy.MaxRetries; attempt++ {
-			// Create run record.
 			var retryOf *string
 			if attempt > 0 && firstRunID != "" {
 				retryOf = &firstRunID
@@ -66,7 +60,6 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				}
 			}
 
-			// Execute workflow.
 			events, result, execErr := r.workflowExec.Run(ctx, wf, inputs)
 			if execErr != nil {
 				if record != nil {
@@ -85,7 +78,6 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				continue
 			}
 
-			// Stream events, watching for errors.
 			var hadError bool
 			var errMsg string
 			for ev := range events {
@@ -111,7 +103,6 @@ func (r *RetryExecutor) ExecuteWithRetry(
 				continue
 			}
 
-			// Success.
 			if record != nil {
 				r.runHistorySvc.CompleteRun(ctx, record.ID, res.State)
 			}
@@ -123,7 +114,6 @@ func (r *RetryExecutor) ExecuteWithRetry(
 	return outEvents, outResult, nil
 }
 
-// sleepWithBackoff waits for the backoff duration, respecting context cancellation.
 func sleepWithBackoff(ctx context.Context, policy upal.RetryPolicy, attempt int) {
 	delay := calculateBackoff(policy, attempt)
 	slog.Info("retry: backing off", "attempt", attempt+1, "delay", delay)
@@ -137,7 +127,6 @@ func sleepWithBackoff(ctx context.Context, policy upal.RetryPolicy, attempt int)
 	}
 }
 
-// calculateBackoff computes the delay for a given attempt using exponential backoff.
 func calculateBackoff(policy upal.RetryPolicy, attempt int) time.Duration {
 	delay := float64(policy.InitialDelay) * math.Pow(policy.BackoffFactor, float64(attempt))
 	if time.Duration(delay) > policy.MaxDelay {
@@ -146,12 +135,10 @@ func calculateBackoff(policy upal.RetryPolicy, attempt int) time.Duration {
 	return time.Duration(delay)
 }
 
-// isRetryable checks if an error is worth retrying.
 func isRetryable(err error) bool {
 	return isRetryableMsg(err.Error())
 }
 
-// isRetryableMsg checks if an error message indicates a retryable condition.
 func isRetryableMsg(msg string) bool {
 	lower := strings.ToLower(msg)
 	retryablePatterns := []string{

@@ -1,4 +1,3 @@
-// Package repository defines storage interfaces for domain entities.
 package repository
 
 import (
@@ -7,8 +6,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// WorkflowRepository abstracts workflow persistence so callers don't
-// need to know whether storage is in-memory, PostgreSQL, or a mix.
 type WorkflowRepository interface {
 	Create(ctx context.Context, wf *upal.WorkflowDefinition) error
 	Get(ctx context.Context, name string) (*upal.WorkflowDefinition, error)

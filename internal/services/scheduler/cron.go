@@ -1,9 +1,5 @@
 package scheduler
 
-// cron.go — CronManager responsibility layer.
-// Cron expression parsing and cron entry registration/removal,
-// implemented as methods on SchedulerService (same package, no circular import).
-
 import (
 	"log/slog"
 
@@ -11,8 +7,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// parseCronExpr tries 6-field (with seconds) then 5-field (standard) parsing.
-// If timezone is non-empty and non-UTC, it is applied via the CRON_TZ= prefix.
 func parseCronExpr(expr string, timezone string) (cron.Schedule, error) {
 	if timezone != "" && timezone != "UTC" {
 		expr = "CRON_TZ=" + timezone + " " + expr
@@ -26,8 +20,6 @@ func parseCronExpr(expr string, timezone string) (cron.Schedule, error) {
 	return parser5.Parse(expr)
 }
 
-// registerCronJob parses the schedule's cron expression, registers a new cron
-// entry, and stores the resulting EntryID in entryMap.
 func (s *SchedulerService) registerCronJob(schedule *upal.Schedule) error {
 	cronSched, err := parseCronExpr(schedule.CronExpr, schedule.Timezone)
 	if err != nil {

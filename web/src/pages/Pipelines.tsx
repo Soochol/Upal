@@ -49,7 +49,7 @@ export default function PipelinesPage() {
   })
 
   const newSessionMutation = useMutation({
-    mutationFn: () => createDraftSession({ pipeline_id: selectedPipelineId! }),
+    mutationFn: () => createDraftSession({ pipeline_id: selectedPipelineId!, is_template: true }),
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
       if (selectedPipelineId) {
@@ -144,7 +144,6 @@ export default function PipelinesPage() {
               </div>
               <SessionSetupView
                 sessionId={selectedSessionId}
-                pipelineId={selectedPipelineId}
               />
             </>
           ) : (

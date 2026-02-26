@@ -14,8 +14,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// handleWebhook receives an external HTTP POST and triggers a workflow run.
-// POST /api/hooks/{id}
 func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -24,7 +22,6 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Look up trigger.
 	trigger, err := s.triggerRepo.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, "trigger not found", http.StatusNotFound)
@@ -35,14 +32,12 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Read request body.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
 
-	// 3. Verify HMAC signature if secret is configured.
 	if trigger.Config.Secret != "" {
 		signature := r.Header.Get("X-Webhook-Signature")
 		if !verifyHMAC(body, trigger.Config.Secret, signature) {
@@ -51,7 +46,6 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 4. Parse body as JSON and map inputs.
 	var payload map[string]any
 	if len(body) > 0 {
 		json.Unmarshal(body, &payload)
@@ -59,9 +53,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	inputs := mapInputs(payload, trigger.Config.InputMapping)
 
-	// 5. Execute asynchronously — pipeline or workflow.
 	if trigger.PipelineID != "" {
-		// Pipeline trigger: start pipeline run.
 		if s.pipelineSvc == nil || s.pipelineRunner == nil {
 			http.Error(w, "pipeline service not available", http.StatusServiceUnavailable)
 			return
@@ -80,7 +72,6 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	} else {
-		// Workflow trigger: execute workflow.
 		wf, err := s.workflowSvc.Lookup(r.Context(), trigger.WorkflowName)
 		if err != nil {
 			http.Error(w, "workflow not found", http.StatusNotFound)
@@ -106,15 +97,12 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	// 7. Return 202 Accepted immediately.
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSONStatus(w, http.StatusAccepted, map[string]string{
 		"status":  "accepted",
 		"trigger": id,
 	})
 }
 
-// verifyHMAC checks the HMAC-SHA256 signature of a payload.
 func verifyHMAC(payload []byte, secret, signature string) bool {
 	if signature == "" {
 		return false
@@ -125,13 +113,10 @@ func verifyHMAC(payload []byte, secret, signature string) bool {
 	return hmac.Equal([]byte(expected), []byte(signature))
 }
 
-// mapInputs extracts workflow inputs from a webhook payload using the input mapping.
-// If no mapping is configured, the entire payload is passed as-is.
 func mapInputs(payload map[string]any, mapping map[string]string) map[string]any {
 	if len(mapping) == 0 {
 		return payload
 	}
-
 	inputs := make(map[string]any)
 	for inputKey, payloadKey := range mapping {
 		if val, ok := payload[payloadKey]; ok {

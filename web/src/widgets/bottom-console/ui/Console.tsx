@@ -9,7 +9,6 @@ import { cn } from '@/shared/lib/utils'
 import {
   eventColorMap,
   formatEvent,
-  formatEventVerbose,
   formatRelativeTime,
 } from '@/shared/lib/eventFormatting'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
@@ -50,7 +49,7 @@ function ConsoleRow({ event, originalIndex, isExpanded, onToggle, runStartTime, 
   const ts = getEventTimestamp(event)
   const relTime = formatRelativeTime(ts, runStartTime)
   const color = eventColorMap[event.type] ?? 'text-muted-foreground'
-  const text = verbose ? formatEventVerbose(event) : formatEvent(event)
+  const text = formatEvent(event, verbose)
   const completed = event.type === 'node_completed' ? (event as NodeCompletedEvent) : null
 
   return (
@@ -199,7 +198,7 @@ export function Console() {
         if (!matchesLevel(event, logLevel)) return false
         if (nodeFilter && 'nodeId' in event && event.nodeId !== nodeFilter) return false
         if (searchQuery) {
-          const text = (verbose ? formatEventVerbose(event) : formatEvent(event)).toLowerCase()
+          const text = formatEvent(event, verbose).toLowerCase()
           const typeStr = event.type.toLowerCase()
           if (!text.includes(searchQuery.toLowerCase()) && !typeStr.includes(searchQuery.toLowerCase())) return false
         }
@@ -218,7 +217,7 @@ export function Console() {
   const handleCopy = useCallback(() => {
     const verbose = logLevel === 'verbose'
     const text = filtered
-      .map(({ event }) => `[${event.type}] ${verbose ? formatEventVerbose(event) : formatEvent(event)}`)
+      .map(({ event }) => `[${event.type}] ${formatEvent(event, verbose)}`)
       .join('\n')
     copyToClipboard(text)
   }, [filtered, logLevel, copyToClipboard])

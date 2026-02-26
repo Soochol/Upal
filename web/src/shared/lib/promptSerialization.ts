@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 
-export type MentionItem = {
+type MentionItem = {
   id: string
   label: string
   nodeType: string

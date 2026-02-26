@@ -1,19 +1,15 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// listRuns returns all runs with pagination.
-// GET /api/runs?limit=20&offset=0
 func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	if s.runHistorySvc == nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"runs": []any{}, "total": 0})
+		writeJSON(w, map[string]any{"runs": []any{}, "total": 0})
 		return
 	}
 
@@ -25,16 +21,9 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"runs":  runs,
-		"total": total,
-	})
+	writeJSON(w, map[string]any{"runs": runs, "total": total})
 }
 
-// getRun returns a single run record with node-level detail.
-// GET /api/runs/{id}
 func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 	if s.runHistorySvc == nil {
 		http.Error(w, "run history not available", http.StatusNotFound)
@@ -47,17 +36,12 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(run)
+	writeJSON(w, run)
 }
 
-// listWorkflowRuns returns runs for a specific workflow.
-// GET /api/workflows/{name}/runs?limit=20&offset=0
 func (s *Server) listWorkflowRuns(w http.ResponseWriter, r *http.Request) {
 	if s.runHistorySvc == nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"runs": []any{}, "total": 0})
+		writeJSON(w, map[string]any{"runs": []any{}, "total": 0})
 		return
 	}
 
@@ -69,26 +53,17 @@ func (s *Server) listWorkflowRuns(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"runs":  runs,
-		"total": total,
-	})
+	writeJSON(w, map[string]any{"runs": runs, "total": total})
 }
 
-// getSchedulerStats returns current concurrency and scheduler status.
-// GET /api/scheduler/stats
 func (s *Server) getSchedulerStats(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{}
 	if s.limiter != nil {
 		resp["concurrency"] = s.limiter.Stats()
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	writeJSON(w, resp)
 }
 
-// parsePagination extracts limit and offset query parameters with defaults.
 func parsePagination(r *http.Request) (int, int) {
 	limit := 20
 	offset := 0

@@ -3,13 +3,13 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	memstore "github.com/soochol/upal/internal/repository/memory"
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryScheduleRepository stores schedules in memory.
 type MemoryScheduleRepository struct {
 	store *memstore.Store[*upal.Schedule]
 }
@@ -27,14 +27,14 @@ func (r *MemoryScheduleRepository) Create(ctx context.Context, schedule *upal.Sc
 func (r *MemoryScheduleRepository) Get(ctx context.Context, id string) (*upal.Schedule, error) {
 	s, err := r.store.Get(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("schedule %q: %w", id, ErrNotFound)
 	}
 	return s, err
 }
 
 func (r *MemoryScheduleRepository) Update(ctx context.Context, schedule *upal.Schedule) error {
 	if !r.store.Has(ctx, schedule.ID) {
-		return ErrNotFound
+		return fmt.Errorf("schedule %q: %w", schedule.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, schedule)
 }
@@ -42,7 +42,7 @@ func (r *MemoryScheduleRepository) Update(ctx context.Context, schedule *upal.Sc
 func (r *MemoryScheduleRepository) Delete(ctx context.Context, id string) error {
 	err := r.store.Delete(ctx, id)
 	if errors.Is(err, memstore.ErrNotFound) {
-		return ErrNotFound
+		return fmt.Errorf("schedule %q: %w", id, ErrNotFound)
 	}
 	return err
 }

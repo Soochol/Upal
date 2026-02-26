@@ -17,15 +17,41 @@ import type { NodeData } from '../types'
 // Node types whose prompt field should receive auto-inserted template references on connect
 const AUTO_PROMPT_TYPES = new Set(['agent', 'output'])
 
+type WorkflowNode = Node<NodeData>
+
+/** Update a single node's data by ID, returning a new nodes array. */
+function patchNodeData(
+  nodes: WorkflowNode[],
+  nodeId: string,
+  patch: Partial<NodeData>,
+): WorkflowNode[] {
+  return nodes.map((n) =>
+    n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n,
+  )
+}
+
+/** Update a single node's config by ID (merges into existing config). */
+function patchNodeConfig(
+  nodes: WorkflowNode[],
+  nodeId: string,
+  config: Record<string, unknown>,
+): WorkflowNode[] {
+  return nodes.map((n) =>
+    n.id === nodeId
+      ? { ...n, data: { ...n.data, config: { ...n.data.config, ...config } } }
+      : n,
+  )
+}
+
 type WorkflowState = {
-  nodes: Node<NodeData>[]
+  nodes: WorkflowNode[]
   edges: Edge[]
-  onNodesChange: OnNodesChange<Node<NodeData>>
+  onNodesChange: OnNodesChange<WorkflowNode>
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
   addNode: (type: NodeData['nodeType'], position: { x: number; y: number }, initialConfig?: Record<string, unknown>) => void
   removeNode: (id: string) => void
-  getNode: (id: string) => Node<NodeData> | undefined
+  getNode: (id: string) => WorkflowNode | undefined
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void
   updateNodeLabel: (nodeId: string, label: string) => void
   updateNodeDescription: (nodeId: string, description: string) => void
@@ -33,7 +59,7 @@ type WorkflowState = {
 
   // Workflow identity
   workflowName: string
-  originalName: string // name at load/save time — empty for unsaved workflows
+  originalName: string // name at load/save time -- empty for unsaved workflows
   setWorkflowName: (name: string) => void
   setOriginalName: (name: string) => void
 
@@ -49,7 +75,9 @@ type WorkflowState = {
 }
 
 let nodeId = 0
-const getId = () => `node_${++nodeId}`
+function getId(): string {
+  return `node_${++nodeId}`
+}
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
@@ -83,17 +111,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         const ref = `{{${edge.source}}}`
         if (!prompt.includes(ref)) continue
 
-        // Remove the reference and clean up extra blank lines
         const newPrompt = prompt
           .split('\n')
           .filter((line) => line.trim() !== ref)
           .join('\n')
 
-        updatedNodes = updatedNodes.map((n) =>
-          n.id === edge.target
-            ? { ...n, data: { ...n.data, config: { ...n.data.config, prompt: newPrompt } } }
-            : n,
-        )
+        updatedNodes = patchNodeConfig(updatedNodes, edge.target, { prompt: newPrompt })
       }
       if (updatedNodes !== nodes) {
         set({ nodes: updatedNodes })
@@ -114,13 +137,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     if (currentPrompt.includes(ref)) return
 
     const newPrompt = currentPrompt ? `${currentPrompt}\n${ref}` : ref
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === connection.target
-          ? { ...n, data: { ...n.data, config: { ...n.data.config, prompt: newPrompt } } }
-          : n,
-      ),
-    })
+    set({ nodes: patchNodeConfig(get().nodes, connection.target, { prompt: newPrompt }) })
   },
   addNode: (type, position, initialConfig) => {
     const id = getId()
@@ -136,7 +153,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         // Unknown type — use raw type string as label
       }
     }
-    const newNode: Node<NodeData> = {
+    const newNode: WorkflowNode = {
       id,
       type: 'upalNode',
       position,
@@ -152,40 +169,22 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   removeNode: (id) => set({ nodes: get().nodes.filter((n) => n.id !== id) }),
   getNode: (id) => get().nodes.find((n) => n.id === id),
   updateNodeConfig: (nodeId, config) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === nodeId
-          ? { ...n, data: { ...n.data, config: { ...n.data.config, ...config } } }
-          : n,
-      ),
-    })
+    set({ nodes: patchNodeConfig(get().nodes, nodeId, config) })
   },
   updateNodeLabel: (nodeId, label) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, label } } : n,
-      ),
-    })
+    set({ nodes: patchNodeData(get().nodes, nodeId, { label }) })
   },
   updateNodeDescription: (nodeId, description) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, description } } : n,
-      ),
-    })
+    set({ nodes: patchNodeData(get().nodes, nodeId, { description }) })
   },
   applyAutoLayout: () => {
     const { nodes, edges } = get()
     if (nodes.length === 0) return
-    const { nodes: layouted } = getLayoutedElements<Node<NodeData>>(nodes, edges, 'LR')
+    const { nodes: layouted } = getLayoutedElements<WorkflowNode>(nodes, edges, 'LR')
     set({ nodes: layouted })
   },
-  setWorkflowName: (name) => {
-    set({ workflowName: name })
-  },
-  setOriginalName: (name) => {
-    set({ originalName: name })
-  },
+  setWorkflowName: (name) => set({ workflowName: name }),
+  setOriginalName: (name) => set({ originalName: name }),
 
   createGroup: (nodeIds) => {
     if (nodeIds.length === 0) return undefined
@@ -203,7 +202,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const maxX = Math.max(...xs) + 320 + padding // approximate node width
     const maxY = Math.max(...ys) + 100 + padding // approximate node height
 
-    const groupNode: Node<NodeData> = {
+    const groupNode: WorkflowNode = {
       id: groupId,
       type: 'groupNode',
       position: { x: minX, y: minY },
@@ -255,20 +254,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   updateGroupLabel: (groupId, label) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === groupId ? { ...n, data: { ...n.data, label } } : n,
-      ),
-    })
+    set({ nodes: patchNodeData(get().nodes, groupId, { label }) })
   },
-
   updateGroupColor: (groupId, color) => {
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === groupId
-          ? { ...n, data: { ...n.data, config: { ...n.data.config, color } } }
-          : n,
-      ),
-    })
+    set({ nodes: patchNodeConfig(get().nodes, groupId, { color }) })
   },
 }))

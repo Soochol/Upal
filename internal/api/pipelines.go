@@ -1,23 +1,18 @@
-// internal/api/pipelines.go
 package api
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/upal"
 )
 
 func (s *Server) createPipeline(w http.ResponseWriter, r *http.Request) {
 	var p upal.Pipeline
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &p) {
 		return
 	}
 	if p.Name == "" {
@@ -28,15 +23,12 @@ func (s *Server) createPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Sync schedule stages: register cron jobs and fill in schedule_id.
 	if s.schedulerSvc != nil {
 		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
 			_ = s.pipelineSvc.Update(r.Context(), &p)
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(p)
+	writeJSONStatus(w, http.StatusCreated, p)
 }
 
 func (s *Server) listPipelines(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +37,7 @@ func (s *Server) listPipelines(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if pipelines == nil {
-		pipelines = []*upal.Pipeline{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(pipelines)
+	writeJSON(w, orEmpty(pipelines))
 }
 
 func (s *Server) getPipeline(w http.ResponseWriter, r *http.Request) {
@@ -59,15 +47,13 @@ func (s *Server) getPipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pipeline not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	writeJSON(w, p)
 }
 
 func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var p upal.Pipeline
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &p) {
 		return
 	}
 	p.ID = id
@@ -75,25 +61,23 @@ func (s *Server) updatePipeline(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Sync schedule stages: register cron jobs and fill in schedule_id.
 	if s.schedulerSvc != nil {
 		if err := s.schedulerSvc.SyncPipelineSchedules(r.Context(), &p); err == nil {
 			_ = s.pipelineSvc.Update(r.Context(), &p)
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
+	writeJSON(w, p)
 }
 
 func (s *Server) deletePipeline(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	// Clean up associated cron jobs before deleting.
 	if s.schedulerSvc != nil {
 		_ = s.schedulerSvc.RemovePipelineSchedules(r.Context(), id)
 	}
-	// Clean up all content sessions belonging to this pipeline.
 	if s.contentSvc != nil {
-		_ = s.contentSvc.DeleteSessionsByPipeline(r.Context(), id)
+		if err := s.contentSvc.DeleteSessionsByPipeline(r.Context(), id); err != nil {
+			slog.Error("failed to clean up sessions for pipeline", "pipeline_id", id, "err", err)
+		}
 	}
 	if err := s.pipelineSvc.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,15 +100,14 @@ func (s *Server) startPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if run.Status == upal.PipelineRunWaiting {
-		w.WriteHeader(http.StatusAccepted)
-	} else if run.Status == upal.PipelineRunFailed {
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		w.WriteHeader(http.StatusOK)
+	status := http.StatusOK
+	switch run.Status {
+	case upal.PipelineRunWaiting:
+		status = http.StatusAccepted
+	case upal.PipelineRunFailed:
+		status = http.StatusInternalServerError
 	}
-	json.NewEncoder(w).Encode(run)
+	writeJSONStatus(w, status, run)
 }
 
 func (s *Server) listPipelineRuns(w http.ResponseWriter, r *http.Request) {
@@ -134,11 +117,7 @@ func (s *Server) listPipelineRuns(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if runs == nil {
-		runs = []*upal.PipelineRun{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(runs)
+	writeJSON(w, orEmpty(runs))
 }
 
 func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
@@ -173,9 +152,7 @@ func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
 
 	// Encode the response before launching the goroutine so that Resume's
 	// mutations to run.StageResults do not race with json.Encode.
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(run)
+	writeJSONStatus(w, http.StatusAccepted, run)
 
 	go func() {
 		if err := s.pipelineRunner.Resume(context.Background(), p, run); err != nil {
@@ -186,8 +163,7 @@ func (s *Server) approvePipelineRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listPipelineTriggers(w http.ResponseWriter, r *http.Request) {
 	if s.triggerRepo == nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]*upal.Trigger{})
+		writeJSON(w, []*upal.Trigger{})
 		return
 	}
 
@@ -197,11 +173,7 @@ func (s *Server) listPipelineTriggers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if triggers == nil {
-		triggers = []*upal.Trigger{}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(triggers)
+	writeJSON(w, orEmpty(triggers))
 }
 
 func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {
@@ -210,18 +182,9 @@ func (s *Server) rejectPipelineRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := s.pipelineSvc.RejectRun(r.Context(), pipelineID, runID)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			http.Error(w, "run not found", http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, upal.ErrInvalidStatus) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(run)
+	writeJSON(w, run)
 }

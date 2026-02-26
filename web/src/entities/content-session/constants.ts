@@ -1,9 +1,10 @@
-// Shared session UI constants and utilities
 import type { ContentSession } from './types'
 
 // ─── Status dot color mapping ────────────────────────────────────────────────
 
 export const SESSION_STATUS_DOT: Record<string, string> = {
+  draft: 'bg-muted-foreground/30',
+  active: 'bg-success',
   pending_review: 'bg-warning',
   approved: 'bg-success',
   producing: 'bg-info',
@@ -41,7 +42,7 @@ export function matchesSessionFilter(status: string, filter: SessionFilter): boo
   switch (filter) {
     case 'all': return true
     case 'pending': return status === 'pending_review'
-    case 'in_progress': return status === 'collecting' || status === 'analyzing'
+    case 'in_progress': return status === 'draft' || status === 'collecting' || status === 'analyzing'
     case 'producing': return status === 'approved' || status === 'producing' || status === 'error'
     case 'published': return status === 'published'
     case 'rejected': return status === 'rejected'

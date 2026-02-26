@@ -2,8 +2,6 @@ package upal
 
 import "time"
 
-// --- Run Status ---
-
 // RunStatus represents the lifecycle state of a workflow run.
 type RunStatus string
 
@@ -34,23 +32,23 @@ type TokenUsage struct {
 
 // RunRecord captures a single workflow execution with full provenance.
 type RunRecord struct {
-	ID           string               `json:"id"`
-	WorkflowName string               `json:"workflow_name"`
-	WorkflowDef  *WorkflowDefinition  `json:"workflow_definition,omitempty"`
-	TriggerType  string         `json:"trigger_type"`  // "manual" | "cron" | "webhook"
-	TriggerRef   string         `json:"trigger_ref"`   // schedule ID or trigger ID
-	Status       RunStatus      `json:"status"`
-	Inputs       map[string]any `json:"inputs"`
-	Outputs      map[string]any `json:"outputs,omitempty"`
-	Error        *string        `json:"error,omitempty"`
-	RetryOf      *string        `json:"retry_of,omitempty"` // original run ID if this is a retry
-	RetryCount   int             `json:"retry_count"`
-	SessionID    *string         `json:"session_id,omitempty"` // set when run was triggered from a ContentSession
-	CreatedAt    time.Time       `json:"created_at"`
-	StartedAt    *time.Time     `json:"started_at,omitempty"`
-	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
-	NodeRuns     []NodeRunRecord `json:"node_runs,omitempty"`
-	Usage        *TokenUsage    `json:"usage,omitempty"`
+	ID           string              `json:"id"`
+	WorkflowName string              `json:"workflow_name"`
+	WorkflowDef  *WorkflowDefinition `json:"workflow_definition,omitempty"`
+	TriggerType  string              `json:"trigger_type"`                 // "manual" | "cron" | "webhook"
+	TriggerRef   string              `json:"trigger_ref"`                  // schedule ID or trigger ID
+	Status       RunStatus           `json:"status"`
+	Inputs       map[string]any      `json:"inputs"`
+	Outputs      map[string]any      `json:"outputs,omitempty"`
+	Error        *string             `json:"error,omitempty"`
+	RetryOf      *string             `json:"retry_of,omitempty"`           // original run ID if this is a retry
+	RetryCount   int                 `json:"retry_count"`
+	SessionID    *string             `json:"session_id,omitempty"`         // set when run was triggered from a ContentSession
+	CreatedAt    time.Time           `json:"created_at"`
+	StartedAt    *time.Time          `json:"started_at,omitempty"`
+	CompletedAt  *time.Time          `json:"completed_at,omitempty"`
+	NodeRuns     []NodeRunRecord     `json:"node_runs,omitempty"`
+	Usage        *TokenUsage         `json:"usage,omitempty"`
 }
 
 // NodeRunRecord tracks execution of a single node within a run.
@@ -63,8 +61,6 @@ type NodeRunRecord struct {
 	RetryCount  int           `json:"retry_count"`
 	Usage       *TokenUsage   `json:"usage,omitempty"`
 }
-
-// --- Retry Policy ---
 
 // RetryPolicy defines how failed runs should be retried.
 type RetryPolicy struct {
@@ -84,8 +80,6 @@ func DefaultRetryPolicy() RetryPolicy {
 	}
 }
 
-// --- Concurrency ---
-
 // ConcurrencyLimits controls how many workflows can execute simultaneously.
 type ConcurrencyLimits struct {
 	GlobalMax   int `json:"global_max"   yaml:"global_max"`
@@ -99,8 +93,6 @@ func DefaultConcurrencyLimits() ConcurrencyLimits {
 		PerWorkflow: 3,
 	}
 }
-
-// --- Schedule ---
 
 // Schedule defines a cron-based recurring workflow execution.
 type Schedule struct {
@@ -117,8 +109,6 @@ type Schedule struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 }
-
-// --- Trigger ---
 
 // TriggerType identifies how a workflow execution was initiated.
 type TriggerType string

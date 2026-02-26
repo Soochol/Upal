@@ -7,7 +7,6 @@ import (
 )
 
 // PipelineServicePort defines the pipeline management boundary.
-// The API layer should depend on this interface rather than *services.PipelineService directly.
 type PipelineServicePort interface {
 	Create(ctx context.Context, p *upal.Pipeline) error
 	Get(ctx context.Context, id string) (*upal.Pipeline, error)

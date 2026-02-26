@@ -1,4 +1,3 @@
-// internal/repository/pipeline_memory.go
 package repository
 
 import (
@@ -10,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// MemoryPipelineRepository implements PipelineRepository in-memory.
 type MemoryPipelineRepository struct {
 	store *memstore.Store[*upal.Pipeline]
 }
@@ -55,7 +53,6 @@ func (r *MemoryPipelineRepository) Delete(ctx context.Context, id string) error 
 	return err
 }
 
-// MemoryPipelineRunRepository implements PipelineRunRepository in-memory.
 type MemoryPipelineRunRepository struct {
 	store *memstore.Store[*upal.PipelineRun]
 }

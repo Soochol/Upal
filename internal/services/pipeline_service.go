@@ -77,9 +77,6 @@ func (s *PipelineService) UpdateRun(ctx context.Context, run *upal.PipelineRun) 
 	return s.runRepo.Update(ctx, run)
 }
 
-// RejectRun rejects a pipeline run that is waiting for approval.
-// It validates the run belongs to the given pipeline and is in waiting status,
-// then transitions it to failed.
 func (s *PipelineService) RejectRun(ctx context.Context, pipelineID, runID string) (*upal.PipelineRun, error) {
 	run, err := s.runRepo.Get(ctx, runID)
 	if err != nil {

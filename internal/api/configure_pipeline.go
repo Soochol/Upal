@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/llmutil"
 	upalmodel "github.com/soochol/upal/internal/model"
-	"github.com/soochol/upal/internal/upal"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -35,9 +35,10 @@ type ConfigurePipelineResponse struct {
 }
 
 func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
+	_ = chi.URLParam(r, "id")
+
 	var req ConfigurePipelineRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	if req.Message == "" {
@@ -49,14 +50,7 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	llm := s.generator.LLM()
-	modelName := s.generator.Model()
-	if req.Model != "" && s.llmResolver != nil {
-		if resolved, resolvedName, err := s.llmResolver.Resolve(req.Model); err == nil {
-			llm = resolved
-			modelName = resolvedName
-		}
-	}
+	llm, modelName := s.resolveLLM(req.Model)
 
 	contextMsg := fmt.Sprintf(
 		"Current pipeline settings:\nSources: %s\nSchedule: %q\nWorkflows: %s\nModel: %q\nEditorial brief: %s\n\nUser request: %s",
@@ -68,15 +62,7 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 		req.Message,
 	)
 
-	var contents []*genai.Content
-	for _, h := range req.History {
-		switch h.Role {
-		case "user":
-			contents = append(contents, genai.NewContentFromText(h.Content, genai.RoleUser))
-		case "assistant":
-			contents = append(contents, genai.NewContentFromText(h.Content, genai.RoleModel))
-		}
-	}
+	contents := buildChatHistory(req.History)
 	contents = append(contents, genai.NewContentFromText(contextMsg, genai.RoleUser))
 
 	sysPrompt := ""
@@ -84,33 +70,8 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 		sysPrompt = s.skills.GetPrompt("pipeline-configure")
 	}
 
-	// Inject available models (same pattern as configureNode in configure.go)
-	if allModels := upalmodel.KnownModelsGrouped(s.providerConfigs); len(allModels) > 0 {
-		sysPrompt += fmt.Sprintf("\n\nAvailable models (use in \"model\" field):\nDefault model: %q\n", modelName)
-		var textModels, imageModels []upal.ModelInfo
-		for _, m := range allModels {
-			switch m.Category {
-			case upal.ModelCategoryText:
-				textModels = append(textModels, m)
-			case upal.ModelCategoryImage:
-				imageModels = append(imageModels, m)
-			}
-		}
-		if len(textModels) > 0 {
-			sysPrompt += "\nText/reasoning models:\n"
-			for _, m := range textModels {
-				sysPrompt += fmt.Sprintf("- %q [%s] — %s\n", m.ID, m.Tier, m.Hint)
-			}
-		}
-		if len(imageModels) > 0 {
-			sysPrompt += "\nImage generation models:\n"
-			for _, m := range imageModels {
-				sysPrompt += fmt.Sprintf("- %q — %s\n", m.ID, m.Hint)
-			}
-		}
-	}
+	sysPrompt = s.appendModelCatalog(sysPrompt, modelName)
 
-	// Inject available workflows so LLM only references real ones
 	if s.repo != nil {
 		if wfs, err := s.repo.List(r.Context()); err == nil && len(wfs) > 0 {
 			sysPrompt += "\n\nAvailable workflows:\n"
@@ -161,6 +122,5 @@ func (s *Server) configurePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(configResp)
+	writeJSON(w, configResp)
 }

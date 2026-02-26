@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,8 +9,7 @@ import (
 
 func (s *Server) createPublishChannel(w http.ResponseWriter, r *http.Request) {
 	var ch upal.PublishChannel
-	if err := json.NewDecoder(r.Body).Decode(&ch); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &ch) {
 		return
 	}
 	if ch.Name == "" || ch.Type == "" {
@@ -27,9 +25,7 @@ func (s *Server) createPublishChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(ch)
+	writeJSONStatus(w, http.StatusCreated, ch)
 }
 
 func (s *Server) listPublishChannels(w http.ResponseWriter, r *http.Request) {
@@ -38,8 +34,7 @@ func (s *Server) listPublishChannels(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(channels)
+	writeJSON(w, channels)
 }
 
 func (s *Server) getPublishChannel(w http.ResponseWriter, r *http.Request) {
@@ -49,15 +44,13 @@ func (s *Server) getPublishChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "publish channel not found", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ch)
+	writeJSON(w, ch)
 }
 
 func (s *Server) updatePublishChannel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var ch upal.PublishChannel
-	if err := json.NewDecoder(r.Body).Decode(&ch); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSON(w, r, &ch) {
 		return
 	}
 	ch.ID = id
@@ -65,8 +58,7 @@ func (s *Server) updatePublishChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ch)
+	writeJSON(w, ch)
 }
 
 func (s *Server) deletePublishChannel(w http.ResponseWriter, r *http.Request) {

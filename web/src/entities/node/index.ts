@@ -1,2 +1,2 @@
-export { registerNode, registerNodeEditor, getNodeDefinition, getAllNodeDefinitions } from './model/registry'
-export type { NodeType, NodeTypeDefinition, NodeEditorProps } from './types'
+export { registerNodeEditor, getNodeDefinition, getAllNodeDefinitions } from './model/registry'
+export type { NodeType } from './types'

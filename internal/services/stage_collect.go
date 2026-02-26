@@ -15,16 +15,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// SourceFetcher fetches content for a single CollectSource.
-// Register new implementations via CollectStageExecutor.RegisterFetcher.
 type SourceFetcher interface {
 	Type() string
 	Fetch(ctx context.Context, src upal.CollectSource) (string, any, error)
 }
 
 // CollectStageExecutor fetches data from external sources (RSS, HTTP, web scrape)
-// without LLM involvement. The collected text is passed to subsequent stages via
-// the stage output "text" field.
+// without LLM involvement.
 type CollectStageExecutor struct {
 	fetchers map[string]SourceFetcher
 }
@@ -41,14 +38,10 @@ func NewCollectStageExecutor() *CollectStageExecutor {
 	return e
 }
 
-// RegisterFetcher registers a SourceFetcher implementation by its type string.
-// Calling this with an already-registered type replaces the existing fetcher.
 func (e *CollectStageExecutor) RegisterFetcher(f SourceFetcher) {
 	e.fetchers[f.Type()] = f
 }
 
-// Fetcher returns the registered SourceFetcher for the given type string.
-// Returns false if no fetcher is registered for that type.
 func (e *CollectStageExecutor) Fetcher(typ string) (SourceFetcher, bool) {
 	f, ok := e.fetchers[typ]
 	return f, ok
@@ -57,18 +50,17 @@ func (e *CollectStageExecutor) Fetcher(typ string) (SourceFetcher, bool) {
 func (e *CollectStageExecutor) Type() string { return "collect" }
 
 func (e *CollectStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
-	now := time.Now()
-	completedAt := now
+	startedAt := time.Now()
 
 	sources := stage.Config.Sources
 	if len(sources) == 0 {
-		completedAt = time.Now()
+		now := time.Now()
 		return &upal.StageResult{
 			StageID:     stage.ID,
 			Status:      upal.StageStatusCompleted,
 			Output:      map[string]any{"text": "", "sources": map[string]any{}},
-			StartedAt:   now,
-			CompletedAt: &completedAt,
+			StartedAt:   startedAt,
+			CompletedAt: &now,
 		}, nil
 	}
 
@@ -111,7 +103,7 @@ func (e *CollectStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, st
 	}
 
 	combinedText := strings.Join(textParts, "\n")
-	completedAt = time.Now()
+	now := time.Now()
 
 	return &upal.StageResult{
 		StageID: stage.ID,
@@ -120,12 +112,11 @@ func (e *CollectStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, st
 			"text":    combinedText,
 			"sources": sourcesMap,
 		},
-		StartedAt:   now,
-		CompletedAt: &completedAt,
+		StartedAt:   startedAt,
+		CompletedAt: &now,
 	}, nil
 }
 
-// fetchSource dispatches to the appropriate handler based on source type.
 func (e *CollectStageExecutor) fetchSource(ctx context.Context, src upal.CollectSource) (string, any, error) {
 	f, ok := e.fetchers[src.Type]
 	if !ok {
@@ -134,7 +125,6 @@ func (e *CollectStageExecutor) fetchSource(ctx context.Context, src upal.Collect
 	return f.Fetch(ctx, src)
 }
 
-// rssFetcher fetches and parses RSS/Atom feeds.
 type rssFetcher struct{ client *http.Client }
 
 func (f *rssFetcher) Type() string { return "rss" }
@@ -187,7 +177,6 @@ func (f *rssFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string,
 	return sb.String(), items, nil
 }
 
-// httpFetcher performs HTTP requests and returns the response body.
 type httpFetcher struct{ client *http.Client }
 
 func (f *httpFetcher) Type() string { return "http" }
@@ -223,10 +212,8 @@ func (f *httpFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string
 	}
 	bodyStr := string(bodyBytes)
 
-	// Try to parse as JSON for structured output
 	var parsed any
 	if json.Unmarshal(bodyBytes, &parsed) == nil {
-		// Pretty-print for LLM consumption
 		pretty, _ := json.MarshalIndent(parsed, "", "  ")
 		bodyStr = string(pretty)
 	}
@@ -239,7 +226,6 @@ func (f *httpFetcher) Fetch(ctx context.Context, src upal.CollectSource) (string
 	return text, data, nil
 }
 
-// scrapeFetcher scrapes HTML pages using CSS selectors.
 type scrapeFetcher struct{ client *http.Client }
 
 func (f *scrapeFetcher) Type() string { return "scrape" }

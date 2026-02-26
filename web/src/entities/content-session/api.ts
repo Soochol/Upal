@@ -71,7 +71,7 @@ export async function rejectWorkflowResult(
   })
 }
 
-export async function rejectSession(id: string, _reason?: string): Promise<ContentSession> {
+export async function rejectSession(id: string): Promise<ContentSession> {
   return apiFetch<ContentSession>(`${BASE}/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

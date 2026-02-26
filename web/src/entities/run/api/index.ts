@@ -51,7 +51,6 @@ function parseSSEPayload(eventType: string, data: Record<string, unknown>): RunE
   }
 }
 
-// startRun kicks off a workflow execution in the background and returns the run ID.
 export async function startRun(
   name: string,
   inputs: Record<string, string>,

@@ -1,5 +1,3 @@
-// --- Run History ---
-
 export type RunRecord = {
   id: string
   workflow_name: string
@@ -37,8 +35,6 @@ export type RunListResponse = {
   runs: RunRecord[]
   total: number
 }
-
-// --- Workflow Execution Events ---
 
 export type ToolCall = { name: string; args?: Record<string, unknown> }
 export type ToolResult = { name: string; response?: Record<string, unknown> }

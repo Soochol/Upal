@@ -3,10 +3,8 @@ export type InputNodeConfig = {
   value?: string
 }
 
-export type OutputExtractMode = 'json' | 'tagged'
-
 export type OutputExtract = {
-  mode: OutputExtractMode
+  mode: 'json' | 'tagged'
   key?: string   // json mode: JSON key name
   tag?: string   // tagged mode: XML tag name
 }

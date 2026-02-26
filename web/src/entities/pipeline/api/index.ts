@@ -1,8 +1,6 @@
-import { apiFetch } from '@/shared/api/client'
+import { API_BASE, apiFetch } from '@/shared/api/client'
 import type { Pipeline, PipelineRun } from '../types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
-
-const API_BASE = '/api'
 
 export async function fetchPipelines(): Promise<Pipeline[]> {
   return apiFetch<Pipeline[]>(`${API_BASE}/pipelines`)
@@ -69,7 +67,6 @@ export async function collectPipeline(id: string, config?: { isTest?: boolean, l
   )
 }
 
-
 export type PipelineBundle = {
   pipeline: Omit<Pipeline, 'id' | 'created_at' | 'updated_at'>
   workflows: WorkflowDefinition[] | null
@@ -88,10 +85,3 @@ export async function generatePipelineBundle(
   })
 }
 
-export async function generatePipelineThumbnail(id: string): Promise<string> {
-  const data = await apiFetch<{ thumbnail_svg: string }>(
-    `${API_BASE}/pipelines/${encodeURIComponent(id)}/thumbnail`,
-    { method: 'POST' },
-  )
-  return data.thumbnail_svg
-}

@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -40,7 +39,6 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	// Buffer body to allow reading twice (save + extract)
 	body, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, "read file", http.StatusInternalServerError)
@@ -53,7 +51,6 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Best-effort text extraction — never fail the upload
 	if extracted, _ := extract.Extract(contentType, bytes.NewReader(body)); extracted != "" {
 		info.ExtractedText = extracted
 		preview := []rune(extracted)
@@ -64,9 +61,7 @@ func (s *Server) uploadFile(w http.ResponseWriter, r *http.Request) {
 		_ = s.storage.UpdateInfo(r.Context(), info)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(info)
+	writeJSONStatus(w, http.StatusCreated, info)
 }
 
 func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
@@ -80,9 +75,7 @@ func (s *Server) listFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(files)
+	writeJSON(w, files)
 }
 
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request) {
@@ -126,4 +119,3 @@ func (s *Server) deleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-

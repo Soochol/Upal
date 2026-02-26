@@ -10,19 +10,15 @@ import (
 
 var _ ports.RunManagerPort = (*RunManager)(nil)
 
-// runEntry holds the in-memory state for a single run: buffered events,
-// completion status, and subscriber notification channels.
 type runEntry struct {
 	mu          sync.RWMutex
 	events      []upal.EventRecord
 	done        bool
-	donePayload map[string]any // final "done" payload (status, session_id, state, run_id)
-	subs        []chan struct{} // closed-and-replaced on each new event (fan-out wakeup)
+	donePayload map[string]any
+	subs        []chan struct{}
 	completedAt time.Time
 }
 
-// snapshot returns a copy of events from startSeq onward, registers a
-// subscriber notification channel, and reports the run's done state.
 func (e *runEntry) snapshot(startSeq int) (events []upal.EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -38,8 +34,8 @@ func (e *runEntry) snapshot(startSeq int) (events []upal.EventRecord, notify <-c
 	return events, ch, e.done, e.donePayload
 }
 
-// RunManager tracks in-progress and recently-completed workflow executions
-// with an in-memory per-run event buffer and subscriber fan-out.
+// RunManager tracks active workflow executions with per-run event buffering
+// and subscriber fan-out for SSE streaming.
 type RunManager struct {
 	mu   sync.RWMutex
 	runs map[string]*runEntry
@@ -47,8 +43,6 @@ type RunManager struct {
 	stop chan struct{}
 }
 
-// NewRunManager creates a RunManager that keeps completed run buffers for
-// the given TTL before garbage-collecting them.
 func NewRunManager(ttl time.Duration) *RunManager {
 	rm := &RunManager{
 		runs: make(map[string]*runEntry),
@@ -59,19 +53,16 @@ func NewRunManager(ttl time.Duration) *RunManager {
 	return rm
 }
 
-// Stop terminates the GC goroutine.
 func (rm *RunManager) Stop() {
 	close(rm.stop)
 }
 
-// Register creates a new run entry. Call this when a run starts.
 func (rm *RunManager) Register(runID string) {
 	rm.mu.Lock()
 	rm.runs[runID] = &runEntry{}
 	rm.mu.Unlock()
 }
 
-// Append adds an event to the run's buffer and notifies all subscribers.
 func (rm *RunManager) Append(runID string, ev upal.EventRecord) {
 	rm.mu.RLock()
 	entry, ok := rm.runs[runID]
@@ -87,13 +78,11 @@ func (rm *RunManager) Append(runID string, ev upal.EventRecord) {
 	entry.subs = nil
 	entry.mu.Unlock()
 
-	// Wake all subscribers by closing their channels.
 	for _, ch := range subs {
 		close(ch)
 	}
 }
 
-// Complete marks a run as done with the given payload and notifies subscribers.
 func (rm *RunManager) Complete(runID string, payload map[string]any) {
 	rm.mu.RLock()
 	entry, ok := rm.runs[runID]
@@ -115,7 +104,6 @@ func (rm *RunManager) Complete(runID string, payload map[string]any) {
 	}
 }
 
-// Fail marks a run as done with an error and notifies subscribers.
 func (rm *RunManager) Fail(runID string, errMsg string) {
 	rm.Complete(runID, map[string]any{
 		"status": "failed",
@@ -123,9 +111,6 @@ func (rm *RunManager) Fail(runID string, errMsg string) {
 	})
 }
 
-// Subscribe returns all buffered events from startSeq onward, a notification
-// channel that is closed when new events arrive, and the run's done state.
-// Returns found=false if the runID is not tracked.
 func (rm *RunManager) Subscribe(runID string, startSeq int) (events []upal.EventRecord, notify <-chan struct{}, done bool, donePayload map[string]any, found bool) {
 	rm.mu.RLock()
 	entry, ok := rm.runs[runID]
@@ -138,11 +123,6 @@ func (rm *RunManager) Subscribe(runID string, startSeq int) (events []upal.Event
 	return events, notify, done, donePayload, true
 }
 
-// Unsubscribe is a no-op cleanup hint. Subscriber channels are automatically
-// removed when they are closed (on Append/Complete), so explicit cleanup is
-// not strictly required. This method exists for symmetry with Subscribe.
-
-// gc periodically removes completed run entries that have exceeded the TTL.
 func (rm *RunManager) gc() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()

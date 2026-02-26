@@ -1,8 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import {
-  useAutoSave as useGenericAutoSave,
-  type SaveStatus,
-} from '@/shared/hooks/useAutoSave'
+import { useAutoSave as useGenericAutoSave } from '@/shared/hooks/useAutoSave'
 import { useWorkflowStore } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import {
@@ -10,8 +7,6 @@ import {
   saveWorkflow,
   suggestWorkflowName,
 } from '@/entities/workflow'
-
-export type { SaveStatus }
 
 type CanvasSnapshot = {
   nodes: Array<{ id: string; data: unknown; position: { x: number; y: number } }>

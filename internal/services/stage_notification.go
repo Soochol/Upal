@@ -1,4 +1,3 @@
-// internal/services/stage_notification.go
 package services
 
 import (
@@ -12,8 +11,7 @@ import (
 )
 
 // NotificationStageExecutor sends a notification and completes immediately.
-// Unlike ApprovalStageExecutor, it does not pause the pipeline — the run
-// continues to the next stage after the message is delivered.
+// Unlike ApprovalStageExecutor, it does not pause the pipeline.
 type NotificationStageExecutor struct {
 	senderReg    *notify.SenderRegistry
 	connResolver agents.ConnectionResolver
@@ -26,59 +24,38 @@ func NewNotificationStageExecutor(senderReg *notify.SenderRegistry, connResolver
 func (e *NotificationStageExecutor) Type() string { return "notification" }
 
 func (e *NotificationStageExecutor) Execute(ctx context.Context, _ *upal.Pipeline, stage upal.Stage, _ *upal.StageResult) (*upal.StageResult, error) {
-	now := time.Now()
-	completedAt := now
-
-	if stage.Config.ConnectionID == "" {
+	fail := func(errMsg string) (*upal.StageResult, error) {
+		now := time.Now()
 		return &upal.StageResult{
 			StageID:     stage.ID,
 			Status:      upal.StageStatusFailed,
-			Error:       "notification stage requires a connection_id",
+			Error:       errMsg,
 			StartedAt:   now,
-			CompletedAt: &completedAt,
-		}, fmt.Errorf("notification stage %q: connection_id is required", stage.ID)
+			CompletedAt: &now,
+		}, fmt.Errorf("notification stage %q: %s", stage.ID, errMsg)
 	}
 
+	if stage.Config.ConnectionID == "" {
+		return fail("connection_id is required")
+	}
 	if e.senderReg == nil || e.connResolver == nil {
-		return &upal.StageResult{
-			StageID:     stage.ID,
-			Status:      upal.StageStatusFailed,
-			Error:       "notification service not configured",
-			StartedAt:   now,
-			CompletedAt: &completedAt,
-		}, fmt.Errorf("notification stage %q: sender registry or connection resolver is nil", stage.ID)
+		return fail("notification service not configured")
 	}
 
 	conn, err := e.connResolver.Resolve(ctx, stage.Config.ConnectionID)
 	if err != nil {
-		errMsg := fmt.Sprintf("failed to resolve connection %q: %v", stage.Config.ConnectionID, err)
-		return &upal.StageResult{
-			StageID:     stage.ID,
-			Status:      upal.StageStatusFailed,
-			Error:       errMsg,
-			StartedAt:   now,
-			CompletedAt: &completedAt,
-		}, fmt.Errorf("notification stage %q: %s", stage.ID, errMsg)
+		return fail(fmt.Sprintf("failed to resolve connection %q: %v", stage.Config.ConnectionID, err))
 	}
 
 	sender, err := e.senderReg.Get(conn.Type)
 	if err != nil {
-		errMsg := fmt.Sprintf("no sender for connection type %q: %v", conn.Type, err)
-		return &upal.StageResult{
-			StageID:     stage.ID,
-			Status:      upal.StageStatusFailed,
-			Error:       errMsg,
-			StartedAt:   now,
-			CompletedAt: &completedAt,
-		}, fmt.Errorf("notification stage %q: %s", stage.ID, errMsg)
+		return fail(fmt.Sprintf("no sender for connection type %q: %v", conn.Type, err))
 	}
 
-	// For SMTP connections, allow a per-stage subject override by temporarily
-	// injecting it into conn.Extras before sending.
-	if stage.Config.Subject != "" && conn.Extras == nil {
-		conn.Extras = map[string]any{}
-	}
 	if stage.Config.Subject != "" {
+		if conn.Extras == nil {
+			conn.Extras = map[string]any{}
+		}
 		conn.Extras["subject"] = stage.Config.Subject
 	}
 
@@ -88,16 +65,10 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, _ *upal.Pipelin
 	}
 
 	if err := sender.Send(ctx, conn, msg); err != nil {
-		errMsg := fmt.Sprintf("send failed: %v", err)
-		return &upal.StageResult{
-			StageID:     stage.ID,
-			Status:      upal.StageStatusFailed,
-			Error:       errMsg,
-			StartedAt:   now,
-			CompletedAt: &completedAt,
-		}, fmt.Errorf("notification stage %q: %s", stage.ID, errMsg)
+		return fail(fmt.Sprintf("send failed: %v", err))
 	}
 
+	now := time.Now()
 	return &upal.StageResult{
 		StageID: stage.ID,
 		Status:  upal.StageStatusCompleted,
@@ -107,6 +78,6 @@ func (e *NotificationStageExecutor) Execute(ctx context.Context, _ *upal.Pipelin
 			"type":    string(conn.Type),
 		},
 		StartedAt:   now,
-		CompletedAt: &completedAt,
+		CompletedAt: &now,
 	}, nil
 }
