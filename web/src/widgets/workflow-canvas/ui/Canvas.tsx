@@ -8,6 +8,7 @@ import {
   SelectionMode,
   useOnSelectionChange,
   useReactFlow,
+  useNodesInitialized,
   type OnSelectionChangeParams,
   type IsValidConnection,
 } from '@xyflow/react'
@@ -88,14 +89,15 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
     })
   }, [exposeGetViewportCenter, reactFlow])
 
-  // Re-fit viewport when workflow changes (nodes load asynchronously after mount)
-  const prevNameRef = useRef(workflowName)
+  // Fit viewport once nodes are measured by ReactFlow (they load asynchronously after mount)
+  const nodesInitialized = useNodesInitialized()
+  const fittedNameRef = useRef('')
   useEffect(() => {
-    if (workflowName && workflowName !== prevNameRef.current && nodes.length > 0) {
-      requestAnimationFrame(() => reactFlow.fitView({ padding: 0.1 }))
+    if (nodesInitialized && nodes.length > 0 && fittedNameRef.current !== workflowName) {
+      fittedNameRef.current = workflowName
+      reactFlow.fitView({ padding: 0.2 })
     }
-    prevNameRef.current = workflowName
-  }, [workflowName, nodes.length, reactFlow])
+  }, [nodesInitialized, nodes.length, workflowName, reactFlow])
 
   const isEmpty = nodes.length === 0
 
@@ -216,7 +218,6 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
         isValidConnection={isValidConnection}
         connectionRadius={80}
         nodeTypes={nodeTypes}
-        fitView
         className="bg-background"
         multiSelectionKeyCode={readOnly ? null : ['Shift', 'Control', 'Meta']}
         selectionOnDrag={!readOnly}
