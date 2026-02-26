@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { fetchContentSession } from '@/entities/content-session/api'
 import { sessionDisplayName } from '@/entities/content-session/constants'
-import { fetchPipeline } from '@/entities/pipeline/api'
 import { SessionDetailPreview } from '@/pages/pipelines/session/SessionDetailPreview'
 
 interface InboxPreviewProps {
@@ -20,19 +19,11 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
         enabled: !!sessionId,
     })
 
-    const pipelineId = session?.pipeline_id
-
-    const { data: pipeline, isLoading: pipelineLoading } = useQuery({
-        queryKey: ['pipeline', pipelineId],
-        queryFn: () => fetchPipeline(pipelineId!),
-        enabled: !!pipelineId,
-    })
-
     const handleMutate = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
     }, [queryClient])
 
-    if (sessionLoading || pipelineLoading || !session || !pipeline) {
+    if (sessionLoading || !session) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-muted-foreground gap-3">
                 <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
@@ -44,19 +35,25 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
     return (
         <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-4 duration-300">
             <div className="px-4 md:px-8 py-4 md:py-5 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex flex-col gap-1.5">
-                <Link
-                    to={`/pipelines?p=${pipeline.id}`}
-                    className="text-xs font-bold uppercase tracking-widest text-primary/80 hover:text-primary hover:underline transition-colors w-fit"
-                >
-                    {pipeline.name}
-                </Link>
+                {session.pipeline_name ? (
+                    <Link
+                        to={`/pipelines?p=${session.pipeline_id}`}
+                        className="text-xs font-bold uppercase tracking-widest text-primary/80 hover:text-primary hover:underline transition-colors w-fit"
+                    >
+                        {session.pipeline_name}
+                    </Link>
+                ) : (
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground w-fit">
+                        Pipeline
+                    </span>
+                )}
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
                     {sessionDisplayName(session)}
                 </h1>
             </div>
             <div className="flex-1 overflow-hidden">
                 <SessionDetailPreview
-                    pipelineId={pipeline.id}
+                    pipelineId={session.pipeline_id}
                     sessionId={sessionId}
                     showDelete
                     onMutate={handleMutate}

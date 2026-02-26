@@ -139,7 +139,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
     })
 
     // ----- Loading state -----
-    if (!session || !pipeline) {
+    if (!session) {
         return (
             <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
