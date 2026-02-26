@@ -1,41 +1,67 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { MainLayout } from '@/app/layout'
 import { InboxSidebar } from './InboxSidebar'
 import { InboxPreview } from './InboxPreview'
 import { fetchContentSessions } from '@/entities/content-session/api'
-import { useSettingsStore } from '@/entities/settings/store'
 import { Loader2, ArrowLeft } from 'lucide-react'
+import type { SessionFilter } from './InboxSidebar'
 
-export default function ReviewInboxPage() {
-    const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
-    const showArchived = useSettingsStore((s) => s.showArchived)
+export default function InboxPage() {
+    const [searchParams, setSearchParams] = useSearchParams()
+    const selectedSessionId = searchParams.get('s')
+    const [activeFilter, setActiveFilter] = useState<SessionFilter>('all')
+
+    const setSelectedSessionId = useCallback(
+        (id: string | null) => {
+            setSearchParams(id ? { s: id } : {}, { replace: true })
+        },
+        [setSearchParams],
+    )
+
+    // Fetch all active sessions by status (returns ContentSessionDetail with pipeline_name, analysis, etc.)
+    const INBOX_STATUSES = ['collecting', 'analyzing', 'pending_review', 'approved', 'producing', 'published', 'rejected', 'error'] as const
 
     const { data: sessions = [], isLoading } = useQuery({
-        queryKey: ['inbox-sessions', showArchived],
-        queryFn: () => fetchContentSessions({ status: 'pending_review', includeArchived: showArchived }),
+        queryKey: ['inbox-sessions'],
+        queryFn: async () => {
+            const results = await Promise.all(
+                INBOX_STATUSES.map(status => fetchContentSessions({ status }))
+            )
+            return results.flat().sort((a, b) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )
+        },
         refetchInterval: 10000,
     })
 
-    // Auto-select first item if nothing selected
+    // Fetch archived sessions separately (only when archived tab is active)
+    const { data: archivedSessions = [], isLoading: archivedLoading } = useQuery({
+        queryKey: ['inbox-sessions-archived'],
+        queryFn: () => fetchContentSessions({ archivedOnly: true }),
+        enabled: activeFilter === 'archived',
+    })
+
+    // Auto-select first item if nothing selected or selected was removed
     useEffect(() => {
-        if (!selectedSessionId && sessions.length > 0) {
-            setSelectedSessionId(sessions[0].id)
-        } else if (sessions.length > 0 && !sessions.find(s => s.id === selectedSessionId)) {
-            // If selected session was removed (e.g. approved), select the new first one
-            setSelectedSessionId(sessions[0].id)
-        } else if (sessions.length === 0 && selectedSessionId) {
+        const pool = activeFilter === 'archived' ? archivedSessions : sessions
+        if (!selectedSessionId && pool.length > 0) {
+            setSelectedSessionId(pool[0].id)
+        } else if (pool.length > 0 && !pool.find(s => s.id === selectedSessionId)) {
+            setSelectedSessionId(pool[0].id)
+        } else if (pool.length === 0 && selectedSessionId) {
             setSelectedSessionId(null)
         }
-    }, [sessions, selectedSessionId])
+    }, [sessions, archivedSessions, activeFilter, selectedSessionId, setSelectedSessionId])
 
     // Mobile: show preview or list
     const showMobilePreview = !!selectedSessionId
 
     return (
-        <MainLayout headerContent={<span className="font-semibold tracking-tight">Review Inbox</span>}>
+        <MainLayout headerContent={<span className="font-semibold tracking-tight">Inbox</span>}>
             <div className="flex h-full w-full overflow-hidden bg-background">
-                {/* Left List — full-width on mobile, fixed-width on desktop */}
+                {/* Left List -- full-width on mobile, fixed-width on desktop */}
                 <div className={`w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border bg-sidebar/30 backdrop-blur-xl z-20 flex flex-col md:shadow-[4px_0_24px_-12px_rgba(0,0,0,0.5)] ${showMobilePreview ? 'hidden md:flex' : 'flex'}`}>
                     {isLoading ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-4 gap-3">
@@ -45,13 +71,17 @@ export default function ReviewInboxPage() {
                     ) : (
                         <InboxSidebar
                             sessions={sessions}
+                            archivedSessions={archivedSessions}
+                            archivedLoading={archivedLoading}
                             selectedId={selectedSessionId}
                             onSelect={setSelectedSessionId}
+                            activeFilter={activeFilter}
+                            onFilterChange={setActiveFilter}
                         />
                     )}
                 </div>
 
-                {/* Right Preview — full-width on mobile, flex on desktop */}
+                {/* Right Preview -- full-width on mobile, flex on desktop */}
                 <div className={`flex-1 min-w-0 flex flex-col bg-grid-pattern relative ${showMobilePreview ? 'flex' : 'hidden md:flex'}`}>
                     {/* Mobile back button */}
                     {selectedSessionId && (
@@ -64,17 +94,15 @@ export default function ReviewInboxPage() {
                         </button>
                     )}
                     {selectedSessionId ? (
-                        <InboxPreview
-                            sessionId={selectedSessionId}
-                        />
+                        <InboxPreview sessionId={selectedSessionId} />
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
                             <div className="size-14 rounded-full bg-muted/30 flex items-center justify-center shrink-0 border border-border/50">
                                 <span className="text-2xl">📥</span>
                             </div>
                             <div className="text-center">
-                                <p className="font-medium text-foreground">Inbox Empty</p>
-                                <p className="text-sm">Select a session to begin reviewing.</p>
+                                <p className="font-medium text-foreground">Select a Session</p>
+                                <p className="text-sm">Choose a session from the list to view details.</p>
                             </div>
                         </div>
                     )}

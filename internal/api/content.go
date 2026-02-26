@@ -21,10 +21,25 @@ func (s *Server) listContentSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pipelineID := r.URL.Query().Get("pipeline_id")
 	statusStr := r.URL.Query().Get("status")
+	archivedOnly := r.URL.Query().Get("archived_only") == "true"
+
+	// Cross-pipeline archived listing.
+	if archivedOnly && pipelineID == "" {
+		details, err := s.contentSvc.ListAllArchivedSessionDetails(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if details == nil {
+			details = []*upal.ContentSessionDetail{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(details)
+		return
+	}
 
 	// When pipeline_id is provided, return composed detail views.
 	if pipelineID != "" {
-		archivedOnly := r.URL.Query().Get("archived_only") == "true"
 		templateOnly := r.URL.Query().Get("template_only") == "true"
 
 		var details []*upal.ContentSessionDetail

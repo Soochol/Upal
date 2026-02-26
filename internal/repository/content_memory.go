@@ -73,6 +73,12 @@ func (r *MemoryContentSessionRepository) ListArchivedByPipeline(ctx context.Cont
 	})
 }
 
+func (r *MemoryContentSessionRepository) ListArchived(ctx context.Context) ([]*upal.ContentSession, error) {
+	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
+		return s.ArchivedAt != nil && !s.IsTemplate
+	})
+}
+
 func (r *MemoryContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	return r.store.Filter(ctx, func(s *upal.ContentSession) bool {
 		return s.PipelineID == pipelineID && s.IsTemplate && s.ArchivedAt == nil

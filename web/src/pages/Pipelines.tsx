@@ -1,10 +1,10 @@
-// web/src/pages/Pipelines.tsx — Pipeline listing page (inbox-style layout)
+// web/src/pages/Pipelines.tsx — Pipeline settings page
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Loader2, ArrowLeft, Search,
-  X, PanelRightClose, PanelRightOpen,
+  Plus, Loader2, ArrowLeft, Settings,
+  X,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
@@ -12,11 +12,8 @@ import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipel
 import { fetchContentSessions, updateSessionSettings } from '@/entities/content-session/api'
 import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
-import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
-import { SessionDetailPreview } from '@/pages/pipelines/session/SessionDetailPreview'
 import { PipelineSettingsPanel } from '@/pages/pipelines/PipelineSettingsPanel'
 import { useUIStore } from '@/entities/ui'
-import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import type { PipelineSource, PipelineWorkflow } from '@/entities/pipeline'
 
 // ─── New Session modal ──────────────────────────────────────────────────────
@@ -77,35 +74,16 @@ function NewSessionModal({
 export default function PipelinesPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const addToast = useUIStore((s) => s.addToast)
 
   const selectedPipelineId = searchParams.get('p')
-  const selectedSessionId = searchParams.get('s')
 
   const selectPipeline = useCallback((id: string) => {
     setSearchParams({ p: id })
   }, [setSearchParams])
 
-  const selectSession = useCallback((id: string) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (id) {
-        next.set('s', id)
-      } else {
-        next.delete('s')
-      }
-      return next
-    })
-  }, [setSearchParams])
-
   const [showNewSession, setShowNewSession] = useState(false)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const { size: rightPanelWidth, handleMouseDown: onRightPanelDrag } = useResizeDrag({
-    direction: 'horizontal',
-    min: 520,
-    max: 1400,
-    initial: 640,
-  })
 
   // ─── Data fetching ─────────────────────────────────────────────────────
 
@@ -136,9 +114,9 @@ export default function PipelinesPage() {
   const collectMutation = useMutation({
     mutationFn: (config?: { isTest: boolean; limit: number }) =>
       collectPipeline(selectedPipelineId!, config),
-    onSuccess: () => {
+    onSuccess: (newSession) => {
       setShowNewSession(false)
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId }] })
+      navigate(newSession?.session_id ? `/inbox?s=${newSession.session_id}` : '/inbox')
     },
   })
 
@@ -234,26 +212,10 @@ export default function PipelinesPage() {
 
   // ─── Mobile level ──────────────────────────────────────────────────────
 
-  type MobileLevel = 'pipelines' | 'sessions' | 'detail'
-  const mobileLevel: MobileLevel = selectedSessionId
-    ? 'detail'
-    : selectedPipelineId
-      ? 'sessions'
-      : 'pipelines'
+  type MobileLevel = 'pipelines' | 'detail'
+  const mobileLevel: MobileLevel = selectedPipelineId ? 'detail' : 'pipelines'
 
   const goBackToPipelines = () => setSearchParams({})
-  const goBackToSessions = () => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.delete('s')
-      return next
-    })
-  }
-
-  const toggleSettings = useCallback(() => {
-    setIsSidebarOpen(v => !v)
-  }, [])
-
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -263,7 +225,7 @@ export default function PipelinesPage() {
     >
       <div className="flex h-full w-full overflow-hidden bg-background">
 
-        {/* ── Level 1: Pipeline List Sidebar ── */}
+        {/* ── Pipeline List Sidebar ── */}
         <div className={cn(
           'w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border',
           'bg-sidebar/30 backdrop-blur-xl z-20 flex flex-col',
@@ -278,9 +240,9 @@ export default function PipelinesPage() {
           />
         </div>
 
-        {/* ── Level 2+3: Sessions + Session Detail ── */}
+        {/* ── Main content: pipeline header + settings ── */}
         <div className={cn(
-          'flex-1 min-w-0 flex flex-col relative',
+          'flex-1 min-w-0 flex flex-col',
           mobileLevel === 'pipelines' ? 'hidden md:flex' : 'flex',
         )}>
           {selectedPipelineId ? (
@@ -312,102 +274,41 @@ export default function PipelinesPage() {
                     <Plus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Start Session</span>
                   </button>
-                  <button
-                    onClick={toggleSettings}
-                    className="hidden md:flex p-2 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                    title="Toggle Settings"
-                  >
-                    {isSidebarOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-                  </button>
                 </div>
               </div>
 
-              {/* Inner split: Session list + Session detail + Settings panel */}
-              <div className="flex flex-1 overflow-hidden">
-                {/* Session list */}
-                <SessionListPanel
+              {/* Settings panel as main content */}
+              <div className="flex-1 overflow-hidden">
+                <PipelineSettingsPanel
                   pipelineId={selectedPipelineId}
-                  selectedSessionId={selectedSessionId}
-                  onSelectSession={selectSession}
-                  className={cn(
-                    'w-full md:w-[300px] 2xl:w-[340px] shrink-0 md:border-r border-border bg-sidebar/30',
-                    mobileLevel === 'sessions' ? 'flex' : 'hidden md:flex',
-                  )}
+                  sources={localSources}
+                  schedule={localSchedule}
+                  context={templateSession?.context}
+                  workflows={localWorkflows}
+                  model={localModel}
+                  channels={channels}
+                  onSourcesChange={setLocalSources}
+                  onScheduleChange={setLocalSchedule}
+                  onContextSave={async (ctx) => {
+                    if (!templateSession) return
+                    await updateSessionSettings(templateSession.id, { context: ctx })
+                    queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
+                  }}
+                  onWorkflowsChange={setLocalWorkflows}
+                  onModelChange={setLocalModel}
+                  autoSaveStatus={autoSaveStatus}
                 />
-
-                {/* Session detail */}
-                <div className={cn(
-                  'flex-1 min-w-0 flex flex-col bg-grid-pattern',
-                  mobileLevel === 'detail' ? 'flex' : 'hidden md:flex',
-                )}>
-                  {/* Mobile back to sessions */}
-                  {selectedSessionId && (
-                    <button
-                      onClick={goBackToSessions}
-                      className="md:hidden flex items-center gap-2 px-4 py-3 border-b border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      Back to sessions
-                    </button>
-                  )}
-                  {selectedSessionId ? (
-                    <SessionDetailPreview pipelineId={selectedPipelineId} sessionId={selectedSessionId} />
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-                      <div className="w-16 h-16 rounded-3xl glass-panel flex items-center justify-center mb-4 shadow-xl">
-                        <Search className="w-6 h-6 opacity-50" />
-                      </div>
-                      <p className="text-sm font-medium">No session selected</p>
-                      <p className="text-xs opacity-60 mt-1 max-w-[250px] text-center">Select a session from the list to view details and approve analysis.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Settings Panel — inside content area */}
-                {isSidebarOpen && (
-                  <div className="hidden md:contents">
-                    <div
-                      onMouseDown={onRightPanelDrag}
-                      className="w-1 shrink-0 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-30 relative
-                        after:absolute after:inset-y-0 after:-left-1 after:-right-1"
-                    />
-                    <aside
-                      style={{ width: rightPanelWidth }}
-                      className="border-l border-border bg-sidebar/95 backdrop-blur-md shadow-2xl z-30 flex flex-col shrink-0"
-                    >
-                      <PipelineSettingsPanel
-                        pipelineId={selectedPipelineId}
-                        sources={localSources}
-                        schedule={localSchedule}
-                        context={templateSession?.context}
-                        workflows={localWorkflows}
-                        model={localModel}
-                        channels={channels}
-                        onSourcesChange={setLocalSources}
-                        onScheduleChange={setLocalSchedule}
-                        onContextSave={async (ctx) => {
-                          if (!templateSession) return
-                          await updateSessionSettings(templateSession.id, { context: ctx })
-                          queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
-                        }}
-                        onWorkflowsChange={setLocalWorkflows}
-                        onModelChange={setLocalModel}
-                        autoSaveStatus={autoSaveStatus}
-                      />
-                    </aside>
-                  </div>
-                )}
               </div>
             </>
           ) : (
             // No pipeline selected
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
               <div className="size-14 rounded-full bg-muted/30 flex items-center justify-center shrink-0 border border-border/50">
-                <Search className="w-6 h-6 opacity-30" />
+                <Settings className="w-6 h-6 opacity-30" />
               </div>
               <div className="text-center">
                 <p className="font-medium text-foreground">Select a pipeline</p>
-                <p className="text-sm">Choose a pipeline from the list to view its sessions.</p>
+                <p className="text-sm">Choose a pipeline from the list to configure its settings.</p>
               </div>
             </div>
           )}

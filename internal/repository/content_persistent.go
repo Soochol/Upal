@@ -125,6 +125,11 @@ func (r *PersistentContentSessionRepository) ListArchivedByPipeline(ctx context.
 	return r.mem.ListArchivedByPipeline(ctx, pipelineID)
 }
 
+func (r *PersistentContentSessionRepository) ListArchived(ctx context.Context) ([]*upal.ContentSession, error) {
+	// No DB method yet — fall back to in-memory.
+	return r.mem.ListArchived(ctx)
+}
+
 func (r *PersistentContentSessionRepository) ListTemplatesByPipeline(ctx context.Context, pipelineID string) ([]*upal.ContentSession, error) {
 	// No DB method yet — fall back to in-memory filtering.
 	return r.mem.ListTemplatesByPipeline(ctx, pipelineID)

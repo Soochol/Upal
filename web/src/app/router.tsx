@@ -11,16 +11,16 @@ import PublishedPage from '@/pages/Published'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import { ToastContainer } from '@/shared/ui/ToastContainer'
 
-const ReviewInboxPage = lazy(() => import('@/pages/inbox'))
-const PublishInboxPage = lazy(() => import('@/pages/publish-inbox'))
+const InboxPage = lazy(() => import('@/pages/inbox'))
 const SettingsPage = lazy(() => import('@/pages/settings'))
 
 function PipelineRedirect() {
   const { id, sessionId } = useParams()
-  const params = new URLSearchParams()
-  if (id) params.set('p', id)
-  if (sessionId) params.set('s', sessionId)
-  return <Navigate to={`/pipelines?${params.toString()}`} replace />
+  // Session URLs now go to inbox
+  if (sessionId) {
+    return <Navigate to={`/inbox?s=${sessionId}`} replace />
+  }
+  return <Navigate to={`/pipelines?p=${id}`} replace />
 }
 
 export function AppRouter() {
@@ -34,9 +34,9 @@ export function AppRouter() {
           <Route path="/runs/:id" element={<RunViewer />} />
           <Route path="/connections" element={<ConnectionsPage />} />
 
-          {/* Inbox (Unified Reviews) */}
-          <Route path="/inbox" element={<Suspense fallback={null}><ReviewInboxPage /></Suspense>} />
-          <Route path="/publish-inbox" element={<Suspense fallback={null}><PublishInboxPage /></Suspense>} />
+          {/* Inbox */}
+          <Route path="/inbox" element={<Suspense fallback={null}><InboxPage /></Suspense>} />
+          <Route path="/publish-inbox" element={<Navigate to="/inbox" replace />} />
 
           {/* Pipelines */}
           <Route path="/pipelines" element={<PipelinesPage />} />

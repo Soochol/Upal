@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, Send, X } from 'lucide-react';
+import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useResizeDrag } from '@/shared/lib/useResizeDrag';
 import { useContentSessionStore } from '@/entities/content-session/store';
@@ -20,8 +20,7 @@ interface MainLayoutProps {
 const NAV_GROUPS = [
     {
         items: [
-            { icon: Inbox, label: 'Review Inbox', to: '/inbox' },
-            { icon: Send, label: 'Publish Inbox', to: '/publish-inbox' },
+            { icon: Inbox, label: 'Inbox', to: '/inbox' },
         ],
     },
     {
@@ -53,8 +52,7 @@ export function MainLayout({ children, headerContent, rightPanel, bottomConsole 
     const syncBadgeCounts = useContentSessionStore((s) => s.syncBadgeCounts);
 
     const badgeMap: Record<string, number> = {
-        '/inbox': pendingCount,
-        '/publish-inbox': publishReadyCount,
+        '/inbox': pendingCount + publishReadyCount,
     };
 
     useEffect(() => {

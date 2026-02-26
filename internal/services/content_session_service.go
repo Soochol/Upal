@@ -529,6 +529,62 @@ func (s *ContentSessionService) ListArchivedSessionDetails(ctx context.Context, 
 	return details, nil
 }
 
+// ListAllArchivedSessionDetails returns composed ContentSessionDetail records
+// for ALL archived sessions across all pipelines, sorted newest first.
+func (s *ContentSessionService) ListAllArchivedSessionDetails(ctx context.Context) ([]*upal.ContentSessionDetail, error) {
+	archivedSessions, err := s.sessions.ListArchived(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pipelineNames := make(map[string]string)
+	lookupPipelineName := func(pipelineID string) string {
+		if pipelineID == "" || s.pipelineRepo == nil {
+			return ""
+		}
+		if name, ok := pipelineNames[pipelineID]; ok {
+			return name
+		}
+		if p, err := s.pipelineRepo.Get(ctx, pipelineID); err == nil {
+			pipelineNames[pipelineID] = p.Name
+			return p.Name
+		}
+		return ""
+	}
+
+	details := make([]*upal.ContentSessionDetail, 0, len(archivedSessions))
+	for _, sess := range archivedSessions {
+		analysis, _ := s.analyses.GetBySession(ctx, sess.ID)
+		wfResults := s.GetWorkflowResults(ctx, sess.ID)
+		details = append(details, &upal.ContentSessionDetail{
+			ID:               sess.ID,
+			PipelineID:       sess.PipelineID,
+			Name:             sess.Name,
+			PipelineName:     lookupPipelineName(sess.PipelineID),
+			Status:           sess.Status,
+			TriggerType:      sess.TriggerType,
+			SourceCount:      sess.SourceCount,
+			IsTemplate:       sess.IsTemplate,
+			ParentSessionID:  sess.ParentSessionID,
+			ScheduleID:       sess.ScheduleID,
+			SessionSources:   sess.Sources,
+			Schedule:         sess.Schedule,
+			Model:            sess.Model,
+			SessionWorkflows: sess.Workflows,
+			SessionContext:   sess.Context,
+			Analysis:         analysis,
+			WorkflowResults:  wfResults,
+			CreatedAt:        sess.CreatedAt,
+			ReviewedAt:       sess.ReviewedAt,
+			ArchivedAt:       sess.ArchivedAt,
+		})
+	}
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].CreatedAt.After(details[j].CreatedAt)
+	})
+	return details, nil
+}
+
 // allPipelineSessions returns active + archived instance sessions for a pipeline,
 // sorted by created_at ascending, so session numbers are stable.
 // Templates are excluded (ListByPipeline filters !IsTemplate) because session
