@@ -24,6 +24,7 @@ import { useReconnectRun } from '@/features/execute-workflow'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { configureNode, computeUpstreamNodes } from '@/features/edit-node'
 import type { NodeType } from '@/entities/node'
+import { useModels } from '@/shared/api/useModels'
 import type { ChatSubmitParams } from '@/entities/ui/model/chatStore'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
@@ -35,6 +36,9 @@ export default function WorkflowsPage() {
   const selectedWorkflowName = searchParams.get('w')
   const isGenerateMode = searchParams.get('generate') === 'true'
   const hasWorkflowSelected = !!selectedWorkflowName
+
+  const models = useModels()
+  const defaultModelId = models.find((m) => m.isDefault && m.category === 'text')?.id
 
   const addNode = useWorkflowStore((s) => s.addNode)
   const nodes = useWorkflowStore((s) => s.nodes)
@@ -240,11 +244,12 @@ export default function WorkflowsPage() {
 
   const handleAddNode = useCallback((type: NodeType) => {
     const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
+    const initialConfig = type === 'agent' && defaultModelId ? { model: defaultModelId } : undefined
     addNode(type as Parameters<typeof addNode>[0], {
       x: center.x + (Math.random() - 0.5) * 60,
       y: center.y + (Math.random() - 0.5) * 40,
-    })
-  }, [addNode])
+    }, initialConfig)
+  }, [addNode, defaultModelId])
 
   const handleExposeViewportCenter = useCallback(
     (fn: () => { x: number; y: number }) => { getViewportCenterRef.current = fn },

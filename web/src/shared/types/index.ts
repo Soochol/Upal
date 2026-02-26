@@ -25,6 +25,7 @@ export type ModelInfo = {
   category: 'text' | 'image' | 'tts'
   options: OptionSchema[]
   supportsTools: boolean
+  isDefault?: boolean
 }
 
 export type ToolInfo = {
