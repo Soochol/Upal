@@ -366,6 +366,19 @@ func serve() {
 
 	srv.SetSkills(skillReg)
 
+	// New Session/Run services (coexist with old pipeline/content-session services).
+	memSessionRepo := repository.NewMemorySessionRepository()
+	var sessionRepo repository.SessionRepository = memSessionRepo
+	memSessionRunRepo := repository.NewMemorySessionRunRepository()
+	var sessionRunRepo repository.SessionRunRepository = memSessionRunRepo
+	memWFRunRepo := repository.NewMemoryWorkflowRunRepository()
+	var wfRunRepo repository.WorkflowRunRepository = memWFRunRepo
+
+	sessionSvc := services.NewSessionService(sessionRepo)
+	runSvc := services.NewRunService(sessionRunRepo, sessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo, wfRunRepo)
+	srv.SetSessionService(sessionSvc)
+	srv.SetRunService(runSvc)
+
 	// Wire content collector for actual source fetching and workflow execution.
 	var collector *services.ContentCollector
 	if defaultLLM != nil {
