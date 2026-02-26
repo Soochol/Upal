@@ -14,7 +14,7 @@ type GenerationManager struct {
 	stop    chan struct{}
 }
 
-// GenerationStatus represents the lifecycle state of a generation job.
+// Generation lifecycle states.
 const (
 	GenerationPending   = "pending"
 	GenerationCompleted = "completed"

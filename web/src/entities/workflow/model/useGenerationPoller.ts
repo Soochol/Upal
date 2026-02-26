@@ -26,6 +26,11 @@ export function useGenerationPoller<T = unknown>(
     let cancelled = false
     let consecutiveErrors = 0
 
+    const abort = (msg: string) => {
+      fail(msg)
+      onErrorRef.current(msg)
+    }
+
     const poll = async () => {
       try {
         const res = await pollGeneration<T>(generationId)
@@ -35,20 +40,17 @@ export function useGenerationPoller<T = unknown>(
           clear()
           onCompleteRef.current(res.result)
         } else if (res.status === 'failed') {
-          clear()
-          onErrorRef.current(res.error ?? 'Generation failed')
+          abort(res.error ?? 'Generation failed')
         }
       } catch (err) {
         if (cancelled) return
         if (err instanceof ApiError && err.status === 404) {
-          fail('Generation not found — it may have expired')
-          onErrorRef.current('Generation not found — it may have expired')
+          abort('Generation not found — it may have expired')
           return
         }
         consecutiveErrors++
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          fail('Lost connection to server')
-          onErrorRef.current('Lost connection to server')
+          abort('Lost connection to server')
         }
       }
     }

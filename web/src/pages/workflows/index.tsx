@@ -263,9 +263,7 @@ export default function WorkflowsPage() {
   }, [addNode])
 
   const handlePromptSubmit = useCallback(async (description: string) => {
-    const currentNodes = useWorkflowStore.getState().nodes
-    const currentEdges = useWorkflowStore.getState().edges
-    const currentName = useWorkflowStore.getState().workflowName
+    const { nodes: currentNodes, edges: currentEdges, workflowName: currentName } = useWorkflowStore.getState()
     const hasExisting = currentNodes.length > 0
 
     const action = hasExisting ? 'Editing' : 'Generating'
