@@ -215,6 +215,16 @@ func serve() {
 	connSvc := services.NewConnectionService(connRepo, connEnc)
 	srv.SetConnectionService(connSvc)
 
+	// AI provider management (persistent if DB is available).
+	memAIProviderRepo := repository.NewMemoryAIProviderRepository()
+	var aiProviderRepo repository.AIProviderRepository = memAIProviderRepo
+	if database != nil {
+		aiProviderRepo = repository.NewPersistentAIProviderRepository(memAIProviderRepo, database)
+	}
+	aiProviderEnc, _ := upalcrypto.NewEncryptor(nil)
+	aiProviderSvc := services.NewAIProviderService(aiProviderRepo, aiProviderEnc)
+	srv.SetAIProviderService(aiProviderSvc)
+
 	// Publish channel management.
 	publishChannelRepo := repository.NewMemoryPublishChannelRepository()
 	srv.SetPublishChannelRepo(publishChannelRepo)
@@ -231,7 +241,13 @@ func serve() {
 
 	// Run manager for background execution with event buffering.
 	runManager := services.NewRunManager(cfg.Runs.TTL)
+	defer runManager.Stop()
 	srv.SetRunManager(runManager)
+
+	// Generation manager for background LLM generation (workflow, pipeline).
+	genManager := services.NewGenerationManager(cfg.Runs.TTL)
+	defer genManager.Stop()
+	srv.SetGenerationManager(genManager)
 
 	// RunPublisher bridges workflow execution into RunManager + RunHistoryService.
 	publisher := runpub.NewRunPublisher(workflowSvc, runManager, runHistorySvc, execReg)

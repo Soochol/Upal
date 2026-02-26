@@ -44,6 +44,8 @@ type Server struct {
 	contentSvc           ports.ContentSessionPort
 	collector            *services.ContentCollector
 	publishChannelRepo   repository.PublishChannelRepository
+	generationManager    *services.GenerationManager
+	aiProviderSvc        *services.AIProviderService
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
 }
@@ -144,6 +146,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		r.Post("/hooks/{id}", s.handleWebhook)
 		r.Post("/generate", s.generateWorkflow)
+		r.Get("/generate/{id}", s.getGeneration)
 		r.Post("/generate-pipeline", s.generatePipeline)
 		r.Post("/generate/backfill", s.backfillDescriptions)
 		r.Post("/nodes/configure", s.configureNode)
@@ -169,6 +172,16 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/{id}", s.getPublishChannel)
 				r.Put("/{id}", s.updatePublishChannel)
 				r.Delete("/{id}", s.deletePublishChannel)
+			})
+		}
+		if s.aiProviderSvc != nil {
+			r.Route("/ai-providers", func(r chi.Router) {
+				r.Post("/", s.createAIProvider)
+				r.Get("/", s.listAIProviders)
+				r.Get("/defaults", s.getAIProviderDefaults)
+				r.Put("/{id}", s.updateAIProvider)
+				r.Delete("/{id}", s.deleteAIProvider)
+				r.Put("/{id}/default", s.setAIProviderDefault)
 			})
 		}
 	})
@@ -209,6 +222,8 @@ func (s *Server) SetPipelineService(svc ports.PipelineServicePort) { s.pipelineS
 func (s *Server) SetPipelineRunner(runner ports.PipelineRunner)   { s.pipelineRunner = runner }
 func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) { s.contentSvc = svc }
 func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector = c }
+func (s *Server) SetGenerationManager(gm *services.GenerationManager) { s.generationManager = gm }
+func (s *Server) SetAIProviderService(svc *services.AIProviderService) { s.aiProviderSvc = svc }
 
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
