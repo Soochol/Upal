@@ -199,7 +199,6 @@ func serve() {
 	defer schedulerSvc.Stop()
 
 	srv := api.NewServer(llms, workflowSvc, repo, toolReg)
-	srv.SetLLMResolver(resolver)
 	srv.SetRunHistoryService(runHistorySvc)
 	srv.SetSchedulerService(schedulerSvc)
 	srv.SetConcurrencyLimiter(limiter)
@@ -331,6 +330,7 @@ func serve() {
 			})
 		}
 		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolInfos, modelOpts)
+		gen.SetLLMResolver(resolver)
 		srv.SetGenerator(gen, defaultModelName)
 		if collector != nil {
 			collector.SetGenerator(gen)

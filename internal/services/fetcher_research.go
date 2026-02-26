@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -192,11 +193,8 @@ func (f *researchFetcher) runResearch(
 
 func buildResearchSystemPrompt(skillContent, depth string) string {
 	if skillContent == "" {
-		// Fallback if skill file is missing.
-		if depth == "deep" {
-			return "You are an expert research analyst. Use web_search and get_webpage to thoroughly investigate the topic. Provide a structured markdown report with sources."
-		}
-		return "You are a research analyst. Use web_search and get_webpage to find information about the topic. Provide a concise markdown report with sources."
+		log.Printf("[WARN] stage-research skill not found; using full skill content as fallback")
+		return "You are a research analyst. Use web_search and get_webpage to research the topic. Provide a structured markdown report with sources."
 	}
 
 	if depth == "deep" {

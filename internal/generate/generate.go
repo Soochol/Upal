@@ -10,11 +10,13 @@ import (
 	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/upal"
+	"github.com/soochol/upal/internal/upal/ports"
 	adkmodel "google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
 
-// Generator converts natural language descriptions into WorkflowDefinitions.
+// Generator converts natural language descriptions into WorkflowDefinitions
+// and handles LLM-based configuration of nodes and pipelines.
 type Generator struct {
 	llm            adkmodel.LLM
 	model          string
@@ -22,6 +24,7 @@ type Generator struct {
 	toolInfos      []upal.ToolSummary  // available tools with names and descriptions
 	models         []upal.ModelSummary // available models with category/tier metadata
 	defaultModelID string              // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
+	llmResolver    ports.LLMResolver   // resolves "provider/model" → LLM instance (optional)
 }
 
 // New creates a Generator that uses the given LLM and model name.
@@ -42,6 +45,22 @@ func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos [
 		defaultModelID = models[0].ID
 	}
 	return &Generator{llm: llm, model: model, skills: skillsProv, toolInfos: toolInfos, models: models, defaultModelID: defaultModelID}
+}
+
+// SetLLMResolver sets the resolver used for per-request model overrides.
+func (g *Generator) SetLLMResolver(r ports.LLMResolver) {
+	g.llmResolver = r
+}
+
+// resolveLLM returns the LLM and model name for a request.
+// If requestModel is provided and resolvable, it overrides the default.
+func (g *Generator) resolveLLM(requestModel string) (adkmodel.LLM, string) {
+	if requestModel != "" && g.llmResolver != nil {
+		if resolved, resolvedName, err := g.llmResolver.Resolve(requestModel); err == nil {
+			return resolved, resolvedName
+		}
+	}
+	return g.llm, g.model
 }
 
 // LLM returns the underlying LLM used by the generator.

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { listModels } from '@/shared/api'
-import type { ModelInfo } from '@/shared/types'
 import { Button } from '@/shared/ui/button'
 import { Textarea } from '@/shared/ui/textarea'
 import {
@@ -46,7 +46,6 @@ export function ConfigureChat({
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(true)
-  const [models, setModels] = useState<ModelInfo[]>([])
   const [selectedModel, setSelectedModel] = useState(
     () => localStorage.getItem('upal:ai-model') ?? '',
   )
@@ -64,10 +63,11 @@ export function ConfigureChat({
     localStorage.setItem('upal:ai-thinking', String(thinking))
   }, [thinking])
 
-  // Fetch available models
-  useEffect(() => {
-    listModels().then(setModels).catch(() => {})
-  }, [])
+  const { data: models = [] } = useQuery({
+    queryKey: ['models'],
+    queryFn: listModels,
+    staleTime: 5 * 60 * 1000,
+  })
 
   // Derive the last assistant message for inline status display
   const lastStatus = [...messages].reverse().find((m) => m.role === 'assistant') ?? null

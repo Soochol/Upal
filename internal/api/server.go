@@ -43,7 +43,6 @@ type Server struct {
 	pipelineRunner       ports.PipelineRunner
 	contentSvc           ports.ContentSessionPort
 	collector            *services.ContentCollector
-	llmResolver          ports.LLMResolver
 	publishChannelRepo   repository.PublishChannelRepository
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
@@ -209,7 +208,6 @@ func (s *Server) SetPipelineService(svc ports.PipelineServicePort) { s.pipelineS
 func (s *Server) SetPipelineRunner(runner ports.PipelineRunner)   { s.pipelineRunner = runner }
 func (s *Server) SetContentSessionService(svc ports.ContentSessionPort) { s.contentSvc = svc }
 func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector = c }
-func (s *Server) SetLLMResolver(r ports.LLMResolver)              { s.llmResolver = r }
 
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
