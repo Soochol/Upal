@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Search, Plus, Loader2, Check } from 'lucide-react'
 import { listWorkflows } from '@/entities/workflow'
-import type { PipelineWorkflow } from '@/entities/pipeline'
+import type { SessionWorkflow } from '@/entities/session'
 
 type WorkflowListItem = {
   name: string
@@ -12,8 +12,8 @@ type WorkflowListItem = {
 // --- Mode A: pipeline add (legacy) ---
 interface AddModeProps {
   mode?: 'add'
-  existingWorkflows: PipelineWorkflow[]
-  onAdd: (workflow: PipelineWorkflow) => void
+  existingWorkflows: SessionWorkflow[]
+  onAdd: (workflow: SessionWorkflow) => void
   onClose: () => void
   title?: string
 }

@@ -1,12 +1,11 @@
 import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/entities/auth'
 import { LoginPage } from '@/pages/login'
 import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
-import PipelinesPage from '@/pages/pipelines'
 import ConnectionsPage from '@/pages/connections'
 import { RunViewer } from '@/pages/runs/RunViewer'
 import PublishedPage from '@/pages/Published'
@@ -17,12 +16,6 @@ import { GlobalChatBar } from './GlobalChatBar'
 const InboxPage = lazy(() => import('@/pages/inbox'))
 const SessionsPage = lazy(() => import('@/pages/sessions'))
 const SettingsPage = lazy(() => import('@/pages/settings'))
-
-function PipelineRedirect() {
-  const { id, sessionId } = useParams()
-  const search = sessionId ? `?p=${id}&s=${sessionId}` : `?p=${id}`
-  return <Navigate to={`/pipelines${search}`} replace />
-}
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const { user, loading, initialized } = useAuthStore()
@@ -57,11 +50,6 @@ export function AppRouter() {
           {/* Inbox */}
           <Route path="/inbox" element={<AuthGuard><Suspense fallback={null}><InboxPage /></Suspense></AuthGuard>} />
           <Route path="/publish-inbox" element={<Navigate to="/inbox" replace />} />
-
-          {/* Pipelines */}
-          <Route path="/pipelines" element={<AuthGuard><PipelinesPage /></AuthGuard>} />
-          <Route path="/pipelines/:id" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
-          <Route path="/pipelines/:id/sessions/:sessionId" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
 
           {/* Sessions */}
           <Route path="/sessions" element={<AuthGuard><Suspense fallback={null}><SessionsPage /></Suspense></AuthGuard>} />

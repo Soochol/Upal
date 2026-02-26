@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X, LogOut } from 'lucide-react'
 import { useLocation, NavLink } from 'react-router-dom'
-import { useContentSessionStore } from '@/entities/content-session/store'
 import { useAuthStore } from '@/entities/auth'
 import { cn } from '@/shared/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
@@ -63,17 +62,7 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const authLogout = useAuthStore((s) => s.logout)
-  const pendingCount = useContentSessionStore((s) => s.pendingCount)
-  const publishReadyCount = useContentSessionStore((s) => s.publishReadyCount)
-  const syncBadgeCounts = useContentSessionStore((s) => s.syncBadgeCounts)
-
-  const badgeMap: Record<string, number> = {
-    '/inbox': pendingCount + publishReadyCount,
-  }
-
-  useEffect(() => {
-    syncBadgeCounts()
-  }, [syncBadgeCounts])
+  const badgeMap: Record<string, number> = {}
 
   useEffect(() => {
     setMobileNavOpen(false) // eslint-disable-line react-hooks/set-state-in-effect

@@ -6,7 +6,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
-import { WorkflowPicker } from '@/pages/pipelines/WorkflowPicker'
+import { WorkflowPicker } from '@/features/workflow-picker'
 import {
   fetchSession,
   updateSession,

@@ -1,4 +1,4 @@
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline/types'
+import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session'
 
 // --- Model & Tool Discovery ---
 
@@ -71,11 +71,11 @@ export type ConfigurePipelineRequest = {
   model?: string
   thinking?: boolean
   history?: { role: string; content: string }[]
-  current_sources: PipelineSource[]
+  current_sources: SessionSource[]
   current_schedule: string
-  current_workflows: PipelineWorkflow[]
+  current_workflows: SessionWorkflow[]
   current_model: string
-  current_context?: PipelineContext
+  current_context?: SessionContext
 }
 
 export type CreatedWorkflowInfo = {
@@ -85,11 +85,11 @@ export type CreatedWorkflowInfo = {
 }
 
 export type ConfigurePipelineResponse = {
-  sources?: PipelineSource[]
+  sources?: SessionSource[]
   schedule?: string | null
-  workflows?: PipelineWorkflow[]
+  workflows?: SessionWorkflow[]
   model?: string | null
-  context?: PipelineContext
+  context?: SessionContext
   explanation: string
   created_workflows?: CreatedWorkflowInfo[]
 }
@@ -109,5 +109,3 @@ export type Trigger = {
   created_at: string
 }
 
-// --- Content Session (re-exported from entity) ---
-export type { ContentSessionStatus, SourceType } from '@/entities/content-session'

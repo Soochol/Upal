@@ -16,6 +16,7 @@ interface WorkflowSidebarProps {
   onDelete: (name: string) => void
   onRename: (oldName: string, newName: string) => void
   onTemplate: (tpl: TemplateDefinition) => void
+  onGenerate: () => void
   isLoading: boolean
   isCreating: boolean
   runningWorkflows: Set<string>
@@ -30,6 +31,7 @@ export function WorkflowSidebar({
   onDelete,
   onRename,
   onTemplate,
+  onGenerate,
   isLoading,
   isCreating,
   runningWorkflows,

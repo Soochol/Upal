@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { X, Rss, Flame, MessageCircle, TrendingUp, Globe, Search } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
-import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
+import type { SessionSource, SessionSourceType } from '@/entities/session'
 
 type SourceTypeDef = {
-  type: PipelineSourceType
+  type: SessionSourceType
   source_type: 'static' | 'signal' | 'research'
   label: string
   description: string
@@ -30,8 +30,8 @@ export const RESEARCH_SOURCES: SourceTypeDef[] = [
 ]
 
 type Props = {
-  editSource?: PipelineSource
-  onAdd: (source: PipelineSource) => void
+  editSource?: SessionSource
+  onAdd: (source: SessionSource) => void
   onClose: () => void
 }
 
@@ -84,7 +84,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
     : null
   const [step, setStep] = useState<'select' | 'config'>(editSource ? 'config' : 'select')
   const [selectedType, setSelectedType] = useState<SourceTypeDef | null>(editTypeDef)
-  const [draft, setDraft] = useState<Partial<PipelineSource>>(editSource ?? {})
+  const [draft, setDraft] = useState<Partial<SessionSource>>(editSource ?? {})
 
   const handleSelectType = (typeDef: SourceTypeDef) => {
     setSelectedType(typeDef)
@@ -102,7 +102,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
 
   const handleAdd = () => {
     if (!draft.id || !draft.type) return
-    onAdd(draft as PipelineSource)
+    onAdd(draft as SessionSource)
     onClose()
   }
 

@@ -23,6 +23,7 @@ import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { configureNode, computeUpstreamNodes } from '@/features/edit-node'
+import type { NodeType } from '@/entities/node'
 import type { ChatSubmitParams } from '@/entities/ui/model/chatStore'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
@@ -237,9 +238,9 @@ export default function WorkflowsPage() {
     setSearchParams({ w: tpl.workflow.name })
   }, [saveNow, setSearchParams])
 
-  const handleAddNode = useCallback((type: Parameters<typeof addNode>[0]) => {
+  const handleAddNode = useCallback((type: NodeType) => {
     const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
-    addNode(type, {
+    addNode(type as Parameters<typeof addNode>[0], {
       x: center.x + (Math.random() - 0.5) * 60,
       y: center.y + (Math.random() - 0.5) * 40,
     })
@@ -377,6 +378,7 @@ export default function WorkflowsPage() {
             onDelete={handleDelete}
             onRename={handleRename}
             onTemplate={handleTemplate}
+            onGenerate={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set('generate', 'true'); return next })}
             isLoading={isLoading}
             isCreating={isCreating}
             runningWorkflows={runningWorkflows}

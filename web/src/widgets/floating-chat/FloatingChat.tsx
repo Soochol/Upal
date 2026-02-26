@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessageSquare, X, SendHorizontal, Loader2, Check, AlertCircle, Sparkles, Plus } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { fetchContentSession, updateSessionSettings } from '@/entities/content-session/api'
+import { fetchSession, updateSession } from '@/entities/session'
 import { configurePipeline } from '@/features/configure-pipeline/api'
-import type { PipelineSource, PipelineWorkflow, PipelineContext } from '@/entities/pipeline'
+import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session'
 import type { CreatedWorkflowInfo } from '@/shared/types'
 
 type ChatMessage = {
@@ -29,14 +29,14 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { data: session } = useQuery({
-    queryKey: ['content-session', sessionId],
-    queryFn: () => fetchContentSession(sessionId!),
+    queryKey: ['session', sessionId],
+    queryFn: () => fetchSession(sessionId!),
     enabled: !!sessionId,
   })
 
   const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['content-session', sessionId] })
-    queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
+    queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    queryClient.invalidateQueries({ queryKey: ['sessions'] })
   }, [queryClient, sessionId])
 
   // Auto-scroll to bottom on new messages or loading
@@ -65,16 +65,16 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
 
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
-      const effectivePipelineId = pipelineId ?? session.pipeline_id
+      if (!pipelineId) throw new Error('Pipeline ID is required')
 
-      const response = await configurePipeline(effectivePipelineId, {
+      const response = await configurePipeline(pipelineId, {
         message: trimmed,
         history,
-        current_sources: session.session_sources ?? [],
+        current_sources: session.sources ?? [],
         current_schedule: session.schedule ?? '',
-        current_workflows: session.session_workflows ?? [],
+        current_workflows: session.workflows ?? [],
         current_model: session.model ?? '',
-        current_context: session.session_context,
+        current_context: session.context,
       })
 
       // Apply changes to session
@@ -86,12 +86,12 @@ export function FloatingChat({ pipelineId, sessionId }: FloatingChatProps) {
       if (response.context) settings.context = response.context
 
       if (Object.keys(settings).length > 0) {
-        await updateSessionSettings(sessionId, settings as {
-          sources?: PipelineSource[]
+        await updateSession(sessionId, settings as {
+          sources?: SessionSource[]
           schedule?: string
-          workflows?: PipelineWorkflow[]
+          workflows?: SessionWorkflow[]
           model?: string
-          context?: PipelineContext
+          context?: SessionContext
         })
         invalidate()
       }

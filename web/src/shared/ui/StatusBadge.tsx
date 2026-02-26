@@ -1,5 +1,4 @@
 import { cn } from "@/shared/lib/utils"
-import type { ContentSessionStatus } from "@/shared/types"
 
 const STATUS_CONFIG: Record<
   string,
@@ -23,7 +22,7 @@ const STATUS_CONFIG: Record<
 }
 
 type StatusBadgeProps = {
-  status: ContentSessionStatus | (string & {})
+  status: string
   className?: string
 }
 
