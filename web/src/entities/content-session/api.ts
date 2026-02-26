@@ -172,6 +172,14 @@ export async function deactivateSession(id: string): Promise<ContentSession> {
   })
 }
 
+export async function runSessionInstance(id: string, options?: { isTest?: boolean; limit?: number }): Promise<{ session_id: string }> {
+  return apiFetch<{ session_id: string }>(`${BASE}/${encodeURIComponent(id)}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options ?? {}),
+  })
+}
+
 export type SessionEvent =
   | { type: 'source_fetched'; tool: string; count: number }
   | { type: 'analysis_complete'; score: number; summary: string }

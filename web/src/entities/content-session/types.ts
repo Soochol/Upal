@@ -67,6 +67,7 @@ export type ContentSession = {
   pipeline_id: string
   name?: string
   pipeline_name?: string
+  session_name?: string
   session_number?: number
   trigger_type: 'schedule' | 'manual' | 'surge'
   status: ContentSessionStatus
