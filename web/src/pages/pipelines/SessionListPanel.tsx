@@ -2,42 +2,21 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, Archive, ArchiveRestore, Trash2, FileText,
-  Plus, ArrowLeft, Settings,
+  Plus, ArrowLeft, Settings, GitBranch,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { EditableName } from '@/shared/ui/EditableName'
 import { fetchContentSessions, archiveSession, unarchiveSession, deleteSession, updateSessionSettings } from '@/entities/content-session/api'
-
-// ─── Status dot ──────────────────────────────────────────────────────────────
-
-const STATUS_DOT: Record<string, string> = {
-  pending_review: 'bg-warning',
-  approved: 'bg-success',
-  producing: 'bg-info',
-  published: 'bg-success/70',
-  rejected: 'bg-muted-foreground/40',
-  collecting: 'bg-primary',
-}
-
-// ─── Filter type ─────────────────────────────────────────────────────────────
-
-type SessionFilter = 'all' | 'pending_review' | 'producing' | 'published' | 'rejected' | 'archived'
-
-const FILTER_TABS: { value: SessionFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'pending_review', label: 'Pending' },
-  { value: 'producing', label: 'Producing' },
-  { value: 'published', label: 'Published' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'archived', label: 'Archived' },
-]
+import { SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter } from '@/entities/content-session/constants'
+import type { SessionFilter } from '@/entities/content-session/constants'
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface SessionListPanelProps {
   pipelineId: string
   pipelineName?: string
+  isContentPipeline?: boolean
   selectedSessionId: string | null
   onSelectSession: (id: string) => void
   onStartSession?: () => void
@@ -48,6 +27,7 @@ interface SessionListPanelProps {
 export function SessionListPanel({
   pipelineId,
   pipelineName,
+  isContentPipeline = true,
   selectedSessionId,
   onSelectSession,
   onStartSession,
@@ -113,17 +93,21 @@ export function SessionListPanel({
 
   const filterCounts = useMemo(() => {
     const counts: Record<SessionFilter, number> = {
-      all: sessions.length, pending_review: 0, producing: 0,
+      all: sessions.length, pending: 0, in_progress: 0, producing: 0,
       published: 0, rejected: 0, archived: archivedSessions.length,
     }
     for (const s of sessions) {
-      if (s.status in counts) counts[s.status as SessionFilter]++
+      if (matchesSessionFilter(s.status, 'pending')) counts.pending++
+      if (matchesSessionFilter(s.status, 'in_progress')) counts.in_progress++
+      if (matchesSessionFilter(s.status, 'producing')) counts.producing++
+      if (matchesSessionFilter(s.status, 'published')) counts.published++
+      if (matchesSessionFilter(s.status, 'rejected')) counts.rejected++
     }
     return counts
   }, [sessions, archivedSessions])
 
   const filteredSessions = (activeFilter === 'archived' ? archivedSessions : sessions)
-    .filter(s => activeFilter === 'all' || activeFilter === 'archived' || s.status === activeFilter)
+    .filter(s => matchesSessionFilter(s.status, activeFilter))
     .filter(s => {
       if (!search) return true
       const q = search.toLowerCase()
@@ -158,8 +142,19 @@ export function SessionListPanel({
         )}
       </div>
 
-      {/* Search + Filters */}
-      <div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10">
+      {/* Non-content pipeline: show guidance instead of session list */}
+      {!isContentPipeline && sessions.length === 0 && !sessionsLoading && (
+        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 gap-3 text-center">
+          <GitBranch className="w-10 h-10 opacity-20" />
+          <div>
+            <p className="font-medium text-foreground">Workflow Pipeline</p>
+            <p className="text-xs mt-1">This pipeline runs workflows directly. Add a collect stage to enable content sessions.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Search + Filters + Session list */}
+      {(isContentPipeline || sessions.length > 0 || sessionsLoading) && <><div className="p-4 border-b border-border/50 bg-background/50 sticky top-0 z-10">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -171,7 +166,7 @@ export function SessionListPanel({
           />
         </div>
         <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
-          {FILTER_TABS.map(tab => {
+          {SESSION_FILTER_TABS.map(tab => {
             const count = filterCounts[tab.value]
             const isActive = activeFilter === tab.value
             return (
@@ -189,7 +184,7 @@ export function SessionListPanel({
                 {count > 0 && (
                   <span className={cn(
                     'text-[10px] font-bold tabular-nums px-1 rounded-full',
-                    tab.value === 'pending_review' ? 'bg-warning/20 text-warning' : 'bg-muted-foreground/20',
+                    tab.value === 'pending' ? 'bg-warning/20 text-warning' : 'bg-muted-foreground/20',
                   )}>
                     {count}
                   </span>
@@ -223,7 +218,7 @@ export function SessionListPanel({
                   Pipeline Defaults
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground/50 mt-1 ml-5.5">
+              <p className="text-xs text-muted-foreground/50 mt-1 ml-6">
                 New sessions inherit these settings
               </p>
             </button>
@@ -258,7 +253,7 @@ export function SessionListPanel({
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[s.status] ?? 'bg-muted')} />
+                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', SESSION_STATUS_DOT[s.status] ?? 'bg-muted')} />
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                     <EditableName
                       value={s.name || `Session ${s.session_number}`}
@@ -317,7 +312,7 @@ export function SessionListPanel({
             )
           })
         )}
-      </div>
+      </div></>}
     </div>
   )
 }

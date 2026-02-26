@@ -6,7 +6,7 @@ import { InboxSidebar } from './InboxSidebar'
 import { InboxPreview } from './InboxPreview'
 import { fetchContentSessions } from '@/entities/content-session/api'
 import { Loader2, ArrowLeft } from 'lucide-react'
-import type { SessionFilter } from './InboxSidebar'
+import type { SessionFilter } from '@/entities/content-session/constants'
 
 export default function InboxPage() {
     const [searchParams, setSearchParams] = useSearchParams()
@@ -20,19 +20,9 @@ export default function InboxPage() {
         [setSearchParams],
     )
 
-    // Fetch all active sessions by status (returns ContentSessionDetail with pipeline_name, analysis, etc.)
-    const INBOX_STATUSES = ['collecting', 'analyzing', 'pending_review', 'approved', 'producing', 'published', 'rejected', 'error'] as const
-
     const { data: sessions = [], isLoading } = useQuery({
         queryKey: ['inbox-sessions'],
-        queryFn: async () => {
-            const results = await Promise.all(
-                INBOX_STATUSES.map(status => fetchContentSessions({ status }))
-            )
-            return results.flat().sort((a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )
-        },
+        queryFn: () => fetchContentSessions({ detail: true }),
         refetchInterval: 10000,
     })
 

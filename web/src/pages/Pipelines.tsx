@@ -6,6 +6,7 @@ import { Loader2, X, Settings, ArrowLeft } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { MainLayout } from '@/app/layout'
 import { fetchPipelines, fetchPipeline, collectPipeline } from '@/entities/pipeline'
+import { useUIStore } from '@/entities/ui'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { SessionListPanel } from '@/pages/pipelines/SessionListPanel'
 import { SessionSetupView } from '@/pages/pipelines/session/SessionSetupView'
@@ -68,6 +69,7 @@ function NewSessionModal({
 export default function PipelinesPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  const addToast = useUIStore((s) => s.addToast)
 
   const selectedPipelineId = searchParams.get('p')
   const selectedSessionId = searchParams.get('s')
@@ -110,6 +112,7 @@ export default function PipelinesPage() {
         setSearchParams({ p: selectedPipelineId, s: newSession.session_id })
       }
     },
+    onError: (err) => addToast(`Failed to start session: ${err instanceof Error ? err.message : 'unknown error'}`),
   })
 
   // Auto-select first pipeline on load
@@ -163,6 +166,7 @@ export default function PipelinesPage() {
             <SessionListPanel
               pipelineId={selectedPipelineId}
               pipelineName={selectedPipeline?.name}
+              isContentPipeline={(selectedPipeline?.stages ?? []).some(s => s.type === 'collect')}
               selectedSessionId={selectedSessionId}
               onSelectSession={selectSession}
               onStartSession={() => setShowNewSession(true)}

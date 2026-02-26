@@ -9,48 +9,9 @@ import { EditableName } from '@/shared/ui/EditableName'
 import {
     archiveSession, unarchiveSession, deleteSession, updateSessionSettings,
 } from '@/entities/content-session/api'
+import { SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter } from '@/entities/content-session/constants'
+import type { SessionFilter } from '@/entities/content-session/constants'
 import type { ContentSession } from '@/entities/content-session'
-
-// ─── Status dot colors ──────────────────────────────────────────────────────
-
-const STATUS_DOT: Record<string, string> = {
-    pending_review: 'bg-warning',
-    approved: 'bg-success',
-    producing: 'bg-info',
-    published: 'bg-success/70',
-    rejected: 'bg-muted-foreground/40',
-    collecting: 'bg-primary',
-    analyzing: 'bg-primary',
-    error: 'bg-destructive',
-}
-
-// ─── Filter tabs ────────────────────────────────────────────────────────────
-
-export type SessionFilter = 'all' | 'pending' | 'in_progress' | 'producing' | 'published' | 'rejected' | 'archived'
-
-const FILTER_TABS: { value: SessionFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'producing', label: 'Producing' },
-    { value: 'published', label: 'Published' },
-    { value: 'rejected', label: 'Rejected' },
-    { value: 'archived', label: 'Archived' },
-]
-
-/** Which statuses belong to each filter tab */
-function matchesFilter(status: string, filter: SessionFilter): boolean {
-    switch (filter) {
-        case 'all': return true
-        case 'pending': return status === 'pending_review'
-        case 'in_progress': return status === 'collecting' || status === 'analyzing'
-        case 'producing': return status === 'approved' || status === 'producing' || status === 'error'
-        case 'published': return status === 'published'
-        case 'rejected': return status === 'rejected'
-        case 'archived': return true // handled separately
-        default: return true
-    }
-}
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -116,11 +77,11 @@ export function InboxSidebar({
             archived: archivedSessions.length,
         }
         for (const s of sessions) {
-            if (matchesFilter(s.status, 'pending')) counts.pending++
-            if (matchesFilter(s.status, 'in_progress')) counts.in_progress++
-            if (matchesFilter(s.status, 'producing')) counts.producing++
-            if (matchesFilter(s.status, 'published')) counts.published++
-            if (matchesFilter(s.status, 'rejected')) counts.rejected++
+            if (matchesSessionFilter(s.status, 'pending')) counts.pending++
+            if (matchesSessionFilter(s.status, 'in_progress')) counts.in_progress++
+            if (matchesSessionFilter(s.status, 'producing')) counts.producing++
+            if (matchesSessionFilter(s.status, 'published')) counts.published++
+            if (matchesSessionFilter(s.status, 'rejected')) counts.rejected++
         }
         return counts
     }, [sessions, archivedSessions])
@@ -128,11 +89,11 @@ export function InboxSidebar({
     const filteredSessions = useMemo(() => {
         const pool = activeFilter === 'archived' ? archivedSessions : sessions
         return pool
-            .filter(s => matchesFilter(s.status, activeFilter))
+            .filter(s => matchesSessionFilter(s.status, activeFilter))
             .filter(s => {
                 if (!search) return true
                 const q = search.toLowerCase()
-                const displayName = s.name || `Session ${s.session_number}`
+                const displayName = s.name || (s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`)
                 return (
                     displayName.toLowerCase().includes(q) ||
                     s.pipeline_name?.toLowerCase().includes(q) ||
@@ -173,7 +134,7 @@ export function InboxSidebar({
                     />
                 </div>
                 <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
-                    {FILTER_TABS.map(tab => {
+                    {SESSION_FILTER_TABS.map(tab => {
                         const count = filterCounts[tab.value]
                         const isActive = activeFilter === tab.value
                         return (
@@ -228,11 +189,11 @@ export function InboxSidebar({
                             >
                                 <div className="flex items-start justify-between gap-2 mb-0.5">
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[s.status] ?? 'bg-muted')} />
+                                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', SESSION_STATUS_DOT[s.status] ?? 'bg-muted')} />
                                         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                                         <EditableName
-                                            value={s.name || `Session ${s.session_number}`}
-                                            placeholder={`Session ${s.session_number}`}
+                                            value={s.name || (s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`)}
+                                            placeholder={s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`}
                                             onSave={(name) => renameMutation.mutate({ id: s.id, name })}
                                             className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
                                         />
