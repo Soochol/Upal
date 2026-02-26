@@ -190,10 +190,10 @@ export function InboxSidebar({
                                     </span>
                                 </div>
 
-                                {/* Pipeline name */}
-                                {s.pipeline_name && (
+                                {/* Pipeline / session name */}
+                                {(s.pipeline_name || s.session_name) && (
                                     <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-bold truncate pl-6 mb-1">
-                                        {s.pipeline_name}
+                                        {[s.pipeline_name, s.session_name].filter(Boolean).join(' / ')}
                                     </p>
                                 )}
 
