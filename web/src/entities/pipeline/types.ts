@@ -5,11 +5,12 @@ export type PipelineSourceType =
   | 'google_trends'
   | 'social'
   | 'http'
+  | 'research'
 
 export type PipelineSource = {
   id: string
   type: PipelineSourceType
-  source_type: 'static' | 'signal'
+  source_type: 'static' | 'signal' | 'research'
   label: string
   // type-specific config
   url?: string             // rss, http
@@ -19,6 +20,10 @@ export type PipelineSource = {
   accounts?: string[]      // social: follow account handles
   geo?: string             // google_trends: country code
   limit?: number
+  // research
+  topic?: string           // research: subject to investigate
+  depth?: 'light' | 'deep' // research: search depth
+  model?: string           // research: LLM model ID ("provider/model")
 }
 
 export type PipelineContext = {
