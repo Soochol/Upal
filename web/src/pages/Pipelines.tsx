@@ -35,8 +35,6 @@ export default function PipelinesPage() {
     }
   }, [selectedPipelineId, setSearchParams])
 
-  const [showNewSession, setShowNewSession] = useState(false)
-
   // ─── Data fetching ─────────────────────────────────────────────────────
 
   const { data: pipelines = [], isLoading } = useQuery({
@@ -48,19 +46,6 @@ export default function PipelinesPage() {
     queryKey: ['pipeline', selectedPipelineId],
     queryFn: () => fetchPipeline(selectedPipelineId!),
     enabled: !!selectedPipelineId,
-  })
-
-  const collectMutation = useMutation({
-    mutationFn: (config?: { isTest: boolean; limit: number }) =>
-      collectPipeline(selectedPipelineId!, config),
-    onSuccess: (newSession) => {
-      setShowNewSession(false)
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
-      if (newSession?.session_id && selectedPipelineId) {
-        setSearchParams({ p: selectedPipelineId, s: newSession.session_id })
-      }
-    },
-    onError: (err) => addToast(`Failed to start session: ${err instanceof Error ? err.message : 'unknown error'}`),
   })
 
   const newSessionMutation = useMutation({
@@ -176,14 +161,6 @@ export default function PipelinesPage() {
         </div>
       </div>
 
-      {/* New Session Modal */}
-      {showNewSession && selectedPipelineId && (
-        <NewSessionModal
-          isPending={collectMutation.isPending}
-          onConfirm={(config) => collectMutation.mutate(config)}
-          onClose={() => setShowNewSession(false)}
-        />
-      )}
     </MainLayout>
   )
 }
