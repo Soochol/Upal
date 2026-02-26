@@ -12,8 +12,8 @@ func (s *Server) createAIProvider(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &p) {
 		return
 	}
-	if p.Name == "" || p.Type == "" || p.Category == "" {
-		http.Error(w, "name, type and category are required", http.StatusBadRequest)
+	if err := p.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := s.aiProviderSvc.Create(r.Context(), &p); err != nil {
@@ -39,6 +39,10 @@ func (s *Server) updateAIProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.ID = id
+	if err := p.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if err := s.aiProviderSvc.Update(r.Context(), &p); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

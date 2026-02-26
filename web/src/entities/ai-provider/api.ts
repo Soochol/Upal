@@ -15,6 +15,14 @@ export async function createAIProvider(data: AIProviderCreate): Promise<AIProvid
   })
 }
 
+export async function updateAIProvider(id: string, data: Partial<AIProviderCreate>): Promise<AIProvider> {
+  return apiFetch<AIProvider>(`${BASE}/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
 export async function deleteAIProvider(id: string): Promise<void> {
   await apiFetch<void>(`${BASE}/${id}`, { method: 'DELETE' })
 }

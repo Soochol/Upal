@@ -40,6 +40,7 @@ export default function SettingsPage() {
     const [addName, setAddName] = useState('')
     const [addApiKey, setAddApiKey] = useState('')
     const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
 
     const fetchProviders = () => {
         listAIProviders().then(setProviders).catch(() => setProviders([]))
@@ -50,6 +51,7 @@ export default function SettingsPage() {
     const handleCreate = async () => {
         if (!addCategory || !addType) return
         setSaving(true)
+        setError('')
         try {
             const name = addName.trim() || getProviderTypeLabel(addCategory, addType)
             await createAIProvider({ name, category: addCategory, type: addType, api_key: addApiKey })
@@ -59,6 +61,8 @@ export default function SettingsPage() {
             setAddType('')
             setAddName('')
             setAddApiKey('')
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save provider')
         } finally {
             setSaving(false)
         }
@@ -69,15 +73,21 @@ export default function SettingsPage() {
         try {
             await deleteAIProvider(provider.id)
             invalidateModelsCache()
+        } catch {
+            // ignore — list refresh below shows current state
         } finally {
             fetchProviders()
         }
     }
 
     const handleSetDefault = async (id: string) => {
-        const updated = await setAIProviderDefault(id)
-        setProviders(updated)
-        invalidateModelsCache()
+        try {
+            const updated = await setAIProviderDefault(id)
+            setProviders(updated)
+            invalidateModelsCache()
+        } catch {
+            fetchProviders()
+        }
     }
 
     const openAddDialog = (category: AIProviderCategory) => {
@@ -85,6 +95,7 @@ export default function SettingsPage() {
         setAddType('')
         setAddName('')
         setAddApiKey('')
+        setError('')
     }
 
     return (
@@ -235,6 +246,8 @@ export default function SettingsPage() {
                             />
                         </div>
                     </div>
+
+                    {error && <p className="text-sm text-destructive">{error}</p>}
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setAddCategory(null)}>Cancel</Button>

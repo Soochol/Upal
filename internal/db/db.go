@@ -252,10 +252,12 @@ CREATE TABLE IF NOT EXISTS workflow_results (
 
 CREATE TABLE IF NOT EXISTS ai_providers (
     id         TEXT PRIMARY KEY,
-    name       TEXT NOT NULL,
+    name       TEXT NOT NULL UNIQUE,
     category   TEXT NOT NULL,
     type       TEXT NOT NULL,
     api_key    TEXT NOT NULL DEFAULT '',
     is_default BOOLEAN NOT NULL DEFAULT FALSE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_provider_default_per_category
+    ON ai_providers(category) WHERE is_default = TRUE;
 `

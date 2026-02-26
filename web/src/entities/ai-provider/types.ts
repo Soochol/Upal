@@ -21,6 +21,7 @@ export const PROVIDER_TYPES_BY_CATEGORY: Record<AIProviderCategory, { value: str
     { value: 'openai', label: 'OpenAI' },
     { value: 'gemini', label: 'Google Gemini' },
     { value: 'ollama', label: 'Ollama' },
+    { value: 'claude-code', label: 'Claude Code' },
   ],
   tts: [
     { value: 'openai-tts', label: 'OpenAI TTS' },

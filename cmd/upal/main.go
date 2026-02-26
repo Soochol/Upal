@@ -239,6 +239,8 @@ func serve() {
 			if llm, ok := upalmodel.BuildLLM(p.Name, pc); ok {
 				llms[p.Name] = llm
 				providerTypes[p.Name] = p.Type
+			} else {
+				slog.Warn("failed to build LLM from DB provider, skipping", "name", p.Name, "type", p.Type)
 			}
 		}
 		// Override default LLM if a DB provider is marked as default.
