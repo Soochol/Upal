@@ -37,7 +37,7 @@ export function ModelSelector({ value, onChange, placeholder = 'Select a model..
         ))}
         {models.length === 0 && (
           <div className="px-2 py-4 text-xs text-muted-foreground text-center">
-            No models available.<br />Configure providers in config.yaml
+            No models available.<br />Add providers in Settings
           </div>
         )}
       </SelectContent>

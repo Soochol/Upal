@@ -4,6 +4,8 @@ import type { ModelInfo } from '../types'
 
 let cachedModels: ModelInfo[] | null = null
 
+export function invalidateModelsCache() { cachedModels = null }
+
 export function useModels() {
   const [models, setModels] = useState<ModelInfo[]>(cachedModels ?? [])
   useEffect(() => {
