@@ -151,7 +151,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
     const itemCount = session.sources?.reduce((sum, src) => sum + src.count, 0) ?? 0
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-background">
+        <div className="bg-background">
             {/* Sticky progress stepper + actions */}
             <div className="relative">
                 <StickyProgressBar session={session} />
@@ -168,7 +168,7 @@ export function SessionDetailPreview({ pipelineId, sessionId, showDelete = false
             </div>
 
             {/* Scrollable stage content */}
-            <div className="flex-1 overflow-y-auto w-full">
+            <div className="w-full">
                 <div className="max-w-4xl mx-auto px-6 py-6 space-y-2">
                     {/* 1. Collect */}
                     <StageSection

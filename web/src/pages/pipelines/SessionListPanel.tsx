@@ -80,23 +80,39 @@ export function SessionListPanel({
   return (
     <div className={cn('flex flex-col', className)}>
       {/* Pipeline header */}
-      <div className="px-3 py-3 border-b border-border/50 bg-background/50 backdrop-blur-md shadow-sm shrink-0 z-10 flex items-center justify-between gap-2">
-        {onBack && (
-          <button onClick={onBack} className="md:hidden text-muted-foreground hover:text-foreground transition-colors shrink-0">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-        )}
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground truncate flex-1 min-w-0">
-          {pipelineName ?? 'Sessions'}
-        </h2>
-        {onNewSession && (
-          <button
-            onClick={onNewSession}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
-          >
-            <Plus className="h-3 w-3" />
-            <span className="hidden sm:inline">New</span>
-          </button>
+      <div className="px-3 py-3 border-b border-border/50 bg-background/50 backdrop-blur-md shadow-sm shrink-0 z-10 space-y-2">
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <button onClick={onBack} className="md:hidden text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground truncate flex-1 min-w-0">
+            Sessions
+          </h2>
+        </div>
+        {showSessionList && (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search sessions..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {onNewSession && (
+              <button
+                onClick={onNewSession}
+                className="flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+              >
+                <Plus className="h-3 w-3" />
+                New
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -107,22 +123,6 @@ export function SessionListPanel({
           <div>
             <p className="font-medium text-foreground">Workflow Pipeline</p>
             <p className="text-xs mt-1">This pipeline runs workflows directly. Add a collect stage to enable content sessions.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Search + Filters */}
-      {showSessionList && (
-        <div className="px-2 pt-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search sessions..."
-              className="w-full h-8 pl-8 pr-3 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
           </div>
         </div>
       )}

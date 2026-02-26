@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, ChevronRight, RotateCcw, GitBranch, Power,
+  Plus, Trash2, Loader2, Play, Pencil, ChevronDown, ChevronRight, GitBranch, Power,
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { ModelSelector } from '@/shared/ui/ModelSelector'
-import { useModels } from '@/shared/api'
 import type { ChatMessage } from '@/entities/ui/model/chatStore'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { AddSourceModal, STATIC_SOURCES, SIGNAL_SOURCES } from '@/features/configure-pipeline-sources/AddSourceModal'
@@ -203,11 +201,6 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
   // ─── Derived ──────────────────────────────────────────────────────────
 
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === localSchedule)
-  const allModels = useModels()
-  const researchModels = useMemo(
-    () => allModels.filter((m) => m.supportsTools && m.category === 'text'),
-    [allModels],
-  )
 
   // ─── Render ───────────────────────────────────────────────────────────
 
@@ -306,28 +299,6 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
                   ))}
                 </div>
               </div>
-              {/* Research Model */}
-              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground">Model</span>
-                <div className="flex-1 min-w-0">
-                  <ModelSelector
-                    key={localContext.research_model || '__research_default__'}
-                    value={localContext.research_model || ''}
-                    onChange={(v) => setLocalContext({ ...localContext, research_model: v })}
-                    placeholder="Same as analysis"
-                    models={researchModels}
-                  />
-                </div>
-                {localContext.research_model && (
-                  <button
-                    onClick={() => setLocalContext({ ...localContext, research_model: undefined })}
-                    className="ml-2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
-                    title="Reset to default"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
               {/* Advanced sources toggle */}
               <div className="pt-2">
                 <button
@@ -387,16 +358,6 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
             </h3>
             <div className="border-t border-border/40">
               <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Description</span>
-                <textarea
-                  value={localContext.description || ''}
-                  onChange={(e) => setLocalContext({ ...localContext, description: e.target.value })}
-                  placeholder="What does this task do?"
-                  rows={2}
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30 resize-none"
-                />
-              </div>
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
                 <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Prompt</span>
                 <textarea
                   value={localContext.prompt || ''}
@@ -409,93 +370,12 @@ export function SessionSetupView({ sessionId, autoFocusName }: Props) {
             </div>
           </section>
 
-          {/* ════ EDITORIAL BRIEF ════ */}
-          <section className="mb-8">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-              Editorial Brief
-            </h3>
-            <div className="border-t border-border/40">
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Purpose</span>
-                <input
-                  type="text"
-                  value={localContext.purpose || ''}
-                  onChange={(e) => setLocalContext({ ...localContext, purpose: e.target.value })}
-                  placeholder="e.g. AI 뉴스 큐레이션, 기술 트렌드 분석"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                />
-              </div>
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Audience</span>
-                <input
-                  type="text"
-                  value={localContext.target_audience || ''}
-                  onChange={(e) => setLocalContext({ ...localContext, target_audience: e.target.value })}
-                  placeholder="e.g. 개발자, 마케터, 경영진"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                />
-              </div>
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Tone</span>
-                <input
-                  type="text"
-                  value={localContext.tone_style || ''}
-                  onChange={(e) => setLocalContext({ ...localContext, tone_style: e.target.value })}
-                  placeholder="e.g. 전문적이고 간결한, 친근한 대화체"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                />
-              </div>
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Keywords</span>
-                <input
-                  type="text"
-                  value={(localContext.focus_keywords ?? []).join(', ')}
-                  onChange={(e) => setLocalContext({ ...localContext, focus_keywords: e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(Boolean) : [] })}
-                  placeholder="Comma separated: AI, LLM, automation"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                />
-              </div>
-              <div className="flex items-start py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground pt-0.5">Exclude</span>
-                <input
-                  type="text"
-                  value={(localContext.exclude_keywords ?? []).join(', ')}
-                  onChange={(e) => setLocalContext({ ...localContext, exclude_keywords: e.target.value ? e.target.value.split(',').map(s => s.trim()).filter(Boolean) : [] })}
-                  placeholder="Comma separated: crypto, NFT"
-                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/30"
-                />
-              </div>
-            </div>
-          </section>
-
           {/* ════ PROCESSING ════ */}
           <section className="mb-8">
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Processing
             </h3>
             <div className="border-t border-border/40">
-              {/* Model */}
-              <div className="flex items-center py-2.5 -mx-2 px-2 rounded-md hover:bg-muted/30 transition-colors">
-                <span className="w-28 shrink-0 text-sm text-muted-foreground">Analysis Model</span>
-                <div className="flex-1 min-w-0">
-                  <ModelSelector
-                    key={localModel || '__default__'}
-                    value={localModel}
-                    onChange={setLocalModel}
-                    placeholder="System Default"
-                  />
-                </div>
-                {localModel && (
-                  <button
-                    onClick={() => setLocalModel('')}
-                    className="ml-2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
-                    title="Reset to default"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-
               {/* Workflows */}
               <div className="py-2.5 -mx-2 px-2">
                 <div className="flex items-center justify-between">

@@ -27,18 +27,11 @@ export type PipelineSource = {
 }
 
 export type PipelineContext = {
-  description?: string
   prompt?: string
   language?: string
   // research settings
   research_depth?: 'light' | 'deep'
   research_model?: string
-  // legacy editorial brief fields (kept for backward compat)
-  purpose?: string
-  target_audience?: string
-  tone_style?: string
-  focus_keywords?: string[]
-  exclude_keywords?: string[]
 }
 
 export type PipelineWorkflow = {

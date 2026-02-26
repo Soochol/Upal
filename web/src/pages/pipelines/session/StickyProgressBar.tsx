@@ -84,7 +84,7 @@ export function StickyProgressBar({ session, className }: StickyProgressBarProps
   return (
     <div
       className={cn(
-        'sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md px-6 py-3',
+        'sticky top-0 z-30 bg-background/80 backdrop-blur-md px-6 py-3',
         className,
       )}
     >

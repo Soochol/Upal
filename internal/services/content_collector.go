@@ -436,33 +436,11 @@ func buildAnalysisPrompt(systemPromptBase string, pipeline *upal.Pipeline, sessi
 	b.WriteString("## Pipeline Context\n")
 	if session.Context != nil {
 		ctx := session.Context
-		if ctx.Description != "" {
-			fmt.Fprintf(&b, "Description: %s\n", ctx.Description)
-		}
 		if ctx.Prompt != "" {
 			fmt.Fprintf(&b, "Task prompt: %s\n", ctx.Prompt)
 		}
 		if ctx.Language != "" {
 			fmt.Fprintf(&b, "Language: %s\n", ctx.Language)
-		}
-		// Legacy editorial brief fields (backward compat).
-		if ctx.Purpose != "" {
-			fmt.Fprintf(&b, "Purpose: %s\n", ctx.Purpose)
-		}
-		if ctx.TargetAudience != "" {
-			fmt.Fprintf(&b, "Target audience: %s\n", ctx.TargetAudience)
-		}
-		if ctx.ToneStyle != "" {
-			fmt.Fprintf(&b, "Tone/style: %s\n", ctx.ToneStyle)
-		}
-		if len(ctx.FocusKeywords) > 0 {
-			fmt.Fprintf(&b, "Focus keywords: %s\n", strings.Join(ctx.FocusKeywords, ", "))
-		}
-		if len(ctx.ExcludeKeywords) > 0 {
-			fmt.Fprintf(&b, "Exclude keywords: %s\n", strings.Join(ctx.ExcludeKeywords, ", "))
-		}
-		if ctx.ContentGoals != "" {
-			fmt.Fprintf(&b, "Content goals: %s\n", ctx.ContentGoals)
 		}
 	} else {
 		fmt.Fprintf(&b, "Pipeline: %s\n", pipeline.Name)
@@ -741,17 +719,8 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 	if err == nil && session != nil {
 		if session.Context != nil {
 			pctx := session.Context
-			if pctx.Purpose != "" {
-				fmt.Fprintf(&desc, "Purpose: %s\n", pctx.Purpose)
-			}
-			if pctx.TargetAudience != "" {
-				fmt.Fprintf(&desc, "Target audience: %s\n", pctx.TargetAudience)
-			}
-			if pctx.ToneStyle != "" {
-				fmt.Fprintf(&desc, "Tone/style: %s\n", pctx.ToneStyle)
-			}
-			if pctx.ContentGoals != "" {
-				fmt.Fprintf(&desc, "Content goals: %s\n", pctx.ContentGoals)
+			if pctx.Prompt != "" {
+				fmt.Fprintf(&desc, "Task prompt: %s\n", pctx.Prompt)
 			}
 			if pctx.Language != "" {
 				fmt.Fprintf(&desc, "Output language: %s\n", pctx.Language)

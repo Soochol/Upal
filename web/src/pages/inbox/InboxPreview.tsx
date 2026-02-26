@@ -33,8 +33,8 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
     }
 
     return (
-        <div className="flex-1 flex flex-col h-full animate-in slide-in-from-right-4 duration-300">
-            <div className="px-4 md:px-8 py-4 md:py-5 border-b border-border/50 bg-background/80 backdrop-blur-sm shrink-0 shadow-sm z-10 flex flex-col gap-1.5">
+        <div className="flex-1 h-full overflow-y-auto animate-in slide-in-from-right-4 duration-300">
+            <div className="px-4 md:px-8 py-4 md:py-5 bg-background/80 backdrop-blur-sm z-10 flex flex-col gap-1.5">
                 {session.pipeline_name ? (
                     <Link
                         to={`/pipelines?p=${session.pipeline_id}`}
@@ -51,14 +51,12 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
                     {sessionDisplayName(session)}
                 </h1>
             </div>
-            <div className="flex-1 overflow-hidden">
-                <SessionDetailPreview
-                    pipelineId={session.pipeline_id}
-                    sessionId={sessionId}
-                    showDelete
-                    onMutate={handleMutate}
-                />
-            </div>
+            <SessionDetailPreview
+                pipelineId={session.pipeline_id}
+                sessionId={sessionId}
+                showDelete
+                onMutate={handleMutate}
+            />
         </div>
     )
 }

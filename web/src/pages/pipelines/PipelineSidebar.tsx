@@ -83,32 +83,40 @@ export function PipelineSidebar({ pipelines, selectedId, onSelect, onDeselect, i
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header */}
-      <div className="px-3 py-3 border-b border-border/50 shrink-0 bg-background/50 backdrop-blur-md shadow-sm z-10 flex items-center justify-between">
+      <div className="px-3 py-3 border-b border-border/50 shrink-0 bg-background/50 backdrop-blur-md shadow-sm z-10 space-y-2">
         <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pipelines</span>
-        <button
-          onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
-          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
-        >
-          <Plus className="h-3 w-3" />
-          New
-        </button>
-      </div>
-
-      {/* Search */}
-      {!isLoading && pipelines.length > 0 && (
-        <div className="px-2 pt-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search pipelines..."
-              className="w-full h-8 pl-8 pr-3 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        {!isLoading && pipelines.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search pipelines..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
+              className="flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
+            >
+              <Plus className="h-3 w-3" />
+              New
+            </button>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex justify-end">
+            <button
+              onClick={() => { setIsCreating(true); setTimeout(() => inputRef.current?.focus(), 0) }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
+            >
+              <Plus className="h-3 w-3" />
+              New
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Pipeline list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">

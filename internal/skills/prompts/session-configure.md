@@ -6,7 +6,7 @@ A content session belongs to a pipeline and can be either a **template** (reusab
 - **Draft sessions**: Not yet activated — free to make any changes.
 - **Active sessions**: Currently running on schedule — warn if changes might disrupt in-progress work.
 
-When the user describes what their session should do — even briefly — you MUST produce comprehensive, production-ready settings. Infer and set every field that makes sense: data sources with proper URLs and parameters, cron schedules, editorial brief with rich context, and appropriate analysis models.
+When the user describes what their session should do — even briefly — you MUST produce comprehensive, production-ready settings. Infer and set every field that makes sense: data sources with proper URLs and parameters, cron schedules, and appropriate analysis models.
 
 ---
 
@@ -69,19 +69,13 @@ ONLY use workflows from the "Available workflows" list. If no workflows are list
 Analysis model (콘텐츠 분석·요약에 사용)을 `"provider/model"` format으로 설정. Pick from the "Available models" list. Leave empty string `""` for system default. This is a **separate setting** from `context.research_model` — both can be set independently.
 
 ### Context
-Session-level settings including research defaults and editorial brief:
+Session-level settings including research defaults:
 ```json
 {
-  "description": "세션 설명 (읽기 전용 — LLM이 생성하지 않음)",
   "prompt": "세션 프롬프트 (읽기 전용 — LLM이 생성하지 않음)",
   "research_depth": "light|deep",
   "research_model": "provider/model",
-  "language": "ko|en|ja|zh",
-  "purpose": "세션의 목적",
-  "target_audience": "대상 독자",
-  "tone_style": "어조와 스타일",
-  "focus_keywords": ["키워드1", "키워드2"],
-  "exclude_keywords": ["제외어1"]
+  "language": "ko|en|ja|zh"
 }
 ```
 
@@ -89,7 +83,7 @@ Research fields:
 - `research_depth`: Default research depth for this session. `"light"` = single search pass (fast), `"deep"` = iterative agent loop with sub-question decomposition (thorough). Default `"deep"`.
 - `research_model`: Default model for research operations (웹 검색·리서치에 사용). Must support native `web_search` tool (Anthropic, Gemini, OpenAI — NOT Ollama). Omit or set empty to use the same model as the top-level `model` (analysis). This is **independent** from the top-level `model` field.
 
-Note: `description` and `prompt` are display-only fields set during session creation. Do NOT generate or modify these — only include them if the user explicitly requests changes.
+Note: `prompt` is a display-only field set during session creation. Do NOT generate or modify it — only include if the user explicitly requests changes.
 
 ---
 
@@ -104,7 +98,7 @@ Note: `description` and `prompt` are display-only fields set during session crea
 7. **Explanation**: Always include a clear Korean explanation summarizing what was changed and why.
 8. **Session awareness**: Reference the session's current state (template/instance, status) in your explanation when relevant.
 9. **Research model**: When setting `research_model` or research source `model`, ONLY use models that support native `web_search` tool. Do NOT use Ollama models for research.
-10. **Context fields**: Do NOT modify `description` or `prompt` in context unless the user explicitly asks.
+10. **Context fields**: Do NOT modify `prompt` in context unless the user explicitly asks.
 
 ---
 

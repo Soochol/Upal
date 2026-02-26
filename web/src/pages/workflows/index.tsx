@@ -211,14 +211,6 @@ export default function WorkflowsPage() {
     }
   }, [workflows, selectedWorkflowName, queryClient, setSearchParams])
 
-  const handleGenerate = useCallback(async () => {
-    await saveNow()
-    const name = `Untitled-${Date.now().toString(36).slice(-4)}`
-    resetStores(name)
-    skipNextLoadRef.current = true
-    setSearchParams({ w: name, generate: 'true' })
-  }, [saveNow, resetStores, setSearchParams])
-
   const handleDelete = useCallback(async (name: string) => {
     if (!confirm(`Delete workflow "${name}"?`)) return
     try {
@@ -381,7 +373,7 @@ export default function WorkflowsPage() {
             selectedName={selectedWorkflowName}
             onSelect={handleSelect}
             onNew={handleNew}
-            onGenerate={handleGenerate}
+
             onDelete={handleDelete}
             onRename={handleRename}
             onTemplate={handleTemplate}
