@@ -1,4 +1,6 @@
 export { useWorkflowStore } from './model/store'
+export { useGenerationStore } from './model/generationStore'
+export { useGenerationPoller } from './model/useGenerationPoller'
 export { serializeWorkflow, deserializeWorkflow } from './lib/serializer'
 export type { WorkflowDefinition } from './lib/serializer'
 export * from './api/index'

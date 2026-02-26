@@ -13,7 +13,9 @@ import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import {
   useWorkflowStore, serializeWorkflow, deserializeWorkflow,
   loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow, saveWorkflow,
+  useGenerationStore, useGenerationPoller,
 } from '@/entities/workflow'
+import type { WorkflowDefinition } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
 import { fetchRuns } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
@@ -53,7 +55,7 @@ export default function WorkflowsPage() {
     ? nodes.find((n) => n.id === selectedNodeId) ?? null
     : null
 
-  const [isGenerating, setIsGenerating] = useState(false)
+  const isGenerating = useGenerationStore((s) => s.isGenerating)
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
@@ -261,7 +263,6 @@ export default function WorkflowsPage() {
   }, [addNode])
 
   const handlePromptSubmit = useCallback(async (description: string) => {
-    setIsGenerating(true)
     const currentNodes = useWorkflowStore.getState().nodes
     const currentEdges = useWorkflowStore.getState().edges
     const currentName = useWorkflowStore.getState().workflowName
@@ -274,7 +275,19 @@ export default function WorkflowsPage() {
       const existingWf = hasExisting
         ? serializeWorkflow(currentName || 'untitled', currentNodes, currentEdges)
         : undefined
-      const wf = await generateWorkflow(description, undefined, existingWf)
+      const { generation_id } = await generateWorkflow(description, undefined, existingWf)
+      useGenerationStore.getState().start(generation_id)
+    } catch (err) {
+      addRunEvent({
+        type: 'error',
+        message: `Generate failed: ${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }, [addRunEvent])
+
+  useGenerationPoller<WorkflowDefinition>(
+    useCallback((wf: WorkflowDefinition) => {
+      const hasExisting = useWorkflowStore.getState().nodes.length > 0
       const { nodes: newNodes, edges: newEdges } = deserializeWorkflow(wf)
       useWorkflowStore.setState({ nodes: newNodes, edges: newEdges })
       if (wf.name) setWorkflowName(wf.name)
@@ -282,15 +295,11 @@ export default function WorkflowsPage() {
         type: 'info',
         message: `Workflow "${wf.name}" ${hasExisting ? 'updated' : 'generated'} with ${wf.nodes.length} nodes.`,
       })
-    } catch (err) {
-      addRunEvent({
-        type: 'error',
-        message: `Generate failed: ${err instanceof Error ? err.message : String(err)}`,
-      })
-    } finally {
-      setIsGenerating(false)
-    }
-  }, [addRunEvent, setWorkflowName])
+    }, [addRunEvent, setWorkflowName]),
+    useCallback((msg: string) => {
+      addRunEvent({ type: 'error', message: `Generate failed: ${msg}` })
+    }, [addRunEvent]),
+  )
 
   const handleRun = useCallback(async () => {
     if (nodes.length === 0) {

@@ -75,10 +75,10 @@ export type PipelineBundle = {
 export async function generatePipelineBundle(
   description: string,
   existingPipeline?: Omit<Pipeline, 'id' | 'created_at' | 'updated_at'>,
-): Promise<PipelineBundle> {
+): Promise<{ generation_id: string }> {
   const body: Record<string, unknown> = { description }
   if (existingPipeline) body.existing_pipeline = existingPipeline
-  return apiFetch<PipelineBundle>(`${API_BASE}/generate-pipeline`, {
+  return apiFetch<{ generation_id: string }>(`${API_BASE}/generate-pipeline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

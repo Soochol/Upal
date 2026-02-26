@@ -44,13 +44,23 @@ export async function generateWorkflow(
   description: string,
   model?: string,
   existingWorkflow?: WorkflowDefinition,
-): Promise<WorkflowDefinition> {
+): Promise<{ generation_id: string }> {
   const body: Record<string, unknown> = { description }
   if (model) body.model = model
   if (existingWorkflow) body.existing_workflow = existingWorkflow
-  return apiFetch<WorkflowDefinition>(`${API_BASE}/generate`, {
+  return apiFetch<{ generation_id: string }>(`${API_BASE}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+export type GenerationStatus<T = unknown> = {
+  status: 'pending' | 'completed' | 'failed'
+  result?: T
+  error?: string
+}
+
+export async function pollGeneration<T = unknown>(id: string): Promise<GenerationStatus<T>> {
+  return apiFetch<GenerationStatus<T>>(`${API_BASE}/generate/${encodeURIComponent(id)}`)
 }

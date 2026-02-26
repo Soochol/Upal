@@ -3,8 +3,9 @@ package api
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/soochol/upal/internal/generate"
@@ -37,6 +38,7 @@ func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Gather summaries using request context (fast DB reads).
 	var workflowSummaries []generate.WorkflowSummary
 	if wfs, listErr := s.repo.List(r.Context()); listErr == nil {
 		workflowSummaries = generate.BuildWorkflowSummaries(wfs)
@@ -47,25 +49,37 @@ func (s *Server) generatePipeline(w http.ResponseWriter, r *http.Request) {
 		pipelineSummaries = generate.BuildPipelineSummaries(pipes)
 	}
 
-	bundle, err := s.generator.GeneratePipelineBundle(r.Context(), req.Description, req.ExistingPipeline, workflowSummaries, pipelineSummaries)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	genID := upal.GenerateID("gen")
+	s.generationManager.Register(genID)
 
-	for i := range bundle.Workflows {
-		if err := s.repo.Create(r.Context(), &bundle.Workflows[i]); err != nil {
-			log.Printf("generatePipeline: save workflow %q: %v", bundle.Workflows[i].Name, err)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		bundle, err := s.generator.GeneratePipelineBundle(ctx, req.Description, req.ExistingPipeline, workflowSummaries, pipelineSummaries)
+		if err != nil {
+			slog.Error("generatePipeline: generation failed", "gen_id", genID, "err", err)
+			s.generationManager.Fail(genID, err.Error())
+			return
 		}
-	}
 
-	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
-	defer cancel()
-	if svg, thumbErr := s.generator.GeneratePipelineThumbnail(thumbCtx, &bundle.Pipeline); thumbErr == nil {
-		bundle.Pipeline.ThumbnailSVG = svg
-	}
+		for i := range bundle.Workflows {
+			if err := s.repo.Create(ctx, &bundle.Workflows[i]); err != nil {
+				slog.Error("generatePipeline: save workflow failed", "gen_id", genID, "workflow", bundle.Workflows[i].Name, "err", err)
+			}
+		}
 
-	writeJSON(w, bundle)
+		thumbCtx, thumbCancel := context.WithTimeout(ctx, s.thumbnailTimeoutOrDefault())
+		defer thumbCancel()
+		if svg, thumbErr := s.generator.GeneratePipelineThumbnail(thumbCtx, &bundle.Pipeline); thumbErr == nil {
+			bundle.Pipeline.ThumbnailSVG = svg
+		}
+
+		slog.Info("generatePipeline: completed", "gen_id", genID)
+		s.generationManager.Complete(genID, bundle)
+	}()
+
+	writeJSONStatus(w, http.StatusAccepted, map[string]string{"generation_id": genID})
 }
 
 func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -82,24 +96,47 @@ func (s *Server) generateWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Gather summaries using request context (fast DB reads).
 	var workflowSummaries []generate.WorkflowSummary
 	if wfs, listErr := s.repo.List(r.Context()); listErr == nil {
 		workflowSummaries = generate.BuildWorkflowSummaries(wfs)
 	}
 
-	wf, err := s.generator.Generate(r.Context(), req.Description, req.ExistingWorkflow, workflowSummaries)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	genID := upal.GenerateID("gen")
+	s.generationManager.Register(genID)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		wf, err := s.generator.Generate(ctx, req.Description, req.ExistingWorkflow, workflowSummaries)
+		if err != nil {
+			slog.Error("generateWorkflow: generation failed", "gen_id", genID, "err", err)
+			s.generationManager.Fail(genID, err.Error())
+			return
+		}
+
+		thumbCtx, thumbCancel := context.WithTimeout(ctx, s.thumbnailTimeoutOrDefault())
+		defer thumbCancel()
+		if svg, thumbErr := s.generator.GenerateThumbnail(thumbCtx, wf); thumbErr == nil {
+			wf.ThumbnailSVG = svg
+		}
+
+		slog.Info("generateWorkflow: completed", "gen_id", genID, "workflow", wf.Name)
+		s.generationManager.Complete(genID, wf)
+	}()
+
+	writeJSONStatus(w, http.StatusAccepted, map[string]string{"generation_id": genID})
+}
+
+func (s *Server) getGeneration(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	entry, ok := s.generationManager.Get(id)
+	if !ok {
+		http.Error(w, "generation not found", http.StatusNotFound)
 		return
 	}
-
-	thumbCtx, cancel := context.WithTimeout(r.Context(), s.thumbnailTimeoutOrDefault())
-	defer cancel()
-	if svg, thumbErr := s.generator.GenerateThumbnail(thumbCtx, wf); thumbErr == nil {
-		wf.ThumbnailSVG = svg
-	}
-
-	writeJSON(w, wf)
+	writeJSON(w, entry)
 }
 
 func (s *Server) generateWorkflowThumbnail(w http.ResponseWriter, r *http.Request) {
@@ -146,14 +183,14 @@ func (s *Server) backfillDescriptions(w http.ResponseWriter, r *http.Request) {
 	if wfs, err := s.repo.List(r.Context()); err == nil {
 		for _, wf := range s.generator.BackfillWorkflowDescriptions(r.Context(), wfs) {
 			if saveErr := s.repo.Update(r.Context(), wf.Name, wf); saveErr != nil {
-				log.Printf("backfill: save workflow %q failed: %v", wf.Name, saveErr)
+				slog.Warn("backfill: save workflow failed", "name", wf.Name, "err", saveErr)
 				continue
 			}
 			workflowsUpdated++
 		}
 		for _, wf := range s.generator.BackfillNodeDescriptions(r.Context(), wfs) {
 			if saveErr := s.repo.Update(r.Context(), wf.Name, wf); saveErr != nil {
-				log.Printf("backfill: save workflow nodes %q failed: %v", wf.Name, saveErr)
+				slog.Warn("backfill: save workflow nodes failed", "name", wf.Name, "err", saveErr)
 				continue
 			}
 			nodesUpdated++
@@ -164,7 +201,7 @@ func (s *Server) backfillDescriptions(w http.ResponseWriter, r *http.Request) {
 		for _, p := range pipelines {
 			if generate.BackfillStageDescriptions(p) {
 				if saveErr := s.pipelineSvc.Update(r.Context(), p); saveErr != nil {
-					log.Printf("backfill: save pipeline %q failed: %v", p.ID, saveErr)
+					slog.Warn("backfill: save pipeline failed", "id", p.ID, "err", saveErr)
 					continue
 				}
 				stagesUpdated++

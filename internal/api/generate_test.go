@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/generate"
@@ -141,6 +142,11 @@ func TestGeneratePipelineHandlerSavesWorkflows(t *testing.T) {
 	gen := generate.New(llm, "gpt-4o", noopSkills{}, nil, nil)
 	srv.SetGenerator(gen, "gpt-4o")
 
+	// Wire up the generation manager for async generation.
+	genManager := services.NewGenerationManager(5 * time.Minute)
+	srv.SetGenerationManager(genManager)
+	defer genManager.Stop()
+
 	// Issue the generate-pipeline request.
 	reqBody, _ := json.Marshal(GeneratePipelineRequest{
 		Description: "a pipeline that summarises articles",
@@ -150,8 +156,32 @@ func TestGeneratePipelineHandlerSavesWorkflows(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d — body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d — body: %s", w.Code, w.Body.String())
+	}
+
+	var asyncResp map[string]string
+	json.NewDecoder(w.Body).Decode(&asyncResp)
+	genID := asyncResp["generation_id"]
+	if genID == "" {
+		t.Fatal("expected generation_id in response")
+	}
+
+	// Wait for background generation to complete.
+	deadline := time.After(10 * time.Second)
+	for {
+		entry, ok := genManager.Get(genID)
+		if ok && entry.Status != services.GenerationPending {
+			if entry.Status == services.GenerationFailed {
+				t.Fatalf("generation failed: %s", entry.Error)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for generation to complete")
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
 
 	// The handler must have called repo.Create for the Phase 2 workflow.
