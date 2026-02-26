@@ -181,3 +181,69 @@ type ContentSessionDetail struct {
 	CreatedAt       time.Time        `json:"created_at"`
 	ReviewedAt      *time.Time       `json:"reviewed_at,omitempty"`
 }
+
+// ---------------------------------------------------------------------------
+// Run — new domain types (coexist with ContentSession until migration completes)
+// ---------------------------------------------------------------------------
+
+// SessionRunStatus represents the lifecycle state of a Run within a Session.
+// Named SessionRunStatus (not RunStatus) to avoid collision with the workflow
+// RunStatus in scheduler.go — will be consolidated in a later task.
+type SessionRunStatus string
+
+const (
+	SessionRunCollecting    SessionRunStatus = "collecting"
+	SessionRunAnalyzing     SessionRunStatus = "analyzing"
+	SessionRunPendingReview SessionRunStatus = "pending_review"
+	SessionRunApproved      SessionRunStatus = "approved"
+	SessionRunRejected      SessionRunStatus = "rejected"
+	SessionRunProducing     SessionRunStatus = "producing"
+	SessionRunPublished     SessionRunStatus = "published"
+	SessionRunError         SessionRunStatus = "error"
+)
+
+// Run tracks a single collection + analysis + production cycle within a Session.
+type Run struct {
+	ID          string           `json:"id"`
+	SessionID   string           `json:"session_id"`
+	Status      SessionRunStatus `json:"status"`
+	TriggerType string     `json:"trigger_type"`
+	SourceCount int        `json:"source_count,omitempty"`
+	ScheduleID  string     `json:"schedule_id,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
+}
+
+// RunDetail is a composed response type that includes all related data for a Run.
+type RunDetail struct {
+	Run
+	SessionName  string         `json:"session_name,omitempty"`
+	RunNumber    int            `json:"run_number,omitempty"`
+	Sources      []*SourceFetch `json:"sources,omitempty"`
+	Analysis     *LLMAnalysis   `json:"analysis,omitempty"`
+	WorkflowRuns []WorkflowRun  `json:"workflow_runs,omitempty"`
+}
+
+// WorkflowRunStatus represents the lifecycle state of a workflow execution within a Run.
+type WorkflowRunStatus string
+
+const (
+	WFRunPending   WorkflowRunStatus = "pending"
+	WFRunRunning   WorkflowRunStatus = "running"
+	WFRunSuccess   WorkflowRunStatus = "success"
+	WFRunFailed    WorkflowRunStatus = "failed"
+	WFRunPublished WorkflowRunStatus = "published"
+	WFRunRejected  WorkflowRunStatus = "rejected"
+)
+
+// WorkflowRun tracks workflow execution results within a Run's produce phase.
+type WorkflowRun struct {
+	WorkflowName string            `json:"workflow_name"`
+	RunID        string            `json:"run_id"`
+	Status       WorkflowRunStatus `json:"status"`
+	ChannelID    string            `json:"channel_id,omitempty"`
+	OutputURL    string            `json:"output_url,omitempty"`
+	CompletedAt  *time.Time        `json:"completed_at,omitempty"`
+	ErrorMessage string            `json:"error_message,omitempty"`
+	FailedNodeID string            `json:"failed_node_id,omitempty"`
+}
