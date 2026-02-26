@@ -15,6 +15,7 @@ import { ToastContainer } from '@/shared/ui/ToastContainer'
 import { GlobalChatBar } from './GlobalChatBar'
 
 const InboxPage = lazy(() => import('@/pages/inbox'))
+const SessionsPage = lazy(() => import('@/pages/sessions'))
 const SettingsPage = lazy(() => import('@/pages/settings'))
 
 function PipelineRedirect() {
@@ -61,6 +62,9 @@ export function AppRouter() {
           <Route path="/pipelines" element={<AuthGuard><PipelinesPage /></AuthGuard>} />
           <Route path="/pipelines/:id" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
           <Route path="/pipelines/:id/sessions/:sessionId" element={<AuthGuard><PipelineRedirect /></AuthGuard>} />
+
+          {/* Sessions */}
+          <Route path="/sessions" element={<AuthGuard><Suspense fallback={null}><SessionsPage /></Suspense></AuthGuard>} />
 
           {/* Content */}
           <Route path="/published" element={<AuthGuard><PublishedPage /></AuthGuard>} />

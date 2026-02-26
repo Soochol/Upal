@@ -1,33 +1,27 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { fetchContentSession } from '@/entities/content-session/api'
-import { sessionDisplayName } from '@/entities/content-session/constants'
-import { SessionDetailPreview } from '@/pages/pipelines/session/SessionDetailPreview'
+import { fetchRun } from '@/entities/session-run'
+import { runDisplayName, runPollingInterval } from '@/entities/session-run/constants'
+import { StatusBadge } from '@/shared/ui/StatusBadge'
+import type { Run } from '@/entities/session-run'
 
 interface InboxPreviewProps {
-    sessionId: string
+    runId: string
 }
 
-export function InboxPreview({ sessionId }: InboxPreviewProps) {
-    const queryClient = useQueryClient()
-
-    const { data: session, isLoading: sessionLoading } = useQuery({
-        queryKey: ['content-session', sessionId],
-        queryFn: () => fetchContentSession(sessionId),
-        enabled: !!sessionId,
+export function InboxPreview({ runId }: InboxPreviewProps) {
+    const { data: run, isLoading } = useQuery({
+        queryKey: ['session-run', runId],
+        queryFn: () => fetchRun(runId),
+        enabled: !!runId,
+        refetchInterval: (query) => runPollingInterval(query.state.data as Run | undefined),
     })
 
-    const handleMutate = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-    }, [queryClient])
-
-    if (sessionLoading || !session) {
+    if (isLoading || !run) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-muted-foreground gap-3">
                 <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
-                <p className="text-sm font-medium">Loading session details...</p>
+                <p className="text-sm font-medium">Loading run details...</p>
             </div>
         )
     }
@@ -35,28 +29,80 @@ export function InboxPreview({ sessionId }: InboxPreviewProps) {
     return (
         <div className="flex-1 h-full overflow-y-auto animate-in slide-in-from-right-4 duration-300">
             <div className="px-4 md:px-8 py-4 md:py-5 bg-background/80 backdrop-blur-sm z-10 flex flex-col gap-1.5">
-                {session.pipeline_name ? (
-                    <Link
-                        to={`/pipelines?p=${session.pipeline_id}`}
-                        className="text-xs font-bold uppercase tracking-widest text-primary/80 hover:text-primary hover:underline transition-colors w-fit"
-                    >
-                        {session.pipeline_name}
-                    </Link>
-                ) : (
-                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground w-fit">
-                        Pipeline
+                {run.session_name && (
+                    <span className="text-xs font-bold uppercase tracking-widest text-primary/80 w-fit">
+                        {run.session_name}
                     </span>
                 )}
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                    {sessionDisplayName(session)}
-                </h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                        {runDisplayName(run)}
+                    </h1>
+                    <StatusBadge status={run.status} />
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                    <span>{new Date(run.created_at).toLocaleString()}</span>
+                    <span className="capitalize">{run.trigger_type}</span>
+                    {run.source_count != null && run.source_count > 0 && <span>{run.source_count} sources</span>}
+                </div>
             </div>
-            <SessionDetailPreview
-                pipelineId={session.pipeline_id}
-                sessionId={sessionId}
-                showDelete
-                onMutate={handleMutate}
-            />
+
+            <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+                {/* Analysis section */}
+                {run.analysis && (
+                    <section>
+                        <h3 className="text-sm font-semibold text-foreground mb-2">Analysis</h3>
+                        <p className="text-sm text-muted-foreground">{run.analysis.summary}</p>
+                        {run.analysis.insights && run.analysis.insights.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                                {run.analysis.insights.map((insight, i) => (
+                                    <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                                        <span className="text-primary/60">&bull;</span>
+                                        {insight}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+                )}
+
+                {/* Sources section */}
+                {run.sources && run.sources.length > 0 && (
+                    <section>
+                        <h3 className="text-sm font-semibold text-foreground mb-2">Sources ({run.sources.length})</h3>
+                        <div className="space-y-2">
+                            {run.sources.map((src) => (
+                                <div key={src.id} className="p-3 rounded-lg border border-border/50 bg-card">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium">{src.label || src.tool}</span>
+                                        <span className="text-xs text-muted-foreground">{src.count} items</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* Workflow Runs section */}
+                {run.workflow_runs && run.workflow_runs.length > 0 && (
+                    <section>
+                        <h3 className="text-sm font-semibold text-foreground mb-2">Workflow Runs</h3>
+                        <div className="space-y-2">
+                            {run.workflow_runs.map((wr, i) => (
+                                <div key={i} className="p-3 rounded-lg border border-border/50 bg-card flex items-center justify-between">
+                                    <div>
+                                        <span className="text-sm font-medium">{wr.workflow_name}</span>
+                                        {wr.error_message && (
+                                            <p className="text-xs text-destructive mt-0.5">{wr.error_message}</p>
+                                        )}
+                                    </div>
+                                    <StatusBadge status={wr.status} />
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
+            </div>
         </div>
     )
 }

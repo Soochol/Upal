@@ -2,7 +2,7 @@ import { cn } from "@/shared/lib/utils"
 import type { ContentSessionStatus } from "@/shared/types"
 
 const STATUS_CONFIG: Record<
-  ContentSessionStatus,
+  string,
   { label: string; className: string }
 > = {
   draft:          { label: "Draft",         className: "bg-muted/15 text-muted-foreground border-border" },
@@ -15,10 +15,15 @@ const STATUS_CONFIG: Record<
   producing:      { label: "Producing",     className: "bg-primary/15 text-primary border-primary/20" },
   published:      { label: "Published",     className: "bg-success/20 text-success border-success/30" },
   error:          { label: "Error",        className: "bg-destructive/15 text-destructive border-destructive/20" },
+  // WorkflowRun statuses
+  pending:        { label: "Pending",       className: "bg-muted/15 text-muted-foreground border-border" },
+  running:        { label: "Running",       className: "bg-info/15 text-info border-info/20" },
+  success:        { label: "Success",       className: "bg-success/15 text-success border-success/20" },
+  failed:         { label: "Failed",        className: "bg-destructive/15 text-destructive border-destructive/20" },
 }
 
 type StatusBadgeProps = {
-  status: ContentSessionStatus
+  status: ContentSessionStatus | (string & {})
   className?: string
 }
 

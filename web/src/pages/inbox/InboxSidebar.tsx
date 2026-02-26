@@ -1,110 +1,78 @@
 import { useState, useMemo } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-    Search, Mailbox, Trash2, FileText,
-} from 'lucide-react'
+import { Search, Mailbox, FileText } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
-import { EditableName } from '@/shared/ui/EditableName'
 import {
-    deleteSession, updateSessionSettings,
-} from '@/entities/content-session/api'
-import {
-    SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter,
-    sessionDisplayName, computeFilterCounts,
-} from '@/entities/content-session/constants'
-import type { SessionFilter } from '@/entities/content-session/constants'
-import type { ContentSession } from '@/entities/content-session'
+    RUN_STATUS_DOT, RUN_FILTER_TABS, matchesRunFilter,
+    runDisplayName, computeRunFilterCounts,
+} from '@/entities/session-run/constants'
+import type { RunFilter } from '@/entities/session-run/constants'
+import type { Run } from '@/entities/session-run'
 
 interface InboxSidebarProps {
-    sessions: ContentSession[]
+    runs: Run[]
     selectedId: string | null
     onSelect: (id: string) => void
-    activeFilter: SessionFilter
-    onFilterChange: (filter: SessionFilter) => void
+    activeFilter: RunFilter
+    onFilterChange: (filter: RunFilter) => void
 }
 
 export function InboxSidebar({
-    sessions,
+    runs,
     selectedId,
     onSelect,
     activeFilter,
     onFilterChange,
 }: InboxSidebarProps) {
-    const queryClient = useQueryClient()
     const [search, setSearch] = useState('')
 
-    // ─── Mutations ───────────────────────────────────────────────────────────
-
-    const invalidateInbox = () => {
-        queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
-        queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
-    }
-
-    const deleteMutation = useMutation({
-        mutationFn: deleteSession,
-        onSuccess: invalidateInbox,
-    })
-
-    const renameMutation = useMutation({
-        mutationFn: ({ id, name }: { id: string; name: string }) => updateSessionSettings(id, { name }),
-        onSuccess: invalidateInbox,
-    })
-
-    // ─── Derived data ────────────────────────────────────────────────────────
-
     const filterCounts = useMemo(
-        () => computeFilterCounts(sessions),
-        [sessions],
+        () => computeRunFilterCounts(runs),
+        [runs],
     )
 
-    const filteredSessions = useMemo(() => {
-        return sessions
-            .filter(s => matchesSessionFilter(s.status, activeFilter))
-            .filter(s => {
+    const filteredRuns = useMemo(() => {
+        return runs
+            .filter(r => matchesRunFilter(r.status, activeFilter))
+            .filter(r => {
                 if (!search) return true
                 const q = search.toLowerCase()
                 return (
-                    sessionDisplayName(s).toLowerCase().includes(q) ||
-                    s.pipeline_name?.toLowerCase().includes(q) ||
-                    s.analysis?.summary?.toLowerCase().includes(q) ||
-                    s.status.includes(q)
+                    runDisplayName(r).toLowerCase().includes(q) ||
+                    r.session_name?.toLowerCase().includes(q) ||
+                    r.analysis?.summary?.toLowerCase().includes(q) ||
+                    r.status.includes(q)
                 )
             })
-    }, [sessions, activeFilter, search])
+    }, [runs, activeFilter, search])
 
-    // ─── Empty state ─────────────────────────────────────────────────────────
-
-    if (sessions.length === 0) {
+    if (runs.length === 0) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-6 gap-3 text-center">
                 <Mailbox className="w-10 h-10 opacity-20" />
                 <div>
-                    <p className="font-medium text-foreground">No sessions yet</p>
-                    <p className="text-xs mt-1">Sessions from your pipelines will appear here.</p>
+                    <p className="font-medium text-foreground">No runs yet</p>
+                    <p className="text-xs mt-1">Runs from your sessions will appear here.</p>
                 </div>
             </div>
         )
     }
 
-    // ─── Render ──────────────────────────────────────────────────────────────
-
     return (
         <div className="flex flex-col h-full animate-in fade-in duration-300">
-            {/* Header: Search + Filter tabs */}
             <div className="p-4 border-b border-border/50 shrink-0 bg-background/50 backdrop-blur-md shadow-sm z-10">
                 <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
                         type="search"
-                        placeholder="Search sessions..."
+                        placeholder="Search runs..."
                         className="w-full h-9 pl-9 pr-4 rounded-lg bg-background border border-input text-sm outline-none focus:ring-1 focus:ring-ring transition-shadow"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
                 <div className="flex items-center gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
-                    {SESSION_FILTER_TABS.map(tab => {
+                    {RUN_FILTER_TABS.map(tab => {
                         const count = filterCounts[tab.value]
                         const isActive = activeFilter === tab.value
                         return (
@@ -133,19 +101,18 @@ export function InboxSidebar({
                 </div>
             </div>
 
-            {/* Session list */}
             <div className="flex-1 overflow-y-auto w-full p-2 space-y-1">
-                {filteredSessions.length === 0 ? (
+                {filteredRuns.length === 0 ? (
                     <div className="text-center py-12 px-4">
-                        <p className="text-sm text-muted-foreground">No sessions found.</p>
+                        <p className="text-sm text-muted-foreground">No runs found.</p>
                     </div>
                 ) : (
-                    filteredSessions.map((s) => {
-                        const isSelected = selectedId === s.id
+                    filteredRuns.map((r) => {
+                        const isSelected = selectedId === r.id
                         return (
                             <button
-                                key={s.id}
-                                onClick={() => onSelect(s.id)}
+                                key={r.id}
+                                onClick={() => onSelect(r.id)}
                                 className={cn(
                                     'group w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer border',
                                     isSelected
@@ -155,50 +122,36 @@ export function InboxSidebar({
                             >
                                 <div className="flex items-start justify-between gap-2 mb-0.5">
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', SESSION_STATUS_DOT[s.status] ?? 'bg-muted')} />
+                                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RUN_STATUS_DOT[r.status] ?? 'bg-muted')} />
                                         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                                        <EditableName
-                                            value={sessionDisplayName(s)}
-                                            placeholder={sessionDisplayName(s)}
-                                            onSave={(name) => renameMutation.mutate({ id: s.id, name })}
-                                            className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
-                                        />
+                                        <span className={cn('text-sm font-semibold truncate', isSelected ? 'text-primary' : 'text-foreground')}>
+                                            {runDisplayName(r)}
+                                        </span>
                                     </div>
                                     <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">
-                                        {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                        {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                     </span>
                                 </div>
 
-                                {/* Pipeline / session name */}
-                                {(s.pipeline_name || s.session_name) && (
+                                {r.session_name && (
                                     <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-bold truncate pl-6 mb-1">
-                                        {[s.pipeline_name, s.session_name].filter(Boolean).join(' / ')}
+                                        {r.session_name}
                                     </p>
                                 )}
 
-                                {/* Analysis summary */}
-                                {s.analysis?.summary ? (
+                                {r.analysis?.summary ? (
                                     <p className={cn('text-sm line-clamp-2 pl-6', isSelected ? 'text-foreground/80' : 'text-muted-foreground')}>
-                                        {s.analysis.summary}
+                                        {r.analysis.summary}
                                     </p>
                                 ) : (
                                     <p className="text-xs text-muted-foreground/50 italic pl-6">Processing...</p>
                                 )}
 
-                                {/* Status + actions */}
                                 <div className="flex items-center gap-2 mt-2 pl-6">
-                                    <StatusBadge status={s.status} />
-                                    {s.status === 'pending_review' && (
+                                    <StatusBadge status={r.status} />
+                                    {r.status === 'pending_review' && (
                                         <span className="flex h-2 w-2 rounded-full bg-warning animate-pulse" title="Needs Review" />
                                     )}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); if (confirm('이 세션을 영구 삭제합니다. 되돌릴 수 없습니다.')) deleteMutation.mutate(s.id) }}
-                                        className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 ml-auto cursor-pointer"
-                                        title="Delete"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
                                 </div>
                             </button>
                         )
