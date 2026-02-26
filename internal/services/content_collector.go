@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -115,14 +115,15 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 	}
 
 	if len(sources) == 0 {
-		log.Printf("content_collector: no fetchable sources for pipeline %s", pipeline.ID)
+		slog.Info("content_collector: no fetchable sources", "pipeline", pipeline.ID)
 		if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionPendingReview); err != nil {
-			log.Printf("content_collector: failed to update session status: %v", err)
+			slog.Warn("content_collector: failed to update session status", "err", err)
 		}
 		return
 	}
 
 	totalItems := 0
+	var lastFetchErr string
 	for _, mapped := range sources {
 		var pipelineSrc upal.PipelineSource
 		if mapped.pipelineIndex >= 0 {
@@ -136,14 +137,26 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 		sf := c.fetchAndRecord(ctx, session.ID, pipelineSrc, mapped.collectSource)
 		if sf != nil && sf.Error == nil {
 			totalItems += len(sf.RawItems)
+		} else if sf != nil && sf.Error != nil {
+			lastFetchErr = *sf.Error
 		}
 	}
 
 	if err := c.contentSvc.UpdateSessionSourceCount(ctx, session.ID, totalItems); err != nil {
-		log.Printf("content_collector: failed to update source count: %v", err)
+		slog.Warn("content_collector: failed to update source count", "err", err)
 	}
+
+	// If all sources failed, transition to error instead of silently proceeding.
+	if totalItems == 0 && lastFetchErr != "" {
+		slog.Warn("content_collector: all sources failed", "session", session.ID, "lastErr", lastFetchErr)
+		if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionError); err != nil {
+			slog.Warn("content_collector: failed to transition to error", "err", err)
+		}
+		return
+	}
+
 	if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionAnalyzing); err != nil {
-		log.Printf("content_collector: failed to transition to analyzing: %v", err)
+		slog.Warn("content_collector: failed to transition to analyzing", "err", err)
 	}
 
 	if totalItems > 0 {
@@ -151,7 +164,7 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 	}
 
 	if err := c.contentSvc.UpdateSessionStatus(ctx, session.ID, upal.SessionPendingReview); err != nil {
-		log.Printf("content_collector: failed to transition to pending_review: %v", err)
+		slog.Warn("content_collector: failed to transition to pending_review", "err", err)
 	}
 }
 
@@ -170,7 +183,7 @@ func (c *ContentCollector) RetryAnalysis(ctx context.Context, sessionID string) 
 		bgCtx := context.Background()
 		c.runAnalysis(bgCtx, pipeline, session)
 		if err := c.contentSvc.UpdateSessionStatus(bgCtx, session.ID, upal.SessionPendingReview); err != nil {
-			log.Printf("content_collector: retry-analyze failed to transition to pending_review: %v", err)
+			slog.Warn("content_collector: retry-analyze failed to transition to pending_review", "err", err)
 		}
 	}()
 	return nil
@@ -189,7 +202,7 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		errMsg := fmt.Sprintf("no fetcher for source type %q", src.Type)
 		sf.Error = &errMsg
 		if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
-			log.Printf("content_collector: failed to record source fetch error: %v", err)
+			slog.Warn("content_collector: failed to record source fetch error", "err", err)
 		}
 		return sf
 	}
@@ -199,7 +212,7 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 		errMsg := err.Error()
 		sf.Error = &errMsg
 		if recErr := c.contentSvc.RecordSourceFetch(ctx, sf); recErr != nil {
-			log.Printf("content_collector: failed to record source fetch error: %v", recErr)
+			slog.Warn("content_collector: failed to record source fetch error", "err", recErr)
 		}
 		return sf
 	}
@@ -208,7 +221,7 @@ func (c *ContentCollector) fetchAndRecord(ctx context.Context, sessionID string,
 	sf.Count = len(sf.RawItems)
 
 	if err := c.contentSvc.RecordSourceFetch(ctx, sf); err != nil {
-		log.Printf("content_collector: failed to record source fetch: %v", err)
+		slog.Warn("content_collector: failed to record source fetch", "err", err)
 	}
 	return sf
 }
@@ -303,18 +316,18 @@ func stringVal(m map[string]any, key string) string {
 func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession) {
 	fetches, err := c.contentSvc.ListSourceFetches(ctx, session.ID)
 	if err != nil {
-		log.Printf("content_collector: failed to list source fetches for analysis: %v", err)
+		slog.Warn("content_collector: failed to list source fetches for analysis", "err", err)
 		return
 	}
 
 	allWorkflows, err := c.workflowRepo.List(ctx)
 	if err != nil {
-		log.Printf("content_collector: failed to list workflows for analysis: %v", err)
+		slog.Warn("content_collector: failed to list workflows for analysis", "err", err)
 	}
 
 	llm, modelName, err := c.resolver.Resolve(session.Model)
 	if err != nil {
-		log.Printf("content_collector: failed to resolve model %q: %v", session.Model, err)
+		slog.Warn("content_collector: failed to resolve model", "model", session.Model, "err", err)
 		return
 	}
 
@@ -336,21 +349,21 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 	var resp *adkmodel.LLMResponse
 	for r, err := range llm.GenerateContent(analysisCtx, req, false) {
 		if err != nil {
-			log.Printf("content_collector: LLM analysis failed: %v", err)
+			slog.Warn("content_collector: LLM analysis failed", "err", err)
 			return
 		}
 		resp = r
 	}
 
 	if resp == nil || resp.Content == nil {
-		log.Printf("content_collector: LLM returned empty analysis response")
+		slog.Warn("content_collector: LLM returned empty analysis response")
 		return
 	}
 
 	text := llmutil.ExtractText(resp)
 	stripped, err := llmutil.StripMarkdownJSON(text)
 	if err != nil {
-		log.Printf("content_collector: failed to parse analysis JSON: %v (raw: %.500s)", err, text)
+		slog.Warn("content_collector: failed to parse analysis JSON", "err", err, "raw", truncate(text, 500))
 		return
 	}
 
@@ -366,7 +379,7 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 		OverallScore int `json:"overall_score"`
 	}
 	if err := json.Unmarshal([]byte(stripped), &parsed); err != nil {
-		log.Printf("content_collector: failed to unmarshal analysis: %v (raw: %.500s)", err, stripped)
+		slog.Warn("content_collector: failed to unmarshal analysis", "err", err, "raw", truncate(stripped, 500))
 		return
 	}
 
@@ -412,7 +425,7 @@ func (c *ContentCollector) runAnalysis(ctx context.Context, pipeline *upal.Pipel
 	}
 
 	if err := c.contentSvc.RecordAnalysis(ctx, analysis); err != nil {
-		log.Printf("content_collector: failed to record analysis: %v", err)
+		slog.Warn("content_collector: failed to record analysis", "err", err)
 	}
 }
 
@@ -537,9 +550,9 @@ type WorkflowRequest struct {
 func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID string, requests []WorkflowRequest) {
 	detail, err := c.contentSvc.GetSessionDetail(ctx, sessionID)
 	if err != nil {
-		log.Printf("content_collector: failed to get session detail for production: %v", err)
+		slog.Warn("content_collector: failed to get session detail for production", "err", err)
 		if statusErr := c.contentSvc.UpdateSessionStatus(ctx, sessionID, upal.SessionError); statusErr != nil {
-			log.Printf("content_collector: failed to update session status to error: %v", statusErr)
+			slog.Warn("content_collector: failed to update session status to error", "err", statusErr)
 		}
 		return
 	}
@@ -555,7 +568,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 	c.contentSvc.SetWorkflowResults(ctx, sessionID, results)
 
 	if err := c.contentSvc.UpdateSessionStatus(ctx, sessionID, upal.SessionProducing); err != nil {
-		log.Printf("content_collector: failed to transition to producing: %v", err)
+		slog.Warn("content_collector: failed to transition to producing", "err", err)
 	}
 
 	var mu sync.Mutex
@@ -573,7 +586,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 
 			wf, err := c.workflowRepo.Get(gCtx, req.Name)
 			if err != nil {
-				log.Printf("content_collector: workflow %q not found: %v", req.Name, err)
+				slog.Warn("content_collector: workflow not found", "workflow", req.Name, "err", err)
 				updateResult(i, func(r *upal.WorkflowResult) {
 					r.Status = upal.WFResultFailed
 					r.ErrorMessage = fmt.Sprintf("workflow not found: %v", err)
@@ -587,7 +600,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			if c.runHistorySvc != nil {
 				rec, startErr := c.runHistorySvc.StartRun(gCtx, req.Name, "pipeline", sessionID, inputs, wf)
 				if startErr != nil {
-					log.Printf("content_collector: failed to start run record for %q: %v", req.Name, startErr)
+					slog.Warn("content_collector: failed to start run record", "workflow", req.Name, "err", startErr)
 				} else {
 					runRecordID = rec.ID
 				}
@@ -596,7 +609,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			eventCh, resultCh, err := c.workflowSvc.Run(gCtx, wf, inputs)
 			if err != nil {
 				errMsg := fmt.Sprintf("failed to start workflow: %v", err)
-				log.Printf("content_collector: %s %q", errMsg, req.Name)
+				slog.Warn("content_collector: "+errMsg, "workflow", req.Name)
 				if c.runHistorySvc != nil && runRecordID != "" {
 					c.runHistorySvc.FailRun(gCtx, runRecordID, errMsg)
 				}
@@ -625,7 +638,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			}
 
 			if runErr != "" {
-				log.Printf("content_collector: workflow %q execution error: %s", req.Name, runErr)
+				slog.Warn("content_collector: workflow execution error", "workflow", req.Name, "err", runErr)
 				if c.runHistorySvc != nil && runRecordID != "" {
 					c.runHistorySvc.FailRun(gCtx, runRecordID, runErr)
 					if failedNodeID == "" {
@@ -651,7 +664,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 			runResult, ok := <-resultCh
 			if !ok {
 				errMsg := "result channel closed unexpectedly"
-				log.Printf("content_collector: workflow %q %s", req.Name, errMsg)
+				slog.Warn("content_collector: "+errMsg, "workflow", req.Name)
 				if c.runHistorySvc != nil && runRecordID != "" {
 					c.runHistorySvc.FailRun(gCtx, runRecordID, errMsg)
 				}
@@ -690,7 +703,7 @@ func (c *ContentCollector) ProduceWorkflows(ctx context.Context, sessionID strin
 		finalStatus = upal.SessionApproved
 	}
 	if err := c.contentSvc.UpdateSessionStatus(ctx, sessionID, finalStatus); err != nil {
-		log.Printf("content_collector: failed to transition after produce: %v", err)
+		slog.Warn("content_collector: failed to transition after produce", "err", err)
 	}
 }
 
@@ -764,7 +777,7 @@ func (c *ContentCollector) GenerateWorkflowForAngle(ctx context.Context, session
 	angle.MatchType = "generated"
 
 	if err := c.contentSvc.UpdateAnalysisAngles(ctx, sessionID, analysis.SuggestedAngles); err != nil {
-		log.Printf("content_collector: failed to update analysis angles: %v", err)
+		slog.Warn("content_collector: failed to update analysis angles", "err", err)
 	}
 
 	return angle, nil
@@ -895,7 +908,7 @@ func mapPipelineSources(sources []upal.PipelineSource, isTest bool, limit int) [
 			}
 
 		default:
-			log.Printf("content_collector: skipping unknown source type %q (source %s)", ps.Type, ps.ID)
+			slog.Warn("content_collector: skipping unknown source type", "type", ps.Type, "source", ps.ID)
 			continue
 		}
 

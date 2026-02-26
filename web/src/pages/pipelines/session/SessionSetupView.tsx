@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
+import { useModels } from '@/shared/api'
 import type { ChatMessage } from '@/entities/ui/model/chatStore'
 import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
 import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceModal'
@@ -205,6 +206,11 @@ export function SessionSetupView({ sessionId }: Props) {
   // ─── Derived ──────────────────────────────────────────────────────────
 
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === localSchedule)
+  const allModels = useModels()
+  const researchModels = useMemo(
+    () => allModels.filter((m) => m.supportsTools && m.category === 'text'),
+    [allModels],
+  )
 
   // ─── Render ───────────────────────────────────────────────────────────
 
@@ -312,6 +318,7 @@ export function SessionSetupView({ sessionId }: Props) {
                     value={localContext.research_model || ''}
                     onChange={(v) => setLocalContext({ ...localContext, research_model: v })}
                     placeholder="Same as analysis"
+                    models={researchModels}
                   />
                 </div>
                 {localContext.research_model && (

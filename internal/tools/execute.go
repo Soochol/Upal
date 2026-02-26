@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"runtime/debug"
 
 	upalmodel "github.com/soochol/upal/internal/model"
 	"google.golang.org/genai"
@@ -100,6 +102,7 @@ func ExecuteToolCalls(ctx context.Context, calls []*genai.FunctionCall, customTo
 func executeSingleToolSafe(ctx context.Context, fc *genai.FunctionCall, t Tool) (output map[string]any) {
 	defer func() {
 		if r := recover(); r != nil {
+			slog.Error("tool panicked", "tool", fc.Name, "panic", r, "stack", string(debug.Stack()))
 			output = map[string]any{"error": fmt.Sprintf("tool %q panicked: %v", fc.Name, r)}
 		}
 	}()
