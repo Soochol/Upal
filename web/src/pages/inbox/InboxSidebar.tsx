@@ -38,6 +38,7 @@ export function InboxSidebar({
 
     const invalidateInbox = () => {
         queryClient.invalidateQueries({ queryKey: ['inbox-sessions'] })
+        queryClient.invalidateQueries({ queryKey: ['content-sessions'] })
     }
 
     const deleteMutation = useMutation({

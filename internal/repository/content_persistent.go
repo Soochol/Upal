@@ -21,9 +21,11 @@ type ContentDB interface {
 	DeleteContentSession(ctx context.Context, id string) error
 	CreateSourceFetch(ctx context.Context, sf *upal.SourceFetch) error
 	ListSourceFetchesBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
+	DeleteSourceFetchesBySession(ctx context.Context, sessionID string) error
 	CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
 	GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
 	UpdateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error
+	DeleteLLMAnalysesBySession(ctx context.Context, sessionID string) error
 	CreatePublishedContent(ctx context.Context, pc *upal.PublishedContent) error
 	ListPublishedContent(ctx context.Context) ([]*upal.PublishedContent, error)
 	ListPublishedContentBySession(ctx context.Context, sessionID string) ([]*upal.PublishedContent, error)
@@ -163,6 +165,14 @@ func (r *PersistentSourceFetchRepository) ListBySession(ctx context.Context, ses
 	return r.mem.ListBySession(ctx, sessionID)
 }
 
+func (r *PersistentSourceFetchRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	_ = r.mem.DeleteBySession(ctx, sessionID)
+	if err := r.db.DeleteSourceFetchesBySession(ctx, sessionID); err != nil {
+		return fmt.Errorf("db delete source_fetches by session: %w", err)
+	}
+	return nil
+}
+
 type PersistentLLMAnalysisRepository struct {
 	mem *MemoryLLMAnalysisRepository
 	db  ContentDB
@@ -191,6 +201,14 @@ func (r *PersistentLLMAnalysisRepository) Update(ctx context.Context, a *upal.LL
 	_ = r.mem.Update(ctx, a)
 	if err := r.db.UpdateLLMAnalysis(ctx, a); err != nil {
 		return fmt.Errorf("db update llm_analysis: %w", err)
+	}
+	return nil
+}
+
+func (r *PersistentLLMAnalysisRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	_ = r.mem.DeleteBySession(ctx, sessionID)
+	if err := r.db.DeleteLLMAnalysesBySession(ctx, sessionID); err != nil {
+		return fmt.Errorf("db delete llm_analyses by session: %w", err)
 	}
 	return nil
 }

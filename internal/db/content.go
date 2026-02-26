@@ -272,6 +272,14 @@ func (d *DB) ListSourceFetchesBySession(ctx context.Context, sessionID string) (
 	return result, rows.Err()
 }
 
+func (d *DB) DeleteSourceFetchesBySession(ctx context.Context, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM source_fetches WHERE session_id = $1`, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete source_fetches by session: %w", err)
+	}
+	return nil
+}
+
 // --- LLMAnalysis ---
 
 func (d *DB) CreateLLMAnalysis(ctx context.Context, a *upal.LLMAnalysis) error {
@@ -340,6 +348,14 @@ func (d *DB) GetLLMAnalysisBySession(ctx context.Context, sessionID string) (*up
 		return nil, fmt.Errorf("unmarshal suggested_angles: %w", err)
 	}
 	return &a, nil
+}
+
+func (d *DB) DeleteLLMAnalysesBySession(ctx context.Context, sessionID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM llm_analyses WHERE session_id = $1`, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete llm_analyses by session: %w", err)
+	}
+	return nil
 }
 
 // --- PublishedContent ---

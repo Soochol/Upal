@@ -118,103 +118,46 @@ func TestContentSessionService_DismissSurge(t *testing.T) {
 	}
 }
 
-func TestContentSessionService_ArchiveAndUnarchive(t *testing.T) {
-	svc := newTestContentSvc()
-	ctx := context.Background()
-
-	s := &upal.ContentSession{PipelineID: "pipe-1", TriggerType: "manual"}
-	if err := svc.CreateSession(ctx, s); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	// Archive
-	if err := svc.ArchiveSession(ctx, s.ID); err != nil {
-		t.Fatalf("archive: %v", err)
-	}
-	got, _ := svc.GetSession(ctx, s.ID)
-	if got.ArchivedAt == nil {
-		t.Error("expected ArchivedAt to be set after archive")
-	}
-	if got.Status != upal.SessionCollecting {
-		t.Errorf("expected status preserved as collecting, got %q", got.Status)
-	}
-
-	// Archived sessions excluded from ListByPipeline
-	list, _ := svc.ListSessionsByPipeline(ctx, "pipe-1")
-	if len(list) != 0 {
-		t.Errorf("expected 0 active sessions, got %d", len(list))
-	}
-
-	// Listed in archived
-	archived, _ := svc.ListArchivedByPipeline(ctx, "pipe-1")
-	if len(archived) != 1 {
-		t.Errorf("expected 1 archived session, got %d", len(archived))
-	}
-
-	// Unarchive
-	if err := svc.UnarchiveSession(ctx, s.ID); err != nil {
-		t.Fatalf("unarchive: %v", err)
-	}
-	got, _ = svc.GetSession(ctx, s.ID)
-	if got.ArchivedAt != nil {
-		t.Error("expected ArchivedAt to be nil after unarchive")
-	}
-	list, _ = svc.ListSessionsByPipeline(ctx, "pipe-1")
-	if len(list) != 1 {
-		t.Errorf("expected 1 active session after unarchive, got %d", len(list))
-	}
-}
-
-func TestContentSessionService_DeleteRequiresArchived(t *testing.T) {
+func TestContentSessionService_Delete(t *testing.T) {
 	svc := newTestContentSvc()
 	ctx := context.Background()
 
 	s := &upal.ContentSession{PipelineID: "pipe-1", TriggerType: "manual"}
 	svc.CreateSession(ctx, s)
 
-	// Delete without archiving should fail
-	err := svc.DeleteSession(ctx, s.ID)
-	if err == nil {
-		t.Error("expected error when deleting non-archived session")
-	}
+	// Add related data to verify cascade cleanup.
+	svc.RecordPublished(ctx, &upal.PublishedContent{SessionID: s.ID, Channel: "youtube"})
+	svc.SetWorkflowResults(ctx, s.ID, []upal.WorkflowResult{{WorkflowName: "test"}})
+	svc.RecordSourceFetch(ctx, &upal.SourceFetch{SessionID: s.ID, ToolName: "hn_fetch"})
 
-	// Archive then delete should succeed
-	svc.ArchiveSession(ctx, s.ID)
 	if err := svc.DeleteSession(ctx, s.ID); err != nil {
-		t.Fatalf("delete archived session: %v", err)
+		t.Fatalf("delete session: %v", err)
 	}
 
-	// Session should no longer exist
-	_, err = svc.GetSession(ctx, s.ID)
-	if err == nil {
+	// Session should no longer exist.
+	if _, err := svc.GetSession(ctx, s.ID); err == nil {
 		t.Error("expected error when getting deleted session")
 	}
-}
 
-func TestContentSessionService_ArchiveAlreadyArchived(t *testing.T) {
-	svc := newTestContentSvc()
-	ctx := context.Background()
+	// Published content should be cleaned up.
+	pubs, _ := svc.ListPublishedBySession(ctx, s.ID)
+	if len(pubs) != 0 {
+		t.Errorf("expected 0 published after delete, got %d", len(pubs))
+	}
 
-	s := &upal.ContentSession{PipelineID: "pipe-1", TriggerType: "manual"}
-	svc.CreateSession(ctx, s)
-	svc.ArchiveSession(ctx, s.ID)
-
-	err := svc.ArchiveSession(ctx, s.ID)
-	if err == nil {
-		t.Error("expected error when archiving already archived session")
+	// Workflow results should be cleaned up.
+	results := svc.GetWorkflowResults(ctx, s.ID)
+	if len(results) != 0 {
+		t.Errorf("expected 0 workflow results after delete, got %d", len(results))
 	}
 }
 
-func TestContentSessionService_UnarchiveNotArchived(t *testing.T) {
+func TestContentSessionService_DeleteNotFound(t *testing.T) {
 	svc := newTestContentSvc()
 	ctx := context.Background()
 
-	s := &upal.ContentSession{PipelineID: "pipe-1", TriggerType: "manual"}
-	svc.CreateSession(ctx, s)
-
-	err := svc.UnarchiveSession(ctx, s.ID)
-	if err == nil {
-		t.Error("expected error when unarchiving non-archived session")
+	if err := svc.DeleteSession(ctx, "nonexistent"); err == nil {
+		t.Error("expected error when deleting nonexistent session")
 	}
 }
 

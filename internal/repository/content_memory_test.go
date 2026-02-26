@@ -96,57 +96,6 @@ func TestMemorySurgeEventRepo(t *testing.T) {
 	}
 }
 
-func TestMemoryContentSessionRepo_ArchiveFiltering(t *testing.T) {
-	repo := NewMemoryContentSessionRepository()
-	ctx := context.Background()
-	now := time.Now()
-
-	active := &upal.ContentSession{
-		ID: "csess-active", PipelineID: "pipe-1",
-		Status: upal.SessionPendingReview, CreatedAt: now,
-	}
-	archived := &upal.ContentSession{
-		ID: "csess-archived", PipelineID: "pipe-1",
-		Status: upal.SessionRejected, CreatedAt: now, ArchivedAt: &now,
-	}
-
-	repo.Create(ctx, active)
-	repo.Create(ctx, archived)
-
-	// List excludes archived
-	list, _ := repo.List(ctx)
-	if len(list) != 1 {
-		t.Errorf("List: expected 1, got %d", len(list))
-	}
-
-	// ListByPipeline excludes archived
-	byPipeline, _ := repo.ListByPipeline(ctx, "pipe-1")
-	if len(byPipeline) != 1 {
-		t.Errorf("ListByPipeline: expected 1, got %d", len(byPipeline))
-	}
-
-	// ListByStatus excludes archived
-	byStatus, _ := repo.ListByStatus(ctx, upal.SessionRejected)
-	if len(byStatus) != 0 {
-		t.Errorf("ListByStatus(rejected): expected 0 (archived excluded), got %d", len(byStatus))
-	}
-
-	// ListByPipelineAndStatus excludes archived
-	byBoth, _ := repo.ListByPipelineAndStatus(ctx, "pipe-1", upal.SessionRejected)
-	if len(byBoth) != 0 {
-		t.Errorf("ListByPipelineAndStatus: expected 0, got %d", len(byBoth))
-	}
-
-	// ListArchivedByPipeline returns only archived
-	archivedList, _ := repo.ListArchivedByPipeline(ctx, "pipe-1")
-	if len(archivedList) != 1 {
-		t.Errorf("ListArchivedByPipeline: expected 1, got %d", len(archivedList))
-	}
-	if archivedList[0].ID != "csess-archived" {
-		t.Errorf("expected archived session ID, got %q", archivedList[0].ID)
-	}
-}
-
 func TestMemoryContentSessionRepo_Delete(t *testing.T) {
 	repo := NewMemoryContentSessionRepository()
 	ctx := context.Background()

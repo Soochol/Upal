@@ -23,12 +23,14 @@ type SourceFetchRepository interface {
 	Create(ctx context.Context, sf *upal.SourceFetch) error
 	Update(ctx context.Context, sf *upal.SourceFetch) error
 	ListBySession(ctx context.Context, sessionID string) ([]*upal.SourceFetch, error)
+	DeleteBySession(ctx context.Context, sessionID string) error
 }
 
 type LLMAnalysisRepository interface {
 	Create(ctx context.Context, a *upal.LLMAnalysis) error
 	GetBySession(ctx context.Context, sessionID string) (*upal.LLMAnalysis, error)
 	Update(ctx context.Context, a *upal.LLMAnalysis) error
+	DeleteBySession(ctx context.Context, sessionID string) error
 }
 
 type PublishedContentRepository interface {

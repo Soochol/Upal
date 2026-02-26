@@ -315,17 +315,21 @@ func (s *ContentSessionService) DeleteSession(ctx context.Context, id string) er
 		return err
 	}
 
+	// Clean up children before deleting the session itself.
 	if err := s.published.DeleteBySession(ctx, id); err != nil {
 		return fmt.Errorf("delete published content: %w", err)
-	}
-	if err := s.sessions.Delete(ctx, id); err != nil {
-		return err
 	}
 	if err := s.workflowResults.DeleteBySession(ctx, id); err != nil {
 		slog.Warn("failed to clean up workflow results", "session_id", id, "err", err)
 	}
+	if err := s.fetches.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("failed to clean up source fetches", "session_id", id, "err", err)
+	}
+	if err := s.analyses.DeleteBySession(ctx, id); err != nil {
+		slog.Warn("failed to clean up llm analyses", "session_id", id, "err", err)
+	}
 
-	return nil
+	return s.sessions.Delete(ctx, id)
 }
 
 func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pipelineID string) error {
@@ -335,10 +339,20 @@ func (s *ContentSessionService) DeleteSessionsByPipeline(ctx context.Context, pi
 	}
 
 	for _, sess := range sessions {
-		_ = s.published.DeleteBySession(ctx, sess.ID)
-		_ = s.workflowResults.DeleteBySession(ctx, sess.ID)
+		if err := s.published.DeleteBySession(ctx, sess.ID); err != nil {
+			slog.Warn("pipeline cleanup: published content", "session_id", sess.ID, "err", err)
+		}
+		if err := s.workflowResults.DeleteBySession(ctx, sess.ID); err != nil {
+			slog.Warn("pipeline cleanup: workflow results", "session_id", sess.ID, "err", err)
+		}
+		if err := s.fetches.DeleteBySession(ctx, sess.ID); err != nil {
+			slog.Warn("pipeline cleanup: source fetches", "session_id", sess.ID, "err", err)
+		}
+		if err := s.analyses.DeleteBySession(ctx, sess.ID); err != nil {
+			slog.Warn("pipeline cleanup: llm analyses", "session_id", sess.ID, "err", err)
+		}
 		if err := s.sessions.Delete(ctx, sess.ID); err != nil {
-			slog.Warn("failed to delete session during pipeline cleanup", "session_id", sess.ID, "err", err)
+			slog.Warn("pipeline cleanup: session", "session_id", sess.ID, "err", err)
 		}
 	}
 	return nil

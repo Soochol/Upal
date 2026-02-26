@@ -111,6 +111,21 @@ func (r *MemorySourceFetchRepository) ListBySession(ctx context.Context, session
 	})
 }
 
+func (r *MemorySourceFetchRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	all, err := r.store.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, sf := range all {
+		if sf.SessionID == sessionID {
+			if err := r.store.Delete(ctx, sf.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 type MemoryLLMAnalysisRepository struct {
 	store *memstore.Store[*upal.LLMAnalysis]
 }
@@ -149,6 +164,21 @@ func (r *MemoryLLMAnalysisRepository) Update(ctx context.Context, a *upal.LLMAna
 		return fmt.Errorf("llm analysis %q: %w", a.ID, ErrNotFound)
 	}
 	return r.store.Set(ctx, a)
+}
+
+func (r *MemoryLLMAnalysisRepository) DeleteBySession(ctx context.Context, sessionID string) error {
+	all, err := r.store.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, a := range all {
+		if a.SessionID == sessionID {
+			if err := r.store.Delete(ctx, a.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 type MemoryPublishedContentRepository struct {
