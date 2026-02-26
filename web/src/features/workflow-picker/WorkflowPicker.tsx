@@ -39,27 +39,30 @@ export function WorkflowPicker(props: WorkflowPickerProps) {
   })
 
   const isSelectMode = props.mode === 'select'
-  const existingNames = !isSelectMode
-    ? new Set((props as AddModeProps).existingWorkflows.map(ew => ew.workflow_name))
-    : undefined
+
+  const existingNames = isSelectMode
+    ? undefined
+    : new Set(props.existingWorkflows.map(ew => ew.workflow_name))
 
   const filtered = workflows.filter(w => {
     if (existingNames?.has(w.name)) return false
     if (!search) return true
-    return w.name.toLowerCase().includes(search.toLowerCase()) ||
-      w.description?.toLowerCase().includes(search.toLowerCase())
+    const term = search.toLowerCase()
+    return w.name.toLowerCase().includes(term) ||
+      w.description?.toLowerCase().includes(term)
   })
 
-  const handleClick = (w: WorkflowListItem) => {
+  function handleClick(w: WorkflowListItem): void {
     if (isSelectMode) {
-      (props as SelectModeProps).onSelect(w.name)
+      props.onSelect(w.name)
     } else {
-      (props as AddModeProps).onAdd({ workflow_name: w.name, auto_select: true })
+      props.onAdd({ workflow_name: w.name, auto_select: true })
     }
     onClose()
   }
 
-  const currentWorkflow = isSelectMode ? (props as SelectModeProps).currentWorkflow : undefined
+  const currentWorkflow = isSelectMode ? props.currentWorkflow : undefined
+  const defaultTitle = isSelectMode ? 'Select Workflow' : 'Add Workflow'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -67,7 +70,7 @@ export function WorkflowPicker(props: WorkflowPickerProps) {
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">{title ?? (isSelectMode ? 'Select Workflow' : 'Add Workflow')}</h2>
+          <h2 className="text-sm font-semibold">{title ?? defaultTitle}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
           </button>

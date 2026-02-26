@@ -106,11 +106,9 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
     onClose()
   }
 
-  function getTitle(): string {
-    if (step === 'select') return 'Add Source'
-    if (editSource) return `Edit ${selectedType?.label}`
-    return `Configure ${selectedType?.label}`
-  }
+  const modalTitle = step === 'select'
+    ? 'Add Source'
+    : `${editSource ? 'Edit' : 'Configure'} ${selectedType?.label}`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -118,7 +116,7 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
       <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold">
-            {getTitle()}
+            {modalTitle}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <X className="h-4 w-4" />
@@ -173,28 +171,27 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
               )}
 
               {draft.type === 'social' && (
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Keywords to monitor</label>
-                  <KeywordTagInput
-                    keywords={draft.keywords ?? []}
-                    onChange={(kws) => setDraft({ ...draft, keywords: kws })}
-                    placeholder="AI, LLM, GPT..."
-                  />
-                </div>
-              )}
-
-              {draft.type === 'social' && (
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Follow accounts</label>
-                  <KeywordTagInput
-                    keywords={draft.accounts ?? []}
-                    onChange={(accts) => setDraft({ ...draft, accounts: accts })}
-                    placeholder="alice.bsky.social, user@mastodon.social"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Bluesky: handle (e.g. alice.bsky.social) · Mastodon: user@instance
-                  </p>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Keywords to monitor</label>
+                    <KeywordTagInput
+                      keywords={draft.keywords ?? []}
+                      onChange={(kws) => setDraft({ ...draft, keywords: kws })}
+                      placeholder="AI, LLM, GPT..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Follow accounts</label>
+                    <KeywordTagInput
+                      keywords={draft.accounts ?? []}
+                      onChange={(accts) => setDraft({ ...draft, accounts: accts })}
+                      placeholder="alice.bsky.social, user@mastodon.social"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Bluesky: handle (e.g. alice.bsky.social) · Mastodon: user@instance
+                    </p>
+                  </div>
+                </>
               )}
 
               {draft.type === 'google_trends' && (

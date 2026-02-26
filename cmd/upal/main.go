@@ -302,12 +302,11 @@ func serve() {
 	}
 
 	// Build effective provider configs by merging config.yaml + DB providers.
-	effectiveProviders := make(map[string]config.ProviderConfig, len(cfg.Providers))
-	for k, v := range cfg.Providers {
-		effectiveProviders[k] = v
-	}
+	effectiveProviders := make(map[string]config.ProviderConfig, len(providerTypes))
 	for name, typ := range providerTypes {
-		if _, exists := effectiveProviders[name]; !exists {
+		if pc, ok := cfg.Providers[name]; ok {
+			effectiveProviders[name] = pc
+		} else {
 			effectiveProviders[name] = config.ProviderConfig{Type: typ}
 		}
 	}
