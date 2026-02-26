@@ -16,10 +16,8 @@ const SettingsPage = lazy(() => import('@/pages/settings'))
 
 function PipelineRedirect() {
   const { id, sessionId } = useParams()
-  if (sessionId) {
-    return <Navigate to={`/pipelines?p=${id}&s=${sessionId}`} replace />
-  }
-  return <Navigate to={`/pipelines?p=${id}`} replace />
+  const search = sessionId ? `?p=${id}&s=${sessionId}` : `?p=${id}`
+  return <Navigate to={`/pipelines${search}`} replace />
 }
 
 export function AppRouter() {

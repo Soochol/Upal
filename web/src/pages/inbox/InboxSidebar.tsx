@@ -9,7 +9,10 @@ import { EditableName } from '@/shared/ui/EditableName'
 import {
     archiveSession, unarchiveSession, deleteSession, updateSessionSettings,
 } from '@/entities/content-session/api'
-import { SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter } from '@/entities/content-session/constants'
+import {
+    SESSION_STATUS_DOT, SESSION_FILTER_TABS, matchesSessionFilter,
+    sessionDisplayName, computeFilterCounts,
+} from '@/entities/content-session/constants'
 import type { SessionFilter } from '@/entities/content-session/constants'
 import type { ContentSession } from '@/entities/content-session'
 
@@ -66,25 +69,10 @@ export function InboxSidebar({
 
     // ─── Derived data ────────────────────────────────────────────────────────
 
-    const filterCounts = useMemo(() => {
-        const counts: Record<SessionFilter, number> = {
-            all: sessions.length,
-            pending: 0,
-            in_progress: 0,
-            producing: 0,
-            published: 0,
-            rejected: 0,
-            archived: archivedSessions.length,
-        }
-        for (const s of sessions) {
-            if (matchesSessionFilter(s.status, 'pending')) counts.pending++
-            if (matchesSessionFilter(s.status, 'in_progress')) counts.in_progress++
-            if (matchesSessionFilter(s.status, 'producing')) counts.producing++
-            if (matchesSessionFilter(s.status, 'published')) counts.published++
-            if (matchesSessionFilter(s.status, 'rejected')) counts.rejected++
-        }
-        return counts
-    }, [sessions, archivedSessions])
+    const filterCounts = useMemo(
+        () => computeFilterCounts(sessions, archivedSessions),
+        [sessions, archivedSessions],
+    )
 
     const filteredSessions = useMemo(() => {
         const pool = activeFilter === 'archived' ? archivedSessions : sessions
@@ -93,9 +81,8 @@ export function InboxSidebar({
             .filter(s => {
                 if (!search) return true
                 const q = search.toLowerCase()
-                const displayName = s.name || (s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`)
                 return (
-                    displayName.toLowerCase().includes(q) ||
+                    sessionDisplayName(s).toLowerCase().includes(q) ||
                     s.pipeline_name?.toLowerCase().includes(q) ||
                     s.analysis?.summary?.toLowerCase().includes(q) ||
                     s.status.includes(q)
@@ -192,8 +179,8 @@ export function InboxSidebar({
                                         <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', SESSION_STATUS_DOT[s.status] ?? 'bg-muted')} />
                                         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                                         <EditableName
-                                            value={s.name || (s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`)}
-                                            placeholder={s.session_number ? `Session ${s.session_number}` : `Session ${s.id.slice(-6)}`}
+                                            value={sessionDisplayName(s)}
+                                            placeholder={sessionDisplayName(s)}
                                             onSave={(name) => renameMutation.mutate({ id: s.id, name })}
                                             className={cn('text-sm font-semibold', isSelected ? 'text-primary' : 'text-foreground')}
                                         />

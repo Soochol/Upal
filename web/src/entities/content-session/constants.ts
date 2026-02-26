@@ -1,4 +1,5 @@
 // Shared session UI constants and utilities
+import type { ContentSession } from './types'
 
 // ─── Status dot color mapping ────────────────────────────────────────────────
 
@@ -11,6 +12,14 @@ export const SESSION_STATUS_DOT: Record<string, string> = {
   collecting: 'bg-primary',
   analyzing: 'bg-primary',
   error: 'bg-destructive',
+}
+
+// ─── Session display name ────────────────────────────────────────────────────
+
+export function sessionDisplayName(s: ContentSession): string {
+  if (s.name) return s.name
+  if (s.session_number) return `Session ${s.session_number}`
+  return `Session ${s.id.slice(-6)}`
 }
 
 // ─── Session filter ──────────────────────────────────────────────────────────
@@ -39,4 +48,28 @@ export function matchesSessionFilter(status: string, filter: SessionFilter): boo
     case 'archived': return true // handled separately via query
     default: return true
   }
+}
+
+/** Compute per-filter counts from active + archived session lists */
+export function computeFilterCounts(
+  sessions: ContentSession[],
+  archivedSessions: ContentSession[],
+): Record<SessionFilter, number> {
+  const counts: Record<SessionFilter, number> = {
+    all: sessions.length,
+    pending: 0,
+    in_progress: 0,
+    producing: 0,
+    published: 0,
+    rejected: 0,
+    archived: archivedSessions.length,
+  }
+  for (const s of sessions) {
+    if (matchesSessionFilter(s.status, 'pending')) counts.pending++
+    if (matchesSessionFilter(s.status, 'in_progress')) counts.in_progress++
+    if (matchesSessionFilter(s.status, 'producing')) counts.producing++
+    if (matchesSessionFilter(s.status, 'published')) counts.published++
+    if (matchesSessionFilter(s.status, 'rejected')) counts.rejected++
+  }
+  return counts
 }

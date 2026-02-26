@@ -144,7 +144,7 @@ export default function PipelinesPage() {
 
         {/* ── Column 1: Pipeline List ── */}
         <div className={cn(
-          'w-full md:w-[200px] shrink-0 md:border-r border-border',
+          'w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border',
           'bg-sidebar/30 backdrop-blur-xl flex flex-col',
           mobileLevel === 'pipelines' ? 'flex' : 'hidden md:flex',
         )}>
@@ -158,7 +158,7 @@ export default function PipelinesPage() {
 
         {/* ── Column 2: Session List ── */}
         <div className={cn(
-          'w-full md:w-[300px] shrink-0 md:border-r border-border',
+          'w-full md:w-[340px] 2xl:w-[400px] shrink-0 md:border-r border-border',
           'bg-sidebar/30 backdrop-blur-xl flex flex-col',
           mobileLevel === 'sessions' ? 'flex' : 'hidden md:flex',
         )}>
