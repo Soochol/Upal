@@ -40,9 +40,10 @@ func (c OAuthProviderConfig) IsConfigured() bool {
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Host          string `yaml:"host"`
-	Port          int    `yaml:"port"`
-	UploadMaxSize int64  `yaml:"upload_max_size"`
+	Host          string   `yaml:"host"`
+	Port          int      `yaml:"port"`
+	UploadMaxSize int64    `yaml:"upload_max_size"`
+	CORSOrigins   []string `yaml:"cors_origins"`
 }
 
 // RunsConfig holds run manager settings.
@@ -142,6 +143,10 @@ func applyEnvOverrides(cfg *Config) {
 			pc.APIKey = v
 			cfg.Providers[name] = pc
 		}
+	}
+
+	if v := os.Getenv("CORS_ORIGINS"); v != "" {
+		cfg.Server.CORSOrigins = strings.Split(v, ",")
 	}
 
 	if v := os.Getenv("GOOGLE_CLIENT_ID"); v != "" {

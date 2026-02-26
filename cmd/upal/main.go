@@ -450,10 +450,12 @@ func serve() {
 
 	// Backfill missing descriptions for existing workflows and pipeline stages.
 	// Runs in the background on startup so it doesn't block the server.
+	// Uses "default" user context — only processes unowned data.
+	// TODO: iterate over all users when multi-tenant backfill is needed.
 	if defaultLLM != nil {
 		gen := srv.Generator()
 		go func() {
-			ctx := context.Background()
+			ctx := upal.WithUserID(context.Background(), "default")
 			wfs, _ := repo.List(ctx)
 			for _, wf := range gen.BackfillWorkflowDescriptions(ctx, wfs) {
 				if err := repo.Update(ctx, wf.Name, wf); err != nil {

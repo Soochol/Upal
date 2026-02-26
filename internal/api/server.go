@@ -47,6 +47,7 @@ type Server struct {
 	generationManager    *services.GenerationManager
 	aiProviderSvc        *services.AIProviderService
 	authSvc              *services.AuthService
+	corsOrigins          []string
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
 }
@@ -69,7 +70,7 @@ func (s *Server) Handler() http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
+		AllowOriginFunc:  s.allowOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -238,6 +239,19 @@ func (s *Server) SetAuthService(svc *services.AuthService)             { s.authS
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
 	s.uploadMaxSize = cfg.UploadMaxSize
+	s.corsOrigins = cfg.CORSOrigins
+}
+
+func (s *Server) allowOrigin(_ *http.Request, origin string) bool {
+	if len(s.corsOrigins) == 0 {
+		return true
+	}
+	for _, allowed := range s.corsOrigins {
+		if allowed == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // SetA2ABaseURL enables A2A protocol endpoints.
