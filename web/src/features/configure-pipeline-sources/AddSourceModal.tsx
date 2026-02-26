@@ -1,13 +1,11 @@
 import { useState, type ReactNode } from 'react'
-import { X, Rss, Flame, MessageCircle, TrendingUp, Globe, Search } from 'lucide-react'
-import { useModels } from '@/shared/api/useModels'
-import { ModelSelector } from '@/shared/ui/ModelSelector'
+import { X, Rss, Flame, MessageCircle, TrendingUp, Globe } from 'lucide-react'
 import { KeywordTagInput } from '@/shared/ui/KeywordTagInput'
 import type { PipelineSource, PipelineSourceType } from '@/entities/pipeline'
 
 type SourceTypeDef = {
   type: PipelineSourceType
-  source_type: 'static' | 'signal' | 'research'
+  source_type: 'static' | 'signal'
   label: string
   description: string
   icon: ReactNode
@@ -27,18 +25,6 @@ export const SIGNAL_SOURCES: SourceTypeDef[] = [
   { type: 'social',        source_type: 'signal', label: 'Social Trends',  description: 'Bluesky & Mastodon trends',  icon: <TrendingUp className="h-4 w-4" />, accent: 'bg-primary/12', accentText: 'text-primary' },
 ]
 
-const RESEARCH_SOURCES: SourceTypeDef[] = [
-  {
-    type: 'research',
-    source_type: 'research',
-    label: 'Deep Research',
-    description: 'LLM-powered topic research with web search',
-    icon: <Search className="h-4 w-4" />,
-    accent: 'bg-[oklch(0.7_0.15_280)]/12',
-    accentText: 'text-[oklch(0.6_0.15_280)]',
-  },
-]
-
 type Props = {
   editSource?: PipelineSource
   onAdd: (source: PipelineSource) => void
@@ -49,27 +35,7 @@ function generateId() {
   return `src-${crypto.randomUUID()}`
 }
 
-function ResearchModelSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const models = useModels()
-  const researchModels = models.filter((m) => m.supportsTools && m.category === 'text')
-
-  return (
-    <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
-      <ModelSelector
-        value={value}
-        onChange={onChange}
-        models={researchModels}
-        placeholder="Select a research model..."
-      />
-      <p className="text-[10px] text-muted-foreground mt-1">
-        Only models with web search support are shown
-      </p>
-    </div>
-  )
-}
-
-const ALL_SOURCES = [...STATIC_SOURCES, ...SIGNAL_SOURCES, ...RESEARCH_SOURCES]
+const ALL_SOURCES = [...STATIC_SOURCES, ...SIGNAL_SOURCES]
 
 type SourceGroupProps = {
   label: string
@@ -123,9 +89,9 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
       type: typeDef.type,
       source_type: typeDef.source_type,
       label: typeDef.label,
-      ...(typeDef.type === 'research'
-        ? { depth: 'deep' as const, topic: '', model: '' }
-        : { limit: 20, keywords: [], accounts: [] }),
+      limit: 20,
+      keywords: [],
+      accounts: [],
     })
     setStep('config')
   }
@@ -160,7 +126,6 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
             <div className="space-y-5">
               <SourceGroup label="Data Sources" sources={STATIC_SOURCES} onSelect={handleSelectType} />
               <SourceGroup label="Signals" sources={SIGNAL_SOURCES} onSelect={handleSelectType} />
-              <SourceGroup label="AI Research" sources={RESEARCH_SOURCES} onSelect={handleSelectType} />
             </div>
           ) : (
             <div className="space-y-4">
@@ -262,65 +227,15 @@ export function AddSourceModal({ editSource, onAdd, onClose }: Props) {
                 </div>
               )}
 
-              {draft.type === 'research' && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Research topic</label>
-                    <input
-                      type="text"
-                      value={draft.topic ?? ''}
-                      onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
-                      placeholder="e.g. EV battery technology trends 2026"
-                      className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">Depth</label>
-                    <div className="flex gap-4 mt-1">
-                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                        <input
-                          type="radio"
-                          name="depth"
-                          value="light"
-                          checked={(draft.depth ?? 'deep') === 'light'}
-                          onChange={() => setDraft({ ...draft, depth: 'light' })}
-                          className="accent-primary"
-                        />
-                        <span>Light</span>
-                        <span className="text-[10px] text-muted-foreground">— quick scan</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                        <input
-                          type="radio"
-                          name="depth"
-                          value="deep"
-                          checked={(draft.depth ?? 'deep') === 'deep'}
-                          onChange={() => setDraft({ ...draft, depth: 'deep' })}
-                          className="accent-primary"
-                        />
-                        <span>Deep</span>
-                        <span className="text-[10px] text-muted-foreground">— iterative research</span>
-                      </label>
-                    </div>
-                  </div>
-                  <ResearchModelSelector
-                    value={draft.model ?? ''}
-                    onChange={(model) => setDraft({ ...draft, model })}
-                  />
-                </>
-              )}
-
-              {draft.type !== 'research' && (
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
-                  <input
-                    type="number"
-                    value={draft.limit ?? 20}
-                    onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Max items</label>
+                <input
+                  type="number"
+                  value={draft.limit ?? 20}
+                  onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
             </div>
           )}
         </div>

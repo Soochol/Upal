@@ -22,7 +22,7 @@ import (
 	"github.com/soochol/upal/internal/repository"
 	"github.com/soochol/upal/internal/services"
 	runpub "github.com/soochol/upal/internal/services/run"
-	scheduler "github.com/soochol/upal/internal/services/scheduler"
+	"github.com/soochol/upal/internal/services/scheduler"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/storage"
 	"github.com/soochol/upal/internal/tools"
