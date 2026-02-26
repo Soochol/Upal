@@ -1,5 +1,5 @@
 // web/src/pages/Pipelines.tsx — Pipeline settings page
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,6 +14,7 @@ import { fetchPublishChannels } from '@/entities/publish-channel/api'
 import { PipelineSidebar } from '@/pages/pipelines/PipelineSidebar'
 import { PipelineSettingsPanel } from '@/pages/pipelines/PipelineSettingsPanel'
 import { useUIStore } from '@/entities/ui'
+import { useAutoSave } from '@/shared/hooks/useAutoSave'
 import type { PipelineSource, PipelineWorkflow } from '@/entities/pipeline'
 
 // ─── New Session modal ──────────────────────────────────────────────────────
@@ -126,7 +127,39 @@ export default function PipelinesPage() {
   const [localSchedule, setLocalSchedule] = useState('')
   const [localWorkflows, setLocalWorkflows] = useState<PipelineWorkflow[]>([])
   const [localModel, setLocalModel] = useState('')
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  // Bundle settings into one object for auto-save
+  const settingsData = useMemo(() => ({
+    sources: localSources,
+    schedule: localSchedule,
+    workflows: localWorkflows,
+    model: localModel,
+  }), [localSources, localSchedule, localWorkflows, localModel])
+
+  const { saveStatus: autoSaveStatus, markClean } = useAutoSave({
+    data: settingsData,
+    onSave: async (data) => {
+      if (!templateSession) return
+      await updateSessionSettings(templateSession.id, data)
+      queryClient.invalidateQueries({
+        queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }],
+      })
+    },
+    delay: 2000,
+    enabled: !!templateSession,
+    saveOnUnmount: true,
+    onBeforeUnloadSave: (data) => {
+      if (!templateSession) return
+      fetch(`/api/content-sessions/${templateSession.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify(data),
+      })
+    },
+    onError: (err) =>
+      addToast(`Failed to save session settings: ${err instanceof Error ? err.message : 'unknown error'}`),
+  })
 
   // Sync server → local state when template session changes
   useEffect(() => {
@@ -135,73 +168,9 @@ export default function PipelinesPage() {
       setLocalSchedule(templateSession.schedule ?? '')
       setLocalWorkflows(templateSession.session_workflows ?? [])
       setLocalModel(templateSession.model ?? '')
+      markClean()
     }
   }, [templateSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Refs to read latest values in effects/cleanup without stale closures
-  const templateRef = useRef(templateSession)
-  const localSourcesRef = useRef(localSources)
-  const localScheduleRef = useRef(localSchedule)
-  const localWorkflowsRef = useRef(localWorkflows)
-  const localModelRef = useRef(localModel)
-
-  useEffect(() => {
-    templateRef.current = templateSession
-    localSourcesRef.current = localSources
-    localScheduleRef.current = localSchedule
-    localWorkflowsRef.current = localWorkflows
-    localModelRef.current = localModel
-  })
-
-  const isDirty = useMemo(() => {
-    if (!templateSession) return false
-    return (
-      JSON.stringify(localSources) !== JSON.stringify(templateSession.session_sources ?? []) ||
-      localSchedule !== (templateSession.schedule ?? '') ||
-      JSON.stringify(localWorkflows) !== JSON.stringify(templateSession.session_workflows ?? []) ||
-      localModel !== (templateSession.model ?? '')
-    )
-  }, [localSources, localSchedule, localWorkflows, localModel, templateSession])
-
-  const isDirtyRef = useRef(isDirty)
-  useEffect(() => { isDirtyRef.current = isDirty })
-
-  const doSave = async () => {
-    const tmpl = templateRef.current
-    if (!tmpl) return
-    setAutoSaveStatus('saving')
-    try {
-      await updateSessionSettings(tmpl.id, {
-        sources: localSourcesRef.current,
-        schedule: localScheduleRef.current,
-        workflows: localWorkflowsRef.current,
-        model: localModelRef.current,
-      })
-      queryClient.invalidateQueries({ queryKey: ['content-sessions', { pipelineId: selectedPipelineId, templateOnly: true }] })
-      setAutoSaveStatus('saved')
-      setTimeout(() => setAutoSaveStatus('idle'), 2000)
-    } catch (err) {
-      setAutoSaveStatus('idle')
-      addToast(`Failed to save session settings: ${err instanceof Error ? err.message : 'unknown error'}`)
-    }
-  }
-
-  const doSaveRef = useRef(doSave)
-  useEffect(() => { doSaveRef.current = doSave })
-
-  // Debounced auto-save on change
-  useEffect(() => {
-    if (!isDirty) return
-    const timer = setTimeout(() => { void doSaveRef.current() }, 800)
-    return () => clearTimeout(timer)
-  }, [localSources, localSchedule, localWorkflows, localModel, isDirty])
-
-  // Save on unmount if dirty
-  useEffect(() => {
-    return () => {
-      if (isDirtyRef.current) void doSaveRef.current()
-    }
-  }, [])
 
   // Auto-select first pipeline on load
   useEffect(() => {

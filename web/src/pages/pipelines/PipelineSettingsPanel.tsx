@@ -10,6 +10,7 @@ import { AddSourceModal } from '@/features/configure-pipeline-sources/AddSourceM
 import { WorkflowPicker } from './WorkflowPicker'
 import { PipelineChatEditor } from '@/features/configure-pipeline/ui/PipelineChatEditor'
 import type { PipelineSource, PipelineContext, PipelineWorkflow } from '@/entities/pipeline'
+import type { SaveStatus } from '@/shared/hooks/useAutoSave'
 
 const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
   { label: 'Every hour', cron: '0 * * * *' },
@@ -38,7 +39,7 @@ export function PipelineSettingsPanel({
   onContextSave: (ctx: PipelineContext) => Promise<void>
   onWorkflowsChange: (w: PipelineWorkflow[]) => void
   onModelChange: (model: string) => void
-  autoSaveStatus: 'idle' | 'saving' | 'saved'
+  autoSaveStatus: SaveStatus
 }) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(true)
