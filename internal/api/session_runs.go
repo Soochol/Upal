@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/soochol/upal/internal/services"
 	"github.com/soochol/upal/internal/upal"
 )
 
@@ -15,7 +17,13 @@ func (s *Server) createNewRun(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
-	// Collection bridge (go s.collector.CollectAndAnalyzeV2) will be added later.
+	// Trigger background collection if collector is available.
+	if s.collector != nil && s.sessionSvc != nil {
+		sess, err := s.sessionSvc.Get(r.Context(), sessionID)
+		if err == nil {
+			go s.collector.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
+		}
+	}
 	writeJSONStatus(w, http.StatusCreated, run)
 }
 
@@ -73,11 +81,18 @@ func (s *Server) produceNewRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunProducing); err != nil {
-		writeServiceError(w, err, http.StatusInternalServerError)
-		return
+	if s.collector != nil {
+		requests := make([]services.WorkflowRequest, len(body.Workflows))
+		for i, w := range body.Workflows {
+			requests[i] = services.WorkflowRequest{Name: w.Name, ChannelID: w.ChannelID}
+		}
+		go s.collector.ProduceWorkflowsV2(context.Background(), id, requests)
+	} else {
+		if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunProducing); err != nil {
+			writeServiceError(w, err, http.StatusInternalServerError)
+			return
+		}
 	}
-	// Collection bridge (async workflow execution) will be added later.
 	writeJSONStatus(w, http.StatusAccepted, map[string]any{
 		"run_id":    id,
 		"workflows": body.Workflows,

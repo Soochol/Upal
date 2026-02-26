@@ -392,6 +392,8 @@ func serve() {
 			skillReg,
 			runHistorySvc,
 		)
+		collector.SetSessionService(sessionSvc)
+		collector.SetRunService(runSvc)
 		srv.SetContentCollector(collector)
 		schedulerSvc.SetContentCollector(collector)
 	}
