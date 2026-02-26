@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// MCPServerRow represents an MCP server stored in the database.
 type MCPServerRow struct {
 	ID        string          `json:"id"`
 	UserID    string          `json:"user_id"`
@@ -17,7 +16,6 @@ type MCPServerRow struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// CreateMCPServer inserts a new MCP server configuration.
 func (d *DB) CreateMCPServer(ctx context.Context, userID, name string, config json.RawMessage) error {
 	id := fmt.Sprintf("mcp_%d", time.Now().UnixNano())
 	now := time.Now()
@@ -32,7 +30,6 @@ func (d *DB) CreateMCPServer(ctx context.Context, userID, name string, config js
 	return nil
 }
 
-// ListMCPServers returns all MCP servers for a user.
 func (d *DB) ListMCPServers(ctx context.Context, userID string) ([]MCPServerRow, error) {
 	rows, err := d.Pool.QueryContext(ctx,
 		`SELECT id, user_id, name, config, created_at, updated_at
@@ -57,7 +54,6 @@ func (d *DB) ListMCPServers(ctx context.Context, userID string) ([]MCPServerRow,
 	return result, nil
 }
 
-// DeleteMCPServer removes an MCP server by ID, scoped to a user.
 func (d *DB) DeleteMCPServer(ctx context.Context, id, userID string) error {
 	res, err := d.Pool.ExecContext(ctx,
 		`DELETE FROM mcp_servers WHERE id = $1 AND user_id = $2`, id, userID,

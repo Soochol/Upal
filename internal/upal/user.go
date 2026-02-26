@@ -2,7 +2,6 @@ package upal
 
 import "time"
 
-// User represents an authenticated user.
 type User struct {
 	ID            string    `json:"id"`
 	Email         string    `json:"email"`

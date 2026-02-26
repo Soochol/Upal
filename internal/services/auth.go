@@ -18,7 +18,11 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// AuthService handles OAuth2 authentication and JWT token management.
+const (
+	accessTokenTTL  = 30 * time.Minute
+	refreshTokenTTL = 7 * 24 * time.Hour
+)
+
 type AuthService struct {
 	database  *db.DB
 	authCfg   config.AuthConfig
@@ -26,7 +30,6 @@ type AuthService struct {
 	jwtSecret []byte
 }
 
-// NewAuthService creates a new AuthService.
 func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) *AuthService {
 	secret := authCfg.JWTSecret
 	if secret == "" {
@@ -44,22 +47,14 @@ func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) 
 	}
 }
 
-// Enabled returns true if at least one OAuth provider is configured.
 func (s *AuthService) Enabled() bool {
-	if s.authCfg.Google.ClientID != "" && s.authCfg.Google.ClientSecret != "" {
-		return true
-	}
-	if s.authCfg.GitHub.ClientID != "" && s.authCfg.GitHub.ClientSecret != "" {
-		return true
-	}
-	return false
+	return s.authCfg.Google.IsConfigured() || s.authCfg.GitHub.IsConfigured()
 }
 
-// OAuthConfig returns the oauth2.Config for the given provider.
 func (s *AuthService) OAuthConfig(provider string) (*oauth2.Config, error) {
 	switch provider {
 	case "google":
-		if s.authCfg.Google.ClientID == "" {
+		if !s.authCfg.Google.IsConfigured() {
 			return nil, fmt.Errorf("google oauth not configured")
 		}
 		return &oauth2.Config{
@@ -70,7 +65,7 @@ func (s *AuthService) OAuthConfig(provider string) (*oauth2.Config, error) {
 			Scopes:       []string{"openid", "email", "profile"},
 		}, nil
 	case "github":
-		if s.authCfg.GitHub.ClientID == "" {
+		if !s.authCfg.GitHub.IsConfigured() {
 			return nil, fmt.Errorf("github oauth not configured")
 		}
 		return &oauth2.Config{
@@ -85,8 +80,6 @@ func (s *AuthService) OAuthConfig(provider string) (*oauth2.Config, error) {
 	}
 }
 
-// ExchangeAndUpsertUser exchanges the OAuth code for a token, fetches user info,
-// and upserts the user in the database.
 func (s *AuthService) ExchangeAndUpsertUser(ctx context.Context, provider, code string) (*upal.User, error) {
 	oauthCfg, err := s.OAuthConfig(provider)
 	if err != nil {
@@ -115,7 +108,6 @@ func (s *AuthService) ExchangeAndUpsertUser(ctx context.Context, provider, code 
 	return s.database.UpsertUser(ctx, user)
 }
 
-// googleUserInfo represents the response from Google's userinfo endpoint.
 type googleUserInfo struct {
 	ID      string `json:"id"`
 	Email   string `json:"email"`
@@ -153,7 +145,6 @@ func (s *AuthService) fetchGoogleUser(ctx context.Context, accessToken string) (
 	}, nil
 }
 
-// githubUserInfo represents the response from GitHub's user endpoint.
 type githubUserInfo struct {
 	ID        int    `json:"id"`
 	Login     string `json:"login"`
@@ -162,7 +153,6 @@ type githubUserInfo struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
-// githubEmail represents an email from GitHub's /user/emails endpoint.
 type githubEmail struct {
 	Email    string `json:"email"`
 	Primary  bool   `json:"primary"`
@@ -253,45 +243,37 @@ func (s *AuthService) fetchGitHubPrimaryEmail(ctx context.Context, accessToken s
 	return "", fmt.Errorf("no email found")
 }
 
-// GenerateTokens creates an access token (30min) and refresh token (7d) for the given user.
 func (s *AuthService) GenerateTokens(user *upal.User) (access, refresh string, err error) {
-	now := time.Now()
-
-	accessClaims := jwt.MapClaims{
-		"sub":  user.ID,
-		"type": "access",
-		"iat":  now.Unix(),
-		"exp":  now.Add(30 * time.Minute).Unix(),
-	}
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	access, err = accessToken.SignedString(s.jwtSecret)
+	access, err = s.signToken(user.ID, "access", accessTokenTTL)
 	if err != nil {
-		return "", "", fmt.Errorf("sign access token: %w", err)
+		return "", "", err
 	}
-
-	refreshClaims := jwt.MapClaims{
-		"sub":  user.ID,
-		"type": "refresh",
-		"iat":  now.Unix(),
-		"exp":  now.Add(7 * 24 * time.Hour).Unix(),
-	}
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refresh, err = refreshToken.SignedString(s.jwtSecret)
+	refresh, err = s.signToken(user.ID, "refresh", refreshTokenTTL)
 	if err != nil {
-		return "", "", fmt.Errorf("sign refresh token: %w", err)
+		return "", "", err
 	}
-
 	return access, refresh, nil
 }
 
-// ValidateAccessToken validates a JWT access token and returns the user ID.
-// Refresh tokens are rejected.
+func (s *AuthService) signToken(userID, tokenType string, ttl time.Duration) (string, error) {
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"sub":  userID,
+		"type": tokenType,
+		"iat":  now.Unix(),
+		"exp":  now.Add(ttl).Unix(),
+	}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
+	if err != nil {
+		return "", fmt.Errorf("sign %s token: %w", tokenType, err)
+	}
+	return signed, nil
+}
+
 func (s *AuthService) ValidateAccessToken(tokenStr string) (string, error) {
 	return s.validateToken(tokenStr, "access")
 }
 
-// ValidateRefreshToken validates a JWT refresh token and returns the user ID.
-// Only refresh tokens are accepted.
 func (s *AuthService) ValidateRefreshToken(tokenStr string) (string, error) {
 	return s.validateToken(tokenStr, "refresh")
 }
@@ -325,7 +307,6 @@ func (s *AuthService) validateToken(tokenStr, expectedType string) (string, erro
 	return userID, nil
 }
 
-// GetUser retrieves a user by ID from the database.
 func (s *AuthService) GetUser(ctx context.Context, id string) (*upal.User, error) {
 	user, err := s.database.GetUser(ctx, id)
 	if err != nil {

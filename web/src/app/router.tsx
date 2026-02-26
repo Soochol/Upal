@@ -35,7 +35,7 @@ function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return children
 }
 
 export function AppRouter() {

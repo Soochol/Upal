@@ -12,13 +12,39 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// authLogin redirects the user to the OAuth provider's authorization page.
-func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
-	provider := chi.URLParam(r, "provider")
+const refreshTokenMaxAge = 7 * 24 * 60 * 60 // 7 days
+
+func setRefreshTokenCookie(w http.ResponseWriter, value string) {
+	maxAge := refreshTokenMaxAge
+	var expires time.Time
+	if value == "" {
+		maxAge = -1
+		expires = time.Unix(0, 0)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  expires,
+	})
+}
+
+func (s *Server) requireAuth(w http.ResponseWriter) bool {
 	if s.authSvc == nil {
 		http.Error(w, "auth not configured", http.StatusNotFound)
+		return false
+	}
+	return true
+}
+
+func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAuth(w) {
 		return
 	}
+	provider := chi.URLParam(r, "provider")
 
 	oauthCfg, err := s.authSvc.OAuthConfig(provider)
 	if err != nil {
@@ -27,30 +53,25 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate and store state in a cookie for CSRF protection.
 	state := generateState()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
-		MaxAge:   600, // 10 minutes
+		MaxAge:   600,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	url := oauthCfg.AuthCodeURL(state)
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, oauthCfg.AuthCodeURL(state), http.StatusTemporaryRedirect)
 }
 
-// authCallback handles the OAuth provider's callback after authorization.
 func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
-	provider := chi.URLParam(r, "provider")
-	if s.authSvc == nil {
-		http.Error(w, "auth not configured", http.StatusNotFound)
+	if !s.requireAuth(w) {
 		return
 	}
+	provider := chi.URLParam(r, "provider")
 
-	// Verify state cookie for CSRF protection.
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil || stateCookie.Value == "" {
 		http.Error(w, "missing state cookie", http.StatusBadRequest)
@@ -61,7 +82,6 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear the state cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
@@ -70,7 +90,6 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 	})
 
-	// Check for error from OAuth provider.
 	if errMsg := r.URL.Query().Get("error"); errMsg != "" {
 		slog.Warn("oauth provider error", "provider", provider, "error", errMsg)
 		http.Error(w, errMsg, http.StatusBadRequest)
@@ -97,24 +116,12 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set refresh token as httpOnly cookie.
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		MaxAge:   7 * 24 * 60 * 60, // 7 days
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	// Redirect to frontend with access token.
+	setRefreshTokenCookie(w, refreshToken)
 	http.Redirect(w, r, "/?token="+accessToken, http.StatusTemporaryRedirect)
 }
 
-// authRefresh generates new tokens from a valid refresh token cookie.
 func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
-	if s.authSvc == nil {
-		http.Error(w, "auth not configured", http.StatusNotFound)
+	if !s.requireAuth(w) {
 		return
 	}
 
@@ -142,39 +149,17 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set new refresh token cookie.
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		MaxAge:   7 * 24 * 60 * 60,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	writeJSON(w, map[string]string{
-		"token": accessToken,
-	})
+	setRefreshTokenCookie(w, refreshToken)
+	writeJSON(w, map[string]string{"token": accessToken})
 }
 
-// authLogout clears the refresh token cookie.
-func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Unix(0, 0),
-	})
+func (s *Server) authLogout(w http.ResponseWriter, _ *http.Request) {
+	setRefreshTokenCookie(w, "")
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// authMe returns the current authenticated user's info.
 func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
-	if s.authSvc == nil {
-		http.Error(w, "auth not configured", http.StatusNotFound)
+	if !s.requireAuth(w) {
 		return
 	}
 
@@ -193,7 +178,6 @@ func (s *Server) authMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, user)
 }
 
-// generateState creates a random hex string for CSRF protection.
 func generateState() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

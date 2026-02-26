@@ -154,12 +154,10 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
                 onClick={handleLogout}
               >
                 <img src={user.avatar_url} alt="" className="size-5 min-w-5 rounded-full shrink-0" />
-                {gnbVisible && (
+                {gnbVisible && <>
                   <span className="truncate font-medium">{user.name}</span>
-                )}
-                {gnbVisible && (
                   <LogOut className="size-4 ml-auto shrink-0 opacity-60" />
-                )}
+                </>}
               </button>
             </>
           )}

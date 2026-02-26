@@ -23,17 +23,19 @@ type Config struct {
 	Generator GeneratorConfig           `yaml:"generator"`
 }
 
-// AuthConfig holds authentication and OAuth settings.
 type AuthConfig struct {
 	Google    OAuthProviderConfig `yaml:"google"`
 	GitHub    OAuthProviderConfig `yaml:"github"`
 	JWTSecret string             `yaml:"jwt_secret"`
 }
 
-// OAuthProviderConfig holds OAuth client credentials for a provider.
 type OAuthProviderConfig struct {
 	ClientID     string `yaml:"client_id"`
 	ClientSecret string `yaml:"client_secret"`
+}
+
+func (c OAuthProviderConfig) IsConfigured() bool {
+	return c.ClientID != "" && c.ClientSecret != ""
 }
 
 // ServerConfig holds HTTP server settings.

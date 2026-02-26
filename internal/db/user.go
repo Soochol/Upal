@@ -9,7 +9,6 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// UpsertUser inserts a new user or updates an existing one matched by OAuth provider+ID.
 func (d *DB) UpsertUser(ctx context.Context, user *upal.User) (*upal.User, error) {
 	if user.ID == "" {
 		user.ID = upal.GenerateID("usr")
@@ -31,7 +30,6 @@ func (d *DB) UpsertUser(ctx context.Context, user *upal.User) (*upal.User, error
 	return user, nil
 }
 
-// GetUserByOAuth retrieves a user by OAuth provider and OAuth ID.
 func (d *DB) GetUserByOAuth(ctx context.Context, provider, oauthID string) (*upal.User, error) {
 	u := &upal.User{}
 	err := d.Pool.QueryRowContext(ctx,
@@ -47,7 +45,6 @@ func (d *DB) GetUserByOAuth(ctx context.Context, provider, oauthID string) (*upa
 	return u, nil
 }
 
-// GetUser retrieves a user by ID.
 func (d *DB) GetUser(ctx context.Context, id string) (*upal.User, error) {
 	u := &upal.User{}
 	err := d.Pool.QueryRowContext(ctx,
