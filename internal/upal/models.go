@@ -46,6 +46,7 @@ type ModelInfo struct {
 	Hint          string         `json:"hint,omitempty"` // one-line capability hint for LLM selection
 	Options       []OptionSchema `json:"options"`
 	SupportsTools bool           `json:"supportsTools"`
+	IsDefault     bool           `json:"isDefault,omitempty"`
 }
 
 // ModelSummary is a lightweight model descriptor for generation contexts.

@@ -234,6 +234,38 @@ func serve() {
 	aiProviderSvc := services.NewAIProviderService(aiProviderRepo, enc)
 	srv.SetAIProviderService(aiProviderSvc)
 
+	// Migrate config.yaml providers to DB on first startup (when DB is empty).
+	if len(cfg.Providers) > 0 {
+		if existing, err := aiProviderSvc.ListAll(context.Background()); err == nil && len(existing) == 0 {
+			typeToCategory := make(map[string]upal.AIProviderCategory)
+			for cat, types := range upal.ValidProviderTypes {
+				for _, t := range types {
+					typeToCategory[t] = cat
+				}
+			}
+			for name, pc := range cfg.Providers {
+				cat, ok := typeToCategory[pc.Type]
+				if !ok {
+					slog.Warn("skipping migration: unknown provider type", "name", name, "type", pc.Type)
+					continue
+				}
+				modelName, _ := upalmodel.FirstModelForType(pc.Type)
+				p := &upal.AIProvider{
+					Name:     name,
+					Category: cat,
+					Type:     pc.Type,
+					Model:    modelName,
+					APIKey:   pc.APIKey,
+				}
+				if err := aiProviderSvc.Create(context.Background(), p); err != nil {
+					slog.Warn("failed to migrate config.yaml provider to DB", "name", name, "err", err)
+				} else {
+					slog.Info("migrated config.yaml provider to DB", "name", name, "type", pc.Type)
+				}
+			}
+		}
+	}
+
 	// Merge DB-registered AI providers into LLM pool.
 	if dbProviders, err := aiProviderSvc.ListAll(context.Background()); err == nil {
 		for _, p := range dbProviders {

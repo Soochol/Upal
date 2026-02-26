@@ -11,8 +11,9 @@ import (
 )
 
 func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var models []upal.ModelInfo
-	configs := s.effectiveProviderConfigs(r.Context())
+	configs := s.effectiveProviderConfigs(ctx)
 
 	staticConfigs := make(map[string]struct{})
 	for name, pc := range configs {
@@ -31,8 +32,34 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Mark models from default providers.
+	defaultProviders := s.defaultProviderNames(ctx)
+	for i := range models {
+		if defaultProviders[models[i].Provider] {
+			models[i].IsDefault = true
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(models)
+}
+
+// defaultProviderNames returns a set of provider names that are marked as default in DB.
+func (s *Server) defaultProviderNames(ctx context.Context) map[string]bool {
+	if s.aiProviderSvc == nil {
+		return nil
+	}
+	providers, err := s.aiProviderSvc.List(ctx)
+	if err != nil {
+		return nil
+	}
+	defaults := make(map[string]bool)
+	for _, p := range providers {
+		if p.IsDefault {
+			defaults[p.Name] = true
+		}
+	}
+	return defaults
 }
 
 // effectiveProviderConfigs returns provider configs from DB if available, otherwise from config.yaml.
