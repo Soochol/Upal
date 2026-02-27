@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	upalmodel "github.com/soochol/upal/internal/model"
 	"github.com/soochol/upal/internal/skills"
 	"github.com/soochol/upal/internal/tools"
 	"github.com/soochol/upal/internal/upal"
@@ -45,10 +44,6 @@ func (f *researchFetcher) Fetch(ctx context.Context, src upal.CollectSource) (st
 	llm, modelName, err := f.resolver.Resolve(modelID)
 	if err != nil {
 		return "", nil, fmt.Errorf("resolve model %q: %w", modelID, err)
-	}
-
-	if _, ok := llm.(upalmodel.NativeToolProvider); !ok {
-		return "", nil, fmt.Errorf("model %q does not support web search (native tools required)", modelID)
 	}
 
 	depth := src.Depth
