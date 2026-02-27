@@ -466,8 +466,10 @@ func (g *Generator) buildPipelineSysPrompt(base string, availableWorkflows []Wor
 	}
 
 	// Inject available models — used when writing workflow_specs descriptions.
+	// Note: pipeline prompt uses static models since buildPipelineSysPrompt
+	// doesn't have a context. Dynamic resolution happens in the caller.
 	if len(g.models) > 0 {
-		sysPrompt += g.buildModelPrompt()
+		sysPrompt += buildModelPrompt(g.models, g.defaultModelID)
 	}
 
 	// Inject available tools — used when writing workflow_specs descriptions.

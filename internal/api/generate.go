@@ -15,7 +15,6 @@ import (
 
 type GenerateRequest struct {
 	Description      string                   `json:"description"`
-	Model            string                   `json:"model"`
 	ExistingWorkflow *upal.WorkflowDefinition `json:"existing_workflow,omitempty"`
 }
 
