@@ -1,0 +1,18 @@
+package chat
+
+import "context"
+
+type chatContextKey struct{}
+
+// WithChatContext attaches the chat request context to a Go context.
+func WithChatContext(ctx context.Context, chatCtx map[string]any) context.Context {
+	return context.WithValue(ctx, chatContextKey{}, chatCtx)
+}
+
+// GetChatContext retrieves the chat request context from a Go context.
+func GetChatContext(ctx context.Context) map[string]any {
+	if v, ok := ctx.Value(chatContextKey{}).(map[string]any); ok {
+		return v
+	}
+	return nil
+}
