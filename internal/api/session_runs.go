@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,11 +13,29 @@ import (
 
 func (s *Server) createNewRun(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
-	run, err := s.runSvc.CreateRun(r.Context(), sessionID, "manual")
+
+	var body struct {
+		Name      string                 `json:"name"`
+		Sources   []upal.SessionSource   `json:"sources,omitempty"`
+		Workflows []upal.SessionWorkflow `json:"workflows,omitempty"`
+		Context   *upal.SessionContext   `json:"context,omitempty"`
+		Schedule  string                 `json:"schedule,omitempty"`
+	}
+	// Try decoding body; empty body is OK (backward compat).
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	var run *upal.Run
+	var err error
+	if body.Name != "" || len(body.Sources) > 0 || len(body.Workflows) > 0 || body.Context != nil || body.Schedule != "" {
+		run, err = s.runSvc.CreateRunWithConfig(r.Context(), sessionID, "manual", body.Name, body.Sources, body.Workflows, body.Context, body.Schedule)
+	} else {
+		run, err = s.runSvc.CreateRun(r.Context(), sessionID, "manual")
+	}
 	if err != nil {
 		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}
+
 	// Trigger background collection if collector is available.
 	if s.collector != nil && s.sessionSvc != nil {
 		sess, err := s.sessionSvc.Get(r.Context(), sessionID)
@@ -217,4 +236,48 @@ func (s *Server) patchNewRunAnalysis(w http.ResponseWriter, r *http.Request) {
 	}
 	analysis, _ := s.runSvc.GetAnalysis(r.Context(), id)
 	writeJSON(w, analysis)
+}
+
+func (s *Server) updateRunConfig(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Name      string                 `json:"name"`
+		Sources   []upal.SessionSource   `json:"sources,omitempty"`
+		Workflows []upal.SessionWorkflow `json:"workflows,omitempty"`
+		Context   *upal.SessionContext   `json:"context,omitempty"`
+		Schedule  string                 `json:"schedule,omitempty"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if err := s.runSvc.UpdateRunConfig(r.Context(), id, body.Name, body.Sources, body.Workflows, body.Context, body.Schedule); err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	detail, err := s.runSvc.GetRunDetail(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, detail)
+}
+
+func (s *Server) toggleRunSchedule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Active bool `json:"active"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	if err := s.runSvc.ToggleRunSchedule(r.Context(), id, body.Active); err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	run, err := s.runSvc.GetRun(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, run)
 }

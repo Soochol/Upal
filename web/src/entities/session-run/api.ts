@@ -1,5 +1,14 @@
 import { apiFetch } from '@/shared/api/client'
 import type { Run, SourceFetch, LLMAnalysis } from './types'
+import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session/types'
+
+export type RunConfig = {
+  name?: string
+  sources?: SessionSource[]
+  workflows?: SessionWorkflow[]
+  context?: SessionContext
+  schedule?: string
+}
 
 const SESSIONS_BASE = '/api/sessions'
 const RUNS_BASE = '/api/session-runs'
@@ -73,5 +82,31 @@ export async function updateRunAnalysis(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
+  })
+}
+
+// --- Run config management ---------------------------------------------------
+
+export async function createRunWithConfig(sessionId: string, config: RunConfig): Promise<Run> {
+  return apiFetch<Run>(`${SESSIONS_BASE}/${encodeURIComponent(sessionId)}/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  })
+}
+
+export async function updateRunConfig(runId: string, config: RunConfig): Promise<Run> {
+  return apiFetch<Run>(`${RUNS_BASE}/${encodeURIComponent(runId)}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  })
+}
+
+export async function toggleRunSchedule(runId: string, active: boolean): Promise<Run> {
+  return apiFetch<Run>(`${RUNS_BASE}/${encodeURIComponent(runId)}/schedule/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active }),
   })
 }

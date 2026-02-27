@@ -302,3 +302,21 @@ h6 {
 @import "./styles/react-flow-custom.css";
 @import "./styles/tiptap-custom.css";
 @import "./styles/landing-custom.css";
+
+/* ═══════════════════════════════════════════════════════
+   Run Card — Active Schedule Animation
+   ═══════════════════════════════════════════════════════ */
+@keyframes scheduleGlow {
+  0%, 100% {
+    border-color: var(--success);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    border-color: var(--success);
+    box-shadow: 0 0 8px 0 oklch(0.7 0.15 145 / 0.15);
+  }
+}
+
+.run-card-active {
+  animation: scheduleGlow 2s ease-in-out infinite;
+}

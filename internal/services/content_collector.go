@@ -996,23 +996,34 @@ func (c *ContentCollector) CollectSessionScheduled(ctx context.Context, sessionI
 // CollectAndAnalyzeV2 fetches content from session sources, runs LLM analysis,
 // and transitions the run to pending_review. Designed for background execution.
 func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upal.Session, run *upal.Run, isTest bool, limit int) {
-	sources := mapSessionSources(session.Sources, isTest, limit)
+	// Prefer Run-level config when available; fall back to Session config.
+	runSources := session.Sources
+	if len(run.Sources) > 0 {
+		runSources = run.Sources
+	}
+	runContext := session.Context
+	if run.Context != nil {
+		runContext = run.Context
+	}
+	runModel := session.Model
 
-	// When no explicit sources but session has a prompt, auto-create a research source.
-	if len(sources) == 0 && session.Context != nil && session.Context.Prompt != "" {
-		depth := session.Context.ResearchDepth
+	sources := mapSessionSources(runSources, isTest, limit)
+
+	// When no explicit sources but has a prompt, auto-create a research source.
+	if len(sources) == 0 && runContext != nil && runContext.Prompt != "" {
+		depth := runContext.ResearchDepth
 		if depth == "" {
 			depth = "deep"
 		}
-		model := session.Context.ResearchModel
+		model := runContext.ResearchModel
 		if model == "" {
-			model = session.Model
+			model = runModel
 		}
 		sources = []mappedSource{{
 			collectSource: upal.CollectSource{
 				ID:    "auto-research",
 				Type:  "research",
-				Topic: session.Context.Prompt,
+				Topic: runContext.Prompt,
 				Model: model,
 				Depth: depth,
 			},
@@ -1033,7 +1044,7 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 	for _, mapped := range sources {
 		var sessionSrc upal.SessionSource
 		if mapped.pipelineIndex >= 0 {
-			sessionSrc = session.Sources[mapped.pipelineIndex]
+			sessionSrc = runSources[mapped.pipelineIndex]
 		} else {
 			sessionSrc = upal.SessionSource{
 				ID: mapped.collectSource.ID, Type: "research",

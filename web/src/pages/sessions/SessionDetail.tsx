@@ -1,59 +1,32 @@
 import { useState } from 'react'
-import { Settings, History } from 'lucide-react'
-import { cn } from '@/shared/lib/utils'
-import { SessionConfigView } from './SessionConfigView'
 import { RunHistoryPanel } from './RunHistoryPanel'
-
-type Tab = 'setup' | 'runs'
+import { RunConfigPanel } from './RunConfigPanel'
+import type { Run } from '@/entities/session-run'
 
 interface SessionDetailProps {
   sessionId: string
 }
 
 export function SessionDetail({ sessionId }: SessionDetailProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('setup')
-
-  const tabs: { value: Tab; label: string; icon: typeof Settings }[] = [
-    { value: 'setup', label: 'Setup', icon: Settings },
-    { value: 'runs', label: 'Runs', icon: History },
-  ]
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Tab header */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border/50 bg-background/50 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.value
-            return (
-              <button
-                key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
-                  isActive
-                    ? 'bg-foreground text-background'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            )
-          })}
+    <div className="flex h-full">
+      <div className={selectedRunId ? 'flex-1 min-w-0' : 'w-full'}>
+        <RunHistoryPanel
+          sessionId={sessionId}
+          selectedRunId={selectedRunId}
+          onSelectRun={(run: Run | null) => setSelectedRunId(run?.id ?? null)}
+        />
+      </div>
+      {selectedRunId && (
+        <div className="w-[400px] shrink-0">
+          <RunConfigPanel
+            runId={selectedRunId}
+            onClose={() => setSelectedRunId(null)}
+          />
         </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {activeTab === 'setup' && (
-          <SessionConfigView sessionId={sessionId} />
-        )}
-        {activeTab === 'runs' && (
-          <RunHistoryPanel sessionId={sessionId} />
-        )}
-      </div>
+      )}
     </div>
   )
 }

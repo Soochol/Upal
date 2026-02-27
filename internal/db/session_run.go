@@ -15,13 +15,28 @@ import (
 func scanSessionRun(scanner interface{ Scan(...any) error }) (*upal.Run, error) {
 	var r upal.Run
 	var status string
+	var sourcesJSON, workflowsJSON []byte
+	var contextJSON sql.NullString
 	if err := scanner.Scan(
-		&r.ID, &r.SessionID, &status, &r.TriggerType, &r.SourceCount,
-		&r.ScheduleID, &r.CreatedAt, &r.ReviewedAt,
+		&r.ID, &r.SessionID, &r.Name, &status, &r.TriggerType, &r.SourceCount,
+		&r.ScheduleID, &sourcesJSON, &workflowsJSON, &contextJSON,
+		&r.Schedule, &r.ScheduleActive, &r.CreatedAt, &r.ReviewedAt,
 	); err != nil {
 		return nil, err
 	}
 	r.Status = upal.SessionRunStatus(status)
+	if len(sourcesJSON) > 0 {
+		_ = json.Unmarshal(sourcesJSON, &r.Sources)
+	}
+	if len(workflowsJSON) > 0 {
+		_ = json.Unmarshal(workflowsJSON, &r.Workflows)
+	}
+	if contextJSON.Valid && contextJSON.String != "" {
+		var ctx upal.SessionContext
+		if json.Unmarshal([]byte(contextJSON.String), &ctx) == nil {
+			r.Context = &ctx
+		}
+	}
 	return &r, nil
 }
 
@@ -38,14 +53,23 @@ func scanSessionRuns(rows *sql.Rows) ([]*upal.Run, error) {
 	return result, rows.Err()
 }
 
-const upalRunColumns = `id, session_id, status, trigger_type, source_count, schedule_id, created_at, reviewed_at`
+const upalRunColumns = `id, session_id, name, status, trigger_type, source_count, schedule_id, sources, workflows, context, schedule, schedule_active, created_at, reviewed_at`
 
 func (d *DB) CreateSessionRun(ctx context.Context, userID string, r *upal.Run) error {
+	sourcesJSON, _ := json.Marshal(r.Sources)
+	workflowsJSON, _ := json.Marshal(r.Workflows)
+	var contextJSON *string
+	if r.Context != nil {
+		b, _ := json.Marshal(r.Context)
+		s := string(b)
+		contextJSON = &s
+	}
 	_, err := d.Pool.ExecContext(ctx,
-		`INSERT INTO upal_runs (id, user_id, session_id, status, trigger_type, source_count, schedule_id, created_at, reviewed_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		r.ID, userID, r.SessionID, string(r.Status), r.TriggerType, r.SourceCount,
-		r.ScheduleID, r.CreatedAt, r.ReviewedAt,
+		`INSERT INTO upal_runs (id, user_id, session_id, name, status, trigger_type, source_count, schedule_id, sources, workflows, context, schedule, schedule_active, created_at, reviewed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+		r.ID, userID, r.SessionID, r.Name, string(r.Status), r.TriggerType, r.SourceCount,
+		r.ScheduleID, sourcesJSON, workflowsJSON, contextJSON, r.Schedule, r.ScheduleActive,
+		r.CreatedAt, r.ReviewedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert upal_run: %w", err)
@@ -103,10 +127,21 @@ func (d *DB) ListSessionRunsByStatus(ctx context.Context, userID string, status 
 }
 
 func (d *DB) UpdateSessionRun(ctx context.Context, userID string, r *upal.Run) error {
+	sourcesJSON, _ := json.Marshal(r.Sources)
+	workflowsJSON, _ := json.Marshal(r.Workflows)
+	var contextJSON *string
+	if r.Context != nil {
+		b, _ := json.Marshal(r.Context)
+		s := string(b)
+		contextJSON = &s
+	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE upal_runs SET status = $1, source_count = $2, reviewed_at = $3
-		 WHERE id = $4 AND user_id = $5`,
-		string(r.Status), r.SourceCount, r.ReviewedAt, r.ID, userID,
+		`UPDATE upal_runs SET name = $1, status = $2, source_count = $3, reviewed_at = $4,
+		 sources = $5, workflows = $6, context = $7, schedule = $8, schedule_active = $9
+		 WHERE id = $10 AND user_id = $11`,
+		r.Name, string(r.Status), r.SourceCount, r.ReviewedAt,
+		sourcesJSON, workflowsJSON, contextJSON, r.Schedule, r.ScheduleActive,
+		r.ID, userID,
 	)
 	if err != nil {
 		return fmt.Errorf("update upal_run: %w", err)

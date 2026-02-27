@@ -224,6 +224,8 @@ func (s *Server) Handler() http.Handler {
 					r.Get("/sources", s.listNewRunSources)
 					r.Get("/analysis", s.getNewRunAnalysis)
 					r.Patch("/analysis", s.patchNewRunAnalysis)
+					r.Put("/config", s.updateRunConfig)
+					r.Post("/schedule/toggle", s.toggleRunSchedule)
 				})
 			})
 		}

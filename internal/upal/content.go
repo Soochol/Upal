@@ -204,14 +204,20 @@ const (
 
 // Run tracks a single collection + analysis + production cycle within a Session.
 type Run struct {
-	ID          string           `json:"id"`
-	SessionID   string           `json:"session_id"`
-	Status      SessionRunStatus `json:"status"`
-	TriggerType string     `json:"trigger_type"`
-	SourceCount int        `json:"source_count,omitempty"`
-	ScheduleID  string     `json:"schedule_id,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
+	ID             string           `json:"id"`
+	SessionID      string           `json:"session_id"`
+	Name           string           `json:"name,omitempty"`
+	Status         SessionRunStatus `json:"status"`
+	TriggerType    string           `json:"trigger_type"`
+	SourceCount    int              `json:"source_count,omitempty"`
+	Sources        []SessionSource   `json:"run_sources,omitempty"`
+	Workflows      []SessionWorkflow `json:"run_workflows,omitempty"`
+	Context        *SessionContext   `json:"context,omitempty"`
+	Schedule       string            `json:"schedule,omitempty"`
+	ScheduleActive bool              `json:"schedule_active"`
+	ScheduleID     string           `json:"schedule_id,omitempty"`
+	CreatedAt      time.Time        `json:"created_at"`
+	ReviewedAt     *time.Time       `json:"reviewed_at,omitempty"`
 }
 
 // RunDetail is a composed response type that includes all related data for a Run.

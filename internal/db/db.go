@@ -388,6 +388,13 @@ CREATE INDEX IF NOT EXISTS idx_upal_runs_user_id ON upal_runs(user_id);
 CREATE INDEX IF NOT EXISTS idx_upal_runs_session_id ON upal_runs(session_id);
 CREATE INDEX IF NOT EXISTS idx_upal_runs_status ON upal_runs(status);
 
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS workflows JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS context JSONB;
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS schedule TEXT NOT NULL DEFAULT '';
+ALTER TABLE upal_runs ADD COLUMN IF NOT EXISTS schedule_active BOOLEAN NOT NULL DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS upal_workflow_runs (
     run_id      TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL DEFAULT 'default',

@@ -1,3 +1,5 @@
+import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session/types'
+
 export type RunStatus =
   | 'collecting' | 'analyzing' | 'pending_review'
   | 'approved' | 'rejected' | 'producing' | 'published' | 'error'
@@ -54,11 +56,19 @@ export type WorkflowRun = {
 export type Run = {
   id: string
   session_id: string
+  name?: string
   session_name?: string
   run_number?: number
   status: RunStatus
   trigger_type: 'schedule' | 'manual' | 'surge'
   source_count?: number
+  // Config (moved from Session to Run)
+  run_sources?: SessionSource[]
+  run_workflows?: SessionWorkflow[]
+  context?: SessionContext
+  schedule?: string
+  schedule_active?: boolean
+  // Composed data
   sources?: SourceFetch[]
   analysis?: LLMAnalysis
   workflow_runs?: WorkflowRun[]

@@ -69,6 +69,60 @@ func (s *RunService) CreateRun(ctx context.Context, sessionID, triggerType strin
 	return run, nil
 }
 
+// CreateRunWithConfig creates a new Run with full configuration.
+func (s *RunService) CreateRunWithConfig(ctx context.Context, sessionID, triggerType, name string,
+	sources []upal.SessionSource, workflows []upal.SessionWorkflow, sessionCtx *upal.SessionContext, schedule string,
+) (*upal.Run, error) {
+	if _, err := s.sessions.Get(ctx, sessionID); err != nil {
+		return nil, fmt.Errorf("session %q: %w", sessionID, err)
+	}
+	if triggerType == "" {
+		triggerType = "manual"
+	}
+	run := &upal.Run{
+		ID:          upal.GenerateID("run"),
+		SessionID:   sessionID,
+		Name:        name,
+		Status:      upal.SessionRunCollecting,
+		TriggerType: triggerType,
+		Sources:     sources,
+		Workflows:   workflows,
+		Context:     sessionCtx,
+		Schedule:    schedule,
+		CreatedAt:   time.Now(),
+	}
+	if err := s.runs.Create(ctx, run); err != nil {
+		return nil, err
+	}
+	return run, nil
+}
+
+// UpdateRunConfig updates the configuration of an existing Run.
+func (s *RunService) UpdateRunConfig(ctx context.Context, runID, name string,
+	sources []upal.SessionSource, workflows []upal.SessionWorkflow, sessionCtx *upal.SessionContext, schedule string,
+) error {
+	run, err := s.runs.Get(ctx, runID)
+	if err != nil {
+		return err
+	}
+	run.Name = name
+	run.Sources = sources
+	run.Workflows = workflows
+	run.Context = sessionCtx
+	run.Schedule = schedule
+	return s.runs.Update(ctx, run)
+}
+
+// ToggleRunSchedule sets the schedule_active flag on a Run.
+func (s *RunService) ToggleRunSchedule(ctx context.Context, runID string, active bool) error {
+	run, err := s.runs.Get(ctx, runID)
+	if err != nil {
+		return err
+	}
+	run.ScheduleActive = active
+	return s.runs.Update(ctx, run)
+}
+
 // GetRun retrieves a Run by ID.
 func (s *RunService) GetRun(ctx context.Context, id string) (*upal.Run, error) {
 	return s.runs.Get(ctx, id)

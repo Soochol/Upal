@@ -126,7 +126,6 @@ export function SessionSidebar({ sessions, selectedId, onSelect, onDeselect, onC
         ) : (
           filteredSessions.map((s) => {
             const isSelected = selectedId === s.id
-            const pendingCount = s.pending_run_count ?? 0
             return (
               <div
                 key={s.id}
@@ -150,11 +149,6 @@ export function SessionSidebar({ sessions, selectedId, onSelect, onDeselect, onC
                     />
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {pendingCount > 0 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-bold border border-warning/20 tabular-nums">
-                        {pendingCount}
-                      </span>
-                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${s.name}"?`)) deleteMutation.mutate(s.id) }}
                       className="p-0.5 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
@@ -164,7 +158,6 @@ export function SessionSidebar({ sessions, selectedId, onSelect, onDeselect, onC
                     </button>
                   </div>
                 </div>
-                {s.schedule && <p className="text-xs text-muted-foreground/70 truncate mt-1 pl-6">{s.schedule}</p>}
                 <p className="text-[10px] text-muted-foreground/50 mt-1 pl-6 capitalize">{s.status}</p>
               </div>
             )
