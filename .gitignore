@@ -14,3 +14,4 @@ models/
 /output/
 uploads/
 .worktrees/
+data/jwt_secret
