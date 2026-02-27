@@ -279,6 +279,25 @@ func (s *Server) collectNewRun(w http.ResponseWriter, r *http.Request) {
 	writeJSONStatus(w, http.StatusAccepted, run)
 }
 
+func (s *Server) cancelNewRun(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	run, err := s.runSvc.GetRun(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err, http.StatusNotFound)
+		return
+	}
+	if run.Status != upal.SessionRunCollecting && run.Status != upal.SessionRunAnalyzing {
+		http.Error(w, "run is not in collecting or analyzing status", http.StatusConflict)
+		return
+	}
+	if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunDraft); err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	run.Status = upal.SessionRunDraft
+	writeJSON(w, run)
+}
+
 func (s *Server) deleteNewRun(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := s.runSvc.DeleteRun(r.Context(), id); err != nil {

@@ -7,7 +7,7 @@ import { EditableName } from '@/shared/ui/EditableName'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
 import type { Run } from '@/entities/session-run'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { collectRun, deleteRun, toggleRunSchedule, updateRunConfig } from '@/entities/session-run/api'
+import { cancelRun, collectRun, deleteRun, toggleRunSchedule, updateRunConfig } from '@/entities/session-run/api'
 
 interface RunCardProps {
   run: Run
@@ -35,6 +35,11 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
   })
 
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelRun(run.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteRun(run.id),
     onSuccess: () => {
@@ -46,6 +51,7 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
 
   const displayName = run.name || runDisplayName(run)
   const isDraft = run.status === 'draft'
+  const isRunning = run.status === 'collecting' || run.status === 'analyzing'
   const hasContent = (run.run_sources?.length ?? 0) > 0 || (run.context?.prompt?.trim() ?? '') !== ''
   const hasSchedule = !!run.schedule
 
@@ -85,6 +91,16 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
               title={hasContent ? 'Start collection' : 'Add sources or a task prompt first'}
             >
               <Play className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {isRunning && (
+            <button
+              onClick={(e) => { e.stopPropagation(); cancelMutation.mutate() }}
+              disabled={cancelMutation.isPending}
+              className="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors cursor-pointer disabled:opacity-50"
+              title="Stop collection"
+            >
+              <Square className="h-3.5 w-3.5" />
             </button>
           )}
           {hasSchedule && !isDraft && (

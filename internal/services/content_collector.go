@@ -1046,6 +1046,11 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 	totalItems := 0
 	var lastFetchErr string
 	for _, mapped := range sources {
+		// Check if run was cancelled before each source fetch.
+		if c.isRunCancelled(ctx, run.ID) {
+			slog.Info("content_collector: run cancelled, stopping collection", "run", run.ID)
+			return
+		}
 		var sessionSrc upal.SessionSource
 		if mapped.pipelineIndex >= 0 {
 			sessionSrc = runSources[mapped.pipelineIndex]
@@ -1076,6 +1081,12 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 		return
 	}
 
+	// Check if run was cancelled before starting analysis.
+	if c.isRunCancelled(ctx, run.ID) {
+		slog.Info("content_collector: run cancelled before analysis", "run", run.ID)
+		return
+	}
+
 	if err := c.runSvc.UpdateRunStatus(ctx, run.ID, upal.SessionRunAnalyzing); err != nil {
 		slog.Warn("content_collector: failed to transition to analyzing", "err", err)
 	}
@@ -1084,9 +1095,24 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 		c.runAnalysisV2(ctx, session, run)
 	}
 
+	// Check if run was cancelled during analysis.
+	if c.isRunCancelled(ctx, run.ID) {
+		slog.Info("content_collector: run cancelled during analysis", "run", run.ID)
+		return
+	}
+
 	if err := c.runSvc.UpdateRunStatus(ctx, run.ID, upal.SessionRunPendingReview); err != nil {
 		slog.Warn("content_collector: failed to transition to pending_review", "err", err)
 	}
+}
+
+// isRunCancelled checks whether the run status has been changed to draft (cancelled).
+func (c *ContentCollector) isRunCancelled(ctx context.Context, runID string) bool {
+	run, err := c.runSvc.GetRun(ctx, runID)
+	if err != nil {
+		return false
+	}
+	return run.Status == upal.SessionRunDraft
 }
 
 func (c *ContentCollector) fetchAndRecordV2(ctx context.Context, runID string, sessionSrc upal.SessionSource, src upal.CollectSource) *upal.SourceFetch {

@@ -109,6 +109,12 @@ export async function collectRun(runId: string): Promise<Run> {
   })
 }
 
+export async function cancelRun(runId: string): Promise<Run> {
+  return apiFetch<Run>(`${RUNS_BASE}/${encodeURIComponent(runId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
 export async function deleteRun(runId: string): Promise<void> {
   await apiFetch(`${RUNS_BASE}/${encodeURIComponent(runId)}`, { method: 'DELETE' })
 }
