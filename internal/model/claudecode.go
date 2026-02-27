@@ -182,11 +182,12 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 
 	if err := cmd.Run(); err != nil {
 		errMsg := stderr.String()
-		if errMsg == "" {
-			errMsg = err.Error()
+		if errMsg != "" {
+			emitLog(ctx, fmt.Sprintf("error: %s", errMsg))
+			return nil, fmt.Errorf("claude-code: %s: %w", errMsg, err)
 		}
-		emitLog(ctx, fmt.Sprintf("error: %s", errMsg))
-		return nil, fmt.Errorf("claude-code: %s", errMsg)
+		emitLog(ctx, fmt.Sprintf("error: %s", err))
+		return nil, fmt.Errorf("claude-code: %w", err)
 	}
 
 	text := strings.TrimSpace(stdout.String())
@@ -378,7 +379,10 @@ func buildUserMessage(contents []*genai.Content) string {
 				}
 			case part.FunctionCall != nil:
 				fc := part.FunctionCall
-				argsJSON, _ := json.Marshal(fc.Args)
+				argsJSON, err := json.Marshal(fc.Args)
+				if err != nil {
+					argsJSON = []byte("{}")
+				}
 				sb.WriteString("[Assistant called tool: ")
 				sb.WriteString(fc.Name)
 				sb.WriteString("]\nArguments: ")
@@ -386,7 +390,10 @@ func buildUserMessage(contents []*genai.Content) string {
 				sb.WriteString("\n\n")
 			case part.FunctionResponse != nil:
 				fr := part.FunctionResponse
-				resultJSON, _ := json.Marshal(fr.Response)
+				resultJSON, err := json.Marshal(fr.Response)
+				if err != nil {
+					resultJSON = []byte("{}")
+				}
 				sb.WriteString("[Tool result: ")
 				sb.WriteString(fr.Name)
 				sb.WriteString("]\n")
