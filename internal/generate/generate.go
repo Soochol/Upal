@@ -18,7 +18,7 @@ import (
 // DefaultLLMFunc resolves the current default LLM dynamically at request time.
 // Called at the start of each generation to pick up runtime changes
 // (e.g. when the user changes the default provider in Settings).
-// Returns an error to fall back to the static default.
+// Returns an error if no default LLM is configured.
 type DefaultLLMFunc func(ctx context.Context) (adkmodel.LLM, string, error)
 
 // Generator converts natural language descriptions into WorkflowDefinitions

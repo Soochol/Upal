@@ -127,20 +127,19 @@ export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPro
         </button>
       </div>
 
-      {expanded && (
-        !hasDefaultLLM ? (
-          <Link
-            to="/settings"
-            className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 flex items-center gap-1 text-[11px] text-warning select-none whitespace-nowrap animate-in fade-in duration-300 hover:underline"
-          >
-            <AlertCircle className="size-3" />
-            Settings에서 기본 LLM을 설정해주세요
-          </Link>
-        ) : (
-          <p className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 text-[11px] text-muted-foreground/40 select-none whitespace-nowrap animate-in fade-in duration-300">
-            Upal can make mistakes, so double-check it
-          </p>
-        )
+      {expanded && !hasDefaultLLM && (
+        <Link
+          to="/settings"
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 flex items-center gap-1 text-[11px] text-warning select-none whitespace-nowrap animate-in fade-in duration-300 hover:underline"
+        >
+          <AlertCircle className="size-3" />
+          Settings에서 기본 LLM을 설정해주세요
+        </Link>
+      )}
+      {expanded && hasDefaultLLM && (
+        <p className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 text-[11px] text-muted-foreground/40 select-none whitespace-nowrap animate-in fade-in duration-300">
+          Upal can make mistakes, so double-check it
+        </p>
       )}
     </div>
   )

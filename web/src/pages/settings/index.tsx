@@ -98,9 +98,9 @@ export default function SettingsPage() {
         try {
             await updateAIProvider(provider.id, { model })
             invalidateModelsCache()
-            fetchProviders()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update model')
+        } finally {
             fetchProviders()
         }
     }
