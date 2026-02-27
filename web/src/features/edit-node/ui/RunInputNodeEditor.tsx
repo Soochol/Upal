@@ -1,7 +1,7 @@
 import type { RunInputNodeConfig } from '@/shared/lib/nodeConfigs'
 import type { NodeEditorFieldProps } from './NodeEditor'
 
-export function RunInputNodeEditor({ }: NodeEditorFieldProps<RunInputNodeConfig>) {
+export function RunInputNodeEditor(_props: NodeEditorFieldProps<RunInputNodeConfig>) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">

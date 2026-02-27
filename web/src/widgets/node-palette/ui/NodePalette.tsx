@@ -14,21 +14,21 @@ interface NodePaletteProps {
 }
 
 const iconColor: Record<string, string> = {
-  '--node-input': 'text-node-input',
-  '--node-run-input': 'text-node-run-input',
-  '--node-agent': 'text-node-agent',
-  '--node-output': 'text-node-output',
-  '--node-tool': 'text-node-tool',
-  '--node-asset': 'text-node-asset',
+  'var(--node-input)': 'text-node-input',
+  'var(--node-run-input)': 'text-node-run-input',
+  'var(--node-agent)': 'text-node-agent',
+  'var(--node-output)': 'text-node-output',
+  'var(--node-tool)': 'text-node-tool',
+  'var(--node-asset)': 'text-node-asset',
 }
 
 const hoverAccent: Record<string, string> = {
-  '--node-input': 'hover:bg-node-input/10',
-  '--node-run-input': 'hover:bg-node-run-input/10',
-  '--node-agent': 'hover:bg-node-agent/10',
-  '--node-output': 'hover:bg-node-output/10',
-  '--node-tool': 'hover:bg-node-tool/10',
-  '--node-asset': 'hover:bg-node-asset/10',
+  'var(--node-input)': 'hover:bg-node-input/10',
+  'var(--node-run-input)': 'hover:bg-node-run-input/10',
+  'var(--node-agent)': 'hover:bg-node-agent/10',
+  'var(--node-output)': 'hover:bg-node-output/10',
+  'var(--node-tool)': 'hover:bg-node-tool/10',
+  'var(--node-asset)': 'hover:bg-node-asset/10',
 }
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {

@@ -812,11 +812,14 @@ func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowD
 		}
 	}
 
-	brief := sb.String()
+	return briefToWorkflowInputs(sb.String(), wf)
+}
 
+// briefToWorkflowInputs routes a brief string to the appropriate workflow input nodes.
+// Prefers run_input nodes when present; falls back to user input nodes for backward compatibility.
+func briefToWorkflowInputs(brief string, wf *upal.WorkflowDefinition) map[string]any {
 	inputs := make(map[string]any)
 
-	// Primary: populate run_input nodes with the brief.
 	runInputs := make(map[string]any)
 	for _, node := range wf.Nodes {
 		if node.Type == upal.NodeTypeRunInput {
@@ -826,12 +829,13 @@ func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowD
 
 	if len(runInputs) > 0 {
 		inputs["__run_inputs__"] = runInputs
-	} else {
-		// Fallback: populate user input nodes (backward compat).
-		for _, node := range wf.Nodes {
-			if node.Type == upal.NodeTypeInput {
-				inputs[node.ID] = brief
-			}
+		return inputs
+	}
+
+	// Fallback: populate user input nodes (backward compat).
+	for _, node := range wf.Nodes {
+		if node.Type == upal.NodeTypeInput {
+			inputs[node.ID] = brief
 		}
 	}
 
@@ -1803,28 +1807,5 @@ func buildProductionInputsV2(analysis *upal.LLMAnalysis, sources []*upal.SourceF
 		sb.WriteString("\n")
 	}
 
-	brief := sb.String()
-
-	inputs := make(map[string]any)
-
-	// Primary: populate run_input nodes with the brief.
-	runInputs := make(map[string]any)
-	for _, node := range wf.Nodes {
-		if node.Type == upal.NodeTypeRunInput {
-			runInputs[node.ID] = brief
-		}
-	}
-
-	if len(runInputs) > 0 {
-		inputs["__run_inputs__"] = runInputs
-	} else {
-		// Fallback: if no run_input node, populate user input nodes (backward compat).
-		for _, node := range wf.Nodes {
-			if node.Type == upal.NodeTypeInput {
-				inputs[node.ID] = brief
-			}
-		}
-	}
-
-	return inputs
+	return briefToWorkflowInputs(sb.String(), wf)
 }
