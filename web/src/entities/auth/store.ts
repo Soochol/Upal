@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { fetchMe, refreshToken, logout as apiLogout, type User } from '@/shared/api/auth'
-import { setTokenGetter } from '@/shared/api/client'
+import { setTokenGetter, setTokenRefreshCallback } from '@/shared/api/client'
 
 interface AuthState {
   user: User | null
@@ -15,6 +15,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => {
   setTokenGetter(() => get().token)
+  setTokenRefreshCallback((token) => set({ token }))
 
   return {
     user: null,

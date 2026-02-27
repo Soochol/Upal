@@ -34,20 +34,37 @@ func (s *Server) listAIProviders(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateAIProvider(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var p upal.AIProvider
-	if !decodeJSON(w, r, &p) {
+	var patch upal.AIProvider
+	if !decodeJSON(w, r, &patch) {
 		return
 	}
-	p.ID = id
-	if err := p.Validate(); err != nil {
+	// Load existing provider and merge non-zero patch fields.
+	existing, err := s.aiProviderSvc.Resolve(r.Context(), id)
+	if err != nil {
+		http.Error(w, "provider not found", http.StatusNotFound)
+		return
+	}
+	if patch.Name != "" {
+		existing.Name = patch.Name
+	}
+	if patch.Model != "" {
+		existing.Model = patch.Model
+	}
+	if patch.APIKey != "" {
+		existing.APIKey = patch.APIKey
+	}
+	if patch.IsDefault {
+		existing.IsDefault = true
+	}
+	if err := existing.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := s.aiProviderSvc.Update(r.Context(), &p); err != nil {
+	if err := s.aiProviderSvc.Update(r.Context(), existing); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, p.Safe())
+	writeJSON(w, existing.Safe())
 }
 
 func (s *Server) deleteAIProvider(w http.ResponseWriter, r *http.Request) {

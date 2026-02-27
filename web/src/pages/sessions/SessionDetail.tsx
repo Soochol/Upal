@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Settings, History } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
-import { fetchSession } from '@/entities/session'
 import { SessionConfigView } from './SessionConfigView'
 import { RunHistoryPanel } from './RunHistoryPanel'
 
@@ -15,12 +13,6 @@ interface SessionDetailProps {
 export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [activeTab, setActiveTab] = useState<Tab>('setup')
 
-  const { data: session } = useQuery({
-    queryKey: ['session', sessionId],
-    queryFn: () => fetchSession(sessionId),
-    enabled: !!sessionId,
-  })
-
   const tabs: { value: Tab; label: string; icon: typeof Settings }[] = [
     { value: 'setup', label: 'Setup', icon: Settings },
     { value: 'runs', label: 'Runs', icon: History },
@@ -30,9 +22,6 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
     <div className="flex flex-col h-full">
       {/* Tab header */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-border/50 bg-background/50 backdrop-blur-md shrink-0">
-        {session && (
-          <h2 className="text-sm font-semibold text-foreground mr-4 truncate">{session.name}</h2>
-        )}
         <div className="flex items-center gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon

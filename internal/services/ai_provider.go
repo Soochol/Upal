@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/soochol/upal/internal/crypto"
 	"github.com/soochol/upal/internal/repository"
@@ -26,7 +27,9 @@ func (s *AIProviderService) Create(ctx context.Context, p *upal.AIProvider) erro
 	// Auto-set as default if no providers exist in this category yet.
 	if !p.IsDefault {
 		existing, err := s.repo.List(ctx)
-		if err == nil {
+		if err != nil {
+			slog.Warn("auto-default: could not check existing providers", "category", p.Category, "err", err)
+		} else {
 			hasCategory := false
 			for _, ep := range existing {
 				if ep.Category == p.Category {

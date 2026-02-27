@@ -99,7 +99,8 @@ export default function SettingsPage() {
             await updateAIProvider(provider.id, { model })
             invalidateModelsCache()
             fetchProviders()
-        } catch {
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update model')
             fetchProviders()
         }
     }
@@ -236,6 +237,10 @@ export default function SettingsPage() {
                                 </div>
                             )
                         })}
+
+                        {error && !addCategory && (
+                            <p className="text-sm text-destructive mt-2">{error}</p>
+                        )}
                     </section>
 
                 </div>
