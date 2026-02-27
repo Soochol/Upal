@@ -23,17 +23,14 @@ func NewRegistry() *ChatRegistry {
 	return &ChatRegistry{tools: make(map[string]*ChatTool)}
 }
 
-// Register adds a chat tool to the registry.
 func (r *ChatRegistry) Register(t *ChatTool) {
 	r.tools[t.Name] = t
 }
 
-// AddRule adds a resolution rule that maps a page+condition to a set of tool names.
 func (r *ChatRegistry) AddRule(rule Rule) {
 	r.rules = append(r.rules, rule)
 }
 
-// Resolve returns the chat tools available for the given page and context.
 func (r *ChatRegistry) Resolve(page string, context map[string]any) []*ChatTool {
 	names := make(map[string]bool)
 	for _, rule := range r.rules {
@@ -56,7 +53,6 @@ func (r *ChatRegistry) Resolve(page string, context map[string]any) []*ChatTool 
 	return result
 }
 
-// ToFunctionDeclarations converts chat tools to genai function declarations for the LLM.
 func ToFunctionDeclarations(chatTools []*ChatTool) []*genai.FunctionDeclaration {
 	decls := make([]*genai.FunctionDeclaration, len(chatTools))
 	for i, t := range chatTools {
@@ -69,7 +65,6 @@ func ToFunctionDeclarations(chatTools []*ChatTool) []*genai.FunctionDeclaration 
 	return decls
 }
 
-// ExecuteToolCall finds and executes a chat tool by name.
 func (r *ChatRegistry) ExecuteToolCall(ctx context.Context, name string, args map[string]any) (any, error) {
 	t, ok := r.tools[name]
 	if !ok {

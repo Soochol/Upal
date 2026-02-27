@@ -8,12 +8,10 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-// WorkflowDeps holds the dependencies needed by workflow chat tools.
 type WorkflowDeps struct {
 	Generator *generate.Generator
 }
 
-// RegisterWorkflowTools registers workflow-related chat tools and rules on the registry.
 func RegisterWorkflowTools(reg *ChatRegistry, deps WorkflowDeps) {
 	registerConfigureNode(reg, deps)
 	registerGenerateWorkflow(reg, deps)
@@ -21,12 +19,10 @@ func RegisterWorkflowTools(reg *ChatRegistry, deps WorkflowDeps) {
 	registerRemoveNode(reg)
 	registerListNodes(reg)
 
-	// Base tools available on any workflows page.
 	reg.AddRule(Rule{
 		Page:  "workflows",
 		Tools: []string{"generate_workflow", "add_node", "remove_node", "list_nodes"},
 	})
-	// Additional tool when a node is selected.
 	reg.AddRule(Rule{
 		Page:      "workflows",
 		Condition: func(ctx map[string]any) bool { _, ok := ctx["selected_node_id"]; return ok },
@@ -34,8 +30,6 @@ func RegisterWorkflowTools(reg *ChatRegistry, deps WorkflowDeps) {
 	})
 }
 
-// registerConfigureNode registers the configure_node tool which configures a
-// selected node using the LLM.
 func registerConfigureNode(reg *ChatRegistry, deps WorkflowDeps) {
 	reg.Register(&ChatTool{
 		Name:        "configure_node",
@@ -71,7 +65,6 @@ func registerConfigureNode(reg *ChatRegistry, deps WorkflowDeps) {
 				Message: message,
 			}
 
-			// Extract node details from chat context.
 			if sel, ok := chatCtx["selected_node"].(map[string]any); ok {
 				input.NodeType, _ = sel["type"].(string)
 				input.Label, _ = sel["label"].(string)
@@ -81,7 +74,6 @@ func registerConfigureNode(reg *ChatRegistry, deps WorkflowDeps) {
 				}
 			}
 
-			// Extract upstream nodes from chat context (JSON-decoded as []any).
 			if rawUpstreams, ok := chatCtx["upstream_nodes"].([]any); ok {
 				for _, item := range rawUpstreams {
 					if m, ok := item.(map[string]any); ok {
@@ -103,8 +95,6 @@ func registerConfigureNode(reg *ChatRegistry, deps WorkflowDeps) {
 	})
 }
 
-// registerGenerateWorkflow registers the generate_workflow tool which generates
-// or edits a workflow from a natural-language description.
 func registerGenerateWorkflow(reg *ChatRegistry, deps WorkflowDeps) {
 	reg.Register(&ChatTool{
 		Name:        "generate_workflow",
@@ -127,7 +117,6 @@ func registerGenerateWorkflow(reg *ChatRegistry, deps WorkflowDeps) {
 
 			chatCtx := GetChatContext(ctx)
 
-			// Extract existing workflow from context for edit mode.
 			var existingWorkflow *upal.WorkflowDefinition
 			if chatCtx != nil {
 				if wf, ok := chatCtx["workflow"].(*upal.WorkflowDefinition); ok {
@@ -144,8 +133,6 @@ func registerGenerateWorkflow(reg *ChatRegistry, deps WorkflowDeps) {
 	})
 }
 
-// registerAddNode registers the add_node tool which returns a node definition
-// for the frontend to place on the canvas.
 func registerAddNode(reg *ChatRegistry) {
 	reg.Register(&ChatTool{
 		Name:        "add_node",
@@ -195,8 +182,6 @@ func registerAddNode(reg *ChatRegistry) {
 	})
 }
 
-// registerRemoveNode registers the remove_node tool which returns the node ID
-// for the frontend to remove from the canvas.
 func registerRemoveNode(reg *ChatRegistry) {
 	reg.Register(&ChatTool{
 		Name:        "remove_node",
@@ -224,8 +209,6 @@ func registerRemoveNode(reg *ChatRegistry) {
 	})
 }
 
-// registerListNodes registers the list_nodes tool which returns the current
-// workflow nodes from the chat context.
 func registerListNodes(reg *ChatRegistry) {
 	reg.Register(&ChatTool{
 		Name:        "list_nodes",
@@ -248,7 +231,6 @@ func registerListNodes(reg *ChatRegistry) {
 	})
 }
 
-// stringFromMap safely extracts a string value from a map.
 func stringFromMap(m map[string]any, key string) string {
 	v, _ := m[key].(string)
 	return v

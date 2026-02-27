@@ -14,15 +14,11 @@ import (
 	"google.golang.org/genai"
 )
 
-// --- mocks ---
-
-// mockSkillsProvider satisfies skills.Provider for testing.
 type mockSkillsProvider struct{}
 
 func (m *mockSkillsProvider) Get(name string) string      { return "" }
 func (m *mockSkillsProvider) GetPrompt(name string) string { return "You are a test assistant." }
 
-// mockLLM satisfies adkmodel.LLM, returning pre-configured responses per turn.
 type mockLLM struct {
 	responses []*adkmodel.LLMResponse
 	callIndex int
@@ -40,13 +36,11 @@ func (m *mockLLM) GenerateContent(_ context.Context, _ *adkmodel.LLMRequest, _ b
 	}
 }
 
-// sseEvent represents a parsed SSE event.
 type sseEvent struct {
 	Event string
 	Data  string
 }
 
-// parseSSEEvents splits an SSE body into individual events.
 func parseSSEEvents(body string) []sseEvent {
 	var events []sseEvent
 	blocks := strings.Split(body, "\n\n")
@@ -62,8 +56,7 @@ func parseSSEEvents(body string) []sseEvent {
 			} else if strings.HasPrefix(line, "data: ") {
 				ev.Data = strings.TrimPrefix(line, "data: ")
 			}
-			// id: lines are parsed but not stored — tests don't assert on them.
-		}
+			}
 		if ev.Event != "" || ev.Data != "" {
 			events = append(events, ev)
 		}
@@ -71,7 +64,6 @@ func parseSSEEvents(body string) []sseEvent {
 	return events
 }
 
-// newTestHandler creates a Handler with the given mock LLM.
 func newTestHandler(llm adkmodel.LLM, registry *ChatRegistry) *Handler {
 	if registry == nil {
 		registry = NewRegistry()
@@ -86,7 +78,6 @@ func newTestHandler(llm adkmodel.LLM, registry *ChatRegistry) *Handler {
 	)
 }
 
-// postChat sends a POST request with the given ChatRequest body.
 func postChat(handler *Handler, req ChatRequest) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(req)
 	r := httptest.NewRequest(http.MethodPost, "/api/chat", bytes.NewReader(body))
@@ -95,8 +86,6 @@ func postChat(handler *Handler, req ChatRequest) *httptest.ResponseRecorder {
 	handler.ServeHTTP(w, r)
 	return w
 }
-
-// --- tests ---
 
 func TestHandler_MissingMessage(t *testing.T) {
 	handler := newTestHandler(&mockLLM{}, nil)
@@ -165,7 +154,6 @@ func TestHandler_TextResponse(t *testing.T) {
 
 	events := parseSSEEvents(w.Body.String())
 
-	// Expect text_delta and done events.
 	var hasTextDelta, hasDone bool
 	for _, ev := range events {
 		switch ev.Event {
@@ -344,7 +332,6 @@ func TestHandler_HistoryIsPassedToLLM(t *testing.T) {
 	}
 }
 
-// capturingLLM captures the request and returns a fixed response.
 type capturingLLM struct {
 	response *adkmodel.LLMResponse
 	onCall   func(req *adkmodel.LLMRequest)

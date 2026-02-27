@@ -2,8 +2,6 @@ import { create } from 'zustand'
 import { API_BASE, tryRefresh } from '@/shared/api/client'
 import { useAuthStore } from '@/entities/auth/store'
 
-// Types
-
 export type ChatContext = {
   page: string
   context: Record<string, unknown>
@@ -32,10 +30,8 @@ type ChatBarState = {
   messages: ChatMessage[]
   chatContext: ChatContext | null
 
-  // Draggable position (null = default center)
   position: { x: number; y: number } | null
 
-  // Actions
   registerContext: (ctx: ChatContext) => void
   unregisterContext: () => void
   open: () => void
@@ -181,7 +177,7 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
             const dataStr = trimmedLine.slice(6)
             try {
               const data = JSON.parse(dataStr)
-              handleSSEEvent(currentEvent, data, get, set, chatContext)
+              handleSSEEvent(currentEvent, data, set, chatContext)
             } catch {
               // Non-JSON data line, skip
             }
@@ -210,7 +206,6 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
 function handleSSEEvent(
   eventType: string,
   data: Record<string, unknown>,
-  _get: () => ChatBarState,
   set: (updater: Partial<ChatBarState> | ((s: ChatBarState) => Partial<ChatBarState>)) => void,
   capturedContext: ChatContext | null,
 ) {

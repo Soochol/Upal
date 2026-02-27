@@ -30,23 +30,19 @@ export function GlobalChatBar() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Drag state
   const isDraggingRef = useRef(false)
   const dragOffsetRef = useRef({ x: 0, y: 0 })
 
-  // Auto-scroll to latest message
   useEffect(() => {
     if (scrollRef.current && isOpen) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isLoading, isOpen])
 
-  // Focus input when opened
   useEffect(() => {
     if (isOpen) inputRef.current?.focus()
   }, [isOpen])
 
-  // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (isOpen && containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -57,7 +53,6 @@ export function GlobalChatBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, close])
 
-  // Drag handlers
   const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -74,15 +69,20 @@ export function GlobalChatBar() {
   }, [])
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    function clampedPosition(e: MouseEvent) {
+      const maxX = window.innerWidth - 200
+      const maxY = window.innerHeight - 60
+      return {
+        x: Math.max(0, Math.min(maxX, e.clientX - dragOffsetRef.current.x)),
+        y: Math.max(0, Math.min(maxY, e.clientY - dragOffsetRef.current.y)),
+      }
+    }
+
+    function handleMouseMove(e: MouseEvent) {
       if (!isDraggingRef.current) return
       e.preventDefault()
 
-      const maxX = window.innerWidth - 200
-      const maxY = window.innerHeight - 60
-      const x = Math.max(0, Math.min(maxX, e.clientX - dragOffsetRef.current.x))
-      const y = Math.max(0, Math.min(maxY, e.clientY - dragOffsetRef.current.y))
-
+      const { x, y } = clampedPosition(e)
       const container = containerRef.current
       if (container) {
         container.style.left = `${x}px`
@@ -91,16 +91,10 @@ export function GlobalChatBar() {
       }
     }
 
-    const handleMouseUp = (e: MouseEvent) => {
+    function handleMouseUp(e: MouseEvent) {
       if (!isDraggingRef.current) return
       isDraggingRef.current = false
-
-      const maxX = window.innerWidth - 200
-      const maxY = window.innerHeight - 60
-      const x = Math.max(0, Math.min(maxX, e.clientX - dragOffsetRef.current.x))
-      const y = Math.max(0, Math.min(maxY, e.clientY - dragOffsetRef.current.y))
-
-      setPosition({ x, y })
+      setPosition(clampedPosition(e))
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -132,7 +126,6 @@ export function GlobalChatBar() {
     [handleSubmit, close],
   )
 
-  // Don't render if no context registered
   if (!chatContext) return null
 
   const showMessages = isOpen && messages.length > 0

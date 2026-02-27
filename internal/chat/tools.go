@@ -2,7 +2,6 @@ package chat
 
 import "context"
 
-// ChatTool defines an action the chat LLM can invoke via tool calls.
 type ChatTool struct {
 	Name        string
 	Description string

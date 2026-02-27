@@ -107,13 +107,15 @@ export default function WorkflowsPage() {
       applyResult: (toolName: string, result: unknown) => {
         const r = result as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
         switch (toolName) {
-          case 'configure_node':
+          case 'configure_node': {
+            const nodeId = (r.node_id || selectedNodeId) as string
             if (r.config && Object.keys(r.config).length > 0) {
-              updateNodeConfig(r.node_id || selectedNodeId, r.config)
+              updateNodeConfig(nodeId, r.config)
             }
-            if (r.label) updateNodeLabel(r.node_id || selectedNodeId, r.label)
-            if (r.description) updateNodeDescription(r.node_id || selectedNodeId, r.description)
+            if (r.label) updateNodeLabel(nodeId, r.label)
+            if (r.description) updateNodeDescription(nodeId, r.description)
             break
+          }
           case 'generate_workflow':
             if (r.nodes && Array.isArray(r.nodes)) {
               const { nodes: newNodes, edges: newEdges } = deserializeWorkflow(r as WorkflowDefinition)
