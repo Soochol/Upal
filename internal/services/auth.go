@@ -54,9 +54,15 @@ func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) 
 
 func loadOrCreateJWTSecret(path string) string {
 	data, err := os.ReadFile(path)
-	if err == nil && len(strings.TrimSpace(string(data))) > 0 {
-		slog.Info("loaded JWT secret from file", "path", path)
-		return strings.TrimSpace(string(data))
+	if err == nil {
+		secret := strings.TrimSpace(string(data))
+		if len(secret) >= 32 {
+			slog.Info("loaded JWT secret from file", "path", path)
+			return secret
+		}
+		if len(secret) > 0 {
+			slog.Warn("JWT secret too short, generating new one", "path", path, "length", len(secret))
+		}
 	}
 
 	b := make([]byte, 32)
@@ -402,7 +408,9 @@ func (s *AuthService) RotateRefreshToken(ctx context.Context, refreshTokenStr, d
 
 	// Token reuse detection: if already revoked, revoke entire family
 	if stored.RevokedAt != nil {
-		_ = s.database.RevokeAllRefreshTokens(ctx, stored.UserID)
+		if err := s.database.RevokeAllRefreshTokens(ctx, stored.UserID); err != nil {
+			slog.Error("family revocation failed", "user", stored.UserID, "err", err)
+		}
 		return "", "", fmt.Errorf("refresh token reuse detected")
 	}
 
@@ -445,7 +453,9 @@ func (s *AuthService) RevokeUserRefreshToken(refreshTokenStr string) error {
 	if s.database == nil || claims.JTI == "" {
 		return nil
 	}
-	_ = s.database.RevokeRefreshToken(context.Background(), claims.JTI, "")
+	if err := s.database.RevokeRefreshToken(context.Background(), claims.JTI, ""); err != nil {
+		slog.Warn("failed to revoke refresh token on logout", "jti", claims.JTI, "err", err)
+	}
 	return nil
 }
 

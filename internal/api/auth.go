@@ -27,6 +27,7 @@ func setRefreshTokenCookie(w http.ResponseWriter, value string) {
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
 	})
@@ -131,14 +132,14 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie("refresh_token")
 	if err != nil || cookie.Value == "" {
-		http.Error(w, `{"error":"missing refresh token"}`, http.StatusUnauthorized)
+		http.Error(w, "missing refresh token", http.StatusUnauthorized)
 		return
 	}
 
 	accessToken, refreshToken, err := s.authSvc.RotateRefreshToken(r.Context(), cookie.Value, r.UserAgent())
 	if err != nil {
 		slog.Warn("refresh token rotation failed", "err", err)
-		http.Error(w, `{"error":"invalid refresh token"}`, http.StatusUnauthorized)
+		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
@@ -148,7 +149,9 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
-		_ = s.authSvc.RevokeUserRefreshToken(cookie.Value)
+		if err := s.authSvc.RevokeUserRefreshToken(cookie.Value); err != nil {
+			slog.Warn("logout token revocation failed", "err", err)
+		}
 	}
 	setRefreshTokenCookie(w, "")
 	w.WriteHeader(http.StatusNoContent)
