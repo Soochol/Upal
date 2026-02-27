@@ -304,43 +304,7 @@ func (g *Generator) generatePipelineCreate(ctx context.Context, description stri
 		}
 	}
 
-	// Phase 2: generate workflows for specs that don't already exist.
-	newSpecs := make([]WorkflowSpec, 0, len(bundle.WorkflowSpecs))
-	for _, spec := range bundle.WorkflowSpecs {
-		if !existingNames[spec.Name] && spec.Name != "" && spec.Description != "" {
-			newSpecs = append(newSpecs, spec)
-		}
-	}
-
-	if len(newSpecs) > 0 {
-		type result struct {
-			wf  *upal.WorkflowDefinition
-			err error
-		}
-		results := make([]result, len(newSpecs))
-		var wg sync.WaitGroup
-
-		for i, spec := range newSpecs {
-			wg.Add(1)
-			go func(i int, spec WorkflowSpec) {
-				defer wg.Done()
-				wf, err := g.Generate(ctx, spec.Description, nil, availableWorkflows)
-				results[i] = result{wf: wf, err: err}
-			}(i, spec)
-		}
-		wg.Wait()
-
-		for i, res := range results {
-			if res.err != nil {
-				// Non-fatal: skip failed workflow; pipeline stage will reference a missing workflow.
-				continue
-			}
-			// Enforce the name from Phase 1 spec — Generate() may have chosen a different name.
-			res.wf.Name = newSpecs[i].Name
-			bundle.Workflows = append(bundle.Workflows, *res.wf)
-		}
-	}
-
+	bundle.Workflows = g.generateWorkflowsForSpecs(ctx, bundle.WorkflowSpecs, existingNames, availableWorkflows)
 	return &bundle, nil
 }
 
@@ -411,44 +375,49 @@ func (g *Generator) generatePipelineEdit(ctx context.Context, description string
 		}
 	}
 
-	// Phase 2: generate workflows for specs that don't already exist.
-	if len(delta.WorkflowSpecs) > 0 {
-		existingNames := workflowNameSet(availableWorkflows)
-		type result struct {
-			wf  *upal.WorkflowDefinition
-			err error
-		}
-		newSpecs := make([]WorkflowSpec, 0, len(delta.WorkflowSpecs))
-		for _, spec := range delta.WorkflowSpecs {
-			if !existingNames[spec.Name] && spec.Name != "" && spec.Description != "" {
-				newSpecs = append(newSpecs, spec)
-			}
-		}
-		if len(newSpecs) > 0 {
-			results := make([]result, len(newSpecs))
-			var wg sync.WaitGroup
-			for i, spec := range newSpecs {
-				wg.Add(1)
-				go func(i int, spec WorkflowSpec) {
-					defer wg.Done()
-					wf, err := g.Generate(ctx, spec.Description, nil, availableWorkflows)
-					results[i] = result{wf: wf, err: err}
-				}(i, spec)
-			}
-			wg.Wait()
-			var generatedWorkflows []upal.WorkflowDefinition
-			for i, res := range results {
-				if res.err != nil {
-					continue
-				}
-				res.wf.Name = newSpecs[i].Name
-				generatedWorkflows = append(generatedWorkflows, *res.wf)
-			}
-			return &PipelineBundle{Pipeline: *merged, Workflows: generatedWorkflows}, nil
+	existingNames := workflowNameSet(availableWorkflows)
+	workflows := g.generateWorkflowsForSpecs(ctx, delta.WorkflowSpecs, existingNames, availableWorkflows)
+	return &PipelineBundle{Pipeline: *merged, Workflows: workflows}, nil
+}
+
+// generateWorkflowsForSpecs runs Phase 2 of pipeline generation: for each workflow spec
+// that doesn't already exist, it calls Generate() in parallel and enforces the spec name.
+func (g *Generator) generateWorkflowsForSpecs(ctx context.Context, specs []WorkflowSpec, existingNames map[string]bool, availableWorkflows []WorkflowSummary) []upal.WorkflowDefinition {
+	newSpecs := make([]WorkflowSpec, 0, len(specs))
+	for _, spec := range specs {
+		if !existingNames[spec.Name] && spec.Name != "" && spec.Description != "" {
+			newSpecs = append(newSpecs, spec)
 		}
 	}
+	if len(newSpecs) == 0 {
+		return nil
+	}
 
-	return &PipelineBundle{Pipeline: *merged}, nil
+	type result struct {
+		wf  *upal.WorkflowDefinition
+		err error
+	}
+	results := make([]result, len(newSpecs))
+	var wg sync.WaitGroup
+	for i, spec := range newSpecs {
+		wg.Add(1)
+		go func(i int, spec WorkflowSpec) {
+			defer wg.Done()
+			wf, err := g.Generate(ctx, spec.Description, nil, availableWorkflows)
+			results[i] = result{wf: wf, err: err}
+		}(i, spec)
+	}
+	wg.Wait()
+
+	var workflows []upal.WorkflowDefinition
+	for i, res := range results {
+		if res.err != nil {
+			continue
+		}
+		res.wf.Name = newSpecs[i].Name
+		workflows = append(workflows, *res.wf)
+	}
+	return workflows
 }
 
 // buildPipelineSysPrompt constructs the system prompt from a base prompt,
