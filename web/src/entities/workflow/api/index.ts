@@ -42,11 +42,9 @@ export async function listWorkflows(): Promise<WorkflowDefinition[]> {
 
 export async function generateWorkflow(
   description: string,
-  model?: string,
   existingWorkflow?: WorkflowDefinition,
 ): Promise<{ generation_id: string }> {
   const body: Record<string, unknown> = { description }
-  if (model) body.model = model
   if (existingWorkflow) body.existing_workflow = existingWorkflow
   return apiFetch<{ generation_id: string }>(`${API_BASE}/generate`, {
     method: 'POST',

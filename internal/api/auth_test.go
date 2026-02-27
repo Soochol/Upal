@@ -429,7 +429,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	authSvc := newTestAuthService()
 	testUser := &upal.User{ID: "user-42", Email: "test@example.com", Name: "Test"}
-	accessToken, _, err := authSvc.GenerateTokens(testUser)
+	accessToken, _, err := authSvc.GenerateTokens(context.Background(), testUser, "")
 	if err != nil {
 		t.Fatalf("GenerateTokens: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestAuthService_TokenRoundTrip(t *testing.T) {
 	authSvc := newTestAuthService()
 	user := &upal.User{ID: "user-99", Email: "user@test.com"}
 
-	accessToken, refreshToken, err := authSvc.GenerateTokens(user)
+	accessToken, refreshToken, err := authSvc.GenerateTokens(context.Background(), user, "")
 	if err != nil {
 		t.Fatalf("GenerateTokens: %v", err)
 	}
@@ -474,12 +474,12 @@ func TestAuthService_TokenRoundTrip(t *testing.T) {
 	}
 
 	// Validate refresh token
-	userID, err = authSvc.ValidateRefreshToken(refreshToken)
+	refreshClaims, err := authSvc.ValidateRefreshToken(refreshToken)
 	if err != nil {
 		t.Fatalf("ValidateRefreshToken: %v", err)
 	}
-	if userID != "user-99" {
-		t.Errorf("refresh token userID: got %q, want %q", userID, "user-99")
+	if refreshClaims.UserID != "user-99" {
+		t.Errorf("refresh token userID: got %q, want %q", refreshClaims.UserID, "user-99")
 	}
 
 	// Access token should NOT validate as refresh
@@ -532,7 +532,7 @@ func TestAuth_ProtectedRouteWithToken(t *testing.T) {
 	srv.authSvc = newTestAuthService()
 
 	testUser := &upal.User{ID: "user-1", Email: "test@test.com"}
-	accessToken, _, err := srv.authSvc.GenerateTokens(testUser)
+	accessToken, _, err := srv.authSvc.GenerateTokens(context.Background(), testUser, "")
 	if err != nil {
 		t.Fatalf("GenerateTokens: %v", err)
 	}

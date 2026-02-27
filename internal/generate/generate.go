@@ -21,6 +21,11 @@ import (
 // Returns an error if no default LLM is configured.
 type DefaultLLMFunc func(ctx context.Context) (adkmodel.LLM, string, error)
 
+// ModelsFunc resolves the current available models dynamically at request time.
+// Called at the start of each generation to pick up provider changes
+// (e.g. when the user adds/removes providers in Settings).
+type ModelsFunc func(ctx context.Context) []upal.ModelSummary
+
 // Generator converts natural language descriptions into WorkflowDefinitions
 // and handles LLM-based configuration of nodes and pipelines.
 type Generator struct {
@@ -29,29 +34,24 @@ type Generator struct {
 	skills         skills.Provider
 	toolInfos      []upal.ToolSummary  // available tools with names and descriptions
 	models         []upal.ModelSummary // available models with category/tier metadata
-	defaultModelID string              // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
 	llmResolver    ports.LLMResolver   // resolves "provider/model" → LLM instance (optional)
 	defaultLLMFunc DefaultLLMFunc      // dynamic default resolver (optional)
+	modelsFunc     ModelsFunc          // dynamic models resolver (optional)
 }
 
 // New creates a Generator that uses the given LLM and model name.
-// toolNames lists the names of tools registered in the tool registry;
-// these are injected into the generation prompt so the LLM only references real tools.
-// models lists the available models with category/tier/hint metadata;
-// these are injected so the LLM selects the right model for each node's purpose.
+// toolInfos lists tools registered in the tool registry (injected into the generation
+// prompt so the LLM only references real tools). models lists available models with
+// category/tier/hint metadata (injected so the LLM selects the right model for each
+// node's purpose). Both serve as static fallbacks when dynamic resolvers are not set.
 func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos []upal.ToolSummary, models []upal.ModelSummary) *Generator {
-	// Resolve the full provider-prefixed model ID once at construction time.
-	defaultModelID := ""
-	for _, m := range models {
-		if _, after, ok := strings.Cut(m.ID, "/"); ok && after == model {
-			defaultModelID = m.ID
-			break
-		}
+	return &Generator{
+		llm:       llm,
+		model:     model,
+		skills:    skillsProv,
+		toolInfos: toolInfos,
+		models:    models,
 	}
-	if defaultModelID == "" && len(models) > 0 {
-		defaultModelID = models[0].ID
-	}
-	return &Generator{llm: llm, model: model, skills: skillsProv, toolInfos: toolInfos, models: models, defaultModelID: defaultModelID}
 }
 
 // SetLLMResolver sets the resolver used for per-request model overrides.
@@ -64,6 +64,35 @@ func (g *Generator) SetLLMResolver(r ports.LLMResolver) {
 // the default provider in Settings, without requiring a server restart.
 func (g *Generator) SetDefaultLLMFunc(fn DefaultLLMFunc) {
 	g.defaultLLMFunc = fn
+}
+
+// SetModelsFunc sets a function that dynamically resolves the available models.
+// This allows the generator to pick up provider changes without requiring a server restart.
+func (g *Generator) SetModelsFunc(fn ModelsFunc) {
+	g.modelsFunc = fn
+}
+
+// currentModels returns the current available models.
+// Resolves dynamically from the configured ModelsFunc if set, otherwise falls back to the static list.
+func (g *Generator) currentModels(ctx context.Context) []upal.ModelSummary {
+	if g.modelsFunc != nil {
+		return g.modelsFunc(ctx)
+	}
+	return g.models
+}
+
+// resolveDefaultModelID finds the provider-prefixed model ID that matches modelName
+// from the given models list. Falls back to the first model if no match.
+func resolveDefaultModelID(models []upal.ModelSummary, modelName string) string {
+	for _, m := range models {
+		if _, after, ok := strings.Cut(m.ID, "/"); ok && after == modelName {
+			return m.ID
+		}
+	}
+	if len(models) > 0 {
+		return models[0].ID
+	}
+	return ""
 }
 
 // currentDefault returns the current default LLM and model name.
@@ -154,9 +183,14 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 		sysPrompt += formatWorkflowList(availableWorkflows)
 	}
 
+	// Resolve models dynamically to pick up provider changes.
+	models := g.currentModels(ctx)
+	_, modelName, _ := g.currentDefault(ctx)
+	defaultModelID := resolveDefaultModelID(models, modelName)
+
 	// Inject available models grouped by category.
-	if len(g.models) > 0 {
-		sysPrompt += g.buildModelPrompt()
+	if len(models) > 0 {
+		sysPrompt += buildModelPrompt(models, defaultModelID)
 	}
 
 	// Inject available tools so the LLM only references real tools.
@@ -204,7 +238,7 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 	g.stripInvalidTools(&wf)
 
 	// Replace invalid model IDs with the default model.
-	g.fixInvalidModels(&wf)
+	fixInvalidModels(&wf, models, defaultModelID)
 
 	return &wf, nil
 }
@@ -326,14 +360,14 @@ func (g *Generator) stripInvalidTools(wf *upal.WorkflowDefinition) {
 }
 
 // buildModelPrompt creates a categorized model list for the system prompt.
-func (g *Generator) buildModelPrompt() string {
+func buildModelPrompt(models []upal.ModelSummary, defaultModelID string) string {
 	groups := map[string][]upal.ModelSummary{}
-	for _, m := range g.models {
+	for _, m := range models {
 		groups[m.Category] = append(groups[m.Category], m)
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n\nAvailable models for agent nodes and HTML-format output nodes (use in config \"model\" field):\nDefault model: %q\n", g.model)
+	fmt.Fprintf(&b, "\n\nAvailable models for agent nodes and HTML-format output nodes (use in config \"model\" field):\nDefault model: %q\n", defaultModelID)
 
 	if text := groups["text"]; len(text) > 0 {
 		b.WriteString("\nText/reasoning models — use for analysis, generation, conversation, tool-use, and any task that processes or produces text:\n")
@@ -367,27 +401,14 @@ MODEL SELECTION RULES:
 }
 
 // fixInvalidModels replaces model IDs that don't exist in the available models
-// with the generator's default model. This mirrors stripInvalidTools for models.
-func (g *Generator) fixInvalidModels(wf *upal.WorkflowDefinition) {
-	if len(g.models) == 0 {
+// with the given default model ID. This mirrors stripInvalidTools for models.
+func fixInvalidModels(wf *upal.WorkflowDefinition, models []upal.ModelSummary, defaultID string) {
+	if len(models) == 0 {
 		return
 	}
-	valid := make(map[string]bool, len(g.models))
-	for _, m := range g.models {
+	valid := make(map[string]bool, len(models))
+	for _, m := range models {
 		valid[m.ID] = true
-	}
-	// Use pre-computed default; fall back to inline resolution for direct struct construction (tests).
-	defaultID := g.defaultModelID
-	if defaultID == "" {
-		for _, m := range g.models {
-			if _, after, ok := strings.Cut(m.ID, "/"); ok && after == g.model {
-				defaultID = m.ID
-				break
-			}
-		}
-		if defaultID == "" {
-			defaultID = g.models[0].ID
-		}
 	}
 	for i, n := range wf.Nodes {
 		switch n.Type {

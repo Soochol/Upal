@@ -95,7 +95,7 @@ func (g *Generator) ConfigureNode(ctx context.Context, in ConfigureNodeInput) (*
 		}
 	}
 
-	sysPrompt += g.buildModelCatalog(modelName)
+	sysPrompt += g.buildModelCatalog(ctx, modelName)
 	sysPrompt += "\nIMPORTANT: ONLY use models from this list. Match model category to the node's purpose."
 
 	var out ConfigureNodeOutput
@@ -211,7 +211,7 @@ func (g *Generator) ConfigurePipeline(ctx context.Context, in ConfigurePipelineI
 		}
 	}
 
-	sysPrompt += g.buildModelCatalog(modelName)
+	sysPrompt += g.buildModelCatalog(ctx, modelName)
 
 	// Inject available workflows so the LLM can reference real workflow names.
 	if len(in.AvailableWorkflows) > 0 {
@@ -251,13 +251,14 @@ func buildChatHistory(history []ChatMessage) []*genai.Content {
 // buildModelCatalog appends a compact model catalog to configure system prompts.
 // Unlike buildModelPrompt (used in generation), this omits TTS/image model selection
 // rules since configure only needs the model ID list for field assignment.
-func (g *Generator) buildModelCatalog(modelName string) string {
-	if len(g.models) == 0 {
+func (g *Generator) buildModelCatalog(ctx context.Context, modelName string) string {
+	models := g.currentModels(ctx)
+	if len(models) == 0 {
 		return ""
 	}
 
 	groups := map[string][]upal.ModelSummary{}
-	for _, m := range g.models {
+	for _, m := range models {
 		groups[m.Category] = append(groups[m.Category], m)
 	}
 

@@ -6,7 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,9 +23,14 @@ import (
 )
 
 const (
-	accessTokenTTL  = 30 * time.Minute
-	refreshTokenTTL = 7 * 24 * time.Hour
+	accessTokenTTL  = 1 * time.Hour
+	refreshTokenTTL = 30 * 24 * time.Hour
 )
+
+type tokenClaims struct {
+	UserID string
+	JTI    string
+}
 
 type AuthService struct {
 	database  *db.DB
@@ -33,11 +42,7 @@ type AuthService struct {
 func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) *AuthService {
 	secret := authCfg.JWTSecret
 	if secret == "" {
-		b := make([]byte, 32)
-		if _, err := rand.Read(b); err != nil {
-			panic(fmt.Sprintf("crypto/rand failed: %v", err))
-		}
-		secret = hex.EncodeToString(b)
+		secret = loadOrCreateJWTSecret("data/jwt_secret")
 	}
 	return &AuthService{
 		database:  database,
@@ -45,6 +50,37 @@ func NewAuthService(database *db.DB, authCfg config.AuthConfig, baseURL string) 
 		baseURL:   baseURL,
 		jwtSecret: []byte(secret),
 	}
+}
+
+func loadOrCreateJWTSecret(path string) string {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		secret := strings.TrimSpace(string(data))
+		if len(secret) >= 32 {
+			slog.Info("loaded JWT secret from file", "path", path)
+			return secret
+		}
+		if len(secret) > 0 {
+			slog.Warn("JWT secret too short, generating new one", "path", path, "length", len(secret))
+		}
+	}
+
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("crypto/rand failed: %v", err))
+	}
+	secret := hex.EncodeToString(b)
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		slog.Warn("cannot create directory for JWT secret", "path", path, "err", err)
+		return secret
+	}
+	if err := os.WriteFile(path, []byte(secret+"\n"), 0o600); err != nil {
+		slog.Warn("cannot persist JWT secret", "path", path, "err", err)
+	} else {
+		slog.Info("generated and persisted new JWT secret", "path", path)
+	}
+	return secret
 }
 
 func (s *AuthService) Enabled() bool {
@@ -243,25 +279,45 @@ func (s *AuthService) fetchGitHubPrimaryEmail(ctx context.Context, accessToken s
 	return "", fmt.Errorf("no email found")
 }
 
-func (s *AuthService) GenerateTokens(user *upal.User) (access, refresh string, err error) {
-	access, err = s.signToken(user.ID, "access", accessTokenTTL)
+func (s *AuthService) GenerateTokens(ctx context.Context, user *upal.User, deviceInfo string) (access, refresh string, err error) {
+	access, err = s.signToken(user.ID, "access", "", accessTokenTTL)
 	if err != nil {
 		return "", "", err
 	}
-	refresh, err = s.signToken(user.ID, "refresh", refreshTokenTTL)
+
+	jti := upal.GenerateID("rt")
+	refresh, err = s.signToken(user.ID, "refresh", jti, refreshTokenTTL)
 	if err != nil {
 		return "", "", err
 	}
+
+	if s.database != nil {
+		now := time.Now()
+		if dbErr := s.database.CreateRefreshToken(ctx, &db.RefreshToken{
+			ID:         jti,
+			UserID:     user.ID,
+			TokenHash:  db.HashToken(refresh),
+			DeviceInfo: deviceInfo,
+			CreatedAt:  now,
+			ExpiresAt:  now.Add(refreshTokenTTL),
+		}); dbErr != nil {
+			return "", "", fmt.Errorf("store refresh token: %w", dbErr)
+		}
+	}
+
 	return access, refresh, nil
 }
 
-func (s *AuthService) signToken(userID, tokenType string, ttl time.Duration) (string, error) {
+func (s *AuthService) signToken(userID, tokenType, jti string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"sub":  userID,
 		"type": tokenType,
 		"iat":  now.Unix(),
 		"exp":  now.Add(ttl).Unix(),
+	}
+	if jti != "" {
+		claims["jti"] = jti
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
 	if err != nil {
@@ -271,14 +327,18 @@ func (s *AuthService) signToken(userID, tokenType string, ttl time.Duration) (st
 }
 
 func (s *AuthService) ValidateAccessToken(tokenStr string) (string, error) {
-	return s.validateToken(tokenStr, "access")
+	claims, err := s.validateToken(tokenStr, "access")
+	if err != nil {
+		return "", err
+	}
+	return claims.UserID, nil
 }
 
-func (s *AuthService) ValidateRefreshToken(tokenStr string) (string, error) {
+func (s *AuthService) ValidateRefreshToken(tokenStr string) (*tokenClaims, error) {
 	return s.validateToken(tokenStr, "refresh")
 }
 
-func (s *AuthService) validateToken(tokenStr, expectedType string) (string, error) {
+func (s *AuthService) validateToken(tokenStr, expectedType string) (*tokenClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -286,25 +346,27 @@ func (s *AuthService) validateToken(tokenStr, expectedType string) (string, erro
 		return s.jwtSecret, nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("parse token: %w", err)
+		return nil, fmt.Errorf("parse token: %w", err)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return "", fmt.Errorf("invalid token")
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	tokenType, _ := claims["type"].(string)
 	if tokenType != expectedType {
-		return "", fmt.Errorf("invalid token type: expected %s, got %s", expectedType, tokenType)
+		return nil, fmt.Errorf("invalid token type: expected %s, got %s", expectedType, tokenType)
 	}
 
 	userID, _ := claims["sub"].(string)
 	if userID == "" {
-		return "", fmt.Errorf("missing user ID in token")
+		return nil, fmt.Errorf("missing user ID in token")
 	}
 
-	return userID, nil
+	jti, _ := claims["jti"].(string)
+
+	return &tokenClaims{UserID: userID, JTI: jti}, nil
 }
 
 func (s *AuthService) GetUser(ctx context.Context, id string) (*upal.User, error) {
@@ -316,4 +378,107 @@ func (s *AuthService) GetUser(ctx context.Context, id string) (*upal.User, error
 		return nil, fmt.Errorf("user not found: %s", id)
 	}
 	return user, nil
+}
+
+// RotateRefreshToken validates the old refresh token, revokes it, and issues a new token pair.
+// If a revoked token is reused, all tokens for the user are revoked (family revocation).
+func (s *AuthService) RotateRefreshToken(ctx context.Context, refreshTokenStr, deviceInfo string) (string, string, error) {
+	claims, err := s.ValidateRefreshToken(refreshTokenStr)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// No DB — fall back to simple JWT-only validation (backward compat for tests)
+	if s.database == nil {
+		user := &upal.User{ID: claims.UserID}
+		return s.GenerateTokens(ctx, user, deviceInfo)
+	}
+
+	if claims.JTI == "" {
+		return "", "", fmt.Errorf("missing jti in refresh token")
+	}
+
+	stored, err := s.database.GetRefreshToken(ctx, claims.JTI)
+	if err != nil {
+		return "", "", fmt.Errorf("lookup refresh token: %w", err)
+	}
+	if stored == nil {
+		return "", "", fmt.Errorf("refresh token not found")
+	}
+
+	// Token reuse detection: if already revoked, revoke entire family
+	if stored.RevokedAt != nil {
+		if err := s.database.RevokeAllRefreshTokens(ctx, stored.UserID); err != nil {
+			slog.Error("family revocation failed", "user", stored.UserID, "err", err)
+		}
+		return "", "", fmt.Errorf("refresh token reuse detected")
+	}
+
+	// Verify hash matches
+	if db.HashToken(refreshTokenStr) != stored.TokenHash {
+		return "", "", fmt.Errorf("refresh token hash mismatch")
+	}
+
+	// Get user and generate new token pair
+	user, err := s.GetUser(ctx, stored.UserID)
+	if err != nil {
+		return "", "", fmt.Errorf("get user for rotation: %w", err)
+	}
+
+	newAccess, newRefresh, err := s.GenerateTokens(ctx, user, deviceInfo)
+	if err != nil {
+		return "", "", fmt.Errorf("generate rotated tokens: %w", err)
+	}
+
+	// Extract new JTI from the new refresh token to record as replacement
+	newClaims, err := s.ValidateRefreshToken(newRefresh)
+	if err != nil {
+		return "", "", fmt.Errorf("validate new refresh token: %w", err)
+	}
+
+	// Revoke old token, pointing to its replacement
+	if err := s.database.RevokeRefreshToken(ctx, claims.JTI, newClaims.JTI); err != nil {
+		return "", "", fmt.Errorf("revoke old refresh token: %w", err)
+	}
+
+	return newAccess, newRefresh, nil
+}
+
+// RevokeUserRefreshToken revokes a single refresh token by its JWT string.
+func (s *AuthService) RevokeUserRefreshToken(refreshTokenStr string) error {
+	claims, err := s.ValidateRefreshToken(refreshTokenStr)
+	if err != nil {
+		return nil
+	}
+	if s.database == nil || claims.JTI == "" {
+		return nil
+	}
+	if err := s.database.RevokeRefreshToken(context.Background(), claims.JTI, ""); err != nil {
+		slog.Warn("failed to revoke refresh token on logout", "jti", claims.JTI, "err", err)
+	}
+	return nil
+}
+
+// StartCleanup starts a background goroutine that periodically removes expired refresh tokens.
+func (s *AuthService) StartCleanup(ctx context.Context) {
+	if s.database == nil {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				deleted, err := s.database.CleanupExpiredRefreshTokens(ctx)
+				if err != nil {
+					slog.Error("refresh token cleanup failed", "err", err)
+				} else if deleted > 0 {
+					slog.Info("cleaned up expired refresh tokens", "count", deleted)
+				}
+			}
+		}
+	}()
 }

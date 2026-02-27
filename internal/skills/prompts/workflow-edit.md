@@ -10,7 +10,6 @@ If you need to add or reconfigure nodes, use `get_skill(skill_name)` to load the
 | input | `"input-node"` |
 | output | `"output-node"` |
 | asset | `"asset-node"` |
-| tool | `"tool-node"` |
 
 ---
 
@@ -63,10 +62,9 @@ Same structure as the original workflow:
 - For image assets, the downstream agent MUST use a vision-capable model.
 - See the ASSET NODE GUIDE appended below for output types and usage patterns.
 
-**Tool nodes** (`"tool"` type): execute a registered tool directly without LLM.
-- `tool` field MUST match a name from the "Available tools" list.
-- `input` values support `{{node_id}}` template references to upstream nodes.
-- The tool's output is stored in session state and referenceable as `{{node_id}}` by downstream nodes.
+**Tool nodes** (`"tool"` type): these are created manually by the user, not by generation.
+- If the workflow contains tool nodes, **preserve them exactly** (same id, same config).
+- Do NOT create new tool nodes. If the task needs tool capabilities, use an agent node with the appropriate tools in its `"tools"` array.
 
 **Inserting a node between two existing connected nodes:**
 1. Remove the original direct edge (`A → B`).

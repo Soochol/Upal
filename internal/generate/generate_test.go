@@ -314,14 +314,12 @@ func TestValidate_AgentMissingModel(t *testing.T) {
 }
 
 func TestFixInvalidModels(t *testing.T) {
-	gen := &Generator{
-		model: "sonnet",
-		models: []upal.ModelSummary{
-			{ID: "claude/sonnet", Tier: "mid", Hint: "balanced"},
-			{ID: "claude/haiku", Tier: "low", Hint: "fast"},
-			{ID: "gemini/gemini-2.0-flash", Tier: "low", Hint: "fast"},
-		},
+	models := []upal.ModelSummary{
+		{ID: "claude/sonnet", Tier: "mid", Hint: "balanced"},
+		{ID: "claude/haiku", Tier: "low", Hint: "fast"},
+		{ID: "gemini/gemini-2.0-flash", Tier: "low", Hint: "fast"},
 	}
+	defaultID := resolveDefaultModelID(models, "sonnet")
 
 	wf := &upal.WorkflowDefinition{
 		Name: "fix-models-test",
@@ -339,7 +337,7 @@ func TestFixInvalidModels(t *testing.T) {
 		},
 	}
 
-	gen.fixInvalidModels(wf)
+	fixInvalidModels(wf, models, defaultID)
 
 	// a1: valid → unchanged
 	if m := wf.Nodes[0].Config["model"]; m != "claude/sonnet" {
@@ -618,9 +616,8 @@ func TestBuildPipelineSysPromptInjectsModelsAndTools(t *testing.T) {
 		toolInfos: []upal.ToolSummary{
 			{Name: "web_search", Description: "Search the web"},
 		},
-		defaultModelID: "anthropic/claude-sonnet-4-6",
 	}
-	prompt := g.buildPipelineSysPrompt("BASE", nil, nil)
+	prompt := g.buildPipelineSysPrompt(context.Background(), "BASE", nil, nil)
 
 	if !strings.Contains(prompt, "claude-sonnet-4-6") {
 		t.Error("expected model ID in pipeline system prompt")

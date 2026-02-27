@@ -26,8 +26,13 @@ type GenerationEntry struct {
 	Status      string `json:"status"` // GenerationPending, GenerationCompleted, GenerationFailed
 	Result      any    `json:"result,omitempty"`
 	Error       string `json:"error,omitempty"`
+	createdAt   time.Time
 	completedAt time.Time
 }
+
+// pendingTimeout is the maximum time a generation can stay in pending state
+// before GC cleans it up (e.g. if the goroutine panics or hangs).
+const pendingTimeout = 10 * time.Minute
 
 func NewGenerationManager(ttl time.Duration) *GenerationManager {
 	gm := &GenerationManager{
@@ -46,7 +51,7 @@ func (gm *GenerationManager) Stop() {
 // Register creates a new pending generation entry.
 func (gm *GenerationManager) Register(id string) {
 	gm.mu.Lock()
-	gm.entries[id] = &GenerationEntry{Status: GenerationPending}
+	gm.entries[id] = &GenerationEntry{Status: GenerationPending, createdAt: time.Now()}
 	gm.mu.Unlock()
 }
 
@@ -106,7 +111,11 @@ func (gm *GenerationManager) collectExpired() {
 	gm.mu.Lock()
 	defer gm.mu.Unlock()
 	for id, entry := range gm.entries {
-		if entry.Status != GenerationPending && now.Sub(entry.completedAt) > gm.ttl {
+		switch {
+		case entry.Status == GenerationPending && now.Sub(entry.createdAt) > pendingTimeout:
+			// Pending too long — goroutine likely panicked or hung.
+			delete(gm.entries, id)
+		case entry.Status != GenerationPending && now.Sub(entry.completedAt) > gm.ttl:
 			delete(gm.entries, id)
 		}
 	}

@@ -271,7 +271,7 @@ export default function WorkflowsPage() {
       const existingWf = hasExisting
         ? serializeWorkflow(currentName || 'untitled', currentNodes, currentEdges)
         : undefined
-      const { generation_id } = await generateWorkflow(description, undefined, existingWf)
+      const { generation_id } = await generateWorkflow(description, existingWf)
       useGenerationStore.getState().start(generation_id)
     } catch (err) {
       addRunEvent({

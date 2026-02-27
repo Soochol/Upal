@@ -115,6 +115,7 @@ func serve() {
 		}
 		baseURL := fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 		authSvc = services.NewAuthService(database, cfg.Auth, baseURL)
+		authSvc.StartCleanup(context.Background())
 	}
 
 	// Create workflow repository (in-memory, or persistent if DB is available).
@@ -458,6 +459,31 @@ func serve() {
 				}
 			}
 			return nil, "", fmt.Errorf("no default LLM provider configured")
+		})
+		gen.SetModelsFunc(func(ctx context.Context) []upal.ModelSummary {
+			providers, err := aiProviderSvc.ListAll(ctx)
+			if err != nil {
+				return modelOpts // fall back to static list
+			}
+			configs := make(map[string]config.ProviderConfig, len(providers))
+			for _, p := range providers {
+				configs[p.Name] = config.ProviderConfig{
+					Type:   p.Type,
+					APIKey: p.APIKey,
+					URL:    upalmodel.DefaultURLForType(p.Type),
+				}
+			}
+			grouped := upalmodel.KnownModelsGrouped(configs)
+			result := make([]upal.ModelSummary, 0, len(grouped))
+			for _, m := range grouped {
+				result = append(result, upal.ModelSummary{
+					ID:       m.ID,
+					Category: string(m.Category),
+					Tier:     string(m.Tier),
+					Hint:     m.Hint,
+				})
+			}
+			return result
 		})
 		srv.SetGenerator(gen, defaultModelName)
 		if collector != nil {

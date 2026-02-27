@@ -2,6 +2,7 @@ export const API_BASE = '/api'
 
 let getToken: (() => string | null) = () => null
 let onTokenRefreshed: ((token: string) => void) | null = null
+let onAuthExpired: (() => void) | null = null
 
 export function setTokenGetter(fn: () => string | null) {
   getToken = fn
@@ -9,6 +10,10 @@ export function setTokenGetter(fn: () => string | null) {
 
 export function setTokenRefreshCallback(fn: (token: string) => void) {
   onTokenRefreshed = fn
+}
+
+export function setAuthExpiredCallback(fn: () => void) {
+  onAuthExpired = fn
 }
 
 export class ApiError extends Error {
@@ -23,16 +28,20 @@ export class ApiError extends Error {
 
 let refreshPromise: Promise<string | null> | null = null
 
-async function tryRefresh(): Promise<string | null> {
+export async function tryRefresh(): Promise<string | null> {
   if (refreshPromise) return refreshPromise
   refreshPromise = (async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, { method: 'POST' })
-      if (!res.ok) return null
+      if (!res.ok) {
+        if (onAuthExpired) onAuthExpired()
+        return null
+      }
       const { token } = await res.json()
       if (token && onTokenRefreshed) onTokenRefreshed(token)
       return token as string
     } catch {
+      if (onAuthExpired) onAuthExpired()
       return null
     } finally {
       refreshPromise = null
