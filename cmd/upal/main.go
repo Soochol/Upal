@@ -115,6 +115,7 @@ func serve() {
 		}
 		baseURL := fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 		authSvc = services.NewAuthService(database, cfg.Auth, baseURL)
+		authSvc.StartCleanup(context.Background())
 	}
 
 	// Create workflow repository (in-memory, or persistent if DB is available).
