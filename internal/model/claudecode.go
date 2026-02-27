@@ -89,9 +89,11 @@ func (c *ClaudeCodeLLM) Name() string {
 	return "claude-code"
 }
 
-// GenerateContent runs `claude -p` with the given request and returns the text response.
+// GenerateContent runs `claude -p` with the given request and returns the response.
 // Native tools (e.g., web_search → WebSearch) are mapped to Claude Code CLI tools.
-// Custom function declarations are not supported — only native tool mappings.
+// Custom FunctionDeclarations are supported via text-based tool calling: definitions
+// are injected into the system prompt, and <tool_call> blocks in the response are
+// parsed into FunctionCall Parts for the handler's tool execution loop.
 func (c *ClaudeCodeLLM) GenerateContent(ctx context.Context, req *adkmodel.LLMRequest, stream bool) iter.Seq2[*adkmodel.LLMResponse, error] {
 	return func(yield func(*adkmodel.LLMResponse, error) bool) {
 		resp, err := c.generate(ctx, req)
@@ -112,24 +114,14 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		}
 	}
 
-	// Build user message from contents.
-	var userMessage strings.Builder
-	for _, content := range req.Contents {
-		role := content.Role
-		for _, part := range content.Parts {
-			if part.Text != "" {
-				switch role {
-				case "user":
-					userMessage.WriteString(part.Text)
-					userMessage.WriteString("\n")
-				case "model":
-					userMessage.WriteString("[Assistant]: ")
-					userMessage.WriteString(part.Text)
-					userMessage.WriteString("\n\n[User]: ")
-				}
-			}
-		}
+	// Append custom tool definitions to system prompt for text-based tool calling.
+	customDefs := extractCustomToolDefs(req)
+	if len(customDefs) > 0 {
+		systemPrompt += buildToolPrompt(customDefs)
 	}
+
+	// Build user message (handles Text, FunctionCall, and FunctionResponse parts).
+	userMessage := buildUserMessage(req.Contents)
 
 	// Build the command: claude -p --model <model> --tools "" --output-format text
 	args := []string{"-p"}
@@ -156,18 +148,19 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 	args = append(args, "--output-format", "text")
 	// Effort level: use explicit context value if set, otherwise default to
 	// "low" for fast responses (unless thinking is enabled or tools are active).
+	hasTools := len(cliTools) > 0 || len(customDefs) > 0
 	if effort := effortFromContext(ctx); effort != "" {
 		args = append(args, "--effort", effort)
-	} else if len(cliTools) > 0 {
+	} else if hasTools {
 		// Tools need at least medium effort to actually trigger usage.
 	} else if !thinkingFromContext(ctx) {
 		args = append(args, "--effort", "low")
 	}
 
 	// Set a timeout for the subprocess.
-	// Tools (e.g., WebSearch) and high-effort (extended thinking) calls need more time.
+	// Tools and high-effort (extended thinking) calls need more time.
 	timeout := 2 * time.Minute
-	if len(cliTools) > 0 || effortFromContext(ctx) == "high" {
+	if hasTools || effortFromContext(ctx) == "high" {
 		timeout = 5 * time.Minute
 	}
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -181,7 +174,7 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
 
 	// Pass user message via stdin.
-	cmd.Stdin = strings.NewReader(userMessage.String())
+	cmd.Stdin = strings.NewReader(userMessage)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -202,14 +195,7 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		return nil, fmt.Errorf("claude-code: empty response")
 	}
 
-	return &adkmodel.LLMResponse{
-		Content: &genai.Content{
-			Role:  "model",
-			Parts: []*genai.Part{genai.NewPartFromText(text)},
-		},
-		TurnComplete: true,
-		FinishReason: genai.FinishReasonStop,
-	}, nil
+	return buildToolResponse(text), nil
 }
 
 // mapToolsToCLI maps ADK genai.Tool entries to Claude Code CLI tool names.
