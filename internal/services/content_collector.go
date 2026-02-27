@@ -107,8 +107,8 @@ func (c *ContentCollector) CollectPipeline(ctx context.Context, pipelineID strin
 func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal.Pipeline, session *upal.ContentSession, isTest bool, limit int) {
 	sources := mapPipelineSources(session.Sources, isTest, limit)
 
-	// When no explicit sources but session has a prompt, auto-create a research source.
-	if len(sources) == 0 && session.Context != nil && session.Context.Prompt != "" {
+	// Always prepend a research source when a task prompt is set.
+	if session.Context != nil && session.Context.Prompt != "" {
 		depth := session.Context.ResearchDepth
 		if depth == "" {
 			depth = "deep"
@@ -117,7 +117,7 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 		if model == "" {
 			model = session.Model
 		}
-		sources = []mappedSource{{
+		sources = append([]mappedSource{{
 			collectSource: upal.CollectSource{
 				ID:    "auto-research",
 				Type:  "research",
@@ -126,7 +126,7 @@ func (c *ContentCollector) CollectAndAnalyze(ctx context.Context, pipeline *upal
 				Depth: depth,
 			},
 			pipelineIndex: -1,
-		}}
+		}}, sources...)
 	}
 
 	if len(sources) == 0 {
@@ -1009,8 +1009,8 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 
 	sources := mapSessionSources(runSources, isTest, limit)
 
-	// When no explicit sources but has a prompt, auto-create a research source.
-	if len(sources) == 0 && runContext != nil && runContext.Prompt != "" {
+	// Always prepend a research source when a task prompt is set.
+	if runContext != nil && runContext.Prompt != "" {
 		depth := runContext.ResearchDepth
 		if depth == "" {
 			depth = "deep"
@@ -1019,7 +1019,7 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 		if model == "" {
 			model = runModel
 		}
-		sources = []mappedSource{{
+		sources = append([]mappedSource{{
 			collectSource: upal.CollectSource{
 				ID:    "auto-research",
 				Type:  "research",
@@ -1028,7 +1028,7 @@ func (c *ContentCollector) CollectAndAnalyzeV2(ctx context.Context, session *upa
 				Depth: depth,
 			},
 			pipelineIndex: -1,
-		}}
+		}}, sources...)
 	}
 
 	if len(sources) == 0 {

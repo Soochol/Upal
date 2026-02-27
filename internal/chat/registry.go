@@ -8,20 +8,17 @@ import (
 	"google.golang.org/genai"
 )
 
-// ChatRegistry holds all chat tools and resolves which are available per page+context.
 type ChatRegistry struct {
 	tools map[string]*ChatTool
 	rules []Rule
 }
 
-// Rule maps a page + context condition to a set of tool names.
 type Rule struct {
 	Page      string
 	Condition func(ctx map[string]any) bool // nil means always match
 	Tools     []string
 }
 
-// NewRegistry creates an empty ChatRegistry.
 func NewRegistry() *ChatRegistry {
 	return &ChatRegistry{tools: make(map[string]*ChatTool)}
 }

@@ -16,7 +16,6 @@ import (
 	"google.golang.org/genai"
 )
 
-// ChatRequest is the request body for the /api/chat endpoint.
 type ChatRequest struct {
 	Message  string         `json:"message"`
 	Page     string         `json:"page"`
@@ -26,13 +25,11 @@ type ChatRequest struct {
 	Thinking bool           `json:"thinking"`
 }
 
-// ChatMessage represents a single message in the conversation history.
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// Handler serves the /api/chat SSE endpoint.
 type Handler struct {
 	registry    *ChatRegistry
 	skills      skills.Provider
@@ -40,7 +37,6 @@ type Handler struct {
 	defaultLLM  func(ctx context.Context) (adkmodel.LLM, string, error)
 }
 
-// NewHandler creates a new chat Handler.
 func NewHandler(registry *ChatRegistry, skills skills.Provider, llmResolver ports.LLMResolver, defaultLLM func(ctx context.Context) (adkmodel.LLM, string, error)) *Handler {
 	return &Handler{
 		registry:    registry,
@@ -50,7 +46,6 @@ func NewHandler(registry *ChatRegistry, skills skills.Provider, llmResolver port
 	}
 }
 
-// ServeHTTP handles POST /api/chat requests.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -80,8 +75,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.runChat(r.Context(), w, flusher, &req, chatTools)
 }
 
-// buildSystemPrompt constructs the system prompt from the skill registry,
-// available tools, and request context.
 func (h *Handler) buildSystemPrompt(req *ChatRequest, chatTools []*ChatTool) string {
 	var sb strings.Builder
 
@@ -108,8 +101,6 @@ func (h *Handler) buildSystemPrompt(req *ChatRequest, chatTools []*ChatTool) str
 	return sb.String()
 }
 
-// resolveLLM returns the LLM and model name for the request.
-// Uses llmResolver for explicit model overrides, otherwise falls back to defaultLLM.
 func (h *Handler) resolveLLM(ctx context.Context, model string) (adkmodel.LLM, string, error) {
 	if model != "" && h.llmResolver != nil {
 		if resolved, resolvedName, err := h.llmResolver.Resolve(model); err == nil {
@@ -119,7 +110,6 @@ func (h *Handler) resolveLLM(ctx context.Context, model string) (adkmodel.LLM, s
 	return h.defaultLLM(ctx)
 }
 
-// runChat executes the multi-turn LLM tool call loop and streams SSE events.
 func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, req *ChatRequest, chatTools []*ChatTool) {
 	sse := &sseWriter{w: w}
 
@@ -176,7 +166,6 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 			return
 		}
 
-		// Check for tool calls in the response.
 		var toolCalls []*genai.FunctionCall
 		for _, p := range resp.Content.Parts {
 			if p.FunctionCall != nil {
@@ -185,7 +174,6 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 		}
 
 		if len(toolCalls) == 0 {
-			// Final text response — stream and finish.
 			text := llmutil.ExtractText(resp)
 			sse.write("text_delta", map[string]any{"text": text})
 			sse.write("done", map[string]any{"content": text})
@@ -193,7 +181,6 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 			return
 		}
 
-		// Execute tool calls and continue to the next turn.
 		contents = append(contents, resp.Content)
 		toolResults := make([]*genai.Part, 0, len(toolCalls))
 
@@ -206,33 +193,27 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 			flusher.Flush()
 
 			result, execErr := h.registry.ExecuteToolCall(ctx, fc.Name, fc.Args)
-			success := execErr == nil
 
+			var sseResult any
+			responseMap := map[string]any{}
 			if execErr != nil {
 				slog.Warn("chat: tool execution failed", "tool", fc.Name, "error", execErr)
-			}
-
-			var resultData any
-			if execErr != nil {
-				resultData = map[string]any{"error": execErr.Error()}
+				errMsg := execErr.Error()
+				sseResult = map[string]any{"error": errMsg}
+				responseMap["error"] = errMsg
 			} else {
-				resultData = result
+				sseResult = result
+				responseMap["result"] = result
 			}
 
 			sse.write("tool_result", map[string]any{
 				"id":      fc.ID,
 				"name":    fc.Name,
-				"success": success,
-				"result":  resultData,
+				"success": execErr == nil,
+				"result":  sseResult,
 			})
 			flusher.Flush()
 
-			responseMap := map[string]any{}
-			if execErr != nil {
-				responseMap["error"] = execErr.Error()
-			} else {
-				responseMap["result"] = result
-			}
 			toolResults = append(toolResults, &genai.Part{
 				FunctionResponse: &genai.FunctionResponse{
 					Name:     fc.Name,
@@ -248,7 +229,6 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 	flusher.Flush()
 }
 
-// sseWriter tracks event IDs for SSE reconnection support.
 type sseWriter struct {
 	w  http.ResponseWriter
 	id int
@@ -266,7 +246,6 @@ func (s *sseWriter) write(event string, data any) {
 	s.id++
 }
 
-// buildContents converts chat history and the current message into genai Contents.
 func buildContents(history []ChatMessage, message string) []*genai.Content {
 	contents := make([]*genai.Content, 0, len(history)+1)
 	for _, msg := range history {

@@ -236,10 +236,6 @@ func registerListNodes(reg *ChatRegistry) {
 		},
 		Execute: func(ctx context.Context, args map[string]any) (any, error) {
 			chatCtx := GetChatContext(ctx)
-			if chatCtx == nil {
-				return map[string]any{"nodes": []any{}}, nil
-			}
-
 			nodes, _ := chatCtx["nodes"]
 			if nodes == nil {
 				return map[string]any{"nodes": []any{}}, nil

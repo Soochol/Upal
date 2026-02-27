@@ -76,7 +76,7 @@ export function RunHistoryPanel({ sessionId, selectedRunId, onSelectRun }: RunHi
               key={run.id}
               run={run}
               isSelected={run.id === selectedRunId}
-              onSelect={(r) => onSelectRun?.(r.id === selectedRunId ? null : r)}
+              onSelect={(r) => onSelectRun?.(r)}
               onOpenConfig={openEdit}
             />
           ))}
