@@ -144,47 +144,39 @@ func (s *Server) publishNewRun(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	wfRuns := s.runSvc.GetWorkflowRuns(ctx, id)
-	runToName := make(map[string]string, len(wfRuns))
-	runToChannel := make(map[string]string, len(wfRuns))
-	for _, wr := range wfRuns {
-		if wr.RunID != "" {
-			runToName[wr.RunID] = wr.WorkflowName
-			runToChannel[wr.RunID] = wr.ChannelID
-		}
+	// Build a set for O(1) lookup of which workflow runs to publish.
+	publishSet := make(map[string]struct{}, len(body.RunIDs))
+	for _, rid := range body.RunIDs {
+		publishSet[rid] = struct{}{}
 	}
 
-	for _, runID := range body.RunIDs {
-		channel := runToChannel[runID]
+	// Single fetch: record published content and update statuses in one pass.
+	wfRuns := s.runSvc.GetWorkflowRuns(ctx, id)
+	for i, wr := range wfRuns {
+		if _, ok := publishSet[wr.RunID]; !ok {
+			continue
+		}
+		channel := wr.ChannelID
 		if channel == "" {
 			channel = "default"
 		}
 		pc := &upal.PublishedContent{
 			SessionID:     id,
-			WorkflowRunID: runID,
+			WorkflowRunID: wr.RunID,
 			Channel:       channel,
-			Title:         runToName[runID],
+			Title:         wr.WorkflowName,
 		}
 		if err := s.runSvc.RecordPublished(ctx, pc); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		wfRuns[i].Status = upal.WFRunPublished
 	}
-
-	// Update workflow run statuses to published.
-	results := s.runSvc.GetWorkflowRuns(ctx, id)
-	for i, wr := range results {
-		for _, runID := range body.RunIDs {
-			if wr.RunID == runID {
-				results[i].Status = upal.WFRunPublished
-			}
-		}
-	}
-	s.runSvc.SetWorkflowRuns(ctx, id, results)
+	s.runSvc.SetWorkflowRuns(ctx, id, wfRuns)
 
 	// Transition run to published if all workflow runs are terminal.
-	allTerminal := len(results) > 0
-	for _, wr := range results {
+	allTerminal := len(wfRuns) > 0
+	for _, wr := range wfRuns {
 		if wr.Status != upal.WFRunPublished && wr.Status != upal.WFRunRejected && wr.Status != upal.WFRunFailed {
 			allTerminal = false
 			break

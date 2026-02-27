@@ -50,23 +50,7 @@ func NewRunService(
 
 // CreateRun creates a new Run for the given session.
 func (s *RunService) CreateRun(ctx context.Context, sessionID, triggerType string) (*upal.Run, error) {
-	if _, err := s.sessions.Get(ctx, sessionID); err != nil {
-		return nil, fmt.Errorf("session %q: %w", sessionID, err)
-	}
-	if triggerType == "" {
-		triggerType = "manual"
-	}
-	run := &upal.Run{
-		ID:          upal.GenerateID("run"),
-		SessionID:   sessionID,
-		Status:      upal.SessionRunCollecting,
-		TriggerType: triggerType,
-		CreatedAt:   time.Now(),
-	}
-	if err := s.runs.Create(ctx, run); err != nil {
-		return nil, err
-	}
-	return run, nil
+	return s.CreateRunWithConfig(ctx, sessionID, triggerType, "", nil, nil, nil, "")
 }
 
 // CreateRunWithConfig creates a new Run with full configuration.
@@ -435,25 +419,24 @@ func (s *RunService) runsToDetails(ctx context.Context, runs []*upal.Run) []*upa
 
 // runToDetail composes a RunDetail from a Run (no session name cache).
 func (s *RunService) runToDetail(ctx context.Context, run *upal.Run) *upal.RunDetail {
-	detail := &upal.RunDetail{Run: *run}
+	sessionName := ""
 	if sess, err := s.sessions.Get(ctx, run.SessionID); err == nil {
-		detail.SessionName = sess.Name
+		sessionName = sess.Name
 	}
-	analysis, _ := s.analyses.GetBySession(ctx, run.ID)
-	detail.Analysis = analysis
-	wfRuns, _ := s.wfRuns.GetByRun(ctx, run.ID)
-	detail.WorkflowRuns = wfRuns
-	return detail
+	return s.assembleDetail(ctx, run, sessionName)
 }
 
 // runToDetailCached composes a RunDetail using a session name cache.
 func (s *RunService) runToDetailCached(ctx context.Context, run *upal.Run, cache *sessionNameCache) *upal.RunDetail {
-	detail := &upal.RunDetail{Run: *run}
-	detail.SessionName = cache.lookup(run.SessionID)
-	analysis, _ := s.analyses.GetBySession(ctx, run.ID)
-	detail.Analysis = analysis
-	wfRuns, _ := s.wfRuns.GetByRun(ctx, run.ID)
-	detail.WorkflowRuns = wfRuns
+	return s.assembleDetail(ctx, run, cache.lookup(run.SessionID))
+}
+
+// assembleDetail builds a RunDetail with the given session name and fetches
+// analysis + workflow runs from their respective repositories.
+func (s *RunService) assembleDetail(ctx context.Context, run *upal.Run, sessionName string) *upal.RunDetail {
+	detail := &upal.RunDetail{Run: *run, SessionName: sessionName}
+	detail.Analysis, _ = s.analyses.GetBySession(ctx, run.ID)
+	detail.WorkflowRuns, _ = s.wfRuns.GetByRun(ctx, run.ID)
 	return detail
 }
 

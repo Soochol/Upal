@@ -38,9 +38,10 @@ export function RunConfigFields({
 
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === schedule)
 
+  const scheduleValue = isPreset ? schedule : schedule ? '__custom__' : ''
+
   return (
     <>
-      {/* Name */}
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">Name</label>
         <input
@@ -51,7 +52,6 @@ export function RunConfigFields({
         />
       </div>
 
-      {/* Research */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
           <Search className="h-3.5 w-3.5" />
@@ -96,7 +96,6 @@ export function RunConfigFields({
         </button>
       </div>
 
-      {/* Task */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5" />
@@ -111,7 +110,6 @@ export function RunConfigFields({
         />
       </div>
 
-      {/* Processing */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground">Processing</h3>
         {workflows.map((wf, i) => (
@@ -133,11 +131,10 @@ export function RunConfigFields({
         </button>
       </div>
 
-      {/* Schedule */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground">Schedule</h3>
         <select
-          value={isPreset ? schedule : schedule ? '__custom__' : ''}
+          value={scheduleValue}
           onChange={(e) => onScheduleChange(e.target.value === '__custom__' ? '' : e.target.value)}
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
         >

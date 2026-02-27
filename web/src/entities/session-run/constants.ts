@@ -52,15 +52,19 @@ export function matchesRunFilter(status: string, filter: RunFilter): boolean {
 
 export function runPollingInterval(run: Run | undefined): number | false {
   if (!run) return false
-  const { status } = run
-  if (status === 'collecting' || status === 'analyzing' || status === 'producing') return 3000
-  if (status === 'approved' && (!run.workflow_runs || run.workflow_runs.length === 0)) return 3000
-  return false
+  switch (run.status) {
+    case 'collecting':
+    case 'analyzing':
+    case 'producing':
+      return 3000
+    case 'approved':
+      return (!run.workflow_runs || run.workflow_runs.length === 0) ? 3000 : false
+    default:
+      return false
+  }
 }
 
-export function computeRunFilterCounts(
-  runs: Run[],
-): Record<RunFilter, number> {
+export function computeRunFilterCounts(runs: Run[]): Record<RunFilter, number> {
   const counts: Record<RunFilter, number> = {
     all: runs.length,
     pending: 0,
@@ -70,11 +74,16 @@ export function computeRunFilterCounts(
     rejected: 0,
   }
   for (const r of runs) {
-    if (matchesRunFilter(r.status, 'pending')) counts.pending++
-    if (matchesRunFilter(r.status, 'in_progress')) counts.in_progress++
-    if (matchesRunFilter(r.status, 'producing')) counts.producing++
-    if (matchesRunFilter(r.status, 'published')) counts.published++
-    if (matchesRunFilter(r.status, 'rejected')) counts.rejected++
+    switch (r.status) {
+      case 'pending_review': counts.pending++; break
+      case 'collecting':
+      case 'analyzing': counts.in_progress++; break
+      case 'approved':
+      case 'producing':
+      case 'error': counts.producing++; break
+      case 'published': counts.published++; break
+      case 'rejected': counts.rejected++; break
+    }
   }
   return counts
 }

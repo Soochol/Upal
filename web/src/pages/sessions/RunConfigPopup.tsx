@@ -23,16 +23,15 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
   const [workflows, setWorkflows] = useState<SessionWorkflow[]>(run?.run_workflows ?? [])
   const [context, setContext] = useState<SessionContext>(run?.context ?? DEFAULT_RUN_CONTEXT)
   const [schedule, setSchedule] = useState(run?.schedule ?? '')
-
   const [error, setError] = useState<string | null>(null)
 
+  function buildConfig() {
+    return { name: name || undefined, sources, workflows, context, schedule: schedule || undefined }
+  }
+
   const saveMutation = useMutation({
-    mutationFn: () => {
-      const config = { name: name || undefined, sources, workflows, context, schedule: schedule || undefined }
-      return isEdit
-        ? updateRunConfig(run!.id, config)
-        : createRunWithConfig(sessionId, config)
-    },
+    mutationFn: () =>
+      isEdit ? updateRunConfig(run!.id, buildConfig()) : createRunWithConfig(sessionId, buildConfig()),
     onSuccess: (savedRun) => {
       qc.invalidateQueries({ queryKey: ['session-runs'] })
       onSave(savedRun)
@@ -81,7 +80,8 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
               disabled={saveMutation.isPending}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
             >
-              {saveMutation.isPending ? 'Saving...' : isEdit ? 'Save' : 'Create'}
+              {saveMutation.isPending && 'Saving...'}
+              {!saveMutation.isPending && (isEdit ? 'Save' : 'Create')}
             </button>
           </div>
         </div>

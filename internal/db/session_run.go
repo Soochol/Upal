@@ -12,15 +12,16 @@ import (
 // --- SessionRun (upal_runs table) ---
 
 // marshalRunConfig serializes the JSONB fields of a Run for INSERT/UPDATE.
-func marshalRunConfig(r *upal.Run) (sourcesJSON, workflowsJSON []byte, contextJSON *string) {
-	sourcesJSON, _ = json.Marshal(r.Sources)
-	workflowsJSON, _ = json.Marshal(r.Workflows)
+func marshalRunConfig(r *upal.Run) ([]byte, []byte, *string) {
+	sourcesJSON, _ := json.Marshal(r.Sources)
+	workflowsJSON, _ := json.Marshal(r.Workflows)
+	var contextJSON *string
 	if r.Context != nil {
 		b, _ := json.Marshal(r.Context)
 		s := string(b)
 		contextJSON = &s
 	}
-	return
+	return sourcesJSON, workflowsJSON, contextJSON
 }
 
 // scanSessionRun scans a single row into a Run.

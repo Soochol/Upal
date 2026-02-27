@@ -14,7 +14,6 @@ interface RunConfigPanelProps {
   onClose: () => void
 }
 
-/** Outer: fetches data, renders form with key to force remount on data change */
 export function RunConfigPanel({ runId, onClose }: RunConfigPanelProps) {
   const { data: run } = useQuery({
     queryKey: ['session-run', runId],
@@ -23,11 +22,11 @@ export function RunConfigPanel({ runId, onClose }: RunConfigPanelProps) {
 
   if (!run) return null
 
-  const fp = JSON.stringify([run.name, run.run_sources, run.run_workflows, run.context, run.schedule])
-  return <RunConfigForm key={fp} run={run} onClose={onClose} />
+  // Remount the form when server data changes so local state resets.
+  const configKey = JSON.stringify([run.name, run.run_sources, run.run_workflows, run.context, run.schedule])
+  return <RunConfigForm key={configKey} run={run} onClose={onClose} />
 }
 
-/** Inner: pure form, initialized from run props. Remounted on server data change via key. */
 function RunConfigForm({ run, onClose }: { run: Run; onClose: () => void }) {
   const qc = useQueryClient()
 
