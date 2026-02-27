@@ -67,7 +67,7 @@ func TestRunService_CreateRun(t *testing.T) {
 	run, err := env.runSvc.CreateRun(ctx, sess.ID, "manual")
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(run.ID, "run-"))
-	assert.Equal(t, upal.SessionRunCollecting, run.Status)
+	assert.Equal(t, upal.SessionRunDraft, run.Status)
 	assert.Equal(t, sess.ID, run.SessionID)
 	assert.Equal(t, "manual", run.TriggerType)
 	assert.False(t, run.CreatedAt.IsZero())
@@ -243,9 +243,9 @@ func TestRunService_ListRunsByStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, approved, 1)
 
-	collecting, err := env.runSvc.ListRunsByStatus(ctx, upal.SessionRunCollecting)
+	drafts, err := env.runSvc.ListRunsByStatus(ctx, upal.SessionRunDraft)
 	require.NoError(t, err)
-	assert.Len(t, collecting, 1)
+	assert.Len(t, drafts, 1)
 }
 
 func TestRunService_UpdateRunStatus(t *testing.T) {

@@ -975,6 +975,8 @@ func (c *ContentCollector) CollectSession(ctx context.Context, sessionID string)
 	if err != nil {
 		return nil, fmt.Errorf("create run: %w", err)
 	}
+	_ = c.runSvc.UpdateRunStatus(ctx, run.ID, upal.SessionRunCollecting)
+	run.Status = upal.SessionRunCollecting
 	go c.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
 	return run, nil
 }
@@ -989,6 +991,8 @@ func (c *ContentCollector) CollectSessionScheduled(ctx context.Context, sessionI
 	if err != nil {
 		return nil, fmt.Errorf("create run: %w", err)
 	}
+	_ = c.runSvc.UpdateRunStatus(ctx, run.ID, upal.SessionRunCollecting)
+	run.Status = upal.SessionRunCollecting
 	go c.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
 	return run, nil
 }

@@ -75,6 +75,7 @@ export function RunHistoryPanel({ sessionId, selectedRunId, onSelectRun }: RunHi
               run={run}
               isSelected={run.id === selectedRunId}
               onSelect={(r) => onSelectRun?.(r)}
+              onDeleted={run.id === selectedRunId ? () => onSelectRun?.(null) : undefined}
             />
           ))}
         </div>

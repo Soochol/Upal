@@ -3,11 +3,12 @@ import type { SessionContext } from '@/entities/session/types'
 
 // --- Defaults ----------------------------------------------------------------
 
-export const DEFAULT_RUN_CONTEXT: SessionContext = { research_depth: 'deep' }
+export const DEFAULT_RUN_CONTEXT: SessionContext = { research_depth: 'light' }
 
 // --- Status dot color mapping ------------------------------------------------
 
 export const RUN_STATUS_DOT: Record<string, string> = {
+  draft: 'bg-muted-foreground/40',
   collecting: 'bg-primary',
   analyzing: 'bg-primary',
   pending_review: 'bg-warning',
@@ -41,7 +42,7 @@ export const RUN_FILTER_TABS: { value: RunFilter; label: string }[] = [
 export function matchesRunFilter(status: string, filter: RunFilter): boolean {
   switch (filter) {
     case 'all': return true
-    case 'pending': return status === 'pending_review'
+    case 'pending': return status === 'draft' || status === 'pending_review'
     case 'in_progress': return status === 'collecting' || status === 'analyzing'
     case 'producing': return status === 'approved' || status === 'producing' || status === 'error'
     case 'published': return status === 'published'
@@ -75,6 +76,7 @@ export function computeRunFilterCounts(runs: Run[]): Record<RunFilter, number> {
   }
   for (const r of runs) {
     switch (r.status) {
+      case 'draft':
       case 'pending_review': counts.pending++; break
       case 'collecting':
       case 'analyzing': counts.in_progress++; break

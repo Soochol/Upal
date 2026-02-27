@@ -24,6 +24,9 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
   const [context, setContext] = useState<SessionContext>(run?.context ?? DEFAULT_RUN_CONTEXT)
   const [schedule, setSchedule] = useState(run?.schedule ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [showRequired, setShowRequired] = useState(false)
+
+  const hasContent = sources.length > 0 || (context.prompt?.trim() ?? '') !== ''
 
   function buildConfig() {
     return { name: name || undefined, sources, workflows, context, schedule: schedule || undefined }
@@ -38,6 +41,17 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to save'),
   })
+
+  function handleCreate() {
+    if (!isEdit && !hasContent) {
+      setShowRequired(true)
+      return
+    }
+    saveMutation.mutate()
+  }
+
+  // Clear validation highlight when user adds content
+  if (showRequired && hasContent) setShowRequired(false)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -63,12 +77,15 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
             schedule={schedule}
             onScheduleChange={setSchedule}
             namePlaceholder="Run name (optional)"
+            showRequired={showRequired}
           />
         </div>
 
         <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-border/50">
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="text-xs">
+            {error && <p className="text-destructive">{error}</p>}
+          </div>
+          <div className="flex items-center gap-2 ml-auto shrink-0">
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted/50 cursor-pointer"
@@ -76,7 +93,7 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
               Cancel
             </button>
             <button
-              onClick={() => saveMutation.mutate()}
+              onClick={handleCreate}
               disabled={saveMutation.isPending}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
             >

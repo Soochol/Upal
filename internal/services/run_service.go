@@ -67,7 +67,7 @@ func (s *RunService) CreateRunWithConfig(ctx context.Context, sessionID, trigger
 		ID:          upal.GenerateID("run"),
 		SessionID:   sessionID,
 		Name:        name,
-		Status:      upal.SessionRunCollecting,
+		Status:      upal.SessionRunDraft,
 		TriggerType: triggerType,
 		Sources:     sources,
 		Workflows:   workflows,

@@ -46,13 +46,6 @@ func (s *Server) createNewRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Trigger background collection if collector is available.
-	if s.collector != nil && s.sessionSvc != nil {
-		sess, err := s.sessionSvc.Get(r.Context(), sessionID)
-		if err == nil {
-			go s.collector.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
-		}
-	}
 	writeJSONStatus(w, http.StatusCreated, run)
 }
 
@@ -259,6 +252,40 @@ func (s *Server) updateRunConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, detail)
+}
+
+func (s *Server) collectNewRun(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	run, err := s.runSvc.GetRun(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err, http.StatusNotFound)
+		return
+	}
+	if run.Status != upal.SessionRunDraft {
+		http.Error(w, "run is not in draft status", http.StatusConflict)
+		return
+	}
+	if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunCollecting); err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	run.Status = upal.SessionRunCollecting
+	if s.collector != nil && s.sessionSvc != nil {
+		sess, err := s.sessionSvc.Get(r.Context(), run.SessionID)
+		if err == nil {
+			go s.collector.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
+		}
+	}
+	writeJSONStatus(w, http.StatusAccepted, run)
+}
+
+func (s *Server) deleteNewRun(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := s.runSvc.DeleteRun(r.Context(), id); err != nil {
+		writeServiceError(w, err, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) toggleRunSchedule(w http.ResponseWriter, r *http.Request) {

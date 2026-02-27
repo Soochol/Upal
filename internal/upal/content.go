@@ -192,6 +192,7 @@ type ContentSessionDetail struct {
 type SessionRunStatus string
 
 const (
+	SessionRunDraft         SessionRunStatus = "draft"
 	SessionRunCollecting    SessionRunStatus = "collecting"
 	SessionRunAnalyzing     SessionRunStatus = "analyzing"
 	SessionRunPendingReview SessionRunStatus = "pending_review"

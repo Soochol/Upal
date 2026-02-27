@@ -1,7 +1,7 @@
 import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session/types'
 
 export type RunStatus =
-  | 'collecting' | 'analyzing' | 'pending_review'
+  | 'draft' | 'collecting' | 'analyzing' | 'pending_review'
   | 'approved' | 'rejected' | 'producing' | 'published' | 'error'
 
 export type WorkflowRunStatus = 'pending' | 'running' | 'success' | 'failed' | 'published' | 'rejected'

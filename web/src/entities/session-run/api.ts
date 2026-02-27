@@ -103,6 +103,16 @@ export async function updateRunConfig(runId: string, config: RunConfig): Promise
   })
 }
 
+export async function collectRun(runId: string): Promise<Run> {
+  return apiFetch<Run>(`${RUNS_BASE}/${encodeURIComponent(runId)}/collect`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteRun(runId: string): Promise<void> {
+  await apiFetch(`${RUNS_BASE}/${encodeURIComponent(runId)}`, { method: 'DELETE' })
+}
+
 export async function toggleRunSchedule(runId: string, active: boolean): Promise<Run> {
   return apiFetch<Run>(`${RUNS_BASE}/${encodeURIComponent(runId)}/schedule/toggle`, {
     method: 'POST',

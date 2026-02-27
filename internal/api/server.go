@@ -223,7 +223,9 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/", s.listAllNewRuns)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", s.getNewRunDetail)
-					r.Post("/produce", s.produceNewRun)
+					r.Delete("/", s.deleteNewRun)
+					r.Post("/collect", s.collectNewRun)
+				r.Post("/produce", s.produceNewRun)
 					r.Post("/publish", s.publishNewRun)
 					r.Post("/reject", s.rejectNewRun)
 					r.Get("/sources", s.listNewRunSources)

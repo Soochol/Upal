@@ -18,6 +18,8 @@ interface RunConfigFieldsProps {
   schedule: string
   onScheduleChange: (schedule: string) => void
   namePlaceholder?: string
+  /** When true, highlight Research & Task sections as required */
+  showRequired?: boolean
 }
 
 export function RunConfigFields({
@@ -32,6 +34,7 @@ export function RunConfigFields({
   schedule,
   onScheduleChange,
   namePlaceholder = 'Run name',
+  showRequired,
 }: RunConfigFieldsProps) {
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [showWorkflowPicker, setShowWorkflowPicker] = useState(false)
@@ -39,6 +42,11 @@ export function RunConfigFields({
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === schedule)
 
   const scheduleValue = isPreset ? schedule : schedule ? '__custom__' : ''
+
+  const hasSources = sources.length > 0
+  const hasPrompt = (context.prompt?.trim() ?? '') !== ''
+  const hasContent = hasSources || hasPrompt
+  const needsTaskHighlight = showRequired && !hasContent
 
   return (
     <>
@@ -52,7 +60,7 @@ export function RunConfigFields({
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 rounded-xl p-3 -mx-3">
         <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
           <Search className="h-3.5 w-3.5" />
           Research
@@ -96,16 +104,20 @@ export function RunConfigFields({
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className={cn('space-y-2 rounded-xl p-3 -mx-3 transition-colors', needsTaskHighlight && 'bg-destructive/5 animate-shake')}>
         <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5" />
           Task
+          {needsTaskHighlight && <span className="w-1.5 h-1.5 rounded-full bg-destructive" />}
         </h3>
         <textarea
           value={context.prompt ?? ''}
           onChange={(e) => onContextChange({ ...context, prompt: e.target.value })}
           placeholder="What should this run focus on?"
-          className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring resize-none"
+          className={cn(
+            'w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring resize-none',
+            needsTaskHighlight ? 'border-destructive/40' : 'border-input',
+          )}
           rows={3}
         />
       </div>
