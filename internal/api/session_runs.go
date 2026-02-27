@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,22 +12,31 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
+// runConfigBody is the shared request body for creating or updating a Run's configuration.
+type runConfigBody struct {
+	Name      string                 `json:"name"`
+	Sources   []upal.SessionSource   `json:"sources,omitempty"`
+	Workflows []upal.SessionWorkflow `json:"workflows,omitempty"`
+	Context   *upal.SessionContext   `json:"context,omitempty"`
+	Schedule  string                 `json:"schedule,omitempty"`
+}
+
+func (b *runConfigBody) hasConfig() bool {
+	return b.Name != "" || len(b.Sources) > 0 || len(b.Workflows) > 0 || b.Context != nil || b.Schedule != ""
+}
+
 func (s *Server) createNewRun(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
 
-	var body struct {
-		Name      string                 `json:"name"`
-		Sources   []upal.SessionSource   `json:"sources,omitempty"`
-		Workflows []upal.SessionWorkflow `json:"workflows,omitempty"`
-		Context   *upal.SessionContext   `json:"context,omitempty"`
-		Schedule  string                 `json:"schedule,omitempty"`
+	var body runConfigBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
 	}
-	// Try decoding body; empty body is OK (backward compat).
-	_ = json.NewDecoder(r.Body).Decode(&body)
 
 	var run *upal.Run
 	var err error
-	if body.Name != "" || len(body.Sources) > 0 || len(body.Workflows) > 0 || body.Context != nil || body.Schedule != "" {
+	if body.hasConfig() {
 		run, err = s.runSvc.CreateRunWithConfig(r.Context(), sessionID, "manual", body.Name, body.Sources, body.Workflows, body.Context, body.Schedule)
 	} else {
 		run, err = s.runSvc.CreateRun(r.Context(), sessionID, "manual")
@@ -181,7 +191,10 @@ func (s *Server) publishNewRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if allTerminal {
-		_ = s.runSvc.UpdateRunStatus(ctx, id, upal.SessionRunPublished)
+		if err := s.runSvc.UpdateRunStatus(ctx, id, upal.SessionRunPublished); err != nil {
+			writeServiceError(w, err, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	detail, err := s.runSvc.GetRunDetail(ctx, id)
@@ -240,13 +253,7 @@ func (s *Server) patchNewRunAnalysis(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateRunConfig(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var body struct {
-		Name      string                 `json:"name"`
-		Sources   []upal.SessionSource   `json:"sources,omitempty"`
-		Workflows []upal.SessionWorkflow `json:"workflows,omitempty"`
-		Context   *upal.SessionContext   `json:"context,omitempty"`
-		Schedule  string                 `json:"schedule,omitempty"`
-	}
+	var body runConfigBody
 	if !decodeJSON(w, r, &body) {
 		return
 	}

@@ -11,6 +11,18 @@ import (
 
 // --- SessionRun (upal_runs table) ---
 
+// marshalRunConfig serializes the JSONB fields of a Run for INSERT/UPDATE.
+func marshalRunConfig(r *upal.Run) (sourcesJSON, workflowsJSON []byte, contextJSON *string) {
+	sourcesJSON, _ = json.Marshal(r.Sources)
+	workflowsJSON, _ = json.Marshal(r.Workflows)
+	if r.Context != nil {
+		b, _ := json.Marshal(r.Context)
+		s := string(b)
+		contextJSON = &s
+	}
+	return
+}
+
 // scanSessionRun scans a single row into a Run.
 func scanSessionRun(scanner interface{ Scan(...any) error }) (*upal.Run, error) {
 	var r upal.Run
@@ -26,16 +38,21 @@ func scanSessionRun(scanner interface{ Scan(...any) error }) (*upal.Run, error) 
 	}
 	r.Status = upal.SessionRunStatus(status)
 	if len(sourcesJSON) > 0 {
-		_ = json.Unmarshal(sourcesJSON, &r.Sources)
+		if err := json.Unmarshal(sourcesJSON, &r.Sources); err != nil {
+			return nil, fmt.Errorf("unmarshal run sources: %w", err)
+		}
 	}
 	if len(workflowsJSON) > 0 {
-		_ = json.Unmarshal(workflowsJSON, &r.Workflows)
+		if err := json.Unmarshal(workflowsJSON, &r.Workflows); err != nil {
+			return nil, fmt.Errorf("unmarshal run workflows: %w", err)
+		}
 	}
 	if contextJSON.Valid && contextJSON.String != "" {
 		var ctx upal.SessionContext
-		if json.Unmarshal([]byte(contextJSON.String), &ctx) == nil {
-			r.Context = &ctx
+		if err := json.Unmarshal([]byte(contextJSON.String), &ctx); err != nil {
+			return nil, fmt.Errorf("unmarshal run context: %w", err)
 		}
+		r.Context = &ctx
 	}
 	return &r, nil
 }
@@ -56,14 +73,7 @@ func scanSessionRuns(rows *sql.Rows) ([]*upal.Run, error) {
 const upalRunColumns = `id, session_id, name, status, trigger_type, source_count, schedule_id, sources, workflows, context, schedule, schedule_active, created_at, reviewed_at`
 
 func (d *DB) CreateSessionRun(ctx context.Context, userID string, r *upal.Run) error {
-	sourcesJSON, _ := json.Marshal(r.Sources)
-	workflowsJSON, _ := json.Marshal(r.Workflows)
-	var contextJSON *string
-	if r.Context != nil {
-		b, _ := json.Marshal(r.Context)
-		s := string(b)
-		contextJSON = &s
-	}
+	sourcesJSON, workflowsJSON, contextJSON := marshalRunConfig(r)
 	_, err := d.Pool.ExecContext(ctx,
 		`INSERT INTO upal_runs (id, user_id, session_id, name, status, trigger_type, source_count, schedule_id, sources, workflows, context, schedule, schedule_active, created_at, reviewed_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
@@ -127,14 +137,7 @@ func (d *DB) ListSessionRunsByStatus(ctx context.Context, userID string, status 
 }
 
 func (d *DB) UpdateSessionRun(ctx context.Context, userID string, r *upal.Run) error {
-	sourcesJSON, _ := json.Marshal(r.Sources)
-	workflowsJSON, _ := json.Marshal(r.Workflows)
-	var contextJSON *string
-	if r.Context != nil {
-		b, _ := json.Marshal(r.Context)
-		s := string(b)
-		contextJSON = &s
-	}
+	sourcesJSON, workflowsJSON, contextJSON := marshalRunConfig(r)
 	res, err := d.Pool.ExecContext(ctx,
 		`UPDATE upal_runs SET name = $1, status = $2, source_count = $3, reviewed_at = $4,
 		 sources = $5, workflows = $6, context = $7, schedule = $8, schedule_active = $9

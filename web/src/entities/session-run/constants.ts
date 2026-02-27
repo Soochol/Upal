@@ -1,4 +1,9 @@
 import type { Run } from './types'
+import type { SessionContext } from '@/entities/session/types'
+
+// --- Defaults ----------------------------------------------------------------
+
+export const DEFAULT_RUN_CONTEXT: SessionContext = { research_depth: 'deep' }
 
 // --- Status dot color mapping ------------------------------------------------
 

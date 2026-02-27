@@ -146,13 +146,7 @@ func (s *RunService) ListRuns(ctx context.Context) ([]*upal.RunDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	cache := s.newSessionNameCache(ctx)
-	details := make([]*upal.RunDetail, 0, len(runs))
-	for _, r := range runs {
-		details = append(details, s.runToDetailCached(ctx, r, cache))
-	}
-	sortRunDetailsNewestFirst(details)
-	return details, nil
+	return s.runsToDetails(ctx, runs), nil
 }
 
 // ListRunsBySession returns runs for a specific session, sorted newest first.
@@ -161,13 +155,7 @@ func (s *RunService) ListRunsBySession(ctx context.Context, sessionID string) ([
 	if err != nil {
 		return nil, err
 	}
-	cache := s.newSessionNameCache(ctx)
-	details := make([]*upal.RunDetail, 0, len(runs))
-	for _, r := range runs {
-		details = append(details, s.runToDetailCached(ctx, r, cache))
-	}
-	sortRunDetailsNewestFirst(details)
-	return details, nil
+	return s.runsToDetails(ctx, runs), nil
 }
 
 // ListRunsByStatus returns runs with the given status, sorted newest first.
@@ -176,13 +164,7 @@ func (s *RunService) ListRunsByStatus(ctx context.Context, status upal.SessionRu
 	if err != nil {
 		return nil, err
 	}
-	cache := s.newSessionNameCache(ctx)
-	details := make([]*upal.RunDetail, 0, len(runs))
-	for _, r := range runs {
-		details = append(details, s.runToDetailCached(ctx, r, cache))
-	}
-	sortRunDetailsNewestFirst(details)
-	return details, nil
+	return s.runsToDetails(ctx, runs), nil
 }
 
 // UpdateRunStatus changes the status of an existing Run.
@@ -359,12 +341,18 @@ func (s *RunService) UpdateAngleWorkflow(ctx context.Context, runID, angleID, wo
 
 // SetWorkflowRuns saves workflow execution results for a Run.
 func (s *RunService) SetWorkflowRuns(ctx context.Context, runID string, results []upal.WorkflowRun) {
-	_ = s.wfRuns.Save(ctx, runID, results)
+	if err := s.wfRuns.Save(ctx, runID, results); err != nil {
+		slog.Error("save workflow runs", "run", runID, "err", err)
+	}
 }
 
 // GetWorkflowRuns retrieves workflow execution results for a Run.
 func (s *RunService) GetWorkflowRuns(ctx context.Context, runID string) []upal.WorkflowRun {
-	results, _ := s.wfRuns.GetByRun(ctx, runID)
+	results, err := s.wfRuns.GetByRun(ctx, runID)
+	if err != nil {
+		slog.Error("get workflow runs", "run", runID, "err", err)
+		return nil
+	}
 	return results
 }
 
@@ -433,6 +421,17 @@ func (s *RunService) DismissSurge(ctx context.Context, id string) error {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+// runsToDetails converts a slice of Runs into RunDetails, sorted newest first.
+func (s *RunService) runsToDetails(ctx context.Context, runs []*upal.Run) []*upal.RunDetail {
+	cache := s.newSessionNameCache(ctx)
+	details := make([]*upal.RunDetail, 0, len(runs))
+	for _, r := range runs {
+		details = append(details, s.runToDetailCached(ctx, r, cache))
+	}
+	sortRunDetailsNewestFirst(details)
+	return details
+}
 
 // runToDetail composes a RunDetail from a Run (no session name cache).
 func (s *RunService) runToDetail(ctx context.Context, run *upal.Run) *upal.RunDetail {
