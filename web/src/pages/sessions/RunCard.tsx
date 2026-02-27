@@ -20,31 +20,36 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
   const qc = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  const invalidateRuns = () => {
+    qc.invalidateQueries({ queryKey: ['session-runs'] })
+    qc.invalidateQueries({ queryKey: ['inbox-runs'] })
+  }
+
   const toggleMutation = useMutation({
     mutationFn: () => toggleRunSchedule(run.id, !run.schedule_active),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
+    onSuccess: invalidateRuns,
   })
 
   const renameMutation = useMutation({
     mutationFn: (name: string) => updateRunConfig(run.id, { name }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
+    onSuccess: invalidateRuns,
   })
 
   const collectMutation = useMutation({
     mutationFn: () => collectRun(run.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
+    onSuccess: invalidateRuns,
   })
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelRun(run.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-runs'] }),
+    onSuccess: invalidateRuns,
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteRun(run.id),
     onSuccess: () => {
       setShowDeleteDialog(false)
-      qc.invalidateQueries({ queryKey: ['session-runs'] })
+      invalidateRuns()
       onDeleted?.()
     },
   })

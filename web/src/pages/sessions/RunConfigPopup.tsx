@@ -37,6 +37,7 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
       isEdit ? updateRunConfig(run!.id, buildConfig()) : createRunWithConfig(sessionId, buildConfig()),
     onSuccess: (savedRun) => {
       qc.invalidateQueries({ queryKey: ['session-runs'] })
+      qc.invalidateQueries({ queryKey: ['inbox-runs'] })
       onSave(savedRun)
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to save'),

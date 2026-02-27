@@ -46,6 +46,7 @@ function RunConfigForm({ run }: { run: Run }) {
     onSave: async (data) => {
       await updateRunConfig(run.id, data)
       qc.invalidateQueries({ queryKey: ['session-runs'] })
+      qc.invalidateQueries({ queryKey: ['inbox-runs'] })
     },
     delay: 2000,
     saveOnUnmount: true,
