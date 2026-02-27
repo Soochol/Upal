@@ -3,11 +3,12 @@ package upal
 type NodeType string
 
 const (
-	NodeTypeInput  NodeType = "input"
-	NodeTypeAgent  NodeType = "agent"
-	NodeTypeOutput NodeType = "output"
-	NodeTypeAsset  NodeType = "asset"
-	NodeTypeTool   NodeType = "tool"
+	NodeTypeInput    NodeType = "input"
+	NodeTypeRunInput NodeType = "run_input"
+	NodeTypeAgent    NodeType = "agent"
+	NodeTypeOutput   NodeType = "output"
+	NodeTypeAsset    NodeType = "asset"
+	NodeTypeTool     NodeType = "tool"
 )
 
 type WorkflowDefinition struct {

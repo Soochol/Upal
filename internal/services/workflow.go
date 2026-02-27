@@ -101,6 +101,13 @@ func (s *WorkflowService) Run(ctx context.Context, wf *upal.WorkflowDefinition, 
 	for k, v := range inputs {
 		inputState["__user_input__"+k] = v
 	}
+	// Run inputs from pipeline are passed under __run_inputs__ key.
+	if runInputs, ok := inputs["__run_inputs__"].(map[string]any); ok {
+		for k, v := range runInputs {
+			inputState["__run_input__"+k] = v
+		}
+		delete(inputState, "__user_input____run_inputs__")
+	}
 
 	_, err = s.sessionService.Create(ctx, &session.CreateRequest{
 		AppName:   wf.Name,

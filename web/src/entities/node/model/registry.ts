@@ -1,4 +1,4 @@
-import { Inbox, Bot, ArrowRightFromLine, FileBox, Wrench } from 'lucide-react'
+import { Inbox, Bot, ArrowRightFromLine, FileBox, Wrench, Zap } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { NodeType, NodeTypeDefinition, NodeEditorProps } from '../types'
 
@@ -41,6 +41,20 @@ registerNode({
   glow: 'shadow-[0_0_20px_var(--color-node-input)/0.25]',
   paletteBg: 'bg-node-input/10 text-node-input border-node-input/20 hover:bg-node-input/20',
   cssVar: 'var(--node-input)',
+})
+
+registerNode({
+  type: 'run_input',
+  label: 'Run Input',
+  description: 'Receives data from pipeline runs',
+  icon: Zap,
+  border: 'border-node-run-input/20',
+  borderSelected: 'border-node-run-input/60',
+  headerBg: 'bg-node-run-input/10',
+  accent: 'bg-node-run-input text-node-run-input-foreground',
+  glow: 'shadow-[0_0_20px_var(--color-node-run-input)/0.25]',
+  paletteBg: 'bg-node-run-input/10 text-node-run-input border-node-run-input/20 hover:bg-node-run-input/20',
+  cssVar: 'var(--node-run-input)',
 })
 
 registerNode({

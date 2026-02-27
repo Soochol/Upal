@@ -69,6 +69,7 @@ func (r *NodeRegistry) Build(nd *upal.NodeDefinition, deps BuildDeps) (agent.Age
 func DefaultRegistry() *NodeRegistry {
 	r := NewNodeRegistry()
 	r.Register(&InputNodeBuilder{})
+	r.Register(&RunInputNodeBuilder{})
 	r.Register(&OutputNodeBuilder{})
 	r.Register(&LLMNodeBuilder{})
 	r.Register(&ToolNodeBuilder{})
