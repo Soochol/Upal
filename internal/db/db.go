@@ -419,17 +419,19 @@ CREATE INDEX IF NOT EXISTS idx_upal_source_fetches_user_id ON upal_source_fetche
 CREATE INDEX IF NOT EXISTS idx_upal_source_fetches_run_id ON upal_source_fetches(run_id);
 
 CREATE TABLE IF NOT EXISTS upal_llm_analyses (
-    id               TEXT PRIMARY KEY,
-    user_id          TEXT NOT NULL DEFAULT 'default',
-    run_id           TEXT NOT NULL,
-    raw_item_count   INTEGER NOT NULL DEFAULT 0,
-    filtered_count   INTEGER NOT NULL DEFAULT 0,
-    summary          TEXT NOT NULL DEFAULT '',
-    insights         JSONB NOT NULL DEFAULT '[]',
-    suggested_angles JSONB NOT NULL DEFAULT '[]',
-    overall_score    INTEGER NOT NULL DEFAULT 0,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                 TEXT PRIMARY KEY,
+    user_id            TEXT NOT NULL DEFAULT 'default',
+    run_id             TEXT NOT NULL,
+    raw_item_count     INTEGER NOT NULL DEFAULT 0,
+    filtered_count     INTEGER NOT NULL DEFAULT 0,
+    summary            TEXT NOT NULL DEFAULT '',
+    source_highlights  JSONB NOT NULL DEFAULT '[]',
+    insights           JSONB NOT NULL DEFAULT '[]',
+    suggested_angles   JSONB NOT NULL DEFAULT '[]',
+    overall_score      INTEGER NOT NULL DEFAULT 0,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE upal_llm_analyses ADD COLUMN IF NOT EXISTS source_highlights JSONB NOT NULL DEFAULT '[]';
 CREATE INDEX IF NOT EXISTS idx_upal_llm_analyses_user_id ON upal_llm_analyses(user_id);
 CREATE INDEX IF NOT EXISTS idx_upal_llm_analyses_run_id ON upal_llm_analyses(run_id);
 

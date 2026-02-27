@@ -15,8 +15,15 @@ Return a JSON object with these fields:
 
 ```json
 {
-  "summary": "2-3 sentence overview of the collected content",
-  "insights": ["up to 5 key findings as strings"],
+  "source_highlights": [
+    {
+      "source_id": "item number (e.g. 1, 2, 3)",
+      "title": "source title",
+      "key_points": ["1-2 key takeaways from this specific source"]
+    }
+  ],
+  "summary": "3-5 sentence cross-source synthesis",
+  "insights": ["cross-source insights: connections, trends, implications across multiple sources"],
   "suggested_angles": [
     {
       "format": "blog | shorts | newsletter | longform | video | thread",
@@ -31,8 +38,9 @@ Return a JSON object with these fields:
 
 ### Field guidelines
 
-- **summary**: Capture the dominant theme and scope of the collected items. Mention source diversity if multiple tools contributed.
-- **insights**: Prioritize actionable findings over surface-level observations. Each insight should inform a content decision.
+- **source_highlights**: Extract 1-2 key takeaways per source. Include ALL collected items — skip only sources with no meaningful content. Use the item number from the "### Item N" header as `source_id`.
+- **summary**: Synthesize across sources — don't just list what was collected. Identify the dominant narrative, emerging patterns, and how sources relate to each other. 3-5 sentences.
+- **insights**: Focus exclusively on cross-source connections. Each insight should reference patterns spanning 2+ sources, not restate a single source's content. Up to 5 insights.
 - **suggested_angles**: Propose 2-5 angles spanning different formats when the material supports it. Each angle should be independently producible — not variations of the same idea.
 - **overall_score**: 0-100 relevance score based on how well the collected content matches the pipeline context (task prompt, language). Score 70+ only when content directly serves the stated goals.
 
@@ -52,4 +60,4 @@ When choosing `workflow_name`:
 ## Output Rules
 
 - Return ONLY valid JSON, no markdown fences, no commentary.
-- All user-facing text (summary, insights, headlines, rationale) MUST be in Korean (한국어).
+- All user-facing text (summary, insights, headlines, rationale, key_points) MUST be in Korean (한국어).

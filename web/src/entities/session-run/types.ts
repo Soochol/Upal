@@ -33,8 +33,15 @@ export type ContentAngle = {
   rationale?: string
 }
 
+export type SourceHighlight = {
+  source_id: string
+  title: string
+  key_points: string[]
+}
+
 export type LLMAnalysis = {
   summary: string
+  source_highlights?: SourceHighlight[]
   insights: string[]
   angles: ContentAngle[]
   score: number

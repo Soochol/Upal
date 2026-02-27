@@ -608,6 +608,10 @@ func (d *DB) DeleteRunSourceFetches(ctx context.Context, userID string, runID st
 // --- V2 LLM Analyses (upal_llm_analyses, keyed by run_id) ---
 
 func (d *DB) CreateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
+	highlightsJSON, err := json.Marshal(a.SourceHighlights)
+	if err != nil {
+		return fmt.Errorf("marshal source_highlights: %w", err)
+	}
 	insightsJSON, err := json.Marshal(a.Insights)
 	if err != nil {
 		return fmt.Errorf("marshal insights: %w", err)
@@ -617,10 +621,10 @@ func (d *DB) CreateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LL
 		return fmt.Errorf("marshal suggested_angles: %w", err)
 	}
 	_, err = d.Pool.ExecContext(ctx,
-		`INSERT INTO upal_llm_analyses (id, user_id, run_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		`INSERT INTO upal_llm_analyses (id, user_id, run_id, raw_item_count, filtered_count, summary, source_highlights, insights, suggested_angles, overall_score, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		a.ID, userID, a.SessionID, a.RawItemCount, a.FilteredCount, a.Summary,
-		insightsJSON, anglesJSON, a.OverallScore, a.CreatedAt,
+		highlightsJSON, insightsJSON, anglesJSON, a.OverallScore, a.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert upal_llm_analysis: %w", err)
@@ -630,18 +634,21 @@ func (d *DB) CreateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LL
 
 func (d *DB) GetRunLLMAnalysis(ctx context.Context, userID string, runID string) (*upal.LLMAnalysis, error) {
 	var a upal.LLMAnalysis
-	var insightsJSON, anglesJSON []byte
+	var highlightsJSON, insightsJSON, anglesJSON []byte
 	err := d.Pool.QueryRowContext(ctx,
-		`SELECT id, run_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at
+		`SELECT id, run_id, raw_item_count, filtered_count, summary, source_highlights, insights, suggested_angles, overall_score, created_at
 		 FROM upal_llm_analyses WHERE run_id = $1 AND user_id = $2`,
 		runID, userID,
 	).Scan(&a.ID, &a.SessionID, &a.RawItemCount, &a.FilteredCount, &a.Summary,
-		&insightsJSON, &anglesJSON, &a.OverallScore, &a.CreatedAt)
+		&highlightsJSON, &insightsJSON, &anglesJSON, &a.OverallScore, &a.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("upal_llm_analysis for run %q not found", runID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get upal_llm_analysis: %w", err)
+	}
+	if err := json.Unmarshal(highlightsJSON, &a.SourceHighlights); err != nil {
+		return nil, fmt.Errorf("unmarshal source_highlights: %w", err)
 	}
 	if err := json.Unmarshal(insightsJSON, &a.Insights); err != nil {
 		return nil, fmt.Errorf("unmarshal insights: %w", err)
@@ -653,6 +660,10 @@ func (d *DB) GetRunLLMAnalysis(ctx context.Context, userID string, runID string)
 }
 
 func (d *DB) UpdateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
+	highlightsJSON, err := json.Marshal(a.SourceHighlights)
+	if err != nil {
+		return fmt.Errorf("marshal source_highlights: %w", err)
+	}
 	insightsJSON, err := json.Marshal(a.Insights)
 	if err != nil {
 		return fmt.Errorf("marshal insights: %w", err)
@@ -662,9 +673,9 @@ func (d *DB) UpdateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LL
 		return fmt.Errorf("marshal suggested_angles: %w", err)
 	}
 	res, err := d.Pool.ExecContext(ctx,
-		`UPDATE upal_llm_analyses SET raw_item_count=$1, filtered_count=$2, summary=$3, insights=$4, suggested_angles=$5, overall_score=$6
-		 WHERE run_id = $7 AND user_id = $8`,
-		a.RawItemCount, a.FilteredCount, a.Summary, insightsJSON, anglesJSON, a.OverallScore,
+		`UPDATE upal_llm_analyses SET raw_item_count=$1, filtered_count=$2, summary=$3, source_highlights=$4, insights=$5, suggested_angles=$6, overall_score=$7
+		 WHERE run_id = $8 AND user_id = $9`,
+		a.RawItemCount, a.FilteredCount, a.Summary, highlightsJSON, insightsJSON, anglesJSON, a.OverallScore,
 		a.SessionID, userID,
 	)
 	if err != nil {

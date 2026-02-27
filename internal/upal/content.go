@@ -92,17 +92,25 @@ type ContentAngle struct {
 	MatchType    string `json:"match_type,omitempty"`      // "matched" | "generated" | "none"
 }
 
+// SourceHighlight captures per-source key takeaways from the analysis.
+type SourceHighlight struct {
+	SourceID  string   `json:"source_id"`
+	Title     string   `json:"title"`
+	KeyPoints []string `json:"key_points"`
+}
+
 // LLMAnalysis stores the synthesized result of the LLM's analysis step.
 type LLMAnalysis struct {
-	ID              string         `json:"id"`
-	SessionID       string         `json:"session_id"`
-	RawItemCount    int            `json:"total_collected"`  // frontend expects "total_collected"
-	FilteredCount   int            `json:"total_selected"`   // frontend expects "total_selected"
-	Summary         string         `json:"summary"`
-	Insights        []string       `json:"insights,omitempty"`
-	SuggestedAngles []ContentAngle `json:"angles,omitempty"` // frontend expects "angles"
-	OverallScore    int            `json:"score"`            // frontend expects "score"
-	CreatedAt       time.Time      `json:"created_at"`
+	ID               string            `json:"id"`
+	SessionID        string            `json:"session_id"`
+	RawItemCount     int               `json:"total_collected"`  // frontend expects "total_collected"
+	FilteredCount    int               `json:"total_selected"`   // frontend expects "total_selected"
+	Summary          string            `json:"summary"`
+	SourceHighlights []SourceHighlight  `json:"source_highlights,omitempty"`
+	Insights         []string          `json:"insights,omitempty"`
+	SuggestedAngles  []ContentAngle    `json:"angles,omitempty"` // frontend expects "angles"
+	OverallScore     int               `json:"score"`            // frontend expects "score"
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 // PublishedContent records a single piece of content published to an external channel.

@@ -1207,6 +1207,11 @@ func (c *ContentCollector) runAnalysisV2(ctx context.Context, session *upal.Sess
 	}
 
 	var parsed struct {
+		SourceHighlights []struct {
+			SourceID  string   `json:"source_id"`
+			Title     string   `json:"title"`
+			KeyPoints []string `json:"key_points"`
+		} `json:"source_highlights"`
 		Summary         string   `json:"summary"`
 		Insights        []string `json:"insights"`
 		SuggestedAngles []struct {
@@ -1253,14 +1258,24 @@ func (c *ContentCollector) runAnalysisV2(ctx context.Context, session *upal.Sess
 		})
 	}
 
+	highlights := make([]upal.SourceHighlight, 0, len(parsed.SourceHighlights))
+	for _, sh := range parsed.SourceHighlights {
+		highlights = append(highlights, upal.SourceHighlight{
+			SourceID:  sh.SourceID,
+			Title:     sh.Title,
+			KeyPoints: sh.KeyPoints,
+		})
+	}
+
 	analysis := &upal.LLMAnalysis{
-		SessionID:       run.ID,
-		RawItemCount:    totalItems,
-		FilteredCount:   totalItems,
-		Summary:         parsed.Summary,
-		Insights:        parsed.Insights,
-		SuggestedAngles: angles,
-		OverallScore:    parsed.OverallScore,
+		SessionID:        run.ID,
+		RawItemCount:     totalItems,
+		FilteredCount:    totalItems,
+		Summary:          parsed.Summary,
+		SourceHighlights: highlights,
+		Insights:         parsed.Insights,
+		SuggestedAngles:  angles,
+		OverallScore:     parsed.OverallScore,
 	}
 
 	if err := c.runSvc.RecordAnalysis(ctx, analysis); err != nil {
@@ -1342,8 +1357,8 @@ func buildAnalysisPromptV2(systemPromptBase string, session *upal.Session, _ *up
 			}
 			if item.Content != "" {
 				content := item.Content
-				if len(content) > 500 {
-					content = content[:500] + "..."
+				if len(content) > 2000 {
+					content = content[:2000] + "..."
 				}
 				fmt.Fprintf(&b, "Content: %s\n", content)
 			}
@@ -1698,14 +1713,49 @@ func mapSessionSources(sources []upal.SessionSource, isTest bool, limit int) []m
 	return result
 }
 
-// buildProductionInputsV2 composes workflow inputs from analysis and source fetches directly,
-// without requiring a ContentSessionDetail wrapper.
+// buildProductionInputsV2 composes workflow inputs from analysis and source fetches.
+// It builds a focused brief: the angle matched to this workflow + source highlights + insights.
+// The workflow is expected to do its own deep research from this brief.
 func buildProductionInputsV2(analysis *upal.LLMAnalysis, sources []*upal.SourceFetch, wf *upal.WorkflowDefinition) map[string]any {
 	var sb strings.Builder
 
 	if analysis != nil {
-		fmt.Fprintf(&sb, "## Summary\n%s\n\n", analysis.Summary)
+		// Find the angle matched to this workflow.
+		var matchedAngle *upal.ContentAngle
+		for i, angle := range analysis.SuggestedAngles {
+			if angle.Selected && angle.WorkflowName == wf.Name {
+				matchedAngle = &analysis.SuggestedAngles[i]
+				break
+			}
+		}
 
+		// Primary assignment: the specific angle for this workflow.
+		if matchedAngle != nil {
+			fmt.Fprintf(&sb, "## Assignment\n")
+			fmt.Fprintf(&sb, "Topic: %s\n", matchedAngle.Headline)
+			fmt.Fprintf(&sb, "Format: %s\n", matchedAngle.Format)
+			if matchedAngle.Rationale != "" {
+				fmt.Fprintf(&sb, "Rationale: %s\n", matchedAngle.Rationale)
+			}
+			sb.WriteString("\n")
+		}
+
+		// Context: overall summary.
+		fmt.Fprintf(&sb, "## Context\n%s\n\n", analysis.Summary)
+
+		// Source highlights: per-source key points.
+		if len(analysis.SourceHighlights) > 0 {
+			sb.WriteString("## Source Highlights\n")
+			for _, sh := range analysis.SourceHighlights {
+				fmt.Fprintf(&sb, "### %s\n", sh.Title)
+				for _, kp := range sh.KeyPoints {
+					fmt.Fprintf(&sb, "- %s\n", kp)
+				}
+				sb.WriteString("\n")
+			}
+		}
+
+		// Cross-source insights.
 		if len(analysis.Insights) > 0 {
 			sb.WriteString("## Key Insights\n")
 			for _, insight := range analysis.Insights {
@@ -1713,44 +1763,52 @@ func buildProductionInputsV2(analysis *upal.LLMAnalysis, sources []*upal.SourceF
 			}
 			sb.WriteString("\n")
 		}
-		if len(analysis.SuggestedAngles) > 0 {
-			sb.WriteString("## Suggested Angles\n")
-			for _, angle := range analysis.SuggestedAngles {
-				fmt.Fprintf(&sb, "- [%s] %s\n", angle.Format, angle.Headline)
-			}
-			sb.WriteString("\n")
-		}
 	}
 
-	sb.WriteString("## Collected Sources\n\n")
+	// Reference URLs for the workflow to research further.
+	var hasURLs bool
 	for _, sf := range sources {
 		if sf.Error != nil {
 			continue
 		}
 		for _, item := range sf.RawItems {
-			if item.Title != "" {
-				fmt.Fprintf(&sb, "### %s\n", item.Title)
-			}
 			if item.URL != "" {
-				fmt.Fprintf(&sb, "URL: %s\n", item.URL)
-			}
-			if item.Content != "" {
-				content := item.Content
-				if len(content) > 500 {
-					content = content[:500] + "..."
+				if !hasURLs {
+					sb.WriteString("## Reference URLs\n")
+					hasURLs = true
 				}
-				fmt.Fprintf(&sb, "%s\n", content)
+				if item.Title != "" {
+					fmt.Fprintf(&sb, "- %s: %s\n", item.Title, item.URL)
+				} else {
+					fmt.Fprintf(&sb, "- %s\n", item.URL)
+				}
 			}
-			sb.WriteString("\n---\n\n")
 		}
+	}
+	if hasURLs {
+		sb.WriteString("\n")
 	}
 
 	brief := sb.String()
 
 	inputs := make(map[string]any)
+
+	// Primary: populate run_input nodes with the brief.
+	runInputs := make(map[string]any)
 	for _, node := range wf.Nodes {
-		if node.Type == "input" {
-			inputs[node.ID] = brief
+		if node.Type == upal.NodeTypeRunInput {
+			runInputs[node.ID] = brief
+		}
+	}
+
+	if len(runInputs) > 0 {
+		inputs["__run_inputs__"] = runInputs
+	} else {
+		// Fallback: if no run_input node, populate user input nodes (backward compat).
+		for _, node := range wf.Nodes {
+			if node.Type == upal.NodeTypeInput {
+				inputs[node.ID] = brief
+			}
 		}
 	}
 

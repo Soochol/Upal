@@ -50,18 +50,47 @@ export function InboxPreview({ runId }: InboxPreviewProps) {
             <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
                 {/* Analysis section */}
                 {run.analysis && (
-                    <section>
-                        <h3 className="text-sm font-semibold text-foreground mb-2">Analysis</h3>
-                        <p className="text-sm text-muted-foreground">{run.analysis.summary}</p>
+                    <section className="space-y-4">
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground mb-2">Analysis</h3>
+                            <p className="text-sm text-muted-foreground">{run.analysis.summary}</p>
+                        </div>
+
+                        {/* Source highlights */}
+                        {run.analysis.source_highlights && run.analysis.source_highlights.length > 0 && (
+                            <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Source Highlights</h4>
+                                <div className="space-y-2">
+                                    {run.analysis.source_highlights.map((sh, i) => (
+                                        <div key={i} className="p-2.5 rounded-lg border border-border/50 bg-card/50">
+                                            <span className="text-xs font-medium text-foreground">{sh.title}</span>
+                                            <ul className="mt-1 space-y-0.5">
+                                                {sh.key_points.map((point, j) => (
+                                                    <li key={j} className="text-xs text-muted-foreground flex gap-2">
+                                                        <span className="text-primary/60 shrink-0">&bull;</span>
+                                                        {point}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Cross-source insights */}
                         {run.analysis.insights && run.analysis.insights.length > 0 && (
-                            <ul className="mt-2 space-y-1">
-                                {run.analysis.insights.map((insight, i) => (
-                                    <li key={i} className="text-xs text-muted-foreground flex gap-2">
-                                        <span className="text-primary/60">&bull;</span>
-                                        {insight}
-                                    </li>
-                                ))}
-                            </ul>
+                            <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Insights</h4>
+                                <ul className="space-y-1">
+                                    {run.analysis.insights.map((insight, i) => (
+                                        <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                                            <span className="text-primary/60">&bull;</span>
+                                            {insight}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         )}
                     </section>
                 )}
@@ -70,13 +99,29 @@ export function InboxPreview({ runId }: InboxPreviewProps) {
                 {run.sources && run.sources.length > 0 && (
                     <section>
                         <h3 className="text-sm font-semibold text-foreground mb-2">Sources ({run.sources.length})</h3>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {run.sources.map((src) => (
                                 <div key={src.id} className="p-3 rounded-lg border border-border/50 bg-card">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium">{src.label || src.tool}</span>
                                         <span className="text-xs text-muted-foreground">{src.count} items</span>
                                     </div>
+                                    {src.items && src.items.length > 0 && (
+                                        <ul className="space-y-1.5">
+                                            {src.items.map((item, i) => (
+                                                <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                                                    <span className="text-primary/60 shrink-0">&bull;</span>
+                                                    {item.url ? (
+                                                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline truncate">
+                                                            {item.title}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="truncate">{item.title}</span>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             ))}
                         </div>
