@@ -53,7 +53,7 @@ func (f *researchFetcher) Fetch(ctx context.Context, src upal.CollectSource) (st
 
 	switch depth {
 	case "light":
-		return f.runResearch(ctx, src, llm, modelName, 3, 30*time.Second)
+		return f.runResearch(ctx, src, llm, modelName, 3, 5*time.Minute)
 	case "deep":
 		maxSearches := src.MaxSearches
 		if maxSearches <= 0 {

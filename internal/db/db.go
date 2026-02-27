@@ -403,6 +403,36 @@ CREATE TABLE IF NOT EXISTS upal_workflow_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_upal_workflow_runs_user_id ON upal_workflow_runs(user_id);
 
+CREATE TABLE IF NOT EXISTS upal_source_fetches (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL DEFAULT 'default',
+    run_id      TEXT NOT NULL,
+    tool_name   TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'static',
+    label       TEXT NOT NULL DEFAULT '',
+    item_count  INTEGER NOT NULL DEFAULT 0,
+    raw_items   JSONB NOT NULL DEFAULT '[]',
+    error       TEXT,
+    fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_upal_source_fetches_user_id ON upal_source_fetches(user_id);
+CREATE INDEX IF NOT EXISTS idx_upal_source_fetches_run_id ON upal_source_fetches(run_id);
+
+CREATE TABLE IF NOT EXISTS upal_llm_analyses (
+    id               TEXT PRIMARY KEY,
+    user_id          TEXT NOT NULL DEFAULT 'default',
+    run_id           TEXT NOT NULL,
+    raw_item_count   INTEGER NOT NULL DEFAULT 0,
+    filtered_count   INTEGER NOT NULL DEFAULT 0,
+    summary          TEXT NOT NULL DEFAULT '',
+    insights         JSONB NOT NULL DEFAULT '[]',
+    suggested_angles JSONB NOT NULL DEFAULT '[]',
+    overall_score    INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_upal_llm_analyses_user_id ON upal_llm_analyses(user_id);
+CREATE INDEX IF NOT EXISTS idx_upal_llm_analyses_run_id ON upal_llm_analyses(run_id);
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id          TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

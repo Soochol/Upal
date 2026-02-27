@@ -146,21 +146,21 @@ func (c *ClaudeCodeLLM) generate(ctx context.Context, req *adkmodel.LLMRequest) 
 		args = append(args, "--tools", "")
 	}
 	args = append(args, "--output-format", "text")
-	// Effort level: use explicit context value if set, otherwise default to
-	// "low" for fast responses (unless thinking is enabled or tools are active).
+	// Effort level: explicit context value takes priority. Otherwise default to
+	// "low" for fast responses, except when tools are active (need medium+) or
+	// thinking is enabled.
 	hasTools := len(cliTools) > 0 || len(customDefs) > 0
-	if effort := effortFromContext(ctx); effort != "" {
+	effort := effortFromContext(ctx)
+	switch {
+	case effort != "":
 		args = append(args, "--effort", effort)
-	} else if hasTools {
-		// Tools need at least medium effort to actually trigger usage.
-	} else if !thinkingFromContext(ctx) {
+	case !hasTools && !thinkingFromContext(ctx):
 		args = append(args, "--effort", "low")
 	}
 
-	// Set a timeout for the subprocess.
 	// Tools and high-effort (extended thinking) calls need more time.
 	timeout := 2 * time.Minute
-	if hasTools || effortFromContext(ctx) == "high" {
+	if hasTools || effort == "high" {
 		timeout = 5 * time.Minute
 	}
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -218,8 +218,9 @@ func mapToolsToCLI(req *adkmodel.LLMRequest) []string {
 // Text-based tool calling helpers
 // ---------------------------------------------------------------------------
 
-// extractCustomToolDefs returns all FunctionDeclarations from the request's tools,
-// excluding native tools (GoogleSearch, etc.) that are handled by CLI tool mappings.
+// extractCustomToolDefs returns all FunctionDeclarations from the request's tools.
+// Native tools (GoogleSearch, etc.) don't carry FunctionDeclarations and are
+// handled separately via CLI tool mappings.
 func extractCustomToolDefs(req *adkmodel.LLMRequest) []*genai.FunctionDeclaration {
 	if req.Config == nil {
 		return nil
@@ -254,10 +255,7 @@ func buildToolPrompt(defs []*genai.FunctionDeclaration) string {
 		}
 		if def.Parameters != nil && len(def.Parameters.Properties) > 0 {
 			sb.WriteString("Parameters:\n")
-			required := make(map[string]bool)
-			for _, r := range def.Parameters.Required {
-				required[r] = true
-			}
+			required := toSet(def.Parameters.Required)
 			for name, prop := range def.Parameters.Properties {
 				sb.WriteString("  - ")
 				sb.WriteString(name)
@@ -318,7 +316,6 @@ func parseToolCalls(text string) ([]*genai.FunctionCall, string) {
 	}
 
 	var calls []*genai.FunctionCall
-	// Track which match ranges to remove (only successfully parsed ones).
 	var removeRanges [][2]int
 
 	for _, match := range matches {
@@ -338,10 +335,7 @@ func parseToolCalls(text string) ([]*genai.FunctionCall, string) {
 		removeRanges = append(removeRanges, [2]int{match[0], match[1]})
 	}
 
-	// Build remaining text by removing parsed tool call blocks.
-	remaining := removeRangesFromText(text, removeRanges)
-	remaining = strings.TrimSpace(remaining)
-
+	remaining := strings.TrimSpace(removeRangesFromText(text, removeRanges))
 	return calls, remaining
 }
 
@@ -379,26 +373,12 @@ func buildUserMessage(contents []*genai.Content) string {
 				}
 			case part.FunctionCall != nil:
 				fc := part.FunctionCall
-				argsJSON, err := json.Marshal(fc.Args)
-				if err != nil {
-					argsJSON = []byte("{}")
-				}
-				sb.WriteString("[Assistant called tool: ")
-				sb.WriteString(fc.Name)
-				sb.WriteString("]\nArguments: ")
-				sb.Write(argsJSON)
-				sb.WriteString("\n\n")
+				fmt.Fprintf(&sb, "[Assistant called tool: %s]\nArguments: %s\n\n",
+					fc.Name, marshalOrEmpty(fc.Args))
 			case part.FunctionResponse != nil:
 				fr := part.FunctionResponse
-				resultJSON, err := json.Marshal(fr.Response)
-				if err != nil {
-					resultJSON = []byte("{}")
-				}
-				sb.WriteString("[Tool result: ")
-				sb.WriteString(fr.Name)
-				sb.WriteString("]\n")
-				sb.Write(resultJSON)
-				sb.WriteString("\n\n")
+				fmt.Fprintf(&sb, "[Tool result: %s]\n%s\n\n",
+					fr.Name, marshalOrEmpty(fr.Response))
 			}
 		}
 	}
@@ -412,19 +392,15 @@ func buildToolResponse(text string) *adkmodel.LLMResponse {
 	calls, remaining := parseToolCalls(text)
 
 	var parts []*genai.Part
-
-	if len(calls) > 0 {
-		// Add remaining text as a text part (if non-empty).
+	if len(calls) == 0 {
+		parts = append(parts, genai.NewPartFromText(text))
+	} else {
 		if remaining != "" {
 			parts = append(parts, genai.NewPartFromText(remaining))
 		}
-		// Add function call parts.
 		for _, fc := range calls {
 			parts = append(parts, &genai.Part{FunctionCall: fc})
 		}
-	} else {
-		// No tool calls — plain text response.
-		parts = []*genai.Part{genai.NewPartFromText(text)}
 	}
 
 	return &adkmodel.LLMResponse{
@@ -441,6 +417,28 @@ func init() {
 	RegisterProvider("claude-code", func(name string, cfg config.ProviderConfig) adkmodel.LLM {
 		return NewClaudeCodeLLM()
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Small utilities
+// ---------------------------------------------------------------------------
+
+// toSet converts a string slice to a map for O(1) lookups.
+func toSet(items []string) map[string]bool {
+	m := make(map[string]bool, len(items))
+	for _, s := range items {
+		m[s] = true
+	}
+	return m
+}
+
+// marshalOrEmpty marshals v to JSON, returning "{}" on failure.
+func marshalOrEmpty(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
 }
 
 // filterEnv returns a copy of env with any variables matching the given key removed.

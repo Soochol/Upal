@@ -386,14 +386,22 @@ func serve() {
 	memWFRunRepo := repository.NewMemoryWorkflowRunRepository()
 	var wfRunRepo repository.WorkflowRunRepository = memWFRunRepo
 
+	// V2-specific repos for source fetches and analyses (write to upal_* tables, not content_sessions FK).
+	memRunFetchRepo := repository.NewMemorySourceFetchRepository()
+	var runFetchRepo repository.SourceFetchRepository = memRunFetchRepo
+	memRunAnalysisRepo := repository.NewMemoryLLMAnalysisRepository()
+	var runAnalysisRepo repository.LLMAnalysisRepository = memRunAnalysisRepo
+
 	if database != nil {
 		sessionRepo = repository.NewPersistentSessionRepository(memSessionRepo, database)
 		sessionRunRepo = repository.NewPersistentSessionRunRepository(memSessionRunRepo, database)
 		wfRunRepo = repository.NewPersistentWorkflowRunRepository(memWFRunRepo, database)
+		runFetchRepo = repository.NewPersistentRunSourceFetchRepository(memRunFetchRepo, database)
+		runAnalysisRepo = repository.NewPersistentRunLLMAnalysisRepository(memRunAnalysisRepo, database)
 	}
 
 	sessionSvc := services.NewSessionService(sessionRepo)
-	runSvc := services.NewRunService(sessionRunRepo, sessionRepo, sourceFetchRepo, llmAnalysisRepo, publishedRepo, surgeRepo, wfRunRepo)
+	runSvc := services.NewRunService(sessionRunRepo, sessionRepo, runFetchRepo, runAnalysisRepo, publishedRepo, surgeRepo, wfRunRepo)
 	srv.SetSessionService(sessionSvc)
 	srv.SetRunService(runSvc)
 

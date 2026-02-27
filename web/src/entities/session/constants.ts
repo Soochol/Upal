@@ -1,4 +1,5 @@
 export const SCHEDULE_PRESETS: { label: string; cron: string }[] = [
+  { label: 'Run once', cron: '@once' },
   { label: 'Every hour', cron: '0 * * * *' },
   { label: 'Every 6 hours', cron: '0 */6 * * *' },
   { label: 'Every 12 hours', cron: '0 */12 * * *' },

@@ -36,7 +36,7 @@ export function InboxPreview({ runId }: InboxPreviewProps) {
                 )}
                 <div className="flex items-center gap-3">
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                        {runDisplayName(run)}
+                        {run.name || runDisplayName(run)}
                     </h1>
                     <StatusBadge status={run.status} />
                 </div>

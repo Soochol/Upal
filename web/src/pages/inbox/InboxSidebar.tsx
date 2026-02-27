@@ -38,6 +38,7 @@ export function InboxSidebar({
                 if (!search) return true
                 const q = search.toLowerCase()
                 return (
+                    r.name?.toLowerCase().includes(q) ||
                     runDisplayName(r).toLowerCase().includes(q) ||
                     r.session_name?.toLowerCase().includes(q) ||
                     r.analysis?.summary?.toLowerCase().includes(q) ||
@@ -125,7 +126,7 @@ export function InboxSidebar({
                                         <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', RUN_STATUS_DOT[r.status] ?? 'bg-muted')} />
                                         <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                                         <span className={cn('text-sm font-semibold truncate', isSelected ? 'text-primary' : 'text-foreground')}>
-                                            {runDisplayName(r)}
+                                            {r.name || runDisplayName(r)}
                                         </span>
                                     </div>
                                     <span className="text-xs text-muted-foreground/60 whitespace-nowrap shrink-0">

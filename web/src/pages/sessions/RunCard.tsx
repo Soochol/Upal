@@ -53,6 +53,7 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
   const isDraft = run.status === 'draft'
   const isRunning = run.status === 'collecting' || run.status === 'analyzing'
   const hasContent = (run.run_sources?.length ?? 0) > 0 || (run.context?.prompt?.trim() ?? '') !== ''
+  const isOnce = run.schedule === '@once'
   const hasSchedule = !!run.schedule
 
   return (
@@ -83,7 +84,7 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {isDraft && (
+          {isDraft && !isOnce && (
             <button
               onClick={(e) => { e.stopPropagation(); collectMutation.mutate() }}
               disabled={collectMutation.isPending || !hasContent}
@@ -103,7 +104,17 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
               <Square className="h-3.5 w-3.5" />
             </button>
           )}
-          {hasSchedule && !isDraft && !isRunning && (
+          {isOnce && isDraft && (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleMutation.mutate() }}
+              disabled={toggleMutation.isPending || !hasContent}
+              className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title={hasContent ? 'Run once now' : 'Add sources or a task prompt first'}
+            >
+              <Play className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {hasSchedule && !isOnce && !isDraft && !isRunning && (
             <button
               onClick={(e) => { e.stopPropagation(); toggleMutation.mutate() }}
               className={cn(

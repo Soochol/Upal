@@ -550,3 +550,137 @@ func scanSurgeEvents(rows *sql.Rows) ([]*upal.SurgeEvent, error) {
 	}
 	return result, rows.Err()
 }
+
+// --- V2 Source Fetches (upal_source_fetches, keyed by run_id) ---
+
+func (d *DB) CreateRunSourceFetch(ctx context.Context, userID string, sf *upal.SourceFetch) error {
+	itemsJSON, err := json.Marshal(sf.RawItems)
+	if err != nil {
+		return fmt.Errorf("marshal raw_items: %w", err)
+	}
+	_, err = d.Pool.ExecContext(ctx,
+		`INSERT INTO upal_source_fetches (id, user_id, run_id, tool_name, source_type, label, item_count, raw_items, error, fetched_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		sf.ID, userID, sf.SessionID, sf.ToolName, sf.SourceType, sf.Label, sf.Count, itemsJSON, sf.Error, sf.FetchedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert upal_source_fetch: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) ListRunSourceFetches(ctx context.Context, userID string, runID string) ([]*upal.SourceFetch, error) {
+	rows, err := d.Pool.QueryContext(ctx,
+		`SELECT id, run_id, tool_name, source_type, COALESCE(label, ''), COALESCE(item_count, 0), raw_items, error, fetched_at
+		 FROM upal_source_fetches WHERE run_id = $1 AND user_id = $2 ORDER BY fetched_at ASC`,
+		runID, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list upal_source_fetches: %w", err)
+	}
+	defer rows.Close()
+	var result []*upal.SourceFetch
+	for rows.Next() {
+		var sf upal.SourceFetch
+		var itemsJSON []byte
+		if err := rows.Scan(&sf.ID, &sf.SessionID, &sf.ToolName, &sf.SourceType, &sf.Label, &sf.Count, &itemsJSON, &sf.Error, &sf.FetchedAt); err != nil {
+			return nil, fmt.Errorf("scan upal_source_fetch: %w", err)
+		}
+		if err := json.Unmarshal(itemsJSON, &sf.RawItems); err != nil {
+			return nil, fmt.Errorf("unmarshal raw_items: %w", err)
+		}
+		if sf.Count == 0 && len(sf.RawItems) > 0 {
+			sf.Count = len(sf.RawItems)
+		}
+		result = append(result, &sf)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) DeleteRunSourceFetches(ctx context.Context, userID string, runID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM upal_source_fetches WHERE run_id = $1 AND user_id = $2`, runID, userID)
+	if err != nil {
+		return fmt.Errorf("delete upal_source_fetches: %w", err)
+	}
+	return nil
+}
+
+// --- V2 LLM Analyses (upal_llm_analyses, keyed by run_id) ---
+
+func (d *DB) CreateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
+	insightsJSON, err := json.Marshal(a.Insights)
+	if err != nil {
+		return fmt.Errorf("marshal insights: %w", err)
+	}
+	anglesJSON, err := json.Marshal(a.SuggestedAngles)
+	if err != nil {
+		return fmt.Errorf("marshal suggested_angles: %w", err)
+	}
+	_, err = d.Pool.ExecContext(ctx,
+		`INSERT INTO upal_llm_analyses (id, user_id, run_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		a.ID, userID, a.SessionID, a.RawItemCount, a.FilteredCount, a.Summary,
+		insightsJSON, anglesJSON, a.OverallScore, a.CreatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert upal_llm_analysis: %w", err)
+	}
+	return nil
+}
+
+func (d *DB) GetRunLLMAnalysis(ctx context.Context, userID string, runID string) (*upal.LLMAnalysis, error) {
+	var a upal.LLMAnalysis
+	var insightsJSON, anglesJSON []byte
+	err := d.Pool.QueryRowContext(ctx,
+		`SELECT id, run_id, raw_item_count, filtered_count, summary, insights, suggested_angles, overall_score, created_at
+		 FROM upal_llm_analyses WHERE run_id = $1 AND user_id = $2`,
+		runID, userID,
+	).Scan(&a.ID, &a.SessionID, &a.RawItemCount, &a.FilteredCount, &a.Summary,
+		&insightsJSON, &anglesJSON, &a.OverallScore, &a.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("upal_llm_analysis for run %q not found", runID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get upal_llm_analysis: %w", err)
+	}
+	if err := json.Unmarshal(insightsJSON, &a.Insights); err != nil {
+		return nil, fmt.Errorf("unmarshal insights: %w", err)
+	}
+	if err := json.Unmarshal(anglesJSON, &a.SuggestedAngles); err != nil {
+		return nil, fmt.Errorf("unmarshal suggested_angles: %w", err)
+	}
+	return &a, nil
+}
+
+func (d *DB) UpdateRunLLMAnalysis(ctx context.Context, userID string, a *upal.LLMAnalysis) error {
+	insightsJSON, err := json.Marshal(a.Insights)
+	if err != nil {
+		return fmt.Errorf("marshal insights: %w", err)
+	}
+	anglesJSON, err := json.Marshal(a.SuggestedAngles)
+	if err != nil {
+		return fmt.Errorf("marshal suggested_angles: %w", err)
+	}
+	res, err := d.Pool.ExecContext(ctx,
+		`UPDATE upal_llm_analyses SET raw_item_count=$1, filtered_count=$2, summary=$3, insights=$4, suggested_angles=$5, overall_score=$6
+		 WHERE run_id = $7 AND user_id = $8`,
+		a.RawItemCount, a.FilteredCount, a.Summary, insightsJSON, anglesJSON, a.OverallScore,
+		a.SessionID, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("update upal_llm_analysis: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("upal_llm_analysis for run %q not found", a.SessionID)
+	}
+	return nil
+}
+
+func (d *DB) DeleteRunLLMAnalyses(ctx context.Context, userID string, runID string) error {
+	_, err := d.Pool.ExecContext(ctx, `DELETE FROM upal_llm_analyses WHERE run_id = $1 AND user_id = $2`, runID, userID)
+	if err != nil {
+		return fmt.Errorf("delete upal_llm_analyses: %w", err)
+	}
+	return nil
+}

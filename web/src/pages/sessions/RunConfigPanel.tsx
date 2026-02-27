@@ -5,7 +5,6 @@ import { DEFAULT_RUN_CONTEXT } from '@/entities/session-run/constants'
 import type { SessionSource, SessionWorkflow, SessionContext } from '@/entities/session/types'
 import { fetchRun, updateRunConfig } from '@/entities/session-run/api'
 import { useAutoSave } from '@/shared/hooks/useAutoSave'
-import { StatusBadge } from '@/shared/ui/StatusBadge'
 import { RunConfigFields } from './RunConfigFields'
 
 interface RunConfigPanelProps {
@@ -58,7 +57,6 @@ function RunConfigForm({ run }: { run: Run }) {
       <div className="flex items-center px-4 py-3 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-semibold truncate">{run.name || `Run #${run.run_number ?? ''}`}</span>
-          <StatusBadge status={run.status} />
         </div>
       </div>
 

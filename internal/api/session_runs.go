@@ -108,7 +108,8 @@ func (s *Server) produceNewRun(w http.ResponseWriter, r *http.Request) {
 		for i, w := range body.Workflows {
 			requests[i] = services.WorkflowRequest{Name: w.Name, ChannelID: w.ChannelID}
 		}
-		go s.collector.ProduceWorkflowsV2(context.Background(), id, requests)
+		bgCtx := upal.WithUserID(context.Background(), upal.UserIDFromContext(r.Context()))
+		go s.collector.ProduceWorkflowsV2(bgCtx, id, requests)
 	} else {
 		if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunProducing); err != nil {
 			writeServiceError(w, err, http.StatusInternalServerError)
@@ -273,7 +274,8 @@ func (s *Server) collectNewRun(w http.ResponseWriter, r *http.Request) {
 	if s.collector != nil && s.sessionSvc != nil {
 		sess, err := s.sessionSvc.Get(r.Context(), run.SessionID)
 		if err == nil {
-			go s.collector.CollectAndAnalyzeV2(context.Background(), sess, run, false, 0)
+			bgCtx := upal.WithUserID(context.Background(), upal.UserIDFromContext(r.Context()))
+			go s.collector.CollectAndAnalyzeV2(bgCtx, sess, run, false, 0)
 		}
 	}
 	writeJSONStatus(w, http.StatusAccepted, run)
@@ -315,6 +317,33 @@ func (s *Server) toggleRunSchedule(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &body) {
 		return
 	}
+
+	// @once: run immediately once, then keep schedule inactive.
+	if body.Active {
+		run, err := s.runSvc.GetRun(r.Context(), id)
+		if err != nil {
+			writeServiceError(w, err, http.StatusNotFound)
+			return
+		}
+		if run.Schedule == "@once" {
+			if run.Status == upal.SessionRunDraft {
+				if err := s.runSvc.UpdateRunStatus(r.Context(), id, upal.SessionRunCollecting); err != nil {
+					writeServiceError(w, err, http.StatusInternalServerError)
+					return
+				}
+				run.Status = upal.SessionRunCollecting
+				if s.collector != nil && s.sessionSvc != nil {
+					if sess, err := s.sessionSvc.Get(r.Context(), run.SessionID); err == nil {
+						bgCtx := upal.WithUserID(context.Background(), upal.UserIDFromContext(r.Context()))
+						go s.collector.CollectAndAnalyzeV2(bgCtx, sess, run, false, 0)
+					}
+				}
+			}
+			writeJSON(w, run)
+			return
+		}
+	}
+
 	if err := s.runSvc.ToggleRunSchedule(r.Context(), id, body.Active); err != nil {
 		writeServiceError(w, err, http.StatusInternalServerError)
 		return

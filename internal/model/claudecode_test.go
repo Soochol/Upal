@@ -183,102 +183,94 @@ func TestSchemaTypeString(t *testing.T) {
 // parseToolCalls tests
 // ---------------------------------------------------------------------------
 
-func TestParseToolCalls_NoToolCalls(t *testing.T) {
-	text := "Here is a simple text response with no tool calls."
-	calls, remaining := parseToolCalls(text)
-	if len(calls) != 0 {
-		t.Errorf("expected 0 calls, got %d", len(calls))
+func TestParseToolCalls(t *testing.T) {
+	tests := []struct {
+		name           string
+		text           string
+		wantCalls      int
+		wantFirstName  string
+		wantFirstID    string
+		wantFirstArg   string // key=value to check in first call's Args
+		remainContains string // substring that must be in remaining text
+		remainExcludes string // substring that must NOT be in remaining text
+	}{
+		{
+			name:           "no tool calls",
+			text:           "Here is a simple text response with no tool calls.",
+			wantCalls:      0,
+			remainContains: "simple text response",
+		},
+		{
+			name: "single call with surrounding text",
+			text: "I'll generate that for you.\n\n<tool_call>\n" +
+				`{"name": "generate_workflow", "arguments": {"description": "blog writer"}}` +
+				"\n</tool_call>\n\nPlease wait.",
+			wantCalls:      1,
+			wantFirstName:  "generate_workflow",
+			wantFirstID:    "cc_tool_0",
+			wantFirstArg:   "description=blog writer",
+			remainExcludes: "<tool_call>",
+		},
+		{
+			name: "multiple calls with sequential IDs",
+			text: "Let me do two things.\n\n<tool_call>\n" +
+				`{"name": "add_node", "arguments": {"node_type": "input", "label": "Topic"}}` +
+				"\n</tool_call>\n\n<tool_call>\n" +
+				`{"name": "add_node", "arguments": {"node_type": "agent", "label": "Writer"}}` +
+				"\n</tool_call>",
+			wantCalls:     2,
+			wantFirstName: "add_node",
+			wantFirstID:   "cc_tool_0",
+		},
+		{
+			name:           "broken JSON left in text",
+			text:           "<tool_call>\n{not valid json}\n</tool_call>",
+			wantCalls:      0,
+			remainContains: "not valid json",
+		},
+		{
+			name:          "compact format without whitespace",
+			text:          `<tool_call>{"name":"list_nodes","arguments":{}}</tool_call>`,
+			wantCalls:     1,
+			wantFirstName: "list_nodes",
+		},
+		{
+			name:      "empty name is skipped",
+			text:      "<tool_call>\n{\"name\": \"\", \"arguments\": {}}\n</tool_call>",
+			wantCalls: 0,
+		},
 	}
-	if remaining != text {
-		t.Errorf("expected unchanged text, got %q", remaining)
-	}
-}
 
-func TestParseToolCalls_SingleCall(t *testing.T) {
-	text := `I'll generate that for you.
-
-<tool_call>
-{"name": "generate_workflow", "arguments": {"description": "blog writer"}}
-</tool_call>
-
-Please wait.`
-
-	calls, remaining := parseToolCalls(text)
-	if len(calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(calls))
-	}
-	if calls[0].Name != "generate_workflow" {
-		t.Errorf("expected name 'generate_workflow', got %q", calls[0].Name)
-	}
-	args := calls[0].Args
-	if args["description"] != "blog writer" {
-		t.Errorf("expected arg 'blog writer', got %v", args["description"])
-	}
-	if calls[0].ID != "cc_tool_0" {
-		t.Errorf("expected ID 'cc_tool_0', got %q", calls[0].ID)
-	}
-	// Remaining text should have the tool call blocks removed.
-	if strings.Contains(remaining, "<tool_call>") {
-		t.Error("remaining text should not contain <tool_call> blocks")
-	}
-}
-
-func TestParseToolCalls_MultipleCallsAndText(t *testing.T) {
-	text := `Let me do two things.
-
-<tool_call>
-{"name": "add_node", "arguments": {"node_type": "input", "label": "Topic"}}
-</tool_call>
-
-<tool_call>
-{"name": "add_node", "arguments": {"node_type": "agent", "label": "Writer"}}
-</tool_call>`
-
-	calls, _ := parseToolCalls(text)
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 calls, got %d", len(calls))
-	}
-	if calls[0].ID != "cc_tool_0" || calls[1].ID != "cc_tool_1" {
-		t.Errorf("expected sequential IDs, got %q and %q", calls[0].ID, calls[1].ID)
-	}
-}
-
-func TestParseToolCalls_BrokenJSON(t *testing.T) {
-	text := `<tool_call>
-{not valid json}
-</tool_call>`
-
-	calls, remaining := parseToolCalls(text)
-	if len(calls) != 0 {
-		t.Errorf("expected 0 calls for broken JSON, got %d", len(calls))
-	}
-	// Broken blocks are left in the text as-is.
-	if !strings.Contains(remaining, "not valid json") {
-		t.Error("broken content should remain in text")
-	}
-}
-
-func TestParseToolCalls_CompactFormat(t *testing.T) {
-	// Some LLMs may output without extra whitespace.
-	text := `<tool_call>{"name":"list_nodes","arguments":{}}</tool_call>`
-
-	calls, _ := parseToolCalls(text)
-	if len(calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(calls))
-	}
-	if calls[0].Name != "list_nodes" {
-		t.Errorf("expected 'list_nodes', got %q", calls[0].Name)
-	}
-}
-
-func TestParseToolCalls_EmptyName(t *testing.T) {
-	text := `<tool_call>
-{"name": "", "arguments": {}}
-</tool_call>`
-
-	calls, _ := parseToolCalls(text)
-	if len(calls) != 0 {
-		t.Errorf("expected 0 calls for empty name, got %d", len(calls))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls, remaining := parseToolCalls(tt.text)
+			if len(calls) != tt.wantCalls {
+				t.Fatalf("expected %d calls, got %d", tt.wantCalls, len(calls))
+			}
+			if tt.wantCalls > 0 {
+				if tt.wantFirstName != "" && calls[0].Name != tt.wantFirstName {
+					t.Errorf("expected first name %q, got %q", tt.wantFirstName, calls[0].Name)
+				}
+				if tt.wantFirstID != "" && calls[0].ID != tt.wantFirstID {
+					t.Errorf("expected first ID %q, got %q", tt.wantFirstID, calls[0].ID)
+				}
+				if tt.wantFirstArg != "" {
+					parts := strings.SplitN(tt.wantFirstArg, "=", 2)
+					if v, _ := calls[0].Args[parts[0]].(string); v != parts[1] {
+						t.Errorf("expected arg %s=%s, got %v", parts[0], parts[1], calls[0].Args[parts[0]])
+					}
+				}
+			}
+			if tt.wantCalls == 2 && calls[1].ID != "cc_tool_1" {
+				t.Errorf("expected second ID 'cc_tool_1', got %q", calls[1].ID)
+			}
+			if tt.remainContains != "" && !strings.Contains(remaining, tt.remainContains) {
+				t.Errorf("remaining should contain %q, got %q", tt.remainContains, remaining)
+			}
+			if tt.remainExcludes != "" && strings.Contains(remaining, tt.remainExcludes) {
+				t.Errorf("remaining should not contain %q", tt.remainExcludes)
+			}
+		})
 	}
 }
 
@@ -360,97 +352,84 @@ func TestBuildUserMessage_Empty(t *testing.T) {
 // buildToolResponse tests
 // ---------------------------------------------------------------------------
 
-func TestBuildToolResponse_WithToolCalls(t *testing.T) {
-	text := `I'll generate that workflow.
-
-<tool_call>
-{"name": "generate_workflow", "arguments": {"description": "a blog writer"}}
-</tool_call>`
-
-	resp := buildToolResponse(text)
-	if resp == nil {
-		t.Fatal("expected non-nil response")
+func TestBuildToolResponse(t *testing.T) {
+	tests := []struct {
+		name      string
+		text      string
+		wantTexts int
+		wantCalls int
+		wantName  string // expected name of first FunctionCall (if any)
+	}{
+		{
+			name: "text with tool call",
+			text: "I'll generate that workflow.\n\n<tool_call>\n" +
+				`{"name": "generate_workflow", "arguments": {"description": "a blog writer"}}` +
+				"\n</tool_call>",
+			wantTexts: 1,
+			wantCalls: 1,
+			wantName:  "generate_workflow",
+		},
+		{
+			name:      "plain text",
+			text:      "Here is your answer: hello world",
+			wantTexts: 1,
+			wantCalls: 0,
+		},
+		{
+			name: "only tool call, no surrounding text",
+			text: "<tool_call>\n" +
+				`{"name": "list_nodes", "arguments": {}}` +
+				"\n</tool_call>",
+			wantTexts: 0,
+			wantCalls: 1,
+			wantName:  "list_nodes",
+		},
+		{
+			name: "multiple tool calls with text",
+			text: "Let me add nodes.\n\n<tool_call>\n" +
+				`{"name": "add_node", "arguments": {"type": "input"}}` +
+				"\n</tool_call>\n\n<tool_call>\n" +
+				`{"name": "add_node", "arguments": {"type": "agent"}}` +
+				"\n</tool_call>",
+			wantTexts: 1,
+			wantCalls: 2,
+			wantName:  "add_node",
+		},
 	}
 
-	var hasText, hasCall bool
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			hasText = true
-		}
-		if p.FunctionCall != nil {
-			hasCall = true
-			if p.FunctionCall.Name != "generate_workflow" {
-				t.Errorf("expected tool name 'generate_workflow', got %q", p.FunctionCall.Name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := buildToolResponse(tt.text)
+			if resp == nil {
+				t.Fatal("expected non-nil response")
 			}
-		}
-	}
-	if !hasText {
-		t.Error("expected text part for prose before tool call")
-	}
-	if !hasCall {
-		t.Error("expected FunctionCall part")
-	}
-}
 
-func TestBuildToolResponse_PlainText(t *testing.T) {
-	text := "Here is your answer: hello world"
-	resp := buildToolResponse(text)
-	if len(resp.Content.Parts) != 1 {
-		t.Fatalf("expected 1 part, got %d", len(resp.Content.Parts))
-	}
-	if resp.Content.Parts[0].Text != text {
-		t.Errorf("expected plain text passthrough")
-	}
-}
-
-func TestBuildToolResponse_OnlyToolCall(t *testing.T) {
-	text := `<tool_call>
-{"name": "list_nodes", "arguments": {}}
-</tool_call>`
-
-	resp := buildToolResponse(text)
-	if resp == nil {
-		t.Fatal("expected non-nil response")
-	}
-	// Only a tool call, no surrounding text — should have just the FunctionCall part.
-	if len(resp.Content.Parts) != 1 {
-		t.Fatalf("expected 1 part (FunctionCall only), got %d", len(resp.Content.Parts))
-	}
-	if resp.Content.Parts[0].FunctionCall == nil {
-		t.Error("expected FunctionCall part")
-	}
-}
-
-func TestBuildToolResponse_MultipleToolCalls(t *testing.T) {
-	text := `Let me add nodes.
-
-<tool_call>
-{"name": "add_node", "arguments": {"type": "input"}}
-</tool_call>
-
-<tool_call>
-{"name": "add_node", "arguments": {"type": "agent"}}
-</tool_call>`
-
-	resp := buildToolResponse(text)
-	if resp == nil {
-		t.Fatal("expected non-nil response")
-	}
-
-	var textCount, callCount int
-	for _, p := range resp.Content.Parts {
-		if p.Text != "" {
-			textCount++
-		}
-		if p.FunctionCall != nil {
-			callCount++
-		}
-	}
-	if textCount != 1 {
-		t.Errorf("expected 1 text part, got %d", textCount)
-	}
-	if callCount != 2 {
-		t.Errorf("expected 2 FunctionCall parts, got %d", callCount)
+			var textCount, callCount int
+			for _, p := range resp.Content.Parts {
+				if p.Text != "" {
+					textCount++
+				}
+				if p.FunctionCall != nil {
+					callCount++
+				}
+			}
+			if textCount != tt.wantTexts {
+				t.Errorf("expected %d text parts, got %d", tt.wantTexts, textCount)
+			}
+			if callCount != tt.wantCalls {
+				t.Errorf("expected %d FunctionCall parts, got %d", tt.wantCalls, callCount)
+			}
+			if tt.wantName != "" {
+				for _, p := range resp.Content.Parts {
+					if p.FunctionCall != nil {
+						if p.FunctionCall.Name != tt.wantName {
+							t.Errorf("expected tool name %q, got %q", tt.wantName, p.FunctionCall.Name)
+						}
+						break
+					}
+				}
+			}
+		})
 	}
 }
 
