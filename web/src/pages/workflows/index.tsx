@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ReactFlowProvider } from '@xyflow/react'
@@ -12,8 +12,8 @@ import { Console } from '@/widgets/bottom-console'
 import { useResizeDrag } from '@/shared/lib/useResizeDrag'
 import {
   useWorkflowStore, serializeWorkflow, deserializeWorkflow,
-  loadWorkflow, listWorkflows, deleteWorkflow, generateWorkflow, saveWorkflow,
-  useGenerationStore, useGenerationPoller,
+  loadWorkflow, listWorkflows, deleteWorkflow, saveWorkflow,
+  useGenerationPoller,
 } from '@/entities/workflow'
 import type { WorkflowDefinition } from '@/entities/workflow'
 import { useExecutionStore } from '@/entities/run'
@@ -21,11 +21,11 @@ import { fetchRuns } from '@/entities/run'
 import { useUIStore } from '@/entities/ui'
 import { useKeyboardShortcuts, useAutoSave } from '@/features/manage-canvas'
 import { useReconnectRun } from '@/features/execute-workflow'
-import { useRegisterChatHandler } from '@/shared/hooks/useRegisterChatHandler'
-import { configureNode, computeUpstreamNodes } from '@/features/edit-node'
+import { useRegisterChatContext } from '@/shared/hooks/useRegisterChatContext'
+import type { ChatContext } from '@/entities/ui/model/chatStore'
+import { computeUpstreamNodes } from '@/features/edit-node'
 import type { NodeType } from '@/entities/node'
 import { useModels } from '@/shared/api/useModels'
-import type { ChatSubmitParams } from '@/entities/ui/model/chatStore'
 import type { TemplateDefinition } from '@/shared/lib/templates'
 import { WorkflowSidebar } from './WorkflowSidebar'
 
@@ -60,7 +60,6 @@ export default function WorkflowsPage() {
     ? nodes.find((n) => n.id === selectedNodeId) ?? null
     : null
 
-  const isGenerating = useGenerationStore((s) => s.isGenerating)
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true)
   const [runningWorkflows, setRunningWorkflows] = useState<Set<string>>(new Set())
   const getViewportCenterRef = useRef<(() => { x: number; y: number }) | null>(null)
@@ -76,48 +75,55 @@ export default function WorkflowsPage() {
   useReconnectRun()
   useKeyboardShortcuts({ onSave: saveNow })
 
-  // ─── Global chat bar: node configure handler ──────────────────────────
+  // ─── Global chat bar: workflow context registration ─────────────────
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
   const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
 
-  const nodeConfigureHandler = useCallback(async (params: ChatSubmitParams) => {
-    const { nodes: curNodes, edges: curEdges } = useWorkflowStore.getState()
-    const nodeId = useUIStore.getState().selectedNodeId
-    if (!nodeId) throw new Error('No node selected')
-    const node = curNodes.find((n) => n.id === nodeId)
-    if (!node) throw new Error('Node not found')
-
-    const upstream = computeUpstreamNodes(nodeId, curNodes, curEdges)
-
-    const response = await configureNode({
-      node_type: node.data.nodeType,
-      node_id: nodeId,
-      current_config: node.data.config,
-      label: node.data.label,
-      description: node.data.description ?? '',
-      message: params.message,
-      model: params.model || undefined,
-      thinking: params.thinking,
-      history: params.history,
-      upstream_nodes: upstream,
-    })
-
-    if (response.config && Object.keys(response.config).length > 0) {
-      updateNodeConfig(nodeId, response.config)
+  const chatContext = useMemo((): ChatContext | null => {
+    if (!hasWorkflowSelected) return null
+    const node = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null
+    return {
+      page: 'workflows',
+      context: {
+        workflow_id: selectedWorkflowName,
+        ...(selectedNodeId && node ? {
+          selected_node_id: selectedNodeId,
+          selected_node: {
+            type: node.data.nodeType,
+            config: node.data.config,
+            label: node.data.label,
+            description: node.data.description,
+          },
+          upstream_nodes: computeUpstreamNodes(selectedNodeId, nodes, edges),
+        } : {}),
+      },
+      applyResult: (toolName: string, result: unknown) => {
+        const r = result as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+        switch (toolName) {
+          case 'configure_node':
+            if (r.config && Object.keys(r.config).length > 0) {
+              updateNodeConfig(r.node_id || selectedNodeId, r.config)
+            }
+            if (r.label) updateNodeLabel(r.node_id || selectedNodeId, r.label)
+            if (r.description) updateNodeDescription(r.node_id || selectedNodeId, r.description)
+            break
+          case 'generate_workflow':
+            console.log('generate_workflow result:', r)
+            break
+          case 'add_node':
+            console.log('add_node result:', r)
+            break
+          case 'remove_node':
+            console.log('remove_node result:', r)
+            break
+        }
+      },
+      placeholder: selectedNodeId ? 'Ask about this node...' : 'Ask about this workflow...',
     }
-    if (response.label) updateNodeLabel(nodeId, response.label)
-    const desc = response.description || (response.config?.description as string)
-    if (desc) updateNodeDescription(nodeId, desc)
+  }, [selectedWorkflowName, hasWorkflowSelected, selectedNodeId, nodes, edges, updateNodeConfig, updateNodeLabel, updateNodeDescription])
 
-    return { explanation: response.explanation }
-  }, [updateNodeConfig, updateNodeLabel, updateNodeDescription])
-
-  useRegisterChatHandler(
-    selectedNodeId ? nodeConfigureHandler : null,
-    selectedNodeId ? 'Describe this node...' : '',
-    selectedNodeId ? 'Node' : '',
-  )
+  useRegisterChatContext(chatContext)
 
   const { data: workflows = [], isLoading } = useQuery({
     queryKey: ['workflows'],
@@ -260,27 +266,6 @@ export default function WorkflowsPage() {
     addNode(type as 'input' | 'agent' | 'output', position)
   }, [addNode])
 
-  const handlePromptSubmit = useCallback(async (description: string) => {
-    const { nodes: currentNodes, edges: currentEdges, workflowName: currentName } = useWorkflowStore.getState()
-    const hasExisting = currentNodes.length > 0
-
-    const action = hasExisting ? 'Editing' : 'Generating'
-    addRunEvent({ type: 'info', message: `${action} workflow...` })
-
-    try {
-      const existingWf = hasExisting
-        ? serializeWorkflow(currentName || 'untitled', currentNodes, currentEdges)
-        : undefined
-      const { generation_id } = await generateWorkflow(description, existingWf)
-      useGenerationStore.getState().start(generation_id)
-    } catch (err) {
-      addRunEvent({
-        type: 'error',
-        message: `Generate failed: ${err instanceof Error ? err.message : String(err)}`,
-      })
-    }
-  }, [addRunEvent])
-
   useGenerationPoller<WorkflowDefinition>(
     useCallback((wf: WorkflowDefinition) => {
       const hasExisting = useWorkflowStore.getState().nodes.length > 0
@@ -411,13 +396,9 @@ export default function WorkflowsPage() {
                     <Canvas
                       onAddFirstNode={() => handleAddNode('input')}
                       onDropNode={handleDropNode}
-                      onPromptSubmit={handlePromptSubmit}
-                      isGenerating={isGenerating}
                       exposeGetViewportCenter={handleExposeViewportCenter}
                       onAddNode={handleAddNode}
                       readOnly={isTemplate}
-                      autoFocusPrompt={isGenerateMode}
-                      hasDefaultLLM={!!defaultModelId}
                     />
                   </ReactFlowProvider>
 

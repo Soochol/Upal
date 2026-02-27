@@ -248,8 +248,6 @@ export function RunViewer() {
               <Canvas
                 onAddFirstNode={noop}
                 onDropNode={noop}
-                onPromptSubmit={noop}
-                isGenerating={false}
                 onAddNode={noop}
                 readOnly
               />

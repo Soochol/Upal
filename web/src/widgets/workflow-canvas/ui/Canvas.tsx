@@ -18,7 +18,6 @@ import { uploadFile } from '@/shared/api'
 import { UpalNode } from './UpalNode'
 import { GroupNode } from './GroupNode'
 import { EmptyState } from './EmptyState'
-import { CanvasPromptBar } from './CanvasPromptBar'
 import { NodePalette } from '@/widgets/node-palette'
 
 const nodeTypes = {
@@ -29,13 +28,9 @@ const nodeTypes = {
 type CanvasProps = {
   onAddFirstNode: () => void
   onDropNode: (type: string, position: { x: number; y: number }) => void
-  onPromptSubmit: (description: string) => void
-  isGenerating: boolean
   exposeGetViewportCenter?: (fn: () => { x: number; y: number }) => void
   onAddNode: (type: NodeType) => void
   readOnly?: boolean
-  autoFocusPrompt?: boolean
-  hasDefaultLLM?: boolean
 }
 
 /** Inner component that uses React Flow hooks (must be inside ReactFlow). */
@@ -71,7 +66,7 @@ function SelectionGrouper() {
   return null
 }
 
-export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly, autoFocusPrompt, hasDefaultLLM }: CanvasProps) {
+export function Canvas({ onAddFirstNode, onDropNode, exposeGetViewportCenter, onAddNode, readOnly }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
   const workflowName = useWorkflowStore((s) => s.workflowName)
@@ -243,15 +238,6 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
           />
         )}
       </ReactFlow>
-      {!readOnly && (
-        <CanvasPromptBar
-          onSubmit={onPromptSubmit}
-          isGenerating={isGenerating}
-          hasNodes={!isEmpty}
-          autoFocusPrompt={autoFocusPrompt}
-          hasDefaultLLM={hasDefaultLLM}
-        />
-      )}
     </div>
   )
 }

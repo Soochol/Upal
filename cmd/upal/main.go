@@ -12,6 +12,7 @@ import (
 
 	"github.com/soochol/upal/internal/agents"
 	"github.com/soochol/upal/internal/api"
+	"github.com/soochol/upal/internal/chat"
 	"github.com/soochol/upal/internal/config"
 	upalcrypto "github.com/soochol/upal/internal/crypto"
 	"github.com/soochol/upal/internal/db"
@@ -435,7 +436,7 @@ func serve() {
 		}
 		gen := generate.New(defaultLLM, defaultModelName, skillReg, toolInfos, modelOpts)
 		gen.SetLLMResolver(resolver)
-		gen.SetDefaultLLMFunc(func(ctx context.Context) (adkmodel.LLM, string, error) {
+		defaultLLMFunc := func(ctx context.Context) (adkmodel.LLM, string, error) {
 			providers, err := aiProviderSvc.ListAll(ctx)
 			if err != nil {
 				return nil, "", err
@@ -459,7 +460,8 @@ func serve() {
 				}
 			}
 			return nil, "", fmt.Errorf("no default LLM provider configured")
-		})
+		}
+		gen.SetDefaultLLMFunc(defaultLLMFunc)
 		gen.SetModelsFunc(func(ctx context.Context) []upal.ModelSummary {
 			providers, err := aiProviderSvc.ListAll(ctx)
 			if err != nil {
@@ -486,6 +488,13 @@ func serve() {
 			return result
 		})
 		srv.SetGenerator(gen, defaultModelName)
+
+		// Wire chat handler for /api/chat SSE endpoint.
+		chatReg := chat.NewRegistry()
+		chat.RegisterWorkflowTools(chatReg, chat.WorkflowDeps{Generator: gen})
+		chatHandler := chat.NewHandler(chatReg, skillReg, resolver, defaultLLMFunc)
+		srv.SetChatHandler(chatHandler)
+
 		if collector != nil {
 			collector.SetGenerator(gen)
 		}

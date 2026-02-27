@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Sparkles, ArrowRight, Loader2 } from 'lucide-react'
+import { Sparkles, ArrowRight, Loader2, GripVertical, Wrench } from 'lucide-react'
 import { useChatBarStore } from '@/entities/ui/model/chatStore'
 import type { ChatMessage } from '@/entities/ui/model/chatStore'
 
@@ -14,17 +14,25 @@ function messageBubbleClass(msg: ChatMessage): string {
   return `${base} rounded-bl-sm bg-muted/60 text-foreground`
 }
 
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export function GlobalChatBar() {
   const {
     isOpen, isLoading, messages,
-    handler, placeholder, pageLabel,
-    open, close, submit,
+    chatContext, position,
+    open, close, submit, setPosition,
   } = useChatBarStore()
 
   const [input, setInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Drag state
+  const isDraggingRef = useRef(false)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -49,6 +57,60 @@ export function GlobalChatBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, close])
 
+  // Drag handlers
+  const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    isDraggingRef.current = true
+
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    dragOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      e.preventDefault()
+
+      const maxX = window.innerWidth - 200
+      const maxY = window.innerHeight - 60
+      const x = Math.max(0, Math.min(maxX, e.clientX - dragOffsetRef.current.x))
+      const y = Math.max(0, Math.min(maxY, e.clientY - dragOffsetRef.current.y))
+
+      const container = containerRef.current
+      if (container) {
+        container.style.left = `${x}px`
+        container.style.top = `${y}px`
+        container.style.transform = 'none'
+      }
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+
+      const maxX = window.innerWidth - 200
+      const maxY = window.innerHeight - 60
+      const x = Math.max(0, Math.min(maxX, e.clientX - dragOffsetRef.current.x))
+      const y = Math.max(0, Math.min(maxY, e.clientY - dragOffsetRef.current.y))
+
+      setPosition({ x, y })
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [setPosition])
+
   const handleSubmit = useCallback(async () => {
     const trimmed = input.trim()
     if (!trimmed || isLoading) return
@@ -70,15 +132,24 @@ export function GlobalChatBar() {
     [handleSubmit, close],
   )
 
-  // Don't render if no handler registered
-  if (!handler) return null
+  // Don't render if no context registered
+  if (!chatContext) return null
 
   const showMessages = isOpen && messages.length > 0
+  const pageLabel = capitalize(chatContext.page)
+
+  const containerStyle = position
+    ? { left: position.x, top: position.y, transform: 'none' }
+    : undefined
 
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center w-full max-w-xl px-4 pointer-events-none"
+      className={[
+        'fixed z-50 flex flex-col items-center w-full max-w-xl px-4 pointer-events-none',
+        !position ? 'bottom-6 left-1/2 -translate-x-1/2' : '',
+      ].join(' ')}
+      style={containerStyle}
     >
       {/* Chat messages — visible when expanded */}
       {showMessages && (
@@ -95,6 +166,17 @@ export function GlobalChatBar() {
               >
                 <div className={messageBubbleClass(msg)}>
                   {msg.content}
+                  {msg.toolCalls?.map((tc) => (
+                    <div key={tc.id} className="text-xs text-muted-foreground/70 flex items-center gap-1 mt-1">
+                      <Wrench className="h-3 w-3" />
+                      <span>{tc.name}</span>
+                      {tc.success !== undefined && (
+                        <span className={tc.success ? 'text-success' : 'text-destructive'}>
+                          {tc.success ? '\u2713' : '\u2717'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -118,6 +200,14 @@ export function GlobalChatBar() {
         onClick={() => { open(); inputRef.current?.focus() }}
         onMouseEnter={() => { if (messages.length > 0) open() }}
       >
+        {/* Drag handle */}
+        <div
+          onMouseDown={handleDragMouseDown}
+          className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+
         <Sparkles className="h-4 w-4 text-muted-foreground/60 shrink-0" />
         <input
           ref={inputRef}
@@ -126,7 +216,7 @@ export function GlobalChatBar() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={open}
-          placeholder={placeholder}
+          placeholder={chatContext.placeholder}
           disabled={isLoading}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none disabled:opacity-50"
         />
