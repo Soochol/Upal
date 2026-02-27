@@ -79,6 +79,7 @@ export default function WorkflowsPage() {
   const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
   const updateNodeDescription = useWorkflowStore((s) => s.updateNodeDescription)
+  const removeNode = useWorkflowStore((s) => s.removeNode)
 
   const chatContext = useMemo((): ChatContext | null => {
     if (!hasWorkflowSelected) return null
@@ -87,6 +88,11 @@ export default function WorkflowsPage() {
       page: 'workflows',
       context: {
         workflow_id: selectedWorkflowName,
+        nodes: nodes.map(n => ({
+          id: n.id,
+          type: n.data.nodeType,
+          label: n.data.label,
+        })),
         ...(selectedNodeId && node ? {
           selected_node_id: selectedNodeId,
           selected_node: {
@@ -109,19 +115,27 @@ export default function WorkflowsPage() {
             if (r.description) updateNodeDescription(r.node_id || selectedNodeId, r.description)
             break
           case 'generate_workflow':
-            console.log('generate_workflow result:', r)
+            if (r.nodes && Array.isArray(r.nodes)) {
+              const { nodes: newNodes, edges: newEdges } = deserializeWorkflow(r as WorkflowDefinition)
+              useWorkflowStore.setState({ nodes: newNodes, edges: newEdges })
+              if (r.name) setWorkflowName(r.name as string)
+            }
             break
           case 'add_node':
-            console.log('add_node result:', r)
+            if (r.node) {
+              const n = r.node as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+              const center = getViewportCenterRef.current?.() ?? { x: 250, y: 150 }
+              addNode(n.type as Parameters<typeof addNode>[0], center, n.config)
+            }
             break
           case 'remove_node':
-            console.log('remove_node result:', r)
+            if (r.node_id) removeNode(r.node_id as string)
             break
         }
       },
       placeholder: selectedNodeId ? 'Ask about this node...' : 'Ask about this workflow...',
     }
-  }, [selectedWorkflowName, hasWorkflowSelected, selectedNodeId, nodes, edges, updateNodeConfig, updateNodeLabel, updateNodeDescription])
+  }, [selectedWorkflowName, hasWorkflowSelected, selectedNodeId, nodes, edges, updateNodeConfig, updateNodeLabel, updateNodeDescription, removeNode, addNode, setWorkflowName])
 
   useRegisterChatContext(chatContext)
 

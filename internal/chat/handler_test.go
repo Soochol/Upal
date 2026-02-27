@@ -62,6 +62,7 @@ func parseSSEEvents(body string) []sseEvent {
 			} else if strings.HasPrefix(line, "data: ") {
 				ev.Data = strings.TrimPrefix(line, "data: ")
 			}
+			// id: lines are parsed but not stored — tests don't assert on them.
 		}
 		if ev.Event != "" || ev.Data != "" {
 			events = append(events, ev)
@@ -174,9 +175,9 @@ func TestHandler_TextResponse(t *testing.T) {
 			if err := json.Unmarshal([]byte(ev.Data), &data); err != nil {
 				t.Fatalf("failed to parse text_delta data: %v", err)
 			}
-			chunk, _ := data["chunk"].(string)
-			if !strings.Contains(chunk, "Hello! How can I help you?") {
-				t.Errorf("text_delta chunk = %q, want to contain response text", chunk)
+			text, _ := data["text"].(string)
+			if !strings.Contains(text, "Hello! How can I help you?") {
+				t.Errorf("text_delta text = %q, want to contain response text", text)
 			}
 		case "done":
 			hasDone = true

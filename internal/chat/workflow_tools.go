@@ -81,9 +81,17 @@ func registerConfigureNode(reg *ChatRegistry, deps WorkflowDeps) {
 				}
 			}
 
-			// Extract upstream nodes from chat context.
-			if upstreams, ok := chatCtx["upstream_nodes"].([]generate.UpstreamNodeInfo); ok {
-				input.UpstreamNodes = upstreams
+			// Extract upstream nodes from chat context (JSON-decoded as []any).
+			if rawUpstreams, ok := chatCtx["upstream_nodes"].([]any); ok {
+				for _, item := range rawUpstreams {
+					if m, ok := item.(map[string]any); ok {
+						input.UpstreamNodes = append(input.UpstreamNodes, generate.UpstreamNodeInfo{
+							ID:    stringFromMap(m, "id"),
+							Type:  stringFromMap(m, "type"),
+							Label: stringFromMap(m, "label"),
+						})
+					}
+				}
 			}
 
 			out, err := deps.Generator.ConfigureNode(ctx, input)
@@ -242,4 +250,10 @@ func registerListNodes(reg *ChatRegistry) {
 			}, nil
 		},
 	})
+}
+
+// stringFromMap safely extracts a string value from a map.
+func stringFromMap(m map[string]any, key string) string {
+	v, _ := m[key].(string)
+	return v
 }

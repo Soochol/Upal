@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { API_BASE } from '@/shared/api/client'
+import { API_BASE, tryRefresh } from '@/shared/api/client'
 import { useAuthStore } from '@/entities/auth/store'
 
 // Types
@@ -130,11 +130,24 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch(`${API_BASE}/chat`, {
+      let response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
       })
+
+      // On 401, try token refresh and retry once.
+      if (response.status === 401) {
+        const newToken = await tryRefresh()
+        if (newToken) {
+          headers['Authorization'] = `Bearer ${newToken}`
+          response = await fetch(`${API_BASE}/chat`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+          })
+        }
+      }
 
       if (!response.ok) {
         const text = await response.text().catch(() => response.statusText)
@@ -168,7 +181,7 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
             const dataStr = trimmedLine.slice(6)
             try {
               const data = JSON.parse(dataStr)
-              handleSSEEvent(currentEvent, data, get, set)
+              handleSSEEvent(currentEvent, data, get, set, chatContext)
             } catch {
               // Non-JSON data line, skip
             }
@@ -197,8 +210,9 @@ export const useChatBarStore = create<ChatBarState>((set, get) => ({
 function handleSSEEvent(
   eventType: string,
   data: Record<string, unknown>,
-  get: () => ChatBarState,
+  _get: () => ChatBarState,
   set: (updater: Partial<ChatBarState> | ((s: ChatBarState) => Partial<ChatBarState>)) => void,
+  capturedContext: ChatContext | null,
 ) {
   switch (eventType) {
     case 'text_delta': {
@@ -242,10 +256,9 @@ function handleSSEEvent(
         })),
       }))
 
-      // Apply the result via the context callback
-      const ctx = get().chatContext
-      if (ctx) {
-        ctx.applyResult(toolName, result)
+      // Apply the result via the captured context (snapshot at submit time)
+      if (capturedContext) {
+        capturedContext.applyResult(toolName, result)
       }
       break
     }

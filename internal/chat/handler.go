@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/soochol/upal/internal/llmutil"
 	"github.com/soochol/upal/internal/skills"
@@ -119,12 +121,17 @@ func (h *Handler) resolveLLM(ctx context.Context, model string) (adkmodel.LLM, s
 
 // runChat executes the multi-turn LLM tool call loop and streams SSE events.
 func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, req *ChatRequest, chatTools []*ChatTool) {
+	sse := &sseWriter{w: w}
+
 	llm, modelName, err := h.resolveLLM(ctx, req.Model)
 	if err != nil {
-		writeSSE(w, "error", map[string]any{"error": err.Error()})
+		slog.Error("chat: failed to resolve LLM", "model", req.Model, "error", err)
+		sse.write("error", map[string]any{"error": err.Error()})
 		flusher.Flush()
 		return
 	}
+
+	slog.Info("chat: request", "page", req.Page, "model", modelName, "tools", len(chatTools))
 
 	sysPrompt := h.buildSystemPrompt(req, chatTools)
 
@@ -149,18 +156,22 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 			Contents: contents,
 		}
 
+		turnCtx, turnCancel := context.WithTimeout(ctx, 2*time.Minute)
 		var resp *adkmodel.LLMResponse
-		for r, err := range llm.GenerateContent(ctx, llmReq, false) {
+		for r, err := range llm.GenerateContent(turnCtx, llmReq, false) {
 			if err != nil {
-				writeSSE(w, "error", map[string]any{"error": err.Error()})
+				turnCancel()
+				slog.Error("chat: LLM generation failed", "turn", turn, "error", err)
+				sse.write("error", map[string]any{"error": err.Error()})
 				flusher.Flush()
 				return
 			}
 			resp = r
 		}
+		turnCancel()
 
 		if resp == nil || resp.Content == nil {
-			writeSSE(w, "error", map[string]any{"error": "empty response"})
+			sse.write("error", map[string]any{"error": "empty response"})
 			flusher.Flush()
 			return
 		}
@@ -176,8 +187,8 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 		if len(toolCalls) == 0 {
 			// Final text response — stream and finish.
 			text := llmutil.ExtractText(resp)
-			writeSSE(w, "text_delta", map[string]any{"chunk": text})
-			writeSSE(w, "done", map[string]any{"content": text})
+			sse.write("text_delta", map[string]any{"text": text})
+			sse.write("done", map[string]any{"content": text})
 			flusher.Flush()
 			return
 		}
@@ -187,7 +198,7 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 		toolResults := make([]*genai.Part, 0, len(toolCalls))
 
 		for _, fc := range toolCalls {
-			writeSSE(w, "tool_call", map[string]any{
+			sse.write("tool_call", map[string]any{
 				"id":   fc.ID,
 				"name": fc.Name,
 				"args": fc.Args,
@@ -197,6 +208,10 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 			result, execErr := h.registry.ExecuteToolCall(ctx, fc.Name, fc.Args)
 			success := execErr == nil
 
+			if execErr != nil {
+				slog.Warn("chat: tool execution failed", "tool", fc.Name, "error", execErr)
+			}
+
 			var resultData any
 			if execErr != nil {
 				resultData = map[string]any{"error": execErr.Error()}
@@ -204,7 +219,7 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 				resultData = result
 			}
 
-			writeSSE(w, "tool_result", map[string]any{
+			sse.write("tool_result", map[string]any{
 				"id":      fc.ID,
 				"name":    fc.Name,
 				"success": success,
@@ -229,14 +244,26 @@ func (h *Handler) runChat(ctx context.Context, w http.ResponseWriter, flusher ht
 		contents = append(contents, &genai.Content{Role: genai.RoleUser, Parts: toolResults})
 	}
 
-	writeSSE(w, "error", map[string]any{"error": "exceeded maximum turns"})
+	sse.write("error", map[string]any{"error": "exceeded maximum turns"})
 	flusher.Flush()
 }
 
-// writeSSE writes a single SSE event to the response writer.
-func writeSSE(w http.ResponseWriter, event string, data any) {
-	jsonData, _ := json.Marshal(data)
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, jsonData)
+// sseWriter tracks event IDs for SSE reconnection support.
+type sseWriter struct {
+	w  http.ResponseWriter
+	id int
+}
+
+func (s *sseWriter) write(event string, data any) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		slog.Error("chat: failed to marshal SSE data", "event", event, "error", err)
+		fmt.Fprintf(s.w, "id: %d\nevent: error\ndata: {\"error\":\"internal marshal error\"}\n\n", s.id)
+		s.id++
+		return
+	}
+	fmt.Fprintf(s.w, "id: %d\nevent: %s\ndata: %s\n\n", s.id, event, jsonData)
+	s.id++
 }
 
 // buildContents converts chat history and the current message into genai Contents.
