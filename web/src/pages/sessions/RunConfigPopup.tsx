@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Run } from '@/entities/session-run'
@@ -50,8 +50,10 @@ export function RunConfigPopup({ sessionId, run, onClose, onSave }: RunConfigPop
     saveMutation.mutate()
   }
 
-  // Clear validation highlight when user adds content
-  if (showRequired && hasContent) setShowRequired(false)
+  // Clear validation highlight when user adds content.
+  useEffect(() => {
+    if (showRequired && hasContent) setShowRequired(false)
+  }, [showRequired, hasContent])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

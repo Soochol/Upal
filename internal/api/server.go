@@ -148,7 +148,7 @@ func (s *Server) Handler() http.Handler {
 				r.Patch("/{id}/analysis", s.patchSessionAnalysis)
 				r.Post("/{id}/publish", s.publishContentSession)
 				r.Post("/{id}/reject-result", s.rejectWorkflowResult)
-			r.Post("/{id}/configure", s.configureSession)
+				r.Post("/{id}/configure", s.configureSession)
 			})
 			r.Route("/published", func(r chi.Router) {
 				r.Get("/", s.listPublished)
@@ -226,7 +226,7 @@ func (s *Server) Handler() http.Handler {
 					r.Delete("/", s.deleteNewRun)
 					r.Post("/collect", s.collectNewRun)
 					r.Post("/cancel", s.cancelNewRun)
-				r.Post("/produce", s.produceNewRun)
+					r.Post("/produce", s.produceNewRun)
 					r.Post("/publish", s.publishNewRun)
 					r.Post("/reject", s.rejectNewRun)
 					r.Get("/sources", s.listNewRunSources)

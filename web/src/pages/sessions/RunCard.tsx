@@ -62,7 +62,7 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
         className={cn(
           'group flex items-center gap-3 p-4 rounded-xl border bg-card cursor-pointer transition-all',
           isSelected ? 'border-primary/30 bg-primary/5' : 'border-border/50 hover:bg-muted/30',
-          run.schedule_active && 'run-card-active',
+          run.schedule_active && !isRunning && 'run-card-active',
         )}
       >
         <span className={cn('w-2 h-2 rounded-full shrink-0', RUN_STATUS_DOT[run.status] ?? 'bg-muted-foreground/30')} />
@@ -103,7 +103,7 @@ export function RunCard({ run, isSelected, onSelect, onDeleted }: RunCardProps) 
               <Square className="h-3.5 w-3.5" />
             </button>
           )}
-          {hasSchedule && !isDraft && (
+          {hasSchedule && !isDraft && !isRunning && (
             <button
               onClick={(e) => { e.stopPropagation(); toggleMutation.mutate() }}
               className={cn(

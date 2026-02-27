@@ -41,7 +41,11 @@ export function RunConfigFields({
 
   const isPreset = SCHEDULE_PRESETS.some(p => p.cron === schedule)
 
-  const scheduleValue = isPreset ? schedule : schedule ? '__custom__' : ''
+  function scheduleSelectValue(): string {
+    if (isPreset) return schedule
+    if (schedule) return '__custom__'
+    return ''
+  }
 
   const hasSources = sources.length > 0
   const hasPrompt = (context.prompt?.trim() ?? '') !== ''
@@ -146,7 +150,7 @@ export function RunConfigFields({
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground">Schedule</h3>
         <select
-          value={scheduleValue}
+          value={scheduleSelectValue()}
           onChange={(e) => onScheduleChange(e.target.value === '__custom__' ? '' : e.target.value)}
           className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
         >
