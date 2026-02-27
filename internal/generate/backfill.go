@@ -40,7 +40,10 @@ func (g *Generator) BackfillWorkflowDescriptions(ctx context.Context, workflows 
 // generateWorkflowDescription asks the LLM for a one-sentence Korean description
 // of a workflow based on its name and node structure.
 func (g *Generator) generateWorkflowDescription(ctx context.Context, wf *upal.WorkflowDefinition) (string, error) {
-	llm, modelName := g.currentDefault(ctx)
+	llm, modelName, err := g.currentDefault(ctx)
+	if err != nil {
+		return "", err
+	}
 	userPrompt := buildWorkflowDescribePrompt(wf)
 
 	req := &adkmodel.LLMRequest{
@@ -148,7 +151,10 @@ func (g *Generator) BackfillNodeDescriptions(ctx context.Context, workflows []*u
 
 // generateNodeDescription asks the LLM for a one-sentence Korean description of an agent node.
 func (g *Generator) generateNodeDescription(ctx context.Context, node *upal.NodeDefinition) (string, error) {
-	llm, modelName := g.currentDefault(ctx)
+	llm, modelName, err := g.currentDefault(ctx)
+	if err != nil {
+		return "", err
+	}
 	label, _ := node.Config["label"].(string)
 	prompt, _ := node.Config["prompt"].(string)
 	if len(prompt) > 200 {

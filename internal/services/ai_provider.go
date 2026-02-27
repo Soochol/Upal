@@ -19,8 +19,27 @@ func NewAIProviderService(repo repository.AIProviderRepository, enc *crypto.Encr
 }
 
 // Create generates an ID, handles default logic, encrypts the API key, and persists.
+// If this is the first provider in its category, it is automatically set as default.
 func (s *AIProviderService) Create(ctx context.Context, p *upal.AIProvider) error {
 	p.ID = upal.GenerateID("aip")
+
+	// Auto-set as default if no providers exist in this category yet.
+	if !p.IsDefault {
+		existing, err := s.repo.List(ctx)
+		if err == nil {
+			hasCategory := false
+			for _, ep := range existing {
+				if ep.Category == p.Category {
+					hasCategory = true
+					break
+				}
+			}
+			if !hasCategory {
+				p.IsDefault = true
+			}
+		}
+	}
+
 	if p.IsDefault {
 		if err := s.repo.ClearDefault(ctx, p.Category); err != nil {
 			return fmt.Errorf("clear default: %w", err)

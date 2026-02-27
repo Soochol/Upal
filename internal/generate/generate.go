@@ -67,36 +67,38 @@ func (g *Generator) SetDefaultLLMFunc(fn DefaultLLMFunc) {
 }
 
 // currentDefault returns the current default LLM and model name.
-// Tries dynamic resolution first, falls back to static fields.
-func (g *Generator) currentDefault(ctx context.Context) (adkmodel.LLM, string) {
+// Resolves dynamically from the configured DefaultLLMFunc (backed by DB settings).
+// Returns an error if no default LLM provider is configured.
+func (g *Generator) currentDefault(ctx context.Context) (adkmodel.LLM, string, error) {
 	if g.defaultLLMFunc != nil {
-		if llm, model, err := g.defaultLLMFunc(ctx); err == nil && llm != nil {
-			return llm, model
-		}
+		return g.defaultLLMFunc(ctx)
 	}
-	return g.llm, g.model
+	if g.llm != nil {
+		return g.llm, g.model, nil
+	}
+	return nil, "", fmt.Errorf("no default LLM provider configured")
 }
 
 // resolveLLM returns the LLM and model name for a request.
-// Priority: explicit request model > dynamic default > static default.
-func (g *Generator) resolveLLM(ctx context.Context, requestModel string) (adkmodel.LLM, string) {
+// Priority: explicit request model > dynamic default.
+func (g *Generator) resolveLLM(ctx context.Context, requestModel string) (adkmodel.LLM, string, error) {
 	if requestModel != "" && g.llmResolver != nil {
 		if resolved, resolvedName, err := g.llmResolver.Resolve(requestModel); err == nil {
-			return resolved, resolvedName
+			return resolved, resolvedName, nil
 		}
 	}
 	return g.currentDefault(ctx)
 }
 
-// LLM returns the current default LLM (dynamic if configured, else static).
+// LLM returns the current default LLM, or nil if not configured.
 func (g *Generator) LLM(ctx context.Context) adkmodel.LLM {
-	llm, _ := g.currentDefault(ctx)
+	llm, _, _ := g.currentDefault(ctx)
 	return llm
 }
 
-// Model returns the current default model name (dynamic if configured, else static).
+// Model returns the current default model name, or empty if not configured.
 func (g *Generator) Model(ctx context.Context) string {
-	_, model := g.currentDefault(ctx)
+	_, model, _ := g.currentDefault(ctx)
 	return model
 }
 
@@ -210,7 +212,10 @@ func (g *Generator) Generate(ctx context.Context, description string, existingWo
 // generateWithSkills runs a multi-turn LLM call that allows the model to call
 // get_skill() to load skill documentation on demand before producing the final JSON.
 func (g *Generator) generateWithSkills(ctx context.Context, sysPrompt, userContent, opName string) (string, error) {
-	llm, modelName := g.currentDefault(ctx)
+	llm, modelName, err := g.currentDefault(ctx)
+	if err != nil {
+		return "", err
+	}
 
 	genCfg := &genai.GenerateContentConfig{
 		SystemInstruction: genai.NewContentFromText(sysPrompt, genai.RoleUser),

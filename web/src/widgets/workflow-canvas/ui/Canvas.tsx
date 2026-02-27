@@ -35,6 +35,7 @@ type CanvasProps = {
   onAddNode: (type: NodeType) => void
   readOnly?: boolean
   autoFocusPrompt?: boolean
+  hasDefaultLLM?: boolean
 }
 
 /** Inner component that uses React Flow hooks (must be inside ReactFlow). */
@@ -70,7 +71,7 @@ function SelectionGrouper() {
   return null
 }
 
-export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly, autoFocusPrompt }: CanvasProps) {
+export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGenerating, exposeGetViewportCenter, onAddNode, readOnly, autoFocusPrompt, hasDefaultLLM }: CanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode } =
     useWorkflowStore()
   const workflowName = useWorkflowStore((s) => s.workflowName)
@@ -248,6 +249,7 @@ export function Canvas({ onAddFirstNode, onDropNode, onPromptSubmit, isGeneratin
           isGenerating={isGenerating}
           hasNodes={!isEmpty}
           autoFocusPrompt={autoFocusPrompt}
+          hasDefaultLLM={hasDefaultLLM}
         />
       )}
     </div>

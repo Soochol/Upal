@@ -46,12 +46,16 @@ func (s *Server) getNewSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateNewSession(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var sess upal.Session
-	if !decodeJSON(w, r, &sess) {
+	sess, err := s.sessionSvc.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	if !decodeJSON(w, r, sess) {
 		return
 	}
 	sess.ID = id
-	if err := s.sessionSvc.Update(r.Context(), &sess); err != nil {
+	if err := s.sessionSvc.Update(r.Context(), sess); err != nil {
 		writeServiceError(w, err, http.StatusInternalServerError)
 		return
 	}

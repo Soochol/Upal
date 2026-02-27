@@ -18,6 +18,7 @@ import {
     MODELS_BY_PROVIDER_TYPE,
     listAIProviders,
     createAIProvider,
+    updateAIProvider,
     deleteAIProvider,
     setAIProviderDefault,
 } from '@/entities/ai-provider'
@@ -88,6 +89,16 @@ export default function SettingsPage() {
             const updated = await setAIProviderDefault(id)
             setProviders(updated)
             invalidateModelsCache()
+        } catch {
+            fetchProviders()
+        }
+    }
+
+    const handleModelChange = async (provider: AIProvider, model: string) => {
+        try {
+            await updateAIProvider(provider.id, { model })
+            invalidateModelsCache()
+            fetchProviders()
         } catch {
             fetchProviders()
         }
@@ -169,15 +180,27 @@ export default function SettingsPage() {
                                                                 : <Circle className="size-4" />
                                                             }
                                                         </button>
-                                                        <div className="flex-1 min-w-0">
-                                                            <span className="text-sm font-medium">{provider.name}</span>
-                                                            <span className="text-xs text-muted-foreground ml-2">
-                                                                {getProviderTypeLabel(category, provider.type)}
-                                                            </span>
-                                                            {provider.model && (
-                                                                <span className="text-xs text-muted-foreground ml-1">
-                                                                    · {provider.model}
+                                                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                                                            <div className="min-w-0">
+                                                                <span className="text-sm font-medium">{provider.name}</span>
+                                                                <span className="text-xs text-muted-foreground ml-2">
+                                                                    {getProviderTypeLabel(category, provider.type)}
                                                                 </span>
+                                                            </div>
+                                                            {(MODELS_BY_PROVIDER_TYPE[provider.type]?.length ?? 0) > 0 && (
+                                                                <Select
+                                                                    value={provider.model}
+                                                                    onValueChange={(v) => handleModelChange(provider, v)}
+                                                                >
+                                                                    <SelectTrigger className="h-7 w-auto min-w-[120px] max-w-[200px] text-xs gap-1 px-2">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {MODELS_BY_PROVIDER_TYPE[provider.type].map((m) => (
+                                                                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
                                                             )}
                                                         </div>
                                                         <button

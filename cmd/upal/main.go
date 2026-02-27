@@ -60,39 +60,10 @@ func serve() {
 		providerTypes[name] = pc.Type
 	}
 
-	// Pick default LLM with deterministic priority order.
-	// claude-code first (no API key needed), then anthropic, gemini, others.
+	// Default LLM is resolved dynamically from DB (Settings page).
+	// No hardcoded fallback — users must configure a default LLM provider.
 	var defaultLLM adkmodel.LLM
 	var defaultModelName string
-	defaultPriority := []struct {
-		typ   string
-		model string
-	}{
-		{"claude-code", "sonnet"},
-		{"anthropic", "claude-sonnet-4-6"},
-		{"gemini", "gemini-2.0-flash"},
-		{"openai", "gpt-4o"},
-	}
-	for _, p := range defaultPriority {
-		for name, typ := range providerTypes {
-			if typ == p.typ {
-				defaultLLM = llms[name]
-				defaultModelName = p.model
-				break
-			}
-		}
-		if defaultLLM != nil {
-			break
-		}
-	}
-	// Fallback: pick any remaining provider.
-	if defaultLLM == nil {
-		for name := range llms {
-			defaultLLM = llms[name]
-			defaultModelName = "gpt-4o"
-			break
-		}
-	}
 
 	dataDir := "data"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -443,8 +414,10 @@ func serve() {
 		schedulerSvc.SetContentCollector(collector)
 	}
 
-	// Configure natural language workflow generator if any provider is available.
-	if defaultLLM != nil {
+	// Configure natural language workflow generator.
+	// Generator always exists but resolves LLM dynamically from DB (Settings).
+	// If no default LLM is configured, generation requests return an error.
+	{
 		var toolInfos []upal.ToolSummary
 		for _, t := range toolReg.AllTools() {
 			toolInfos = append(toolInfos, upal.ToolSummary{Name: t.Name, Description: t.Description})
@@ -512,8 +485,7 @@ func serve() {
 	// Runs in the background on startup so it doesn't block the server.
 	// Uses "default" user context — only processes unowned data.
 	// TODO: iterate over all users when multi-tenant backfill is needed.
-	if defaultLLM != nil {
-		gen := srv.Generator()
+	if gen := srv.Generator(); gen != nil {
 		go func() {
 			ctx := upal.WithUserID(context.Background(), "default")
 			wfs, _ := repo.List(ctx)

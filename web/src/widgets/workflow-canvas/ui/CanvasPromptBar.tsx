@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Sparkles, ArrowRight, Loader2 } from 'lucide-react'
+import { Sparkles, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 type CanvasPromptBarProps = {
   onSubmit: (description: string) => void
   isGenerating: boolean
   hasNodes: boolean
   autoFocusPrompt?: boolean
+  hasDefaultLLM?: boolean
 }
 
-export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPrompt }: CanvasPromptBarProps) {
+export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPrompt, hasDefaultLLM = true }: CanvasPromptBarProps) {
   const [expanded, setExpanded] = useState(false)
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -41,11 +43,13 @@ export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPro
 
   const handleExpand = useCallback(() => setExpanded(true), [])
 
+  const disabled = isGenerating || !hasDefaultLLM
+
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()
-    if (!trimmed || isGenerating) return
+    if (!trimmed || disabled) return
     onSubmit(trimmed)
-  }, [value, isGenerating, onSubmit])
+  }, [value, disabled, onSubmit])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -95,8 +99,8 @@ export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPro
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={isGenerating}
+          placeholder={hasDefaultLLM ? placeholder : 'Settings에서 LLM을 설정해주세요'}
+          disabled={disabled}
           tabIndex={expanded ? 0 : -1}
           className={[
             'flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none disabled:opacity-50',
@@ -107,7 +111,7 @@ export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPro
 
         <button
           onClick={handleSubmit}
-          disabled={!value.trim() || isGenerating}
+          disabled={!value.trim() || disabled}
           tabIndex={expanded ? 0 : -1}
           className={[
             'shrink-0 h-8 w-8 rounded-lg flex items-center justify-center bg-primary text-primary-foreground',
@@ -124,9 +128,19 @@ export function CanvasPromptBar({ onSubmit, isGenerating, hasNodes, autoFocusPro
       </div>
 
       {expanded && (
-        <p className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 text-[11px] text-muted-foreground/40 select-none whitespace-nowrap animate-in fade-in duration-300">
-          Upal can make mistakes, so double-check it
-        </p>
+        !hasDefaultLLM ? (
+          <Link
+            to="/settings"
+            className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 flex items-center gap-1 text-[11px] text-warning select-none whitespace-nowrap animate-in fade-in duration-300 hover:underline"
+          >
+            <AlertCircle className="size-3" />
+            Settings에서 기본 LLM을 설정해주세요
+          </Link>
+        ) : (
+          <p className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 text-[11px] text-muted-foreground/40 select-none whitespace-nowrap animate-in fade-in duration-300">
+            Upal can make mistakes, so double-check it
+          </p>
+        )
       )}
     </div>
   )

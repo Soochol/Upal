@@ -417,6 +417,7 @@ export default function WorkflowsPage() {
                       onAddNode={handleAddNode}
                       readOnly={isTemplate}
                       autoFocusPrompt={isGenerateMode}
+                      hasDefaultLLM={!!defaultModelId}
                     />
                   </ReactFlowProvider>
 
