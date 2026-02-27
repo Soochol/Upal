@@ -3,10 +3,12 @@ package model
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -223,6 +225,223 @@ func mapToolsToCLI(req *adkmodel.LLMRequest) []string {
 		}
 	}
 	return names
+}
+
+// ---------------------------------------------------------------------------
+// Text-based tool calling helpers
+// ---------------------------------------------------------------------------
+
+// extractCustomToolDefs returns all FunctionDeclarations from the request's tools,
+// excluding native tools (GoogleSearch, etc.) that are handled by CLI tool mappings.
+func extractCustomToolDefs(req *adkmodel.LLMRequest) []*genai.FunctionDeclaration {
+	if req.Config == nil {
+		return nil
+	}
+	var defs []*genai.FunctionDeclaration
+	for _, tool := range req.Config.Tools {
+		defs = append(defs, tool.FunctionDeclarations...)
+	}
+	return defs
+}
+
+// buildToolPrompt generates a text-based tool definition section to append to the
+// system prompt. It instructs the LLM to output tool calls in <tool_call> XML format.
+func buildToolPrompt(defs []*genai.FunctionDeclaration) string {
+	if len(defs) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n\n---\n\n## Available Tools\n\n")
+	sb.WriteString("You have access to the following tools. When you need to use a tool, output EXACTLY this format:\n\n")
+	sb.WriteString("<tool_call>\n{\"name\": \"tool_name\", \"arguments\": {\"key\": \"value\"}}\n</tool_call>\n\n")
+	sb.WriteString("You may output multiple <tool_call> blocks. After outputting tool calls, STOP and wait for results. Do NOT guess tool results.\n\n")
+
+	for _, def := range defs {
+		sb.WriteString("### ")
+		sb.WriteString(def.Name)
+		sb.WriteString("\n")
+		if def.Description != "" {
+			sb.WriteString(def.Description)
+			sb.WriteString("\n")
+		}
+		if def.Parameters != nil && len(def.Parameters.Properties) > 0 {
+			sb.WriteString("Parameters:\n")
+			required := make(map[string]bool)
+			for _, r := range def.Parameters.Required {
+				required[r] = true
+			}
+			for name, prop := range def.Parameters.Properties {
+				sb.WriteString("  - ")
+				sb.WriteString(name)
+				sb.WriteString(" (")
+				sb.WriteString(schemaTypeString(prop))
+				if required[name] {
+					sb.WriteString(", required")
+				}
+				sb.WriteString(")")
+				if prop.Description != "" {
+					sb.WriteString(": ")
+					sb.WriteString(prop.Description)
+				}
+				sb.WriteString("\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// schemaTypeString returns a human-readable type name for a genai.Schema.
+func schemaTypeString(s *genai.Schema) string {
+	switch s.Type {
+	case genai.TypeString:
+		return "string"
+	case genai.TypeNumber:
+		return "number"
+	case genai.TypeInteger:
+		return "integer"
+	case genai.TypeBoolean:
+		return "boolean"
+	case genai.TypeArray:
+		return "array"
+	case genai.TypeObject:
+		return "object"
+	default:
+		return "string"
+	}
+}
+
+// toolCallRe matches <tool_call>{...}</tool_call> blocks in LLM text output.
+var toolCallRe = regexp.MustCompile(`(?s)<tool_call>\s*(\{.*?\})\s*</tool_call>`)
+
+// rawToolCall is used for JSON unmarshaling of tool call blocks.
+type rawToolCall struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+// parseToolCalls extracts <tool_call> blocks from text, returning parsed FunctionCalls
+// and the remaining text with successfully parsed blocks removed.
+func parseToolCalls(text string) ([]*genai.FunctionCall, string) {
+	matches := toolCallRe.FindAllStringSubmatchIndex(text, -1)
+	if len(matches) == 0 {
+		return nil, text
+	}
+
+	var calls []*genai.FunctionCall
+	// Track which match ranges to remove (only successfully parsed ones).
+	var removeRanges [][2]int
+
+	for _, match := range matches {
+		jsonStr := text[match[2]:match[3]]
+		var raw rawToolCall
+		if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
+			continue // Skip broken JSON, leave in text
+		}
+		if raw.Name == "" {
+			continue
+		}
+		calls = append(calls, &genai.FunctionCall{
+			ID:   fmt.Sprintf("cc_tool_%d", len(calls)),
+			Name: raw.Name,
+			Args: raw.Arguments,
+		})
+		removeRanges = append(removeRanges, [2]int{match[0], match[1]})
+	}
+
+	// Build remaining text by removing parsed tool call blocks.
+	remaining := removeRangesFromText(text, removeRanges)
+	remaining = strings.TrimSpace(remaining)
+
+	return calls, remaining
+}
+
+// removeRangesFromText returns text with the specified byte ranges removed.
+func removeRangesFromText(text string, ranges [][2]int) string {
+	if len(ranges) == 0 {
+		return text
+	}
+	var sb strings.Builder
+	prev := 0
+	for _, r := range ranges {
+		sb.WriteString(text[prev:r[0]])
+		prev = r[1]
+	}
+	sb.WriteString(text[prev:])
+	return sb.String()
+}
+
+// buildUserMessage converts ADK content parts into a text conversation for the CLI.
+// Handles Text, FunctionCall, and FunctionResponse parts.
+func buildUserMessage(contents []*genai.Content) string {
+	var sb strings.Builder
+	for _, content := range contents {
+		for _, part := range content.Parts {
+			switch {
+			case part.Text != "":
+				switch content.Role {
+				case "user":
+					sb.WriteString(part.Text)
+					sb.WriteString("\n")
+				case "model":
+					sb.WriteString("[Assistant]: ")
+					sb.WriteString(part.Text)
+					sb.WriteString("\n\n[User]: ")
+				}
+			case part.FunctionCall != nil:
+				fc := part.FunctionCall
+				argsJSON, _ := json.Marshal(fc.Args)
+				sb.WriteString("[Assistant called tool: ")
+				sb.WriteString(fc.Name)
+				sb.WriteString("]\nArguments: ")
+				sb.Write(argsJSON)
+				sb.WriteString("\n\n")
+			case part.FunctionResponse != nil:
+				fr := part.FunctionResponse
+				resultJSON, _ := json.Marshal(fr.Response)
+				sb.WriteString("[Tool result: ")
+				sb.WriteString(fr.Name)
+				sb.WriteString("]\n")
+				sb.Write(resultJSON)
+				sb.WriteString("\n\n")
+			}
+		}
+	}
+	return sb.String()
+}
+
+// buildToolResponse parses CLI text output and creates an LLMResponse.
+// If <tool_call> blocks are found, they become FunctionCall Parts.
+// Any surrounding text becomes a Text Part.
+func buildToolResponse(text string) *adkmodel.LLMResponse {
+	calls, remaining := parseToolCalls(text)
+
+	var parts []*genai.Part
+
+	if len(calls) > 0 {
+		// Add remaining text as a text part (if non-empty).
+		if remaining != "" {
+			parts = append(parts, genai.NewPartFromText(remaining))
+		}
+		// Add function call parts.
+		for _, fc := range calls {
+			parts = append(parts, &genai.Part{FunctionCall: fc})
+		}
+	} else {
+		// No tool calls — plain text response.
+		parts = []*genai.Part{genai.NewPartFromText(text)}
+	}
+
+	return &adkmodel.LLMResponse{
+		Content: &genai.Content{
+			Role:  "model",
+			Parts: parts,
+		},
+		TurnComplete: true,
+		FinishReason: genai.FinishReasonStop,
+	}
 }
 
 func init() {
