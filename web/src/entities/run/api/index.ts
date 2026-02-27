@@ -1,4 +1,4 @@
-import { API_BASE, apiFetch } from '@/shared/api/client'
+import { API_BASE, apiFetch, currentToken, tryRefresh } from '@/shared/api/client'
 import type { RunRecord, RunListResponse, RunEvent, ToolCall, TokenUsage } from '../types'
 import type { WorkflowDefinition } from '@/entities/workflow/lib/serializer'
 
@@ -56,16 +56,11 @@ export async function startRun(
   inputs: Record<string, string>,
   workflow?: WorkflowDefinition,
 ): Promise<{ run_id: string }> {
-  const res = await fetch(`${API_BASE}/workflows/${encodeURIComponent(name)}/run`, {
+  return apiFetch<{ run_id: string }>(`${API_BASE}/workflows/${encodeURIComponent(name)}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ inputs, workflow }),
   })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(body || `Run failed: ${res.statusText}`)
-  }
-  return res.json()
 }
 
 // connectToRunEvents subscribes to a run's SSE event stream.
@@ -81,17 +76,35 @@ export async function connectToRunEvents(
   if (options?.lastSeq !== undefined) {
     headers['Last-Event-ID'] = String(options.lastSeq)
   }
+  const token = currentToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const url = `${API_BASE}/runs/${encodeURIComponent(runId)}/events`
 
   let res: Response
   try {
-    res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/events`, {
-      headers,
-      signal: options?.signal,
-    })
+    res = await fetch(url, { headers, signal: options?.signal })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') return
     onError(err instanceof Error ? err : new Error(String(err)))
     return
+  }
+
+  // Token expired — try refresh and retry once.
+  if (res.status === 401) {
+    const newToken = await tryRefresh()
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`
+      try {
+        res = await fetch(url, { headers, signal: options?.signal })
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        onError(err instanceof Error ? err : new Error(String(err)))
+        return
+      }
+    }
   }
 
   if (!res.ok) {

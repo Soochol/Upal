@@ -8,6 +8,10 @@ export function setTokenGetter(fn: () => string | null) {
   getToken = fn
 }
 
+export function currentToken(): string | null {
+  return getToken()
+}
+
 export function setTokenRefreshCallback(fn: (token: string) => void) {
   onTokenRefreshed = fn
 }
