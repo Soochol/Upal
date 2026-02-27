@@ -12,7 +12,7 @@ import (
 	"github.com/soochol/upal/internal/upal"
 )
 
-const refreshTokenMaxAge = 7 * 24 * 60 * 60 // 7 days
+const refreshTokenMaxAge = 30 * 24 * 60 * 60 // 30 days
 
 func setRefreshTokenCookie(w http.ResponseWriter, value string) {
 	maxAge := refreshTokenMaxAge
@@ -109,7 +109,7 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := s.authSvc.GenerateTokens(user)
+	accessToken, refreshToken, err := s.authSvc.GenerateTokens(r.Context(), user, r.UserAgent())
 	if err != nil {
 		slog.Error("token generation failed", "user", user.ID, "err", err)
 		http.Error(w, "token generation failed", http.StatusInternalServerError)
@@ -131,25 +131,14 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie("refresh_token")
 	if err != nil || cookie.Value == "" {
-		http.Error(w, "missing refresh token", http.StatusUnauthorized)
+		http.Error(w, `{"error":"missing refresh token"}`, http.StatusUnauthorized)
 		return
 	}
 
-	userID, err := s.authSvc.ValidateRefreshToken(cookie.Value)
+	accessToken, refreshToken, err := s.authSvc.RotateRefreshToken(r.Context(), cookie.Value, r.UserAgent())
 	if err != nil {
-		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
-		return
-	}
-
-	user, err := s.authSvc.GetUser(r.Context(), userID)
-	if err != nil {
-		http.Error(w, "user not found", http.StatusUnauthorized)
-		return
-	}
-
-	accessToken, refreshToken, err := s.authSvc.GenerateTokens(user)
-	if err != nil {
-		http.Error(w, "token generation failed", http.StatusInternalServerError)
+		slog.Warn("refresh token rotation failed", "err", err)
+		http.Error(w, `{"error":"invalid refresh token"}`, http.StatusUnauthorized)
 		return
 	}
 
@@ -157,7 +146,10 @@ func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"token": accessToken})
 }
 
-func (s *Server) authLogout(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie("refresh_token"); err == nil && cookie.Value != "" {
+		_ = s.authSvc.RevokeUserRefreshToken(cookie.Value)
+	}
 	setRefreshTokenCookie(w, "")
 	w.WriteHeader(http.StatusNoContent)
 }

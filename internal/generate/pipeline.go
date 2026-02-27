@@ -258,7 +258,7 @@ func (g *Generator) generatePipelineCreate(ctx context.Context, description stri
 	if g.skills != nil {
 		basePrompt = g.skills.GetPrompt("pipeline-create")
 	}
-	sysPrompt := g.buildPipelineSysPrompt(basePrompt, availableWorkflows, existingPipelines)
+	sysPrompt := g.buildPipelineSysPrompt(ctx, basePrompt, availableWorkflows, existingPipelines)
 
 	ctx = upalmodel.WithEffort(ctx, "high")
 
@@ -347,7 +347,7 @@ func (g *Generator) generatePipelineCreate(ctx context.Context, description stri
 // generatePipelineEdit asks the LLM for a delta and applies it to the existing pipeline.
 // Only stages explicitly mentioned in the delta are changed; all others are preserved verbatim.
 func (g *Generator) generatePipelineEdit(ctx context.Context, description string, existing *upal.Pipeline, availableWorkflows []WorkflowSummary, existingPipelines []PipelineSummary) (*PipelineBundle, error) {
-	sysPrompt := g.buildPipelineSysPrompt(g.skills.GetPrompt("pipeline-edit"), availableWorkflows, existingPipelines)
+	sysPrompt := g.buildPipelineSysPrompt(ctx, g.skills.GetPrompt("pipeline-edit"), availableWorkflows, existingPipelines)
 
 	pipelineJSON, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
@@ -453,7 +453,7 @@ func (g *Generator) generatePipelineEdit(ctx context.Context, description string
 
 // buildPipelineSysPrompt constructs the system prompt from a base prompt,
 // injecting available workflows, models, tools, and skill guides.
-func (g *Generator) buildPipelineSysPrompt(base string, availableWorkflows []WorkflowSummary, existingPipelines []PipelineSummary) string {
+func (g *Generator) buildPipelineSysPrompt(ctx context.Context, base string, availableWorkflows []WorkflowSummary, existingPipelines []PipelineSummary) string {
 	sysPrompt := base
 
 	if len(availableWorkflows) > 0 {
@@ -466,10 +466,11 @@ func (g *Generator) buildPipelineSysPrompt(base string, availableWorkflows []Wor
 	}
 
 	// Inject available models — used when writing workflow_specs descriptions.
-	// Note: pipeline prompt uses static models since buildPipelineSysPrompt
-	// doesn't have a context. Dynamic resolution happens in the caller.
-	if len(g.models) > 0 {
-		sysPrompt += buildModelPrompt(g.models, g.defaultModelID)
+	models := g.currentModels(ctx)
+	_, modelName, _ := g.currentDefault(ctx)
+	defaultModelID := resolveDefaultModelID(models, modelName)
+	if len(models) > 0 {
+		sysPrompt += buildModelPrompt(models, defaultModelID)
 	}
 
 	// Inject available tools — used when writing workflow_specs descriptions.

@@ -616,9 +616,8 @@ func TestBuildPipelineSysPromptInjectsModelsAndTools(t *testing.T) {
 		toolInfos: []upal.ToolSummary{
 			{Name: "web_search", Description: "Search the web"},
 		},
-		defaultModelID: "anthropic/claude-sonnet-4-6",
 	}
-	prompt := g.buildPipelineSysPrompt("BASE", nil, nil)
+	prompt := g.buildPipelineSysPrompt(context.Background(), "BASE", nil, nil)
 
 	if !strings.Contains(prompt, "claude-sonnet-4-6") {
 		t.Error("expected model ID in pipeline system prompt")

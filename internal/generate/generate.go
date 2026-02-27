@@ -34,30 +34,24 @@ type Generator struct {
 	skills         skills.Provider
 	toolInfos      []upal.ToolSummary  // available tools with names and descriptions
 	models         []upal.ModelSummary // available models with category/tier metadata
-	defaultModelID string              // provider-prefixed form of model (e.g. "anthropic/claude-sonnet-4-6")
 	llmResolver    ports.LLMResolver   // resolves "provider/model" → LLM instance (optional)
 	defaultLLMFunc DefaultLLMFunc      // dynamic default resolver (optional)
 	modelsFunc     ModelsFunc          // dynamic models resolver (optional)
 }
 
 // New creates a Generator that uses the given LLM and model name.
-// toolNames lists the names of tools registered in the tool registry;
-// these are injected into the generation prompt so the LLM only references real tools.
-// models lists the available models with category/tier/hint metadata;
-// these are injected so the LLM selects the right model for each node's purpose.
+// toolInfos lists tools registered in the tool registry (injected into the generation
+// prompt so the LLM only references real tools). models lists available models with
+// category/tier/hint metadata (injected so the LLM selects the right model for each
+// node's purpose). Both serve as static fallbacks when dynamic resolvers are not set.
 func New(llm adkmodel.LLM, model string, skillsProv skills.Provider, toolInfos []upal.ToolSummary, models []upal.ModelSummary) *Generator {
-	// Resolve the full provider-prefixed model ID once at construction time.
-	defaultModelID := ""
-	for _, m := range models {
-		if _, after, ok := strings.Cut(m.ID, "/"); ok && after == model {
-			defaultModelID = m.ID
-			break
-		}
+	return &Generator{
+		llm:       llm,
+		model:     model,
+		skills:    skillsProv,
+		toolInfos: toolInfos,
+		models:    models,
 	}
-	if defaultModelID == "" && len(models) > 0 {
-		defaultModelID = models[0].ID
-	}
-	return &Generator{llm: llm, model: model, skills: skillsProv, toolInfos: toolInfos, models: models, defaultModelID: defaultModelID}
 }
 
 // SetLLMResolver sets the resolver used for per-request model overrides.
