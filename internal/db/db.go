@@ -67,8 +67,10 @@ CREATE TABLE IF NOT EXISTS workflows (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Ensure user_id exists before creating composite index
+ALTER TABLE workflows ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
 -- Drop old single-column unique constraint and replace with per-user unique
-DROP INDEX IF EXISTS workflows_name_key;
+ALTER TABLE workflows DROP CONSTRAINT IF EXISTS workflows_name_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workflows_user_name ON workflows(user_id, name);
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -291,6 +293,8 @@ CREATE TABLE IF NOT EXISTS ai_providers (
     api_key    TEXT NOT NULL DEFAULT '',
     is_default BOOLEAN NOT NULL DEFAULT FALSE
 );
+-- Ensure user_id exists before creating composite indexes
+ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT 'default';
 -- Drop old single-column unique indexes and replace with per-user unique
 DROP INDEX IF EXISTS idx_ai_provider_name;
 DROP INDEX IF EXISTS ai_providers_name_key;

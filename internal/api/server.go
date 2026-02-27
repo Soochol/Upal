@@ -47,6 +47,7 @@ type Server struct {
 	generationManager    *services.GenerationManager
 	aiProviderSvc        *services.AIProviderService
 	authSvc              *services.AuthService
+	frontendURL          string
 	sessionSvc           *services.SessionService
 	runSvc               *services.RunService
 	corsOrigins          []string
@@ -267,6 +268,7 @@ func (s *Server) SetContentCollector(c *services.ContentCollector) { s.collector
 func (s *Server) SetGenerationManager(gm *services.GenerationManager) { s.generationManager = gm }
 func (s *Server) SetAIProviderService(svc *services.AIProviderService) { s.aiProviderSvc = svc }
 func (s *Server) SetAuthService(svc *services.AuthService)             { s.authSvc = svc }
+func (s *Server) SetFrontendURL(url string)                            { s.frontendURL = url }
 func (s *Server) SetSessionService(svc *services.SessionService)       { s.sessionSvc = svc }
 func (s *Server) SetRunService(svc *services.RunService)               { s.runSvc = svc }
 

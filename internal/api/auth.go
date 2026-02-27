@@ -117,7 +117,11 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setRefreshTokenCookie(w, refreshToken)
-	http.Redirect(w, r, "/?token="+accessToken, http.StatusTemporaryRedirect)
+	redirectURL := "/?token=" + accessToken
+	if s.frontendURL != "" {
+		redirectURL = s.frontendURL + "/?token=" + accessToken
+	}
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 func (s *Server) authRefresh(w http.ResponseWriter, r *http.Request) {

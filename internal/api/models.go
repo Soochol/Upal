@@ -42,7 +42,7 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models)
+	json.NewEncoder(w).Encode(orEmpty(models))
 }
 
 // defaultProviderNames returns a set of provider names that are marked as default in DB.

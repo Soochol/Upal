@@ -14,7 +14,7 @@ func AuthMiddleware(authSvc *services.AuthService) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path
-			if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/auth/") {
+			if !strings.HasPrefix(path, "/api/") || (strings.HasPrefix(path, "/api/auth/") && path != "/api/auth/me") {
 				next.ServeHTTP(w, r)
 				return
 			}

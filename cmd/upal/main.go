@@ -138,7 +138,11 @@ func serve() {
 	// Create auth service (requires database for user storage).
 	var authSvc *services.AuthService
 	if database != nil {
-		baseURL := fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port)
+		host := cfg.Server.Host
+		if host == "" || host == "0.0.0.0" {
+			host = "localhost"
+		}
+		baseURL := fmt.Sprintf("http://%s:%d", host, cfg.Server.Port)
 		authSvc = services.NewAuthService(database, cfg.Auth, baseURL)
 	}
 
@@ -213,6 +217,9 @@ func serve() {
 	srv.SetTriggerRepository(triggerRepo)
 	if authSvc != nil {
 		srv.SetAuthService(authSvc)
+	}
+	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
+		srv.SetFrontendURL(frontendURL)
 	}
 
 	// Connection management (persistent if DB is available).

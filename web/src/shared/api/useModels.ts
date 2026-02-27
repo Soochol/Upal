@@ -12,8 +12,8 @@ export function useModels() {
     if (cachedModels) return
     listModels()
       .then((m) => {
-        cachedModels = m
-        setModels(m)
+        cachedModels = m ?? []
+        setModels(m ?? [])
       })
       .catch(() => setModels([]))
   }, [])

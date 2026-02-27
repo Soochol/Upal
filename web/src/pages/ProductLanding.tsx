@@ -61,25 +61,13 @@ export default function ProductLanding() {
             <span className="text-lg font-bold landing-display tracking-tight">Upal</span>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/workflows"
-              className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
-            >
-              Workflows
-            </Link>
-            <Link
-              to="/sessions"
-              className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
-            >
-              Sessions
-            </Link>
-            <Link
-              to="/connections"
-              className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-card/60 transition-all landing-body"
-            >
-              Connections
-            </Link>
             <ThemeToggle />
+            <Link
+              to="/login"
+              className="px-4 py-2 rounded-xl text-sm font-medium landing-body bg-foreground text-background hover:bg-foreground/90 transition-all"
+            >
+              Login
+            </Link>
           </div>
         </div>
       </nav>
@@ -173,9 +161,15 @@ export default function ProductLanding() {
           <h2 className="landing-display text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">
             Start building in seconds.
           </h2>
-          <p className="landing-body text-sm opacity-60 mb-0 max-w-sm mx-auto">
-            No sign-up required. Open the editor and create your first workflow immediately.
+          <p className="landing-body text-sm opacity-60 mb-8 max-w-sm mx-auto">
+            Sign in and create your first AI workflow immediately.
           </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium landing-body transition-all bg-background text-foreground hover:bg-background/90"
+          >
+            Get Started
+          </Link>
         </div>
       </section>
 

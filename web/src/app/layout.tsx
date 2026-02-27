@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X, LogOut } from 'lucide-react'
-import { useLocation, NavLink } from 'react-router-dom'
+import { Zap, Box, Activity, Settings, Workflow, Globe, Menu, Inbox, X, LogOut, User } from 'lucide-react'
+import { useLocation, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/entities/auth'
 import { cn } from '@/shared/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
 import { Separator } from '@/shared/ui/separator'
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/shared/ui/dropdown-menu'
 
 type MainLayoutProps = {
   children: ReactNode
@@ -60,6 +64,7 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
   const [gnbVisible, setGnbVisible] = useState(true)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const authLogout = useAuthStore((s) => s.logout)
   const badgeMap: Record<string, number> = {}
@@ -230,6 +235,38 @@ export function MainLayout({ children, headerContent, bottomConsole }: MainLayou
             <Separator orientation="vertical" className="h-4" />
             {headerContent || <span className="text-muted-foreground">Upal Workspace</span>}
           </div>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-full p-0.5 hover:ring-2 hover:ring-primary/20 transition-all">
+                  <img src={user.avatar_url} alt="" className="size-8 rounded-full" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium leading-none">{user.name}</p>
+                    <p className="text-xs text-muted-foreground leading-none">{user.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="size-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="size-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <a href="/login" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <User className="size-4" />
+              Login
+            </a>
+          )}
         </header>
 
         <div className="flex flex-1 overflow-hidden relative">

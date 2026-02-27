@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/entities/auth'
 import { LoginPage } from '@/pages/login'
+import ProductLanding from '@/pages/ProductLanding'
 import WorkflowsPage from '@/pages/workflows'
 import RunsPage from '@/pages/runs'
 import ConnectionsPage from '@/pages/connections'
@@ -32,6 +33,21 @@ function AuthGuard({ children }: { children: ReactNode }) {
   return children
 }
 
+function HomeRoute() {
+  const { user, loading, initialized } = useAuthStore()
+
+  if (!initialized || loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (user) return <Navigate to="/sessions" replace />
+  return <ProductLanding />
+}
+
 export function AppRouter() {
   return (
     <ErrorBoundary>
@@ -41,7 +57,7 @@ export function AppRouter() {
           <Route path="/login" element={<LoginPage />} />
 
           {/* All other routes — protected */}
-          <Route path="/" element={<AuthGuard><Navigate to="/sessions" replace /></AuthGuard>} />
+          <Route path="/" element={<HomeRoute />} />
           <Route path="/workflows" element={<AuthGuard><WorkflowsPage /></AuthGuard>} />
           <Route path="/runs" element={<AuthGuard><RunsPage /></AuthGuard>} />
           <Route path="/runs/:id" element={<AuthGuard><RunViewer /></AuthGuard>} />
