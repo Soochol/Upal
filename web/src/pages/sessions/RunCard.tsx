@@ -1,4 +1,4 @@
-import { Play, Square, Settings, FileText } from 'lucide-react'
+import { Play, Square, FileText } from 'lucide-react'
 import { cn } from '@/shared/lib/utils'
 import { RUN_STATUS_DOT, runDisplayName } from '@/entities/session-run/constants'
 import { StatusBadge } from '@/shared/ui/StatusBadge'
@@ -11,10 +11,9 @@ interface RunCardProps {
   run: Run
   isSelected?: boolean
   onSelect: (run: Run) => void
-  onOpenConfig: (run: Run) => void
 }
 
-export function RunCard({ run, isSelected, onSelect, onOpenConfig }: RunCardProps) {
+export function RunCard({ run, isSelected, onSelect }: RunCardProps) {
   const qc = useQueryClient()
 
   const toggleMutation = useMutation({
@@ -71,13 +70,6 @@ export function RunCard({ run, isSelected, onSelect, onOpenConfig }: RunCardProp
             {run.schedule_active ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
           </button>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); onOpenConfig(run) }}
-          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-          title="Edit config"
-        >
-          <Settings className="h-3.5 w-3.5" />
-        </button>
       </div>
     </div>
   )

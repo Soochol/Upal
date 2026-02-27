@@ -21,11 +21,9 @@ export function RunHistoryPanel({ sessionId, selectedRunId, onSelectRun }: RunHi
   })
 
   const [showConfigPopup, setShowConfigPopup] = useState(false)
-  const [editingRun, setEditingRun] = useState<Run | undefined>()
 
-  const openCreate = () => { setEditingRun(undefined); setShowConfigPopup(true) }
-  const openEdit = (run: Run) => { setEditingRun(run); setShowConfigPopup(true) }
-  const closePopup = () => { setShowConfigPopup(false); setEditingRun(undefined) }
+  const openCreate = () => setShowConfigPopup(true)
+  const closePopup = () => setShowConfigPopup(false)
 
   if (isLoading) {
     return (
@@ -53,7 +51,7 @@ export function RunHistoryPanel({ sessionId, selectedRunId, onSelectRun }: RunHi
           </button>
         </div>
         {showConfigPopup && (
-          <RunConfigPopup sessionId={sessionId} run={editingRun} onSave={closePopup} onClose={closePopup} />
+          <RunConfigPopup sessionId={sessionId} onSave={closePopup} onClose={closePopup} />
         )}
       </>
     )
@@ -77,13 +75,12 @@ export function RunHistoryPanel({ sessionId, selectedRunId, onSelectRun }: RunHi
               run={run}
               isSelected={run.id === selectedRunId}
               onSelect={(r) => onSelectRun?.(r)}
-              onOpenConfig={openEdit}
             />
           ))}
         </div>
       </div>
       {showConfigPopup && (
-        <RunConfigPopup sessionId={sessionId} run={editingRun} onSave={closePopup} onClose={closePopup} />
+        <RunConfigPopup sessionId={sessionId} onSave={closePopup} onClose={closePopup} />
       )}
     </>
   )
