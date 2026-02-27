@@ -815,9 +815,23 @@ func buildProductionInputs(detail *upal.ContentSessionDetail, wf *upal.WorkflowD
 	brief := sb.String()
 
 	inputs := make(map[string]any)
+
+	// Primary: populate run_input nodes with the brief.
+	runInputs := make(map[string]any)
 	for _, node := range wf.Nodes {
-		if node.Type == "input" {
-			inputs[node.ID] = brief
+		if node.Type == upal.NodeTypeRunInput {
+			runInputs[node.ID] = brief
+		}
+	}
+
+	if len(runInputs) > 0 {
+		inputs["__run_inputs__"] = runInputs
+	} else {
+		// Fallback: populate user input nodes (backward compat).
+		for _, node := range wf.Nodes {
+			if node.Type == upal.NodeTypeInput {
+				inputs[node.ID] = brief
+			}
 		}
 	}
 

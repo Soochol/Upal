@@ -435,9 +435,10 @@ func fixInvalidModels(wf *upal.WorkflowDefinition, models []upal.ModelSummary, d
 // removed nodes.
 func stripInvalidNodeTypes(wf *upal.WorkflowDefinition) {
 	generatable := map[upal.NodeType]bool{
-		upal.NodeTypeInput:  true,
-		upal.NodeTypeAgent:  true,
-		upal.NodeTypeOutput: true,
+		upal.NodeTypeInput:    true,
+		upal.NodeTypeRunInput: true,
+		upal.NodeTypeAgent:    true,
+		upal.NodeTypeOutput:   true,
 	}
 
 	removed := map[string]bool{}
@@ -485,7 +486,7 @@ func validate(wf *upal.WorkflowDefinition) error {
 		nodeIDs[n.ID] = true
 
 		switch n.Type {
-		case upal.NodeTypeInput:
+		case upal.NodeTypeInput, upal.NodeTypeRunInput:
 			hasInput = true
 		case upal.NodeTypeOutput:
 			hasOutput = true

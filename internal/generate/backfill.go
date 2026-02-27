@@ -202,6 +202,8 @@ func defaultNodeDescription(node *upal.NodeDefinition) string {
 	switch node.Type {
 	case upal.NodeTypeInput:
 		return label + " 입력을 수집합니다."
+	case upal.NodeTypeRunInput:
+		return label + " 파이프라인 실행 데이터를 수신합니다."
 	case upal.NodeTypeOutput:
 		return label + " 결과를 표시합니다."
 	default:
