@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/soochol/upal/internal/chat"
 	"github.com/soochol/upal/internal/config"
 	"github.com/soochol/upal/internal/generate"
 	"github.com/soochol/upal/internal/repository"
@@ -53,6 +54,7 @@ type Server struct {
 	corsOrigins          []string
 	thumbnailTimeout     time.Duration
 	uploadMaxSize        int64
+	chatHandler          *chat.Handler
 }
 
 func (s *Server) SetProviderConfigs(configs map[string]config.ProviderConfig) {
@@ -163,6 +165,9 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/generate-pipeline", s.generatePipeline)
 		r.Post("/generate/backfill", s.backfillDescriptions)
 		r.Post("/nodes/configure", s.configureNode)
+		if s.chatHandler != nil {
+			r.Post("/chat", s.chatHandler.ServeHTTP)
+		}
 		r.Post("/upload", s.uploadFile)
 		r.Get("/files", s.listFiles)
 		r.Get("/files/{id}/serve", s.serveFile)
@@ -273,6 +278,8 @@ func (s *Server) SetAuthService(svc *services.AuthService)             { s.authS
 func (s *Server) SetFrontendURL(url string)                            { s.frontendURL = url }
 func (s *Server) SetSessionService(svc *services.SessionService)       { s.sessionSvc = svc }
 func (s *Server) SetRunService(svc *services.RunService)               { s.runSvc = svc }
+
+func (s *Server) SetChatHandler(h *chat.Handler) { s.chatHandler = h }
 
 func (s *Server) SetServerConfig(cfg config.ServerConfig, genCfg config.GeneratorConfig) {
 	s.thumbnailTimeout = genCfg.ThumbnailTimeout
